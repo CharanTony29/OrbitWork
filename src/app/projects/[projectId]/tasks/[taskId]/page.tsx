@@ -1,0 +1,364 @@
+import { notFound, redirect } from "next/navigation";
+import CurrentUserBadge from "@/app/CurrentUserBadge";
+import Link from "next/link";
+import { ArrowLeft, CheckSquare, GitBranch, MessageSquareText, Save } from "lucide-react";
+import { addManualTimeEntry, createChecklistItem, createTaskChecklist, createTaskComment, createTaskDependency, createTaskSubtask, removeTaskDependency, signOut, startTaskTimer, stopTaskTimer, toggleChecklistItem, updateTask } from "@/app/actions";
+import { createClient } from "@/lib/supabase/server";
+import AssigneeDropdowns from "../../AssigneeDropdowns";
+import { saveTaskCustomField } from "@/app/actions";
+import { formatEstimate, formatEstimateDetailed, formatMinutes, formatRemaining } from "@/lib/work";
+import TaskDetailCanvas from "./TaskDetailCanvas";
+import TaskAttachmentsSection from "./TaskAttachmentsSection";
+
+const attachmentMessages: Record<string, string> = { uploaded: "File uploaded to the organization’s Google Drive.", too_large: "Files must be between 1 byte and 15 MB.", save_failed: "The Drive upload succeeded, but the app could not save its file reference." };
+const driveErrorMessages: Record<string, string> = {
+  not_connected: "Google Drive is not connected for this organization. Ask an owner or admin to connect it.",
+  configuration: "Google Drive setup is incomplete. Ask an administrator to check the app’s Drive configuration.",
+  reconnect: "The Google Drive connection has expired. Ask an owner or admin to reconnect it.",
+  permissions: "Google Drive denied this upload. Check the connected account’s access to the Orbitwork folder and available storage.",
+  api_disabled: "The Google Drive API is disabled for the connected Google Cloud project. Ask an administrator to enable it.",
+  quota: "Google Drive storage or request quota was exceeded. Check the connected account’s storage and try again later.",
+  request_failed: "The Google Drive request failed. Ask an administrator to check the server logs for the Drive error.",
+};
+
+export default async function TaskDetailPage({ params, searchParams }: {
+  params: Promise<{ projectId: string; taskId: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; attachment?: string; driveError?: string; tab?: string }>;
+}) {
+  const { projectId, taskId } = await params;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+  const { data: project } = await supabase.from("projects").select("id, name, workspace_id, workspaces(name, organization_id)").eq("id", projectId).maybeSingle();
+  if (!project) notFound();
+  const { data: task } = await supabase.from("tasks").select("id, project_id, generated_key, title, description, status_id, priority, start_date, due_date, estimate_minutes, progress, created_by, primary_assignee_id, secondary_assignee_id, created_at, updated_at").eq("id", taskId).eq("project_id", projectId).maybeSingle();
+  if (!task) notFound();
+  const { data: statuses } = await supabase.from("project_statuses").select("id, name, color, category").eq("project_id", projectId).order("position");
+  const { data: comments } = await supabase.from("task_comments").select("id, author_id, body, created_at").eq("task_id", taskId).order("created_at");
+  const { data: customFields } = await supabase.from("custom_field_definitions").select("id, name, field_type, options, required, position").eq("project_id", projectId).order("position");
+  const { data: customFieldValues } = await supabase.from("task_custom_field_values").select("field_id, value").eq("project_id", projectId).eq("task_id", taskId);
+  const { data: subtasks } = await supabase.from("tasks").select("id, generated_key, title, status_id, due_date").eq("project_id", projectId).eq("parent_task_id", taskId).order("created_at");
+  const { data: projectTasks } = await supabase.from("tasks").select("id, generated_key, title").eq("project_id", projectId).order("created_at", { ascending: false });
+  const { data: dependencies } = await supabase.from("task_dependencies").select("linked_task_id, relation").eq("project_id", projectId).eq("task_id", taskId);
+  const linkedIds = [...new Set((dependencies ?? []).map((dependency) => dependency.linked_task_id))];
+  const { data: linkedTasks } = linkedIds.length ? await supabase.from("tasks").select("id, generated_key, title").in("id", linkedIds) : { data: [] };
+  const linkedTaskMap = new Map((linkedTasks ?? []).map((linked) => [linked.id, linked]));
+  const { data: checklists } = await supabase.from("task_checklists").select("id, title").eq("project_id", projectId).eq("task_id", taskId).order("position");
+  const checklistIds = (checklists ?? []).map((checklist) => checklist.id);
+  const { data: checklistItems } = checklistIds.length ? await supabase.from("checklist_items").select("id, checklist_id, title, is_complete, position").in("checklist_id", checklistIds).order("position") : { data: [] };
+  const { data: timeEntries } = await supabase.from("time_entries").select("id, user_id, started_at, ended_at, duration_minutes, description, billable").eq("project_id", projectId).eq("task_id", taskId).order("started_at", { ascending: false }).limit(100);
+  const { data: attachments } = await supabase.from("task_attachments").select("id, file_name, mime_type, file_size_bytes, storage_provider, external_file_id, external_url, uploaded_by, created_at").eq("project_id", projectId).eq("task_id", taskId).order("created_at", { ascending: false });
+  const { data: activityEvents } = await supabase.from("project_activity_events").select("id, actor_id, event_type, details, created_at").eq("project_id", projectId).eq("task_id", taskId).order("created_at", { ascending: false }).limit(100);
+  const { data: runningTimer } = await supabase.from("time_entries").select("id, started_at").eq("user_id", user.id).eq("task_id", taskId).is("ended_at", null).maybeSingle();
+
+  // Find canvas attachments (whiteboard / flowchart)
+  const canvasAtts = (attachments ?? []).filter((a) => a.mime_type.includes("whiteboard") || a.mime_type.includes("flowchart") || a.file_name.toLowerCase().includes("whiteboard") || a.file_name.toLowerCase().includes("flowchart"));
+  const canvasDocIds = canvasAtts.map((a) => a.external_file_id).filter(Boolean);
+  const { data: canvasDocs } = canvasDocIds.length ? await supabase.from("project_documents").select("id, title, body_markdown").in("id", canvasDocIds) : { data: [] };
+  const canvasDocMap = new Map((canvasDocs ?? []).map((d) => [d.id, d]));
+
+  const wbAtt = canvasAtts.find((a) => a.mime_type.includes("whiteboard") || a.file_name.toLowerCase().includes("whiteboard"));
+  const wbDoc = wbAtt ? canvasDocMap.get(wbAtt.external_file_id) : undefined;
+  let wbData = "";
+  if (wbDoc?.body_markdown) {
+    try { wbData = JSON.parse(wbDoc.body_markdown).content ?? ""; } catch { wbData = wbDoc.body_markdown; }
+  }
+
+  const fcAtt = canvasAtts.find((a) => a.mime_type.includes("flowchart") || a.file_name.toLowerCase().includes("flowchart"));
+  const fcDoc = fcAtt ? canvasDocMap.get(fcAtt.external_file_id) : undefined;
+  let fcData = "";
+  if (fcDoc?.body_markdown) {
+    try { fcData = JSON.parse(fcDoc.body_markdown).content ?? ""; } catch { fcData = fcDoc.body_markdown; }
+  }
+  const itemsByChecklist = new Map<string, NonNullable<typeof checklistItems>>();
+  for (const item of checklistItems ?? []) itemsByChecklist.set(item.checklist_id, [...(itemsByChecklist.get(item.checklist_id) ?? []), item]);
+  const workspace = Array.isArray(project.workspaces) ? project.workspaces[0] : project.workspaces;
+  const orgId = workspace?.organization_id;
+  const { data: orgMembers } = orgId ? await supabase.from("organization_members").select("user_id").eq("organization_id", orgId).eq("status", "active") : { data: [] };
+  const peopleIds = [...new Set([...(comments ?? []).map((comment) => comment.author_id), ...(timeEntries ?? []).map((entry) => entry.user_id), ...(attachments ?? []).map((item) => item.uploaded_by), ...(activityEvents ?? []).map((event) => event.actor_id).filter((id): id is string => Boolean(id)), ...(orgMembers ?? []).map((member) => member.user_id), task.created_by, ...[task.primary_assignee_id, task.secondary_assignee_id].filter((id): id is string => Boolean(id))])];
+  const { data: authors } = peopleIds.length ? await supabase.from("profiles").select("id, display_name, email, avatar_url").in("id", peopleIds) : { data: [] };
+  const profileById = new Map((authors ?? []).map((profile) => [profile.id, profile]));
+  const profileLabel = (id: string) => { const profile = profileById.get(id); return profile?.display_name?.trim() || profile?.email || "Team member"; };
+  const members = (orgMembers ?? []).map((member) => ({ id: member.user_id, label: profileLabel(member.user_id) }));
+  const customValueMap = new Map((customFieldValues ?? []).map((item) => [item.field_id, item.value]));
+  const billableMinutes = (timeEntries ?? [])
+    .filter((e) => e.billable && e.duration_minutes)
+    .reduce((acc, e) => acc + (e.duration_minutes || 0), 0);
+  const remainingInfo = formatRemaining(task.estimate_minutes, billableMinutes);
+  const { error, saved, attachment, driveError, tab: queryTab } = await searchParams;
+  const tab = ["details", "whiteboard", "flowchart"].includes(queryTab ?? "") ? queryTab! : "details";
+
+  return <main className="app-shell">
+    <header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/><form action={signOut}><button className="quiet-button">Sign out</button></form></div></header>
+    <div className="task-detail-page">
+      <div className="task-detail-nav"><Link className="back-link" href={`/projects/${projectId}`}><ArrowLeft size={15}/>{project.name}</Link><span className="task-key">{task.generated_key}</span></div>
+      <div className="task-detail-heading"><div><p className="eyebrow">TASK DETAILS</p><h1>{task.title}</h1><p className="muted">{workspace?.name ?? "Workspace"} <span className="crumb-dot">·</span> {project.name}</p></div><div className="task-detail-progress"><span>{task.progress}%</span><div><i style={{ width: `${task.progress}%` }}/></div><small>complete</small></div></div>
+      
+      <nav className="task-detail-tabs" aria-label="Task tabs">
+        <Link className={`task-tab-link${tab === "details" ? " is-active" : ""}`} href={`/projects/${projectId}/tasks/${taskId}`}>
+          Task Details
+        </Link>
+        <Link className={`task-tab-link${tab === "whiteboard" ? " is-active" : ""}`} href={`/projects/${projectId}/tasks/${taskId}?tab=whiteboard`}>
+          🎨 Whiteboard {wbAtt && <span className="tab-attached-dot" title="Whiteboard attached" />}
+        </Link>
+        <Link className={`task-tab-link${tab === "flowchart" ? " is-active" : ""}`} href={`/projects/${projectId}/tasks/${taskId}?tab=flowchart`}>
+          🔀 Flowchart {fcAtt && <span className="tab-attached-dot" title="Flowchart attached" />}
+        </Link>
+      </nav>
+
+      {tab === "whiteboard" ? (
+        <TaskDetailCanvas
+          projectId={projectId}
+          taskId={taskId}
+          taskTitle={task.title}
+          type="whiteboard"
+          existingDocId={wbDoc?.id}
+          initialData={wbData}
+        />
+      ) : tab === "flowchart" ? (
+        <TaskDetailCanvas
+          projectId={projectId}
+          taskId={taskId}
+          taskTitle={task.title}
+          type="flowchart"
+          existingDocId={fcDoc?.id}
+          initialData={fcData}
+        />
+      ) : (
+        <>
+          {saved && <p className="notice" role="status">Task changes saved.</p>}
+          {error && <p className="error" role="alert">Could not save those changes. Check that the due date is not before the start date.</p>}
+          <form action={updateTask} className="task-detail-grid">
+            <input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/>
+            <section className="task-detail-main">
+              <label className="detail-field">Task name<input name="title" defaultValue={task.title} maxLength={240} required/></label>
+              <label className="detail-field">Description<textarea name="description" defaultValue={task.description} maxLength={10000} placeholder="Add context, notes, or acceptance criteria…"/></label>
+              <div className="detail-save-row"><span>Last updated {new Date(task.updated_at).toLocaleString()}</span><button className="button button-primary"><Save size={15}/> Save changes</button></div>
+            </section>
+            <aside className="task-properties">
+              <p className="eyebrow">PROPERTIES</p>
+              <label className="detail-field">Status<select name="statusId" defaultValue={task.status_id}>{(statuses ?? []).map((status) => <option key={status.id} value={status.id}>{status.name}</option>)}</select></label>
+              <label className="detail-field">Priority<select name="priority" defaultValue={task.priority}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></label>
+              <label className="detail-field">Start date<input name="startDate" type="date" defaultValue={task.start_date ?? ""}/></label>
+              <label className="detail-field">Due date<input name="dueDate" type="date" defaultValue={task.due_date ?? ""}/></label>
+              <label className="detail-field">Estimate (e.g. 2h, 1d, 3w, 30m)<input name="estimateMinutes" type="text" placeholder="e.g. 2h, 1d, 3w, 30m" defaultValue={task.estimate_minutes ? formatEstimate(task.estimate_minutes) : ""}/></label>
+              <div className="property-line"><span>Worked (Billable)</span><strong>{formatMinutes(billableMinutes)}</strong></div>
+              <div className="property-line"><span>Remaining / Added</span><strong className={`remaining-badge is-${remainingInfo.status}`}>{remainingInfo.label}</strong></div>
+              <div className="detail-assignees"><p className="eyebrow">ASSIGNEES</p><AssigneeDropdowns key={`${task.id}-${task.primary_assignee_id ?? ""}-${task.secondary_assignee_id ?? ""}`} projectId={projectId} taskId={taskId} members={members} initialPrimary={task.primary_assignee_id} initialSecondary={task.secondary_assignee_id}/></div>
+              <div className="property-line"><span>Created by</span><strong>{profileLabel(task.created_by)}</strong></div>
+              <div className="property-line"><span>Created</span><strong>{new Date(task.created_at).toLocaleDateString()}</strong></div>
+            </aside>
+          </form>
+          {!!customFields?.length && <section className="task-custom-fields"><div className="custom-fields-heading"><div><p className="eyebrow">CUSTOM FIELDS</p><h2>Project-specific details</h2></div></div><div className="custom-field-grid">{customFields.map((field) => {
+            const options = Array.isArray(field.options) ? field.options.map(String) : [];
+            const storedValue = customValueMap.get(field.id);
+            const value = storedValue == null ? "" : Array.isArray(storedValue) ? storedValue.join(", ") : String(storedValue);
+            if (field.field_type === "formula") return <div className="custom-field-item" key={field.id}><span>{field.name}</span><p className="muted small">Formula fields are read-only until formula configuration is available.</p></div>;
+            return <form action={saveTaskCustomField} className="custom-field-item" key={field.id}><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="fieldId" value={field.id}/><label htmlFor={`field-${field.id}`}>{field.name}{field.required && <span className="required-mark">*</span>}</label>
+              {field.field_type === "long_text" ? <textarea id={`field-${field.id}`} name="value" defaultValue={value} required={field.required} maxLength={10000}/> : field.field_type === "dropdown" ? <select id={`field-${field.id}`} name="value" defaultValue={value} required={field.required}><option value="">Choose…</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select> : field.field_type === "checkbox" ? <select id={`field-${field.id}`} name="value" defaultValue={value || "false"}><option value="false">No</option><option value="true">Yes</option></select> : field.field_type === "user" ? <select id={`field-${field.id}`} name="value" defaultValue={value}><option value="">Unassigned</option>{members.map((member) => <option key={member.id} value={member.id}>{member.label}</option>)}</select> : <input id={`field-${field.id}`} name="value" type={field.field_type === "date" ? "date" : field.field_type === "datetime" ? "datetime-local" : ["number", "currency", "rating", "progress", "duration"].includes(field.field_type) ? "number" : field.field_type === "email" ? "email" : field.field_type === "url" ? "url" : "text"} defaultValue={value} required={field.required} maxLength={field.field_type === "text" ? 2000 : undefined} step={field.field_type === "rating" || field.field_type === "progress" ? "1" : field.field_type === "currency" ? "0.01" : undefined} placeholder={field.field_type === "multi_select" ? "Comma-separated values" : ""}/>}<button className="mini-save">Save field</button></form>;
+          })}</div></section>}
+          <div className="task-relationships-grid">
+            <section className="task-subtasks">
+              <div className="relationship-heading">
+                <div>
+                  <p className="eyebrow">CHILD TASKS</p>
+                  <h2>Subtasks <span className="count-pill">{subtasks?.length ?? 0}</span></h2>
+                </div>
+              </div>
+              <div className="subtask-list">
+                {subtasks?.map((subtask) => {
+                  const statusObj = statuses?.find((status) => status.id === subtask.status_id);
+                  return (
+                    <Link className="subtask-row" href={`/projects/${projectId}/tasks/${subtask.id}`} key={subtask.id}>
+                      <span className="task-key">{subtask.generated_key}</span>
+                      <strong className="subtask-title">{subtask.title}</strong>
+                      <span
+                        className="subtask-status-pill"
+                        style={{
+                          borderColor: statusObj?.color ?? "#cbd5cd",
+                          color: statusObj?.color ?? "#526057",
+                        }}
+                      >
+                        {statusObj?.name ?? "New"}
+                      </span>
+                    </Link>
+                  );
+                })}
+                {(!subtasks || subtasks.length === 0) && (
+                  <div className="relationship-empty-state">
+                    <p>No subtasks yet</p>
+                    <small>Break down this task into smaller manageable steps.</small>
+                  </div>
+                )}
+              </div>
+              <form action={createTaskSubtask} className="relationship-form">
+                <input type="hidden" name="projectId" value={projectId}/>
+                <input type="hidden" name="parentTaskId" value={taskId}/>
+                <input name="title" placeholder="Add a subtask…" maxLength={240} required className="relationship-input"/>
+                <button className="mini-save">+ Add subtask</button>
+              </form>
+            </section>
+            <section className="task-dependencies">
+              <div className="relationship-heading">
+                <div>
+                  <p className="eyebrow">RELATED WORK</p>
+                  <h2>Dependencies <span className="count-pill">{dependencies?.length ?? 0}</span></h2>
+                </div>
+                <div className="relationship-header-icon"><GitBranch size={17}/></div>
+              </div>
+              <div className="dependency-list">
+                {dependencies?.map((dependency) => {
+                  const linked = linkedTaskMap.get(dependency.linked_task_id);
+                  return (
+                    <div className="dependency-row" key={`${dependency.linked_task_id}-${dependency.relation}`}>
+                      <span className={`dependency-badge rel-${dependency.relation}`}>
+                        {dependency.relation.replace("_", " ")}
+                      </span>
+                      {linked ? (
+                        <Link href={`/projects/${projectId}/tasks/${linked.id}`} className="dependency-task-link">
+                          <span className="dependency-task-key">{linked.generated_key}</span>
+                          <span className="dependency-task-title">{linked.title}</span>
+                        </Link>
+                      ) : (
+                        <span className="dependency-task-title muted">Unknown task</span>
+                      )}
+                      <form action={removeTaskDependency} className="dependency-remove-form">
+                        <input type="hidden" name="projectId" value={projectId}/>
+                        <input type="hidden" name="taskId" value={taskId}/>
+                        <input type="hidden" name="linkedTaskId" value={dependency.linked_task_id}/>
+                        <input type="hidden" name="relation" value={dependency.relation}/>
+                        <button className="dependency-remove-btn" aria-label="Remove dependency" title="Remove dependency">×</button>
+                      </form>
+                    </div>
+                  );
+                })}
+                {(!dependencies || dependencies.length === 0) && (
+                  <div className="relationship-empty-state">
+                    <GitBranch size={22} className="empty-state-icon" />
+                    <p>No dependencies linked yet</p>
+                    <small>Link tasks that block this task, are blocked by it, or are related.</small>
+                  </div>
+                )}
+              </div>
+              <form action={createTaskDependency} className="dependency-form">
+                <input type="hidden" name="projectId" value={projectId}/>
+                <input type="hidden" name="taskId" value={taskId}/>
+                <div className="dependency-form-fields">
+                  <select name="linkedTaskId" required defaultValue="" className="dependency-task-select">
+                    <option value="" disabled>Choose a task to link…</option>
+                    {projectTasks?.filter((item) => item.id !== taskId && !(dependencies ?? []).some((dependency) => dependency.linked_task_id === item.id)).map((item) => (
+                      <option key={item.id} value={item.id}>{item.generated_key} · {item.title}</option>
+                    ))}
+                  </select>
+                  <select name="relation" defaultValue="related" className="dependency-type-select">
+                    <option value="blocks">Blocks</option>
+                    <option value="blocked_by">Blocked by</option>
+                    <option value="related">Related</option>
+                    <option value="duplicate">Duplicate of</option>
+                  </select>
+                </div>
+                <button className="dependency-submit-btn">+ Link task</button>
+              </form>
+            </section>
+          </div>
+          <section className="task-checklists"><div className="relationship-heading"><div><p className="eyebrow">TASK CHECKLISTS</p><h2>Checklists</h2></div><CheckSquare size={17}/></div>
+            {checklists?.map((checklist) => <div className="checklist-block" key={checklist.id}><h3>{checklist.title}</h3>{itemsByChecklist.get(checklist.id)?.map((item) => <form action={toggleChecklistItem} className="checklist-item" key={item.id}><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="itemId" value={item.id}/><input type="hidden" name="complete" value={item.is_complete ? "false" : "true"}/><button aria-label={item.is_complete ? `Reopen ${item.title}` : `Complete ${item.title}`}><span className={item.is_complete ? "checkmark checked" : "checkmark"}>{item.is_complete ? "✓" : ""}</span><span className={item.is_complete ? "item-complete" : ""}>{item.title}</span></button></form>)}<form action={createChecklistItem} className="relationship-form"><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="checklistId" value={checklist.id}/><input name="title" placeholder="Add checklist item" maxLength={300} required/><button className="mini-save">Add item</button></form></div>)}
+            <form action={createTaskChecklist} className="relationship-form checklist-create-form"><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input name="title" placeholder="New checklist name" maxLength={100} required/><button className="mini-save">Create checklist</button></form>
+          </section>
+          <section className="task-time-section">
+            <div className="relationship-heading">
+              <div>
+                <p className="eyebrow">TIME TRACKING</p>
+                <h2>Time entries &amp; Budget</h2>
+              </div>
+            </div>
+
+            <div className="task-time-metrics">
+              <div className="time-metric-card">
+                <span className="metric-label">Estimated Budget</span>
+                <span className="metric-val">{formatEstimateDetailed(task.estimate_minutes)}</span>
+              </div>
+              <div className="time-metric-card">
+                <span className="metric-label">Billable Worked</span>
+                <span className="metric-val">{formatMinutes(billableMinutes)}</span>
+              </div>
+              <div className={`time-metric-card is-${remainingInfo.status}`}>
+                <span className="metric-label">Remaining / Added</span>
+                <span className="metric-val">
+                  {remainingInfo.status === "exhausting" && "⚠️ "}
+                  {remainingInfo.status === "exceeded" && "🚨 "}
+                  {remainingInfo.label}
+                </span>
+              </div>
+            </div>
+
+            {remainingInfo.status === "exhausting" && (
+              <div className="hours-alert-banner is-warning">
+                ⚠️ <strong>Hours Exhausting Alert:</strong> Less than 1 hour ({remainingInfo.label}) remains on this task. An automated email alert has been dispatched to the creator and assignees.
+              </div>
+            )}
+            {remainingInfo.status === "exceeded" && (
+              <div className="hours-alert-banner is-danger">
+                🚨 <strong>Budget Exceeded Alert:</strong> Actual billable hours worked have exceeded the estimate by {formatMinutes(Math.abs(remainingInfo.diff || 0))}. An automated email alert has been dispatched to the creator and assignees.
+              </div>
+            )}
+
+            <div className="timer-controls">
+              {runningTimer ? (
+                <form action={stopTaskTimer}>
+                  <input type="hidden" name="projectId" value={projectId} />
+                  <input type="hidden" name="taskId" value={taskId} />
+                  <input type="hidden" name="entryId" value={runningTimer.id} />
+                  <span>Timer running since {new Date(runningTimer.started_at).toLocaleTimeString()}</span>
+                  <button className="button button-primary">Stop timer</button>
+                </form>
+              ) : (
+                <form action={startTaskTimer}>
+                  <input type="hidden" name="projectId" value={projectId} />
+                  <input type="hidden" name="taskId" value={taskId} />
+                  <button className="button button-secondary">Start timer</button>
+                </form>
+              )}
+              <form action={addManualTimeEntry} className="manual-time-form">
+                <input type="hidden" name="projectId" value={projectId} />
+                <input type="hidden" name="taskId" value={taskId} />
+                <label>Minutes<input name="minutes" type="number" min="1" max="100000" required placeholder="30" /></label>
+                <label>Description<input name="description" maxLength={2000} placeholder="What did you work on?" /></label>
+                <label className="billable-option"><input name="billable" type="checkbox" value="true" defaultChecked /> Billable</label>
+                <button className="mini-save">Add time</button>
+              </form>
+            </div>
+            <div className="time-entry-list">
+              {timeEntries?.map((entry) => (
+                <div className="time-entry-row" key={entry.id}>
+                  <strong>{profileLabel(entry.user_id)}</strong>
+                  <span>{entry.duration_minutes ? `${Math.floor(entry.duration_minutes / 60)}h ${entry.duration_minutes % 60}m` : "Running"}</span>
+                  <span>{new Date(entry.started_at).toLocaleString()}</span>
+                  <span>{entry.billable ? "Billable" : "Non-billable"}</span>
+                  {entry.description && <p>{entry.description}</p>}
+                </div>
+              ))}
+              {!timeEntries?.length && <p className="muted small">No time recorded on this task yet.</p>}
+            </div>
+          </section>
+          <TaskAttachmentsSection
+            projectId={projectId}
+            taskId={taskId}
+            taskTitle={task.title}
+            attachments={(attachments ?? []).map((item) => ({
+              ...item,
+              uploader_name: profileLabel(item.uploaded_by),
+            }))}
+            attachmentStatus={attachment}
+            driveError={driveError}
+          />
+          <section className="task-activity-section"><div className="relationship-heading"><div><p className="eyebrow">HISTORY</p><h2>Activity</h2></div></div>{activityEvents?.length ? <ol className="activity-list">{activityEvents.map((event) => { const details = event.details && typeof event.details === "object" ? event.details as Record<string, unknown> : {}; const actor = event.actor_id ? profileLabel(event.actor_id) : "System"; const label = event.event_type.replaceAll("_", " "); const change = typeof details.from === "string" || typeof details.to === "string" ? ` · ${String(details.from ?? "—")} → ${String(details.to ?? "—")}` : ""; return <li key={event.id}><span className="activity-dot"/><div><p><strong>{actor}</strong> {label}{change}</p><time>{new Date(event.created_at).toLocaleString()}</time></div></li>; })}</ol> : <p className="muted small">Task changes and comments will appear here.</p>}</section>
+          <section className="task-comments-section"><div className="comments-heading"><div className="comments-icon"><MessageSquareText size={17}/></div><div><h2>Comments</h2><p>{comments?.length ?? 0} messages on this task</p></div></div>
+            <div className="comments-feed">{comments?.length ? comments.map((comment) => <article className="comment-card" key={comment.id}><div className="comment-avatar">{profileLabel(comment.author_id)[0].toUpperCase()}</div><div className="comment-content"><div className="comment-author"><strong>{profileLabel(comment.author_id)}</strong><time>{new Date(comment.created_at).toLocaleString()}</time></div><p>{comment.body}</p></div></article>) : <div className="no-comments">No comments yet. Add a note or question for your team.</div>}</div>
+            <form action={createTaskComment} className="task-comment-form"><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><label htmlFor="task-comment">Add a comment</label><textarea id="task-comment" name="body" placeholder="Share an update, ask a question, or leave context…" maxLength={10000} required/><div className="comment-submit-row"><span>Comments are visible to people with project access.</span><button className="button button-primary">Post comment</button></div></form>
+          </section>
+        </>
+      )}
+    </div>
+  </main>;
+}

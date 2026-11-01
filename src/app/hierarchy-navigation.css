@@ -1,0 +1,136 @@
+.hierarchy-layout{min-height:100vh;display:grid;grid-template-columns:58px 245px minmax(0,1fr);background:var(--app-bg);color:var(--ink)}
+.hierarchy-content{min-width:0;min-height:100vh}
+.hierarchy-sidebar{height:100vh;position:sticky;top:0;align-self:start;overflow-y:auto;padding:17px 13px 13px;border-right:1px solid var(--nav-line);background:var(--nav-bg);display:flex;flex-direction:column;color:var(--nav-ink)}
+.hierarchy-brand{display:flex;align-items:center;gap:7px;padding:1px 6px 19px;font:800 17px Manrope,sans-serif;letter-spacing:-.65px}
+.hierarchy-brand>span:last-child>span{color:var(--green)}
+.hierarchy-brand .brand-mark{width:27px;height:27px;border-radius:8px;font-size:14px}
+.hierarchy-dashboard{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:7px;color:var(--nav-muted);font-size:11px;font-weight:600}
+.hierarchy-dashboard:hover{background:var(--nav-hover);color:var(--green)}
+.hierarchy-org-label{display:flex;align-items:center;gap:7px;margin:18px 9px 7px;color:var(--nav-muted);font-size:8px;font-weight:750;letter-spacing:1.1px}
+.hierarchy-org-label svg{color:var(--green)}
+.hierarchy-org-name{padding:0 9px;font-size:12px;font-weight:700;color:var(--nav-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hierarchy-section-label{margin:24px 9px 8px;color:var(--nav-muted);font-size:8px;font-weight:750;letter-spacing:1.05px}
+.hierarchy-tree{display:grid;gap:3px}
+.hierarchy-tree details>summary{list-style:none;display:flex;align-items:center;gap:8px;padding:8px 9px;border-radius:7px;color:var(--nav-ink);font-size:11px;font-weight:650;cursor:pointer}
+.hierarchy-tree details>summary::-webkit-details-marker{display:none}
+.hierarchy-tree details>summary>svg:first-child{width:12px;color:var(--nav-muted);transition:transform .15s}
+.hierarchy-tree details[open]>summary>svg:first-child{transform:rotate(0)}
+.hierarchy-tree details:not([open])>summary>svg:first-child{transform:rotate(-90deg)}
+.hierarchy-tree details>summary>svg:nth-child(2){color:var(--nav-muted);flex:none}
+.hierarchy-tree details>summary>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hierarchy-tree details>summary:hover,.hierarchy-tree details>summary.is-current{background:var(--nav-hover);color:var(--green)}
+.hierarchy-projects{display:grid;gap:2px;margin:2px 0 7px 18px;padding-left:12px;border-left:1px solid var(--nav-line)}
+.hierarchy-workspace-link,.hierarchy-project-link{min-height:29px;display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;color:var(--nav-muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hierarchy-workspace-link:hover,.hierarchy-project-link:hover{background:var(--nav-hover);color:var(--green)}
+.hierarchy-workspace-link.is-current,.hierarchy-project-link.is-current{background:var(--nav-hover);color:var(--green);font-weight:700}
+.hierarchy-project-dot{width:6px;height:6px;flex:none;border:1.5px solid var(--nav-muted);border-radius:2px}
+.hierarchy-project-link.is-current .hierarchy-project-dot{border-color:var(--green);background:var(--green)}
+.hierarchy-project-group{display:grid;gap:2px}
+.hierarchy-project-sublinks{display:grid;gap:2px;margin:2px 0 5px 12px;padding-left:10px;border-left:1.5px dashed var(--nav-line)}
+.hierarchy-sublink{min-height:26px;display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:5px;color:var(--nav-muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:background .12s,color .12s}
+.hierarchy-sublink:hover{background:var(--nav-hover);color:var(--green)}
+.hierarchy-sublink.is-current{background:var(--nav-hover);color:var(--green);font-weight:700}
+.hierarchy-sublink svg{flex:none;color:inherit;opacity:.85}
+.hierarchy-empty{padding:0 9px;color:var(--nav-muted);font-size:10px}
+.hierarchy-search-box{margin:8px 2px 4px}
+.global-search-trigger{width:100%;display:flex;align-items:center;gap:7px;height:30px;padding:0 9px;border:1px solid var(--nav-line);border-radius:7px;background:var(--nav-bg);color:var(--nav-muted);font:500 10.5px 'DM Sans',sans-serif;cursor:pointer;transition:all .14s ease}
+.global-search-trigger:hover{border-color:#a2c4ae;background:var(--nav-hover);color:var(--green)}
+.global-search-trigger-text{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.global-search-kbd{padding:1px 5px;border:1px solid var(--nav-line);border-radius:4px;font-size:9px;color:var(--nav-muted);background:var(--surface,#fff)}
+.global-search-backdrop{position:fixed;inset:0;z-index:2000;background:rgba(14,22,18,.5);backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;padding:50px 18px 20px}
+.global-search-dialog{width:min(100%,650px);max-height:82vh;background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 60px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden}
+.global-search-input-wrap{display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid var(--line)}
+.global-search-icon{color:var(--muted);flex:none}
+.global-search-input{flex:1;border:0;outline:none;font:500 14px 'DM Sans',sans-serif;color:var(--ink);background:transparent}
+.global-search-spinner{color:var(--green);flex:none}
+.global-search-clear,.global-search-close-btn{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:3px;border-radius:4px}
+.global-search-close-btn{font-size:9px;font-weight:700;padding:2px 6px;border:1px solid var(--line);border-radius:4px}
+.global-search-tabs{display:flex;align-items:center;gap:5px;padding:8px 18px;border-bottom:1px solid var(--line);background:var(--app-bg,#f7f9f7);overflow-x:auto}
+.global-search-tab{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border:1px solid transparent;border-radius:6px;background:transparent;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap}
+.global-search-tab:hover{color:var(--ink)}
+.global-search-tab.is-active{background:var(--surface,#fff);border-color:var(--line);color:var(--green);font-weight:700}
+.global-search-tab .tab-count{padding:1px 5px;border-radius:10px;background:#e9f2eb;color:var(--green);font-size:9px}
+.global-search-results{flex:1;overflow-y:auto;padding:10px 14px;max-height:440px;display:grid;gap:14px}
+.global-search-prompt,.global-search-empty{padding:28px 16px;text-align:center;color:var(--muted);font-size:12px}
+.global-search-hints{display:flex;justify-content:center;gap:16px;margin-top:14px;font-size:10px;flex-wrap:wrap}
+.global-search-hints span{display:inline-flex;align-items:center;gap:5px;color:var(--muted)}
+.search-group{display:grid;gap:3px}
+.search-group-title{display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.search-group-title .group-count{padding:1px 5px;border-radius:9px;background:#edf3ee;color:var(--muted);font-size:9px}
+.search-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;transition:background .12s}
+.search-item:hover{background:#edf6f0}
+.search-item-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:7px;flex:none}
+.search-item-icon.task-icon{background:#e8f4ed;color:var(--green)}
+.search-item-icon.doc-icon{background:#e8effa;color:#3567a5}
+.search-item-icon.disc-icon{background:#fdf3e2;color:#9b6a18}
+.search-item-info{flex:1;min-width:0}
+.search-item-header{display:flex;align-items:center;gap:6px}
+.search-item-key{font-size:9px;font-weight:700;color:var(--muted);padding:1px 4px;border-radius:4px;background:#eef1ef;flex:none}
+.search-item-title{font-size:12px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search-item-snippet{margin:2px 0 0;font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search-item-project{display:inline-flex;align-items:center;gap:4px;font-size:9px;color:var(--muted);padding:2px 6px;border-radius:4px;background:#eef3ef;flex:none}
+.search-item-arrow{color:var(--muted);opacity:0;transition:opacity .15s;flex:none}
+.search-item:hover .search-item-arrow{opacity:1;color:var(--green)}
+.global-search-footer{display:flex;align-items:center;gap:16px;padding:9px 18px;border-top:1px solid var(--line);font-size:10px;color:var(--muted);background:var(--app-bg,#f7f9f7)}
+.global-search-footer strong{color:var(--ink)}
+.hierarchy-sidebar-footer{margin-top:auto;padding:14px 9px 3px;border-top:1px solid var(--nav-line)}
+.hierarchy-sidebar-footer a{color:var(--nav-muted);font-size:10px;font-weight:600}
+.hierarchy-sidebar-footer a:hover{color:var(--green)}
+.hierarchy-sidebar-heading{display:grid;gap:5px;padding:2px 8px 15px;border-bottom:1px solid var(--nav-line)}
+.hierarchy-sidebar-heading span{color:var(--nav-muted);font-size:8px;font-weight:750;letter-spacing:1px}
+.hierarchy-sidebar-heading strong{color:var(--nav-strong);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.work-icon-rail{height:100vh;position:sticky;top:0;z-index:5;display:flex;flex-direction:column;align-items:center;gap:7px;padding:9px 5px;background:var(--rail-bg);border-right:1px solid var(--rail-line)}
+.work-icon-rail>a{width:46px;min-height:47px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border-radius:8px;color:var(--rail-ink);font-size:8px;font-weight:650}
+.work-icon-rail>a:hover,.work-icon-rail>a:focus-visible{background:var(--rail-hover);color:var(--rail-strong)}
+.work-icon-rail>a>svg{color:var(--rail-icon)}
+.work-icon-rail .work-rail-logo{min-height:35px;margin-bottom:3px}
+.work-rail-logo span{width:25px;height:25px;border-radius:7px;display:grid;place-items:center;background:var(--green);color:white;font:800 14px Manrope,sans-serif}
+.work-icon-rail .work-rail-more{margin-top:auto;margin-bottom:4px}
+@media(max-width:850px){.hierarchy-layout{grid-template-columns:52px 215px minmax(0,1fr)}}
+@media(max-width:640px){.hierarchy-layout{grid-template-columns:48px minmax(0,1fr)}.hierarchy-sidebar{position:static;width:100%;height:auto;max-height:45vh;border-right:0;border-bottom:1px solid var(--nav-line);padding:11px 12px;grid-column:2;grid-row:1}.work-icon-rail{grid-row:1/3}.hierarchy-brand{padding-bottom:8px}.hierarchy-org-label{margin-top:12px}.hierarchy-section-label{margin-top:14px}.hierarchy-tree{max-height:20vh;overflow:auto}.hierarchy-sidebar-footer{margin-top:10px;padding-top:9px}.hierarchy-content{grid-column:2;grid-row:2}}
+
+.calendar-task{min-height:23px;padding:5px 7px;font-size:10px;line-height:1.25;font-weight:650;color:#233a2c;background:#edf5ef;border-radius:5px;box-shadow:inset 0 0 0 1px #dce9df}
+.calendar-task span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calendar-task.is-planned{opacity:1;color:#47594c;background:#f1f4f1}
+.calendar-task.is-active{color:#183f2b;background:#dcefe2}
+.calendar-task.is-overdue{color:#8b2923;background:#ffe7e3;border-left-color:#c83f34}
+.calendar-event{min-height:23px;display:flex;align-items:center;gap:3px;font-size:9px;line-height:1.2;font-weight:700;padding:4px 6px;border-radius:5px;white-space:normal;overflow-wrap:anywhere}
+.calendar-event small{font-size:9px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calendar-event-holiday{background:#fff0c2;color:#5e4510;border:1px solid #f0d98e}
+.calendar-event-leave{background:#e6edff;color:#203c78;border:1px solid #c4d2fa}
+.gantt-event-bar.gantt-event-leave{background:#7391dc}
+
+/* The same core surfaces are recolored everywhere when Dark is selected. */
+[data-color-scheme="dark"] body,[data-color-scheme="dark"] .app-shell,[data-color-scheme="dark"] .hierarchy-layout{background:var(--app-bg);color:var(--ink)}
+[data-color-scheme="dark"] .topbar{background:var(--surface);border-color:var(--line);color:var(--ink)}
+[data-color-scheme="dark"] .topbar .brand,[data-color-scheme="dark"] :is(h1,h2,h3,h4){color:var(--ink)}
+[data-color-scheme="dark"] :is(.sidebar,.org-card,.task-panel,.project-admin,.task-detail-main,.task-properties,.task-comments-section,.timesheet-own-card,.timesheet-user-group,.people-calendar-card,.leave-requests-section,.document-preview,.document-editor-form,.integration-card,.integration-setup,.report-card,.project-metrics>article,.project-card,.empty-projects,.task-sheet,.task-panel-head){background:var(--surface);color:var(--ink);border-color:var(--line);box-shadow:none}
+[data-color-scheme="dark"] :is(.dashboard-layout,.dashboard-content,.workspace-page,.project-page,.task-detail-page,.timesheets-page,.documents-page,.document-editor,.people-calendar-page,.organization-members-page,.integrations-page,.reports-page){color:var(--ink)}
+[data-color-scheme="dark"] :is(.muted,.user-chip,.task-pagination,.sidebar-label,.organization-directory-heading>div>p:last-child,.org-card-title p,.workspace-row,.workspace-row small,.footnote){color:var(--muted)}
+[data-color-scheme="dark"] :is(.task-filter-bar input,.task-filter-bar select,.sheet-edit input,.sheet-edit select,.assignee-dropdowns select,.detail-field input,.detail-field select,.detail-field textarea,.task-comment-form textarea,.people-calendar-form input,.people-calendar-form select,.people-calendar-form textarea,.document-editor-form input,.document-editor-form textarea,.workspace-form input,.invite-form select,.invite-form input,.organization-create input){background:#202522;color:var(--ink);border-color:var(--line);color-scheme:dark}
+[data-color-scheme="dark"] :is(.task-table th,.calendar-weekday,.gantt-scale){background:#202522;color:#c8d1cb;border-color:var(--line)}
+[data-color-scheme="dark"] .task-table td{background:#151a17;color:#dbe2dc;border-color:var(--line)}
+[data-color-scheme="dark"] .task-table tr:hover td{background:#202622}
+[data-color-scheme="dark"] :is(.kanban-column,.calendar-day,.calendar-day.outside,.gantt-task-name,.workload-person,.workload-tasks a){background:#171c19;color:var(--ink);border-color:var(--line)}
+[data-color-scheme="dark"] .calendar-day.is-today{background:#1d2b22}
+[data-color-scheme="dark"] .calendar-day-number{color:#ced7d0}
+[data-color-scheme="dark"] .calendar-task{color:#e3eee6;background:#26362b;box-shadow:inset 0 0 0 1px #374b3d}
+[data-color-scheme="dark"] .calendar-task.is-planned{color:#cad4cc;background:#252b27}
+[data-color-scheme="dark"] .calendar-task.is-active{color:#d9f7e2;background:#21452f}
+[data-color-scheme="dark"] .calendar-task.is-overdue{color:#ffd3cd;background:#482521}
+[data-color-scheme="dark"] .calendar-event-holiday{background:#493c1b;color:#ffe49b;border-color:#66552a}
+[data-color-scheme="dark"] .calendar-event-leave{background:#25375a;color:#d5e1ff;border-color:#364a72}
+[data-color-scheme="dark"] :is(.gantt-cell,.gantt-scale>span,.timesheet-entry,.timesheet-user-group>header,.document-editor-form,.document-preview,.comments-heading,.comment-card,.detail-save-row,.property-line){border-color:var(--line)}
+[data-color-scheme="dark"] :is(.view-tabs,.task-filter-bar,.task-pagination){border-color:var(--line)}
+[data-color-scheme="dark"] :is(.view-tabs a,.task-filter-bar label,.detail-field,.task-comment-form>label,.timesheet-entry>a,.comment-author strong,.comment-content>p,.property-line strong,.gantt-task-name span){color:#cbd5ce}
+[data-color-scheme="dark"] :is(.button-secondary,.role-pill,.count-pill,.project-priority){background:#242b26;color:#d7dfd9;border-color:var(--line)}
+[data-color-scheme="dark"] .auth-shell{background:var(--app-bg)}
+[data-color-scheme="dark"] .auth-card{background:var(--surface);color:var(--ink)}
+[data-color-scheme="dark"] .auth-card h1,[data-color-scheme="dark"] .form-stack label{color:var(--ink)}
+[data-color-scheme="dark"] .organization-links a{color:#9edbb6;border-color:var(--line)}
+[data-color-scheme="dark"] .workspace-row strong{color:var(--ink)}
+[data-color-scheme="dark"] .organization-members-table-wrap{background:var(--surface);border-color:var(--line)}
+[data-color-scheme="dark"] .organization-members-table th{background:#202522;color:#c8d1cb;border-color:var(--line)}
+[data-color-scheme="dark"] .organization-members-table td{color:#dbe2dc;border-color:var(--line)}
+[data-color-scheme="dark"] .organization-workspace-roles>span{background:#202522;border-color:var(--line)}
+[data-color-scheme="dark"] .organization-workspace-roles strong,[data-color-scheme="dark"] .organization-member-person strong{color:var(--ink)}
