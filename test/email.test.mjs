@@ -6,8 +6,6 @@ import {
   sendTaskDueReminderEmail,
   sendUserMentionedEmail,
   sendTaskHoursExhaustingEmail,
-  sendAdminNewUserSignupAlert,
-  sendUserAccountApprovedEmail,
 } from "../src/lib/email.ts";
 
 test("sendEmail returns ok in simulated/development mode", async () => {
@@ -111,23 +109,4 @@ test("sendTaskHoursExhaustingEmail sends warning when less than 1 hour remains a
     remainingMinutes: -60, // 1h over
   });
   assert.equal(resExceeded.ok, true);
-});
-
-test("sendAdminNewUserSignupAlert generates admin notification for pending signup", async () => {
-  const res = await sendAdminNewUserSignupAlert({
-    adminEmail: "admin@example.com",
-    adminName: "Charan Admin",
-    userEmail: "newjoiner@example.com",
-    signupDate: "2026-11-01 10:00 AM",
-  });
-  assert.equal(res.ok, true);
-});
-
-test("sendUserAccountApprovedEmail generates user welcome notification", async () => {
-  const res = await sendUserAccountApprovedEmail({
-    recipientEmail: "newjoiner@example.com",
-    recipientName: "New Joiner",
-    organizationName: "Orbitwork Org",
-  });
-  assert.equal(res.ok, true);
 });

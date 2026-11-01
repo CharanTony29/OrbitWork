@@ -1,34 +1,60 @@
-import { signIn, signUp, requestPasswordReset } from "./actions";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ error?: string; message?: string }> }) {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; message?: string; returnUrl?: string }>;
+}) {
   const params = await searchParams;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) return <main className="auth-shell"><section className="auth-card"><Link className="brand" href="/">Orbit<span>work</span></Link><h1>You’re signed in</h1><p>Open your organization workspace to continue.</p><Link className="button button-primary" href="/dashboard">Go to dashboard</Link></section></main>;
+  let user = null;
+  let configError: string | null = null;
 
-  const messages: Record<string, string> = {
-    invalid_input: "Enter a valid email and a password with at least 8 characters.",
-    sign_in_failed: "Could not sign in. Check your credentials and try again.",
-    sign_up_failed: "Could not create your account. Try again.",
-    check_email: "Check your email to verify your account, then sign in.",
-    pending_approval: "Your registration request has been submitted to the administrator. You will receive an email once your account has been approved.",
-    account_rejected: "Your account registration was not approved. Please contact an administrator for assistance.",
-    reset_sent: "If an account exists for that address, a password reset email is on its way.",
-    verification_failed: "That verification link is invalid or expired. Request a new one.",
-  };
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch (err) {
+    console.error("Home page initialization error:", err);
+    configError = err instanceof Error ? err.message : String(err);
+  }
 
-  return <main className="auth-shell"><section className="auth-card">
-    <Link className="brand" href="/">Orbit<span>work</span></Link>
-    <p className="eyebrow">PROJECTS, MADE CLEAR</p><h1>Bring your team’s work together.</h1>
-    <p className="muted">Create an account or sign in to manage your organization and workspaces.</p>
-    {params.message && <p className="notice" role="status">{messages[params.message] ?? "Done."}</p>}
-    {params.error && <p className="error" role="alert">{messages[params.error] ?? "Something went wrong. Please try again."}</p>}
-    <form action={signIn} className="form-stack"><label>Email<input name="email" type="email" autoComplete="email" required maxLength={254} /></label><label>Password<input name="password" type="password" autoComplete="current-password" required minLength={8} maxLength={128} /></label><button className="button button-primary">Sign in</button></form>
-    <div className="auth-divider"><span>new to Orbitwork?</span></div>
-    <form action={signUp} className="form-stack"><label>Email<input name="email" type="email" autoComplete="email" required maxLength={254} /></label><label>Password<input name="password" type="password" autoComplete="new-password" required minLength={8} maxLength={128} /></label><button className="button button-secondary">Create account</button></form>
-    <form action={requestPasswordReset} className="reset-form"><label>Email<input name="email" type="email" placeholder="For password reset" required /></label><button className="text-button">Send reset link</button></form>
-    <p className="fine-print">Email verification and password recovery are handled by your Supabase project.</p>
-  </section><aside className="auth-aside"><div className="orb orb-one"/><div className="orb orb-two"/><div className="aside-copy"><p className="eyebrow">A CALMER WAY TO PLAN</p><h2>Make space for the work that matters.</h2><p>Projects, people, and progress—connected in one thoughtful workspace.</p><div className="aside-stats"><div><strong>01</strong><span>Organization</span></div><div><strong>∞</strong><span>Workspaces</span></div><div><strong>✓</strong><span>Team aligned</span></div></div></div><div className="aside-foot">PLAN TOGETHER · MOVE FORWARD</div></aside></main>;
+  if (configError) {
+    return (
+      <main className="auth-shell">
+        <section className="auth-card" style={{ maxWidth: 540 }}>
+          <div className="brand" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 800, fontSize: 18 }}>
+            <span className="brand-mark">O</span>Orbit<span>work</span>
+          </div>
+          <h1 style={{ marginTop: 16 }}>Configuration Required</h1>
+          <p className="muted">
+            Your Vercel deployment is live, but required Supabase environment variables are missing.
+          </p>
+          <div style={{ background: "#fffbeb", border: "1px solid #fde68a", padding: "14px 16px", borderRadius: 8, fontSize: 12.5, color: "#92400e", margin: "16px 0", lineHeight: 1.6 }}>
+            <strong>How to fix this in Vercel:</strong>
+            <ol style={{ paddingLeft: 18, marginTop: 8 }}>
+              <li>Open your project at <a href="https://vercel.com/dashboard" target="_blank" rel="noreferrer" style={{ color: "#b45309", textDecoration: "underline" }}>vercel.com</a> &rarr; <strong>Settings</strong> &rarr; <strong>Environment Variables</strong></li>
+              <li>Add <code>NEXT_PUBLIC_SUPABASE_URL</code>: <code>https://zdvpocqcymdfnywyvvfp.supabase.co</code></li>
+              <li>Add <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>: <code>sb_publishable_pTHrnJatNMSr0INhm6NmQQ_fhaWBKit</code></li>
+              <li>Add <code>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code>: <code>sb_publishable_pTHrnJatNMSr0INhm6NmQQ_fhaWBKit</code></li>
+              <li>Under <strong>Deployments</strong>, click <strong>...</strong> on the latest deployment and click <strong>Redeploy</strong>.</li>
+            </ol>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (user) {
+    redirect("/dashboard");
+  }
+
+  const query = new URLSearchParams();
+  if (params.returnUrl) query.set("returnUrl", params.returnUrl);
+  if (params.error) query.set("error", params.error);
+  if (params.message) query.set("message", params.message);
+  const qStr = query.toString();
+
+  redirect(qStr ? `/login?${qStr}` : "/login");
 }
-import Link from "next/link";

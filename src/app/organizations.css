@@ -70,28 +70,4 @@
 .organization-member-muted,.organization-members-table td:last-child{color:#89958d;font-size:9px}
 .organization-members-empty{padding:28px;text-align:center;color:#89958d;font-size:11px}
 
-/* Pending Registrations / Admin Approvals Section */
-.pending-approvals-section{background:#fff;border:1px solid #fed7aa;border-radius:12px;padding:18px 20px;margin-bottom:24px;box-shadow:0 4px 16px rgba(234,88,12,.06)}
-[data-color-scheme="dark"] .pending-approvals-section{background:#1c1d22;border-color:#7c2d12}
-.pending-approvals-header{margin-bottom:14px}
-.pending-approvals-header .eyebrow{color:#ea580c;margin:0 0 6px}
-.pending-approvals-header h2{font:750 18px Manrope,sans-serif;letter-spacing:-.4px;margin:3px 0;display:flex;align-items:center;gap:8px}
-.pending-approvals-header p{font-size:12px;color:var(--muted,#64748b);margin:4px 0 0}
-.count-pill.warning{background:#ffedd5;color:#c2410c;font-size:11px;padding:2px 7px;border-radius:12px;font-weight:700}
-.pending-approvals-list{display:grid;gap:10px}
-.pending-user-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;border:1px solid #f1f5f2;background:#fbfdfb;border-radius:9px;flex-wrap:wrap}
-[data-color-scheme="dark"] .pending-user-card{background:#23242a;border-color:#2f323a}
-.pending-user-info{display:flex;align-items:center;gap:12px}
-.pending-user-avatar{width:34px;height:34px;border-radius:50%;background:#ffedd5;color:#c2410c;display:grid;place-items:center;font-weight:750;font-size:13px;flex:none}
-.pending-user-info div{display:grid;gap:2px}
-.pending-user-info strong{font-size:12px;color:var(--ink,#1e293b)}
-.pending-user-info small{color:var(--muted,#64748b);font-size:10px}
-.pending-user-date{font-size:9.5px;color:#94a3b8}
-.pending-user-actions{display:flex;align-items:center;gap:8px}
-.pending-user-actions .org-select{height:34px;border:1px solid #dfe5e0;border-radius:6px;padding:0 8px;font-size:11px;background:#fff;color:#334155}
-.accept-btn{background:#16a34a !important;color:#fff !important;font-size:11px !important;font-weight:600 !important;padding:7px 12px !important;border-radius:6px !important;min-height:34px !important;cursor:pointer;border:none}
-.accept-btn:hover{background:#15803d !important}
-.reject-btn{background:#fee2e2 !important;color:#b91c1c !important;font-size:11px !important;font-weight:600 !important;padding:7px 12px !important;border-radius:6px !important;min-height:34px !important;cursor:pointer;border:1px solid #fecaca}
-.reject-btn:hover{background:#fecaca !important}
-
 @media(max-width:700px){.organization-directory-heading{align-items:flex-start;flex-direction:column}.organization-create>form{left:0;right:auto;width:min(310px,calc(100vw - 44px))}.org-grid{grid-template-columns:1fr}.org-card{padding:16px}}

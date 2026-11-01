@@ -779,63 +779,31 @@ export async function checkAndNotifyHoursExhausting({
   }
 }
 
-// -------------------------------------------------------------
-// User Registration & Admin Approval Emails
-// -------------------------------------------------------------
-
-export interface NewUserPendingAdminEmailParams {
-  adminEmail: string;
-  adminName: string;
-  userEmail: string;
-  signupDate?: string;
-}
-
-export async function sendAdminNewUserSignupAlert(params: NewUserPendingAdminEmailParams) {
-  const loginUrl = `${getAppUrl()}/dashboard`;
-  const subject = `[Action Required] New Account Registration Request: ${params.userEmail}`;
-
-  const html = emailWrapper(`
-    <p>Hi <strong>${params.adminName}</strong>,</p>
-    <p>A new user has registered for Orbitwork and is <strong>awaiting your administrator approval</strong> before they can access the application.</p>
-
-    <div class="card" style="border-left:4px solid #2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px;margin:16px 0;">
-      <div style="font-size:12px;color:#64748b;font-weight:700;margin-bottom:4px;">NEW REGISTRATION REQUEST</div>
-      <div style="font-size:16px;font-weight:700;color:#0f172a;margin-bottom:8px;">${params.userEmail}</div>
-      <p style="font-size:13px;color:#475569;margin:0 0 14px;">Submitted: ${params.signupDate || new Date().toLocaleString()}</p>
-
-      <a href="${loginUrl}" class="btn" style="background:#2563eb;color:#ffffff;display:inline-block;padding:9px 18px;text-decoration:none;border-radius:6px;font-weight:600;">Review &amp; Approve in Dashboard</a>
-    </div>
-
-    <p style="font-size:12px;color:#64748b;">You can accept or reject this registration request directly from your Orbitwork dashboard.</p>
-  `, subject);
-
-  return sendEmail({
-    to: params.adminEmail,
-    subject,
-    html,
-  });
-}
-
-export interface UserAccountApprovedEmailParams {
+export interface OrganizationInvitationEmailParams {
   recipientEmail: string;
-  recipientName: string;
-  organizationName?: string;
+  inviterName: string;
+  organizationName: string;
+  acceptUrl: string;
 }
 
-export async function sendUserAccountApprovedEmail(params: UserAccountApprovedEmailParams) {
-  const loginUrl = `${getAppUrl()}/`;
-  const subject = `Your Orbitwork Account Has Been Approved!`;
+/**
+ * Send organization workspace invitation directly via reliable SMTP.
+ */
+export async function sendOrganizationInvitationEmail(params: OrganizationInvitationEmailParams) {
+  const subject = `You've been invited to join ${params.organizationName} on Orbitwork`;
 
   const html = emailWrapper(`
-    <p>Hi <strong>${params.recipientName}</strong>,</p>
-    <p>Great news! Your registration request for Orbitwork${params.organizationName ? ` in <strong>${params.organizationName}</strong>` : ""} has been <strong>approved</strong> by the administrator.</p>
+    <p>Hi,</p>
+    <p><strong>${params.inviterName}</strong> has invited you to join <strong>${params.organizationName}</strong> on Orbitwork.</p>
 
     <div class="card" style="border-left:4px solid #16a34a;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0;">
-      <div style="font-size:16px;font-weight:700;color:#15803d;margin-bottom:6px;">Account Active</div>
-      <p style="font-size:13px;color:#166534;margin:0 0 14px;">You can now sign in with your email (<strong>${params.recipientEmail}</strong>) and password to access your workspaces.</p>
+      <div style="font-size:16px;font-weight:700;color:#15803d;margin-bottom:8px;">Workspace Invitation</div>
+      <p style="font-size:13px;color:#166534;margin:0 0 14px;">Click the button below to accept the invitation and access the workspace.</p>
 
-      <a href="${loginUrl}" class="btn" style="background:#16a34a;color:#ffffff;display:inline-block;padding:9px 18px;text-decoration:none;border-radius:6px;font-weight:600;">Sign In to Orbitwork</a>
+      <a href="${params.acceptUrl}" class="btn" style="background:#16a34a;color:#ffffff;display:inline-block;padding:9px 18px;text-decoration:none;border-radius:6px;font-weight:600;">Accept Invitation</a>
     </div>
+
+    <p style="font-size:12px;color:#64748b;">If the button does not work, copy and paste this link into your browser:<br/><a href="${params.acceptUrl}" style="color:#2563eb;">${params.acceptUrl}</a></p>
   `, subject);
 
   return sendEmail({
@@ -843,53 +811,4 @@ export async function sendUserAccountApprovedEmail(params: UserAccountApprovedEm
     subject,
     html,
   });
-}
-
-/**
- * Notify organization owners/admins when a new user registers and awaits approval.
- */
-export async function notifyAdminsOnNewSignup(userEmail: string) {
-  try {
-    const { createClient } = await import("./supabase/server");
-    const supabase = await createClient();
-
-    // Fetch active org owners and admins
-    const { data: adminMembers } = await supabase
-      .from("organization_members")
-      .select("user_id, role")
-      .in("role", ["owner", "admin"])
-      .eq("status", "active");
-
-    const adminUserIds = Array.from(new Set((adminMembers ?? []).map((m) => m.user_id)));
-
-    let targetEmails: Array<{ email: string; name: string }> = [];
-
-    if (adminUserIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("display_name, email")
-        .in("id", adminUserIds);
-
-      targetEmails = (profiles ?? [])
-        .filter((p) => Boolean(p.email))
-        .map((p) => ({ email: p.email, name: p.display_name?.trim() || "Administrator" }));
-    }
-
-    // Fallback: SMTP_USER if no admins found yet
-    const fallbackEmail = process.env.SMTP_USER;
-    if (targetEmails.length === 0 && fallbackEmail) {
-      targetEmails.push({ email: fallbackEmail, name: "System Administrator" });
-    }
-
-    for (const admin of targetEmails) {
-      await sendAdminNewUserSignupAlert({
-        adminEmail: admin.email,
-        adminName: admin.name,
-        userEmail,
-        signupDate: new Date().toLocaleString(),
-      });
-    }
-  } catch (err) {
-    console.error("Error notifying admins of new signup:", err);
-  }
 }

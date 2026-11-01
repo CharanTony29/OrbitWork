@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import CurrentUserBadge from "@/app/CurrentUserBadge";
 import Link from "next/link";
-import { Building2, Layers3, Plus, FolderKanban, UsersRound, ArrowUpRight, Bell, Trash2, ChevronDown, UserCheck } from "lucide-react";
+import { Building2, Layers3, Plus, FolderKanban, UsersRound, ArrowUpRight, Bell, Trash2, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { createOrganization, createWorkspace, deleteOrganization, inviteOrganizationMember, approveUserRegistration, rejectUserRegistration, signOut } from "../actions";
+import { createOrganization, createWorkspace, deleteOrganization, inviteOrganizationMember, signOut } from "../actions";
 
 const dashboardErrorMessages: Record<string, string> = {
   invalid_invitation: "Check the invitation details and selected workspace, then try again.",
@@ -16,24 +16,19 @@ const dashboardErrorMessages: Record<string, string> = {
   invitation_accept_failed: "The invitation could not be accepted. Confirm migration 014_invitation_acceptance.sql is applied and sign in with the email address that received the invite.",
   invalid_workspace: "Enter a valid workspace name with at least two characters.",
   workspace_failed: "The workspace could not be created. Check your organization permissions and Supabase setup.",
-  invalid_approval: "Invalid approval request.",
-  approval_forbidden: "Only organization owners or administrators can approve user registrations.",
-  approval_failed: "Failed to approve the user registration. Check permissions.",
 };
 
-export default async function Dashboard({ searchParams }: { searchParams: Promise<{ error?: string; invited?: string; invitation_accepted?: string; organization_deleted?: string; organization_created?: string; user_approved?: string; user_rejected?: string }> }) {
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ error?: string; invited?: string; invitation_accepted?: string; organization_deleted?: string; organization_created?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: ownProfile } = await supabase.from("profiles").select("display_name, approval_status").eq("id", user.id).maybeSingle();
-  if (ownProfile?.approval_status === "pending") {
-    await supabase.auth.signOut();
-    redirect("/?error=pending_approval");
-  }
-  if (ownProfile?.approval_status === "rejected") {
-    await supabase.auth.signOut();
-    redirect("/?error=account_rejected");
-  }
+
+  // Automatically process any pending invitations for this user
+  try {
+    await supabase.rpc("accept_user_pending_invitations");
+  } catch {}
+
+  const { data: ownProfile } = await supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
 
   const displayName = ownProfile?.display_name?.trim() || user.email?.split("@")[0] || "there";
   const { data: memberships } = await supabase.from("organization_members").select("organization_id, role, organizations(id, name, created_at)").eq("user_id", user.id);
@@ -43,14 +38,6 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const workspaceIds = (workspaces ?? []).map((workspace) => workspace.id);
   const { data: projects } = workspaceIds.length ? await supabase.from("projects").select("id, workspace_id, name").in("workspace_id", workspaceIds).order("name") : { data: [] };
   const { data: organizationMembers } = orgIds.length ? await supabase.from("organization_members").select("organization_id, user_id").in("organization_id", orgIds).eq("status", "active") : { data: [] };
-  const isOrgAdminOrOwner = organizations.some((org) => ["owner", "admin"].includes(org.role));
-  const { data: pendingUsers } = isOrgAdminOrOwner
-    ? await supabase
-        .from("profiles")
-        .select("id, display_name, email, created_at, approval_status")
-        .eq("approval_status", "pending")
-        .order("created_at", { ascending: false })
-    : { data: [] };
   const params = await searchParams;
 
   return <main className="app-shell">
@@ -62,61 +49,6 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       {params.invitation_accepted && <p className="notice" role="status">Invitation accepted. You now have access to the workspace.</p>}
       {params.organization_deleted && <p className="notice" role="status">Organization deleted.</p>}
       {params.organization_created && <p className="notice" role="status">Organization created.</p>}
-      {params.user_approved && <p className="notice" role="status">User registration approved. An email confirmation has been dispatched to them.</p>}
-      {params.user_rejected && <p className="notice" role="status">User registration request rejected.</p>}
-
-      {Boolean(pendingUsers?.length) && (
-        <section className="pending-approvals-section">
-          <header className="pending-approvals-header">
-            <div>
-              <p className="eyebrow">ACTION REQUIRED</p>
-              <h2>Pending User Registrations <span className="count-pill warning">{pendingUsers?.length ?? 0}</span></h2>
-              <p>New users awaiting administrator approval before they can access the application.</p>
-            </div>
-          </header>
-          <div className="pending-approvals-list">
-            {pendingUsers?.map((pUser) => (
-              <div className="pending-user-card" key={pUser.id}>
-                <div className="pending-user-info">
-                  <span className="pending-user-avatar">
-                    {(pUser.display_name?.trim() || pUser.email || "U")[0]?.toUpperCase()}
-                  </span>
-                  <div>
-                    <strong>{pUser.display_name?.trim() || pUser.email}</strong>
-                    {pUser.display_name?.trim() && pUser.email && <small>{pUser.email}</small>}
-                    <span className="pending-user-date">
-                      Signed up {new Date(pUser.created_at).toLocaleDateString()} at {new Date(pUser.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                </div>
-                <div className="pending-user-actions">
-                  <form action={approveUserRegistration} className="approve-user-form">
-                    <input type="hidden" name="userId" value={pUser.id} />
-                    {organizations.length > 1 ? (
-                      <select name="organizationId" className="org-select" aria-label="Assign to organization">
-                        {organizations.map((org) => (
-                          <option key={org.id} value={org.id}>{org.name}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input type="hidden" name="organizationId" value={organizations[0]?.id || ""} />
-                    )}
-                    <button className="button button-primary accept-btn">
-                      ✓ Accept &amp; Approve
-                    </button>
-                  </form>
-                  <form action={rejectUserRegistration}>
-                    <input type="hidden" name="userId" value={pUser.id} />
-                    <button className="button button-danger reject-btn">
-                      ✕ Reject
-                    </button>
-                  </form>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       <section className="organization-directory">
         <header className="organization-directory-heading">

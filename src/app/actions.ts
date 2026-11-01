@@ -11,8 +11,7 @@ import {
   notifyMentionedUsers,
   checkAndSendDueDateReminders,
   checkAndNotifyHoursExhausting,
-  notifyAdminsOnNewSignup,
-  sendUserAccountApprovedEmail,
+  sendOrganizationInvitationEmail,
 } from "@/lib/email";
 
 const credentialsSchema = z.object({
@@ -26,48 +25,75 @@ function values(formData: FormData) {
 
 export async function signIn(formData: FormData) {
   const parsed = values(formData);
-  if (!parsed.success) redirect("/?error=invalid_input");
+  const rawReturnUrl = formData.get("returnUrl") as string | null;
+  const safeReturnUrl = rawReturnUrl && rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : "/dashboard";
+  const returnQuery = rawReturnUrl ? `&returnUrl=${encodeURIComponent(rawReturnUrl)}` : "";
+
+  if (!parsed.success) redirect(`/login?error=invalid_input${returnQuery}`);
   const supabase = await createClient();
-  const { data: authData, error } = await supabase.auth.signInWithPassword(parsed.data);
-  if (error) redirect("/?error=sign_in_failed");
+  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  if (error) redirect(`/login?error=sign_in_failed${returnQuery}`);
 
-  // Check user profile approval status
-  if (authData.user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("approval_status")
-      .eq("id", authData.user.id)
-      .maybeSingle();
-
-    if (profile?.approval_status === "pending") {
-      await supabase.auth.signOut();
-      redirect("/?error=pending_approval");
-    }
-
-    if (profile?.approval_status === "rejected") {
-      await supabase.auth.signOut();
-      redirect("/?error=account_rejected");
-    }
-  }
+  // Automatically process any pending invitations for this user
+  try {
+    await supabase.rpc("accept_user_pending_invitations");
+  } catch {}
 
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect(safeReturnUrl);
 }
 
 export async function signUp(formData: FormData) {
   const parsed = values(formData);
-  if (!parsed.success) redirect("/?error=invalid_input");
+  const rawReturnUrl = formData.get("returnUrl") as string | null;
+  const safeReturnUrl = rawReturnUrl && rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : "/dashboard";
+  const returnQuery = rawReturnUrl ? `&returnUrl=${encodeURIComponent(rawReturnUrl)}` : "";
+
+  if (!parsed.success) redirect(`/signup?error=invalid_input${returnQuery}`);
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     ...parsed.data,
-    options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/callback` },
+    options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}` },
   });
-  if (error) redirect("/?error=sign_up_failed");
+  if (error) redirect(`/signup?error=sign_up_failed${returnQuery}`);
 
-  // Alert administrators of the new registration request
-  notifyAdminsOnNewSignup(parsed.data.email).catch(console.error);
+  if (data?.session) {
+    // Automatically process any pending invitations for this user
+    try {
+      await supabase.rpc("accept_user_pending_invitations");
+    } catch {}
+    revalidatePath("/", "layout");
+    redirect(safeReturnUrl);
+  }
 
-  redirect("/?message=pending_approval");
+  redirect(`/signup?message=check_email${returnQuery}`);
+}
+
+export async function signInWithMagicLink(formData: FormData) {
+  const email = z.string().trim().email().safeParse(formData.get("email"));
+  const fromSource = formData.get("from") === "signup" ? "/signup" : "/login";
+  const rawReturnUrl = formData.get("returnUrl") as string | null;
+  const safeReturnUrl = rawReturnUrl && rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : "/dashboard";
+  const returnQuery = rawReturnUrl ? `&returnUrl=${encodeURIComponent(rawReturnUrl)}` : "";
+
+  if (!email.success) redirect(`${fromSource}?error=invalid_input${returnQuery}`);
+  const supabase = await createClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const emailRedirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}`;
+
+  const { error } = await supabase.auth.signInWithOtp({
+    email: email.data,
+    options: {
+      emailRedirectTo,
+      shouldCreateUser: true,
+    },
+  });
+
+  if (error) {
+    redirect(`${fromSource}?error=magic_link_failed${returnQuery}`);
+  }
+
+  redirect(`${fromSource}?message=magic_link_sent${returnQuery}`);
 }
 
 export async function signOut() {
@@ -171,18 +197,35 @@ export async function inviteOrganizationMember(formData: FormData) {
   const { error } = await supabase.from("invitations").insert({ organization_id: parsed.data.organizationId, workspace_id: parsed.data.workspaceId ?? null, email: parsed.data.email.toLowerCase(), role: parsed.data.role, token_hash: tokenHash, invited_by: user.id });
   if (error) redirect(`/dashboard?error=invitation_failed`);
   const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/invite/accept?token=${encodeURIComponent(token)}`;
-  const emailRedirectTo = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/callback?next=${encodeURIComponent(acceptUrl.replace(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000", ""))}`;
-  const { error: mailError } = await supabase.auth.signInWithOtp({ email: parsed.data.email, options: { shouldCreateUser: true, emailRedirectTo } });
-  if (mailError) {
-    await supabase.from("invitations").update({ status: "revoked" }).eq("token_hash", tokenHash);
-    console.error("Organization invitation email failed", { code: mailError.code, status: mailError.status });
-    const emailFailure = mailError.code === "email_address_not_authorized" ? "invitation_email_recipient_restricted"
-      : mailError.code === "over_email_send_rate_limit" ? "invitation_email_rate_limited"
-      : mailError.code === "redirect_to_not_allowed" ? "invitation_email_redirect_not_allowed"
-      : "invitation_email_failed";
-    redirect(`/dashboard?error=${emailFailure}`);
+
+  // Send invitation email directly via application SMTP (reliable and bypasses Supabase rate limits)
+  const [{ data: org }, { data: inviterProfile }] = await Promise.all([
+    supabase.from("organizations").select("name").eq("id", parsed.data.organizationId).maybeSingle(),
+    supabase.from("profiles").select("display_name, email").eq("id", user.id).maybeSingle(),
+  ]);
+  const inviterName = inviterProfile?.display_name?.trim() || inviterProfile?.email || "An administrator";
+
+  const emailRes = await sendOrganizationInvitationEmail({
+    recipientEmail: parsed.data.email,
+    inviterName,
+    organizationName: org?.name || "the organization",
+    acceptUrl,
+  });
+
+  if (!emailRes.ok) {
+    // Optional fallback via supabase auth if direct smtp failed
+    const emailRedirectTo = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/callback?next=${encodeURIComponent(acceptUrl.replace(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000", ""))}`;
+    const { error: mailError } = await supabase.auth.signInWithOtp({ email: parsed.data.email, options: { shouldCreateUser: true, emailRedirectTo } });
+    if (mailError) {
+      await supabase.from("invitations").update({ status: "revoked" }).eq("token_hash", tokenHash);
+      redirect("/dashboard?error=invitation_email_failed");
+    }
   }
   revalidatePath("/dashboard");
+  if (parsed.data.workspaceId) {
+    revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
+    redirect(`/workspaces/${parsed.data.workspaceId}?invited=1`);
+  }
   redirect(`/dashboard?invited=1`);
 }
 
@@ -222,107 +265,6 @@ export async function removeWorkspaceMember(formData: FormData) {
   revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
   revalidatePath("/dashboard");
   redirect(`/workspaces/${parsed.data.workspaceId}?member_removed=1`);
-}
-
-export async function approveUserRegistration(formData: FormData) {
-  const parsed = z.object({
-    userId: z.string().uuid(),
-    organizationId: z.string().uuid().optional(),
-  }).safeParse({
-    userId: formData.get("userId"),
-    organizationId: formData.get("organizationId") || undefined,
-  });
-
-  if (!parsed.success) redirect("/dashboard?error=invalid_approval");
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/");
-
-  // Verify current user is an owner or admin of an organization
-  const { data: adminMemberships } = await supabase
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("user_id", user.id)
-    .in("role", ["owner", "admin"])
-    .eq("status", "active");
-
-  if (!adminMemberships || adminMemberships.length === 0) {
-    redirect("/dashboard?error=approval_forbidden");
-  }
-
-  // Update profile approval_status to 'approved'
-  const { error: updateError } = await supabase
-    .from("profiles")
-    .update({ approval_status: "approved" })
-    .eq("id", parsed.data.userId);
-
-  if (updateError) {
-    redirect("/dashboard?error=approval_failed");
-  }
-
-  // Assign user to organization
-  const targetOrgId = parsed.data.organizationId || adminMemberships[0].organization_id;
-  if (targetOrgId) {
-    await supabase
-      .from("organization_members")
-      .upsert({
-        organization_id: targetOrgId,
-        user_id: parsed.data.userId,
-        role: "member",
-        status: "active",
-      }, { onConflict: "organization_id,user_id" });
-  }
-
-  // Notify the user via email that their account has been approved
-  const [{ data: userProfile }, { data: org }] = await Promise.all([
-    supabase.from("profiles").select("display_name, email").eq("id", parsed.data.userId).maybeSingle(),
-    targetOrgId ? supabase.from("organizations").select("name").eq("id", targetOrgId).maybeSingle() : Promise.resolve({ data: null }),
-  ]);
-
-  if (userProfile?.email) {
-    sendUserAccountApprovedEmail({
-      recipientEmail: userProfile.email,
-      recipientName: userProfile.display_name?.trim() || userProfile.email,
-      organizationName: org?.name,
-    }).catch(console.error);
-  }
-
-  revalidatePath("/dashboard");
-  if (targetOrgId) revalidatePath(`/organizations/${targetOrgId}/members`);
-  redirect("/dashboard?user_approved=1");
-}
-
-export async function rejectUserRegistration(formData: FormData) {
-  const parsed = z.object({
-    userId: z.string().uuid(),
-  }).safeParse({
-    userId: formData.get("userId"),
-  });
-
-  if (!parsed.success) redirect("/dashboard?error=invalid_action");
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/");
-
-  // Check admin access
-  const { data: adminMemberships } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .in("role", ["owner", "admin"])
-    .eq("status", "active");
-
-  if (!adminMemberships || adminMemberships.length === 0) {
-    redirect("/dashboard?error=action_forbidden");
-  }
-
-  await supabase
-    .from("profiles")
-    .update({ approval_status: "rejected" })
-    .eq("id", parsed.data.userId);
-
-  revalidatePath("/dashboard");
-  redirect("/dashboard?user_rejected=1");
 }
 
 export async function createProject(formData: FormData) {
@@ -1228,12 +1170,12 @@ export async function createOrganizationHoliday(formData: FormData) {
 
 export async function requestPasswordReset(formData: FormData) {
   const email = z.string().trim().email().safeParse(formData.get("email"));
-  if (!email.success) redirect("/?error=invalid_input");
+  if (!email.success) redirect("/reset-password?error=invalid_input");
   const supabase = await createClient();
   await supabase.auth.resetPasswordForEmail(email.data, {
     redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/callback?type=recovery`,
   });
-  redirect("/?message=reset_sent");
+  redirect("/reset-password?message=reset_sent");
 }
 
 export async function quickCreateSubtask(formData: FormData) {
