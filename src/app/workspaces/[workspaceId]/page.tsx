@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import CurrentUserBadge from "@/app/CurrentUserBadge";
 import Link from "next/link";
-import { ArrowLeft, FolderKanban, Plus } from "lucide-react";
+import { ArrowLeft, FolderKanban, Plus, UserPlus, Mail, Send } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { addWorkspaceMember, createProject, inviteOrganizationMember, removeWorkspaceMember, updateWorkspaceMemberRole, signOut } from "@/app/actions";
 
@@ -78,44 +78,77 @@ export default async function WorkspacePage({ params, searchParams }: {
           </div>
         ))}</div> : <p className="muted small">No one has explicit workspace access yet. Organization owners and admins can still access it.</p>}
         {canManage && (
-          <div style={{ display: 'grid', gap: '16px' }}>
-            <form action={addWorkspaceMember} className="workspace-member-add">
-              <input type="hidden" name="workspaceId" value={workspaceId}/>
-              <label>Add an organization member
-                <select name="userId" required defaultValue="" disabled={!availableMembers.length}>
-                  <option value="">{availableMembers.length ? "Choose an organization member" : "All organization members already have access"}</option>
-                  {availableMembers.map((member) => <option key={member.user_id} value={member.user_id}>{people.get(member.user_id) ?? "Team member"}</option>)}
-                </select>
-              </label>
-              <label>Workspace role
-                <select name="role" defaultValue="member">
-                  <option value="member">Member (Can edit &amp; upload)</option>
-                  <option value="viewer">Viewer (Read-only)</option>
-                  <option value="manager">Manager</option>
-                  {isOrgAdmin && <option value="admin">Admin</option>}
-                </select>
-              </label>
-              <button className="button button-primary" disabled={!availableMembers.length}>Add to workspace</button>
-            </form>
+          <div className="workspace-invite-box">
+            <div className="workspace-invite-header">
+              <h4>
+                <UserPlus size={15} />
+                <span>Add or Invite Workspace Members</span>
+              </h4>
+              <p className="muted small">Grant access to existing organization members or invite new team members directly via email.</p>
+            </div>
 
-            {isOrgAdmin && (
-              <form action={inviteOrganizationMember} className="workspace-member-add" style={{ borderTop: '1px solid var(--border, #e2e8f0)', paddingTop: '14px' }}>
-                <input type="hidden" name="organizationId" value={workspace.organization_id} />
-                <input type="hidden" name="workspaceId" value={workspaceId} />
-                <label>Or invite new user by email
-                  <input name="email" type="email" placeholder="user@example.com" required />
-                </label>
-                <label>Workspace role
-                  <select name="role" defaultValue="member">
-                    <option value="member">Member (Can edit &amp; upload)</option>
-                    <option value="viewer">Viewer (Read-only)</option>
-                    <option value="manager">Manager</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </label>
-                <button className="button button-secondary">Send Invite</button>
+            <div className="workspace-invite-grid">
+              {/* Option 1: Existing Org Member */}
+              <form action={addWorkspaceMember} className="workspace-add-panel">
+                <input type="hidden" name="workspaceId" value={workspaceId}/>
+                <div className="invite-panel-title">
+                  <UserPlus size={13} />
+                  <strong>Existing Organization Member</strong>
+                </div>
+                <div className="invite-fields-row">
+                  <div className="invite-field-group">
+                    <label>Select member</label>
+                    <select name="userId" required defaultValue="" disabled={!availableMembers.length} className="invite-select">
+                      <option value="">{availableMembers.length ? "Choose an organization member…" : "All org members already added"}</option>
+                      {availableMembers.map((member) => <option key={member.user_id} value={member.user_id}>{people.get(member.user_id) ?? "Team member"}</option>)}
+                    </select>
+                  </div>
+                  <div className="invite-field-group" style={{ maxWidth: '170px' }}>
+                    <label>Workspace role</label>
+                    <select name="role" defaultValue="member" className="invite-select">
+                      <option value="member">Member (Can edit)</option>
+                      <option value="viewer">Viewer (Read-only)</option>
+                      <option value="manager">Manager</option>
+                      {isOrgAdmin && <option value="admin">Admin</option>}
+                    </select>
+                  </div>
+                  <button className="button button-primary invite-action-btn" disabled={!availableMembers.length}>
+                    Add to workspace
+                  </button>
+                </div>
               </form>
-            )}
+
+              {/* Option 2: Invite by email */}
+              {isOrgAdmin && (
+                <form action={inviteOrganizationMember} className="workspace-add-panel is-email-panel">
+                  <input type="hidden" name="organizationId" value={workspace.organization_id} />
+                  <input type="hidden" name="workspaceId" value={workspaceId} />
+                  <div className="invite-panel-title">
+                    <Mail size={13} />
+                    <strong>Invite New User via Email</strong>
+                  </div>
+                  <div className="invite-fields-row">
+                    <div className="invite-field-group">
+                      <label>Email address</label>
+                      <input name="email" type="email" placeholder="name@company.com" required className="invite-input" />
+                    </div>
+                    <div className="invite-field-group" style={{ maxWidth: '170px' }}>
+                      <label>Workspace role</label>
+                      <select name="role" defaultValue="member" className="invite-select">
+                        <option value="member">Member (Can edit)</option>
+                        <option value="viewer">Viewer (Read-only)</option>
+                        <option value="manager">Manager</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                    <button className="button button-primary invite-action-btn" style={{ gap: '6px' }}>
+                      <Send size={12} />
+                      <span>Send Invite</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         )}
       </section>

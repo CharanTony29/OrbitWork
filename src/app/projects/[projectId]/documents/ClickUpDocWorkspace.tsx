@@ -33,6 +33,15 @@ import {
   Columns2,
   Loader2,
   X,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  Quote,
+  Palette,
+  Type,
+  Trash2,
+  Maximize2,
 } from "lucide-react";
 import {
   quickCreateProjectDocument,
@@ -65,6 +74,17 @@ const COVER_PRESETS = [
 ];
 
 const EMOJI_PRESETS = ["📄", "📘", "💡", "🚀", "⚙️", "📝", "🎯", "🧪", "📌", "🔬", "📚", "✨"];
+
+const COLOR_PALETTE = [
+  { label: "Default", color: "#e2e8f0" },
+  { label: "Dark / Slate", color: "#64748b" },
+  { label: "White", color: "#ffffff" },
+  { label: "Emerald Green", color: "#10b981" },
+  { label: "Sky Blue", color: "#0284c7" },
+  { label: "Purple", color: "#a855f7" },
+  { label: "Red", color: "#ef4444" },
+  { label: "Amber / Yellow", color: "#f59e0b" },
+];
 
 export default function ClickUpDocWorkspace({
   projectId,
@@ -121,8 +141,11 @@ export default function ClickUpDocWorkspace({
   const [collapsedParents, setCollapsedParents] = useState<Record<string, boolean>>({});
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showTableMenu, setShowTableMenu] = useState(false);
+  const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isNavigatingRef = useRef(false);
@@ -135,7 +158,18 @@ export default function ClickUpDocWorkspace({
     setContent(cleanBody);
     setMeta(m);
     setSaveStatus("saved");
+    if (editorRef.current) {
+      editorRef.current.innerHTML = cleanBody.includes("<") ? cleanBody : markdownToSafeHtml(cleanBody);
+    }
   }, [activeDocId]);
+
+  useEffect(() => {
+    if (editorRef.current && parsedInitial.cleanBody) {
+      editorRef.current.innerHTML = parsedInitial.cleanBody.includes("<")
+        ? parsedInitial.cleanBody
+        : markdownToSafeHtml(parsedInitial.cleanBody);
+    }
+  }, []);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -218,9 +252,9 @@ export default function ClickUpDocWorkspace({
       canvas.height = height;
       const ctx = canvas.getContext("2d");
       ctx?.drawImage(bitmap, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
 
-      insertSnippet(`\n![${file.name || "Pasted image"}](${dataUrl})\n`);
+      insertRichHTML(`<img src="${dataUrl}" alt="${file.name || "Pasted image"}" class="doc-embedded-img" style="max-width:100%; border-radius:8px; margin:12px 0;" /><p><br/></p>`);
       showToast("Image pasted successfully!");
     } catch (err) {
       console.error("Image paste error", err);
@@ -228,41 +262,34 @@ export default function ClickUpDocWorkspace({
     }
   };
 
-  const insertSnippet = (snippet: string, isFromSlash = false) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    let start = textarea.selectionStart;
-    let end = textarea.selectionEnd;
-    let currentVal = textarea.value;
-
-    // Strip preceding '/' if invoked from slash menu or preceded by '/'
-    if (isFromSlash || (start > 0 && currentVal[start - 1] === "/")) {
-      if (start > 0 && currentVal[start - 1] === "/") {
-        currentVal = currentVal.slice(0, start - 1) + currentVal.slice(start);
-        start = start - 1;
-        end = Math.max(start, end - 1);
-      }
-    } else if (slashMenuOpen && cursorIndex >= 0 && currentVal[cursorIndex] === "/") {
-      currentVal = currentVal.slice(0, cursorIndex) + currentVal.slice(cursorIndex + 1);
-      if (start > cursorIndex) start = start - 1;
-      if (end > cursorIndex) end = Math.max(start, end - 1);
+  const execRichCmd = (cmd: string, val: string = "") => {
+    if (editorRef.current) {
+      editorRef.current.focus();
     }
+    document.execCommand(cmd, false, val);
+    if (editorRef.current) {
+      const html = editorRef.current.innerHTML;
+      setContent(html);
+      triggerAutosave(title, html, meta);
+    }
+  };
 
-    const nextVal = currentVal.slice(0, start) + snippet + currentVal.slice(end);
-    setContent(nextVal);
-    triggerAutosave(title, nextVal, meta);
+  const insertRichHTML = (htmlToInsert: string) => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
+    document.execCommand("insertHTML", false, htmlToInsert);
+    if (editorRef.current) {
+      const html = editorRef.current.innerHTML;
+      setContent(html);
+      triggerAutosave(title, html, meta);
+    }
     setSlashMenuOpen(false);
     setBlockMenuOpen(false);
-
-    setTimeout(() => {
-      textarea.focus();
-      const newPos = start + snippet.length;
-      textarea.setSelectionRange(newPos, newPos);
-    }, 50);
   };
 
   // Paste handler — supports copied images (Ctrl+C → Ctrl+V) from browser, files, screenshots
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     const clipData = e.clipboardData;
     if (!clipData) return;
 
@@ -279,38 +306,17 @@ export default function ClickUpDocWorkspace({
       }
     }
 
-    // Check clipboard files array (drag-drop, some browsers put images here)
+    // Check clipboard files array
     const files = clipData.files;
     if (files && files.length > 0 && files[0].type.startsWith("image/")) {
       e.preventDefault();
       compressAndInsertImage(files[0]);
       return;
     }
-
-    // Check for HTML content that contains an <img> tag (copy image from webpage)
-    const html = clipData.getData("text/html");
-    if (html) {
-      const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-      if (imgMatch && imgMatch[1]) {
-        const imgSrc = imgMatch[1];
-        // If it's a data URL, insert directly
-        if (imgSrc.startsWith("data:image/")) {
-          e.preventDefault();
-          insertSnippet(`\n![Pasted image](${imgSrc})\n`);
-          return;
-        }
-        // If it's an http(s) URL, insert as markdown image
-        if (imgSrc.startsWith("http://") || imgSrc.startsWith("https://")) {
-          e.preventDefault();
-          insertSnippet(`\n![Pasted image](${imgSrc})\n`);
-          return;
-        }
-      }
-    }
   };
 
   // Drop handler
-  const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     const files = e.dataTransfer?.files;
     if (files && files[0] && files[0].type.startsWith("image/")) {
       e.preventDefault();
@@ -318,133 +324,263 @@ export default function ClickUpDocWorkspace({
     }
   };
 
-  // Keyboard navigation & slash commands + auto-continue lists
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const textarea = e.currentTarget;
+  // Font styling helpers
+  const setFontSize = (sizePx: string) => {
+    if (editorRef.current) editorRef.current.focus();
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!range.collapsed) {
+      const span = document.createElement("span");
+      span.style.fontSize = sizePx;
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+      if (editorRef.current) {
+        const html = editorRef.current.innerHTML;
+        setContent(html);
+        triggerAutosave(title, html, meta);
+      }
+    }
+  };
 
-    // Auto-continue bullet and numbered lists on Enter
-    if (e.key === "Enter" && !e.shiftKey && !slashMenuOpen) {
-      const cursorPos = textarea.selectionStart;
-      const val = textarea.value;
+  const setFontColor = (colorHex: string) => {
+    if (editorRef.current) editorRef.current.focus();
+    document.execCommand("foreColor", false, colorHex);
+    if (editorRef.current) {
+      const html = editorRef.current.innerHTML;
+      setContent(html);
+      triggerAutosave(title, html, meta);
+    }
+    setShowColorPicker(false);
+  };
 
-      // Find the current line
-      const lineStart = val.lastIndexOf("\n", cursorPos - 1) + 1;
-      const currentLine = val.slice(lineStart, cursorPos);
+  // Table manipulation helpers
+  const getSelectedTable = (): HTMLTableElement | null => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      let el: Node | null = sel.anchorNode;
+      while (el && el !== editorRef.current) {
+        if (el.nodeName === "TABLE") return el as HTMLTableElement;
+        el = el.parentNode;
+      }
+    }
+    return editorRef.current?.querySelector("table.doc-table") as HTMLTableElement | null;
+  };
 
-      // Check for numbered list: "  3. some text" → next line "  4. "
-      const numberedMatch = currentLine.match(/^(\s*)(\d+)\.\s(.*)$/);
-      if (numberedMatch) {
-        const indent = numberedMatch[1];
-        const num = parseInt(numberedMatch[2], 10);
-        const lineContent = numberedMatch[3];
+  const addTableRow = () => {
+    const table = getSelectedTable();
+    if (!table) {
+      showToast("Place your cursor inside a table first.");
+      return;
+    }
+    const colCount = table.rows[0]?.cells.length || 3;
+    const tbody = table.querySelector("tbody") || table;
+    const newRow = document.createElement("tr");
+    for (let i = 0; i < colCount; i++) {
+      const td = document.createElement("td");
+      td.textContent = `Cell`;
+      newRow.appendChild(td);
+    }
+    tbody.appendChild(newRow);
+    if (editorRef.current) {
+      const html = editorRef.current.innerHTML;
+      setContent(html);
+      triggerAutosave(title, html, meta);
+    }
+    showToast("Row added to table");
+  };
 
-        // If current line content is empty, remove the list prefix and stop continuing
-        if (!lineContent.trim()) {
-          e.preventDefault();
-          const nextVal = val.slice(0, lineStart) + "\n" + val.slice(cursorPos);
-          setContent(nextVal);
-          triggerAutosave(title, nextVal, meta);
-          setTimeout(() => {
-            textarea.focus();
-            textarea.setSelectionRange(lineStart + 1, lineStart + 1);
-          }, 10);
-          return;
-        }
+  const addTableColumn = () => {
+    const table = getSelectedTable();
+    if (!table) {
+      showToast("Place your cursor inside a table first.");
+      return;
+    }
+    const thead = table.querySelector("thead");
+    if (thead && thead.rows[0]) {
+      const th = document.createElement("th");
+      th.textContent = `Column ${thead.rows[0].cells.length + 1}`;
+      thead.rows[0].appendChild(th);
+    }
+    const tbody = table.querySelector("tbody") || table;
+    for (let i = 0; i < tbody.rows.length; i++) {
+      const td = document.createElement("td");
+      td.textContent = `Cell`;
+      tbody.rows[i].appendChild(td);
+    }
+    if (editorRef.current) {
+      const html = editorRef.current.innerHTML;
+      setContent(html);
+      triggerAutosave(title, html, meta);
+    }
+    showToast("Column added to table");
+  };
 
+  const removeTableRow = () => {
+    const table = getSelectedTable();
+    if (!table) return;
+    const tbody = table.querySelector("tbody") || table;
+    if (tbody.rows.length > 1) {
+      tbody.deleteRow(tbody.rows.length - 1);
+      if (editorRef.current) {
+        const html = editorRef.current.innerHTML;
+        setContent(html);
+        triggerAutosave(title, html, meta);
+      }
+      showToast("Row removed");
+    }
+  };
+
+  const removeTableColumn = () => {
+    const table = getSelectedTable();
+    if (!table) return;
+    for (let i = 0; i < table.rows.length; i++) {
+      const row = table.rows[i];
+      if (row.cells.length > 1) {
+        row.deleteCell(row.cells.length - 1);
+      }
+    }
+    if (editorRef.current) {
+      const html = editorRef.current.innerHTML;
+      setContent(html);
+      triggerAutosave(title, html, meta);
+    }
+    showToast("Column removed");
+  };
+
+  // Image selection and resize helpers
+  const handleEditorClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === "IMG") {
+      const img = target as HTMLImageElement;
+      setSelectedImg(img);
+      editorRef.current?.querySelectorAll("img.is-selected").forEach((el) => el.classList.remove("is-selected"));
+      img.classList.add("is-selected");
+    } else {
+      if (selectedImg && !target.closest(".doc-img-resizer-bar")) {
+        editorRef.current?.querySelectorAll("img.is-selected").forEach((el) => el.classList.remove("is-selected"));
+        setSelectedImg(null);
+      }
+    }
+  };
+
+  const resizeSelectedImg = (widthVal: string) => {
+    if (selectedImg) {
+      selectedImg.style.width = widthVal;
+      selectedImg.style.maxWidth = "100%";
+      selectedImg.style.height = "auto";
+      selectedImg.style.display = "block";
+      if (editorRef.current) {
+        const html = editorRef.current.innerHTML;
+        setContent(html);
+        triggerAutosave(title, html, meta);
+      }
+      showToast(`Image set to ${widthVal}`);
+    }
+  };
+
+  const deleteSelectedImg = () => {
+    if (selectedImg) {
+      selectedImg.remove();
+      setSelectedImg(null);
+      if (editorRef.current) {
+        const html = editorRef.current.innerHTML;
+        setContent(html);
+        triggerAutosave(title, html, meta);
+      }
+      showToast("Image removed");
+    }
+  };
+
+  // Keyboard navigation shortcuts: Ctrl+B (Bold), Ctrl+I (Italic), Ctrl+U (Underline), and numbering continuation
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === "b" || e.key === "B") {
         e.preventDefault();
-        const nextNum = num + 1;
-        const insertion = `\n${indent}${nextNum}. `;
-        const nextVal = val.slice(0, cursorPos) + insertion + val.slice(textarea.selectionEnd);
-        setContent(nextVal);
-        triggerAutosave(title, nextVal, meta);
-        setTimeout(() => {
-          const newPos = cursorPos + insertion.length;
-          textarea.focus();
-          textarea.setSelectionRange(newPos, newPos);
-        }, 10);
+        execRichCmd("bold");
         return;
       }
-
-      // Check for checklist: "- [ ] some text" → next line "- [ ] "
-      const checklistMatch = currentLine.match(/^(\s*)[-*+]\s\[[ xX]\]\s(.*)$/);
-      if (checklistMatch) {
-        const indent = checklistMatch[1];
-        const lineContent = checklistMatch[2];
-
-        if (!lineContent.trim()) {
-          e.preventDefault();
-          const nextVal = val.slice(0, lineStart) + "\n" + val.slice(cursorPos);
-          setContent(nextVal);
-          triggerAutosave(title, nextVal, meta);
-          setTimeout(() => {
-            textarea.focus();
-            textarea.setSelectionRange(lineStart + 1, lineStart + 1);
-          }, 10);
-          return;
-        }
-
+      if (e.key === "i" || e.key === "I") {
         e.preventDefault();
-        const insertion = `\n${indent}- [ ] `;
-        const nextVal = val.slice(0, cursorPos) + insertion + val.slice(textarea.selectionEnd);
-        setContent(nextVal);
-        triggerAutosave(title, nextVal, meta);
-        setTimeout(() => {
-          const newPos = cursorPos + insertion.length;
-          textarea.focus();
-          textarea.setSelectionRange(newPos, newPos);
-        }, 10);
+        execRichCmd("italic");
         return;
       }
-
-      // Check for bullet list: "  - some text" → next line "  - "
-      const bulletMatch = currentLine.match(/^(\s*)[-*+]\s(.*)$/);
-      if (bulletMatch) {
-        const indent = bulletMatch[1];
-        const lineContent = bulletMatch[2];
-        const bulletChar = currentLine.trim()[0]; // -, *, or +
-
-        if (!lineContent.trim()) {
-          e.preventDefault();
-          const nextVal = val.slice(0, lineStart) + "\n" + val.slice(cursorPos);
-          setContent(nextVal);
-          triggerAutosave(title, nextVal, meta);
-          setTimeout(() => {
-            textarea.focus();
-            textarea.setSelectionRange(lineStart + 1, lineStart + 1);
-          }, 10);
-          return;
-        }
-
+      if (e.key === "u" || e.key === "U") {
         e.preventDefault();
-        const insertion = `\n${indent}${bulletChar} `;
-        const nextVal = val.slice(0, cursorPos) + insertion + val.slice(textarea.selectionEnd);
-        setContent(nextVal);
-        triggerAutosave(title, nextVal, meta);
-        setTimeout(() => {
-          const newPos = cursorPos + insertion.length;
-          textarea.focus();
-          textarea.setSelectionRange(newPos, newPos);
-        }, 10);
+        execRichCmd("underline");
         return;
       }
     }
 
-    // Slash command trigger
-    if (e.key === "/" && !slashMenuOpen) {
-      setSlashMenuOpen(true);
-      setSlashQuery("");
-      setCursorIndex(textarea.selectionStart);
-    } else if (slashMenuOpen) {
-      if (e.key === "Escape") {
-        setSlashMenuOpen(false);
+    // Auto-continue numbering: after "1. " and Enter, automatically insert "2. "
+    if (e.key === "Enter" && !e.shiftKey) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const anchor = sel.anchorNode;
+        const text = anchor?.textContent || "";
+        const offset = sel.anchorOffset;
+        const before = text.slice(0, offset);
+
+        const match = before.match(/^(\s*)(\d+)\.\s*(.*)$/);
+        if (match) {
+          e.preventDefault();
+          const indent = match[1];
+          const num = parseInt(match[2], 10);
+          const lineContent = match[3];
+
+          if (!lineContent.trim()) {
+            // Empty number item -> clear number and end list
+            document.execCommand("insertParagraph", false);
+          } else {
+            // Next number
+            document.execCommand("insertParagraph", false);
+            document.execCommand("insertText", false, `${num + 1}. `);
+          }
+          if (editorRef.current) {
+            const html = editorRef.current.innerHTML;
+            setContent(html);
+            triggerAutosave(title, html, meta);
+          }
+          return;
+        }
       }
+    }
+
+    // Convert typing "1. " into native ordered list
+    if (e.key === " " && !e.shiftKey) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const anchor = sel.anchorNode;
+        const text = anchor?.textContent || "";
+        const offset = sel.anchorOffset;
+        const before = text.slice(0, offset);
+        if (before === "1.") {
+          e.preventDefault();
+          document.execCommand("delete", false);
+          document.execCommand("delete", false);
+          document.execCommand("insertOrderedList", false);
+          if (editorRef.current) {
+            const html = editorRef.current.innerHTML;
+            setContent(html);
+            triggerAutosave(title, html, meta);
+          }
+          return;
+        }
+      }
+    }
+
+    if (e.key === "Escape") {
+      setSlashMenuOpen(false);
+      setBlockMenuOpen(false);
+      setShowColorPicker(false);
+      setShowTableMenu(false);
     }
   };
 
   // Add new document
   const handleAddPage = async (parentId?: string) => {
     const initialMeta: DocMeta = parentId ? { parentId, icon: "📄" } : { icon: "📄" };
-    const defaultBody = serializeMeta(initialMeta, "# Untitled Page\n\nWrite your notes here…\n");
+    const defaultBody = serializeMeta(initialMeta, "<p>Write your notes here…</p>");
 
     const fd = new FormData();
     fd.set("projectId", projectId);
@@ -464,17 +600,16 @@ export default function ClickUpDocWorkspace({
     }
   };
 
-  // Slash command options matching ClickUp (Image 2)
+  // Slash command options matching ClickUp
   const slashCommands = [
     {
       id: "toggle",
       label: "Toggle list",
       category: "Suggestions",
       icon: <ListFilter size={14} />,
-      action: (fromSlash = false) =>
-        insertSnippet(
-          "\n:::toggle Toggle Question or Header\nAnswer or content goes here.\n\n- Point 1\n- Point 2\n:::\n",
-          fromSlash
+      action: () =>
+        insertRichHTML(
+          `<details class="doc-toggle-block" open><summary class="doc-toggle-summary">Toggle Question or Header</summary><div class="doc-toggle-body"><p>Answer or content goes here.</p><ul><li>Point 1</li><li>Point 2</li></ul></div></details><p><br/></p>`
         ),
     },
     {
@@ -482,22 +617,30 @@ export default function ClickUpDocWorkspace({
       label: "Checklist",
       category: "Suggestions",
       icon: <CheckSquare size={14} />,
-      action: (fromSlash = false) => insertSnippet("\n- [ ] Task item\n- [ ] Another item\n", fromSlash),
+      action: () =>
+        insertRichHTML(
+          `<ul class="doc-checklist" style="list-style:none;padding-left:0;"><li><input type="checkbox" /> Task item</li><li><input type="checkbox" /> Another item</li></ul><p><br/></p>`
+        ),
     },
     {
       id: "banner",
       label: "Banners / Callout",
       category: "Suggestions",
       icon: <Sparkles size={14} />,
-      action: (fromSlash = false) => insertSnippet("\n> [!NOTE] Key takeaway or important context for the team.\n", fromSlash),
+      action: () =>
+        insertRichHTML(
+          `<div class="doc-callout-banner callout-note"><strong>💡 Note:</strong> Key takeaway or important context for the team.</div><p><br/></p>`
+        ),
     },
     {
       id: "table",
       label: "ClickUp List (Table)",
       category: "Suggestions",
       icon: <Columns size={14} />,
-      action: (fromSlash = false) =>
-        insertSnippet("\n| Column 1 | Column 2 | Status |\n|---|---|---|\n| Item 1 | Details | Active |\n", fromSlash),
+      action: () =>
+        insertRichHTML(
+          `<table class="doc-table"><thead><tr><th>Column 1</th><th>Column 2</th><th>Status</th></tr></thead><tbody><tr><td>Item 1</td><td>Details</td><td>Active</td></tr><tr><td>Item 2</td><td>Details</td><td>Pending</td></tr></tbody></table><p><br/></p>`
+        ),
     },
     {
       id: "image",
@@ -513,10 +656,9 @@ export default function ClickUpDocWorkspace({
       label: "Create Whiteboard",
       category: "Suggestions",
       icon: <Layout size={14} />,
-      action: (fromSlash = false) =>
-        insertSnippet(
-          `\n[🎨 Open Project Whiteboard](/projects/${projectId}?view=whiteboard)\n`,
-          fromSlash
+      action: () =>
+        insertRichHTML(
+          `<p><a href="/projects/${projectId}?view=whiteboard" class="doc-link-pill">🎨 Open Project Whiteboard</a></p><p><br/></p>`
         ),
     },
     {
@@ -524,49 +666,52 @@ export default function ClickUpDocWorkspace({
       label: "Heading 1",
       category: "Text",
       icon: <Heading1 size={14} />,
-      action: (fromSlash = false) => insertSnippet("\n# ", fromSlash),
+      action: () => execRichCmd("formatBlock", "<h1>"),
     },
     {
       id: "h2",
       label: "Heading 2",
       category: "Text",
       icon: <Heading2 size={14} />,
-      action: (fromSlash = false) => insertSnippet("\n## ", fromSlash),
+      action: () => execRichCmd("formatBlock", "<h2>"),
     },
     {
       id: "h3",
       label: "Heading 3",
       category: "Text",
       icon: <Heading3 size={14} />,
-      action: (fromSlash = false) => insertSnippet("\n### ", fromSlash),
+      action: () => execRichCmd("formatBlock", "<h3>"),
     },
     {
       id: "bullet",
       label: "Bullet list",
       category: "Text",
       icon: <List size={14} />,
-      action: (fromSlash = false) => insertSnippet("\n- ", fromSlash),
+      action: () => execRichCmd("insertUnorderedList"),
     },
     {
       id: "number",
       label: "Numbered list",
       category: "Text",
       icon: <ListOrdered size={14} />,
-      action: (fromSlash = false) => insertSnippet("\n1. ", fromSlash),
+      action: () => execRichCmd("insertOrderedList"),
     },
     {
       id: "code",
       label: "Code block",
       category: "Text",
       icon: <Code size={14} />,
-      action: (fromSlash = false) => insertSnippet("\n```typescript\n// Your code here\n```\n", fromSlash),
+      action: () =>
+        insertRichHTML(
+          `<pre class="doc-code-block"><code>// Your code here\nconsole.log("Hello world");</code></pre><p><br/></p>`
+        ),
     },
     {
       id: "divider",
       label: "Divider",
       category: "Text",
       icon: <Minus size={14} />,
-      action: (fromSlash = false) => insertSnippet("\n---\n", fromSlash),
+      action: () => insertRichHTML("<hr /><p><br/></p>"),
     },
   ];
 
@@ -724,7 +869,7 @@ export default function ClickUpDocWorkspace({
                 type="button"
                 className="doc-quick-btn"
                 onClick={() =>
-                  insertSnippet(`\n[🔗 Link to Task or Doc](/projects/${projectId})\n`)
+                  insertRichHTML(`<p><a href="/projects/${projectId}" class="doc-link-pill">🔗 Link to Project Tasks</a></p><p><br/></p>`)
                 }
               >
                 <ExternalLink size={12} />
@@ -959,7 +1104,7 @@ export default function ClickUpDocWorkspace({
                           type="button"
                           className="doc-popover-item"
                           onClick={() => {
-                            c.action(false);
+                            c.action();
                             setBlockMenuOpen(false);
                           }}
                         >
@@ -977,7 +1122,7 @@ export default function ClickUpDocWorkspace({
                           type="button"
                           className="doc-popover-item"
                           onClick={() => {
-                            c.action(false);
+                            c.action();
                             setBlockMenuOpen(false);
                           }}
                         >
@@ -991,15 +1136,119 @@ export default function ClickUpDocWorkspace({
 
               <div className="doc-toolbar-sep" />
 
+              {/* Word-style Rich Text Formatting Buttons */}
+              <div className="doc-word-fmt-group" style={{ display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                <button
+                  type="button"
+                  className="doc-toolbar-btn doc-fmt-btn"
+                  title="Bold (Ctrl+B)"
+                  onClick={() => execRichCmd("bold")}
+                >
+                  <Bold size={12} />
+                  <span style={{ fontWeight: 800 }}>B</span>
+                </button>
+                <button
+                  type="button"
+                  className="doc-toolbar-btn doc-fmt-btn"
+                  title="Italic (Ctrl+I)"
+                  onClick={() => execRichCmd("italic")}
+                >
+                  <Italic size={12} />
+                  <span style={{ fontStyle: "italic" }}>I</span>
+                </button>
+                <button
+                  type="button"
+                  className="doc-toolbar-btn doc-fmt-btn"
+                  title="Underline (Ctrl+U)"
+                  onClick={() => execRichCmd("underline")}
+                >
+                  <Underline size={12} />
+                  <span style={{ textDecoration: "underline" }}>U</span>
+                </button>
+                <button
+                  type="button"
+                  className="doc-toolbar-btn doc-fmt-btn"
+                  title="Strikethrough"
+                  onClick={() => execRichCmd("strikeThrough")}
+                >
+                  <Strikethrough size={12} />
+                  <span style={{ textDecoration: "line-through" }}>S</span>
+                </button>
+
+                {/* Font Size Selector */}
+                <div className="doc-toolbar-btn doc-fmt-btn" style={{ padding: "0 4px", gap: "2px" }} title="Font Size">
+                  <Type size={12} />
+                  <select
+                    className="doc-font-size-select"
+                    defaultValue="14px"
+                    onChange={(e) => setFontSize(e.target.value)}
+                    aria-label="Font size"
+                  >
+                    <option value="12px">12px</option>
+                    <option value="14px">14px</option>
+                    <option value="16px">16px</option>
+                    <option value="18px">18px</option>
+                    <option value="22px">22px</option>
+                    <option value="28px">28px</option>
+                  </select>
+                </div>
+
+                {/* Font Color Picker */}
+                <div style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    className="doc-toolbar-btn doc-fmt-btn"
+                    title="Font Color"
+                    onClick={() => setShowColorPicker((v) => !v)}
+                  >
+                    <Palette size={12} />
+                    <span style={{ fontSize: "11px", fontWeight: 600 }}>Color</span>
+                  </button>
+
+                  {showColorPicker && (
+                    <div className="doc-color-picker-popover">
+                      {COLOR_PALETTE.map((c) => (
+                        <button
+                          key={c.color}
+                          type="button"
+                          className="color-swatch-btn"
+                          style={{ background: c.color }}
+                          title={c.label}
+                          onClick={() => setFontColor(c.color)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className="doc-toolbar-btn doc-fmt-btn"
+                  title="Inline Code"
+                  onClick={() => insertRichHTML("<code>code</code>")}
+                >
+                  <Code size={12} />
+                </button>
+                <button
+                  type="button"
+                  className="doc-toolbar-btn doc-fmt-btn"
+                  title="Quote Block"
+                  onClick={() => insertRichHTML("<blockquote>Quote text</blockquote><p><br/></p>")}
+                >
+                  <Quote size={12} />
+                </button>
+              </div>
+
+              <div className="doc-toolbar-sep" />
+
               {/* Direct 1-Click Action Buttons */}
               <button
                 type="button"
                 className="doc-toolbar-btn highlight-btn"
                 title="Insert Collapsible Toggle List"
                 onClick={() =>
-                  insertSnippet(
-                    `\n:::toggle Toggle Question or Header\nAnswer or content goes here.\n\n- Point 1\n- Point 2\n:::\n`,
-                    false
+                  insertRichHTML(
+                    `<details class="doc-toggle-block" open><summary class="doc-toggle-summary">Toggle Question or Header</summary><div class="doc-toggle-body"><p>Answer or content goes here.</p><ul><li>Point 1</li><li>Point 2</li></ul></div></details><p><br/></p>`
                   )
                 }
               >
@@ -1011,7 +1260,7 @@ export default function ClickUpDocWorkspace({
                 type="button"
                 className="doc-toolbar-btn"
                 title="Heading 1"
-                onClick={() => insertSnippet("\n# ", false)}
+                onClick={() => execRichCmd("formatBlock", "<h1>")}
               >
                 <Heading1 size={12} />
                 <span>H1</span>
@@ -1021,7 +1270,7 @@ export default function ClickUpDocWorkspace({
                 type="button"
                 className="doc-toolbar-btn"
                 title="Heading 2"
-                onClick={() => insertSnippet("\n## ", false)}
+                onClick={() => execRichCmd("formatBlock", "<h2>")}
               >
                 <Heading2 size={12} />
                 <span>H2</span>
@@ -1031,7 +1280,11 @@ export default function ClickUpDocWorkspace({
                 type="button"
                 className="doc-toolbar-btn"
                 title="Checklist"
-                onClick={() => insertSnippet("\n- [ ] Task item\n- [ ] Another item\n", false)}
+                onClick={() =>
+                  insertRichHTML(
+                    `<ul class="doc-checklist" style="list-style:none;padding-left:0;"><li><input type="checkbox" /> Task item</li><li><input type="checkbox" /> Another item</li></ul><p><br/></p>`
+                  )
+                }
               >
                 <CheckSquare size={12} />
                 <span>Checklist</span>
@@ -1041,7 +1294,7 @@ export default function ClickUpDocWorkspace({
                 type="button"
                 className="doc-toolbar-btn"
                 title="Bullet List"
-                onClick={() => insertSnippet("\n- ", false)}
+                onClick={() => execRichCmd("insertUnorderedList")}
               >
                 <List size={12} />
                 <span>Bullets</span>
@@ -1051,7 +1304,7 @@ export default function ClickUpDocWorkspace({
                 type="button"
                 className="doc-toolbar-btn"
                 title="Numbered List"
-                onClick={() => insertSnippet("\n1. ", false)}
+                onClick={() => execRichCmd("insertOrderedList")}
               >
                 <ListOrdered size={12} />
                 <span>Numbered</span>
@@ -1062,7 +1315,9 @@ export default function ClickUpDocWorkspace({
                 className="doc-toolbar-btn"
                 title="Callout Banner"
                 onClick={() =>
-                  insertSnippet("\n> [!NOTE] Key takeaway or important context for the team.\n", false)
+                  insertRichHTML(
+                    `<div class="doc-callout-banner callout-note"><strong>💡 Note:</strong> Key takeaway or important context for the team.</div><p><br/></p>`
+                  )
                 }
               >
                 <Sparkles size={12} />
@@ -1079,29 +1334,88 @@ export default function ClickUpDocWorkspace({
                 <span>Add Image</span>
               </button>
 
-              <button
-                type="button"
-                className="doc-toolbar-btn"
-                title="Data Table"
-                onClick={() =>
-                  insertSnippet(
-                    "\n| Column 1 | Column 2 | Status |\n|---|---|---|\n| Item 1 | Details | Active |\n",
-                    false
-                  )
-                }
-              >
-                <Columns size={12} />
-                <span>Table</span>
-              </button>
+              {/* Table Management with Add Row / Column Dropdown */}
+              <div style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  className="doc-toolbar-btn"
+                  title="Table Options"
+                  onClick={() => setShowTableMenu((v) => !v)}
+                >
+                  <Columns size={12} />
+                  <span>Table ▾</span>
+                </button>
+
+                {showTableMenu && (
+                  <div className="doc-table-menu">
+                    <button
+                      type="button"
+                      className="doc-table-menu-item"
+                      onClick={() => {
+                        insertRichHTML(
+                          `<table class="doc-table"><thead><tr><th>Header 1</th><th>Header 2</th><th>Header 3</th></tr></thead><tbody><tr><td>Cell 1</td><td>Cell 2</td><td>Cell 3</td></tr><tr><td>Cell 4</td><td>Cell 5</td><td>Cell 6</td></tr></tbody></table><p><br/></p>`
+                        );
+                        setShowTableMenu(false);
+                      }}
+                    >
+                      <Plus size={12} />
+                      <span>Insert New Table</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="doc-table-menu-item"
+                      onClick={() => {
+                        addTableRow();
+                        setShowTableMenu(false);
+                      }}
+                    >
+                      <Plus size={12} />
+                      <span>+ Add Row</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="doc-table-menu-item"
+                      onClick={() => {
+                        addTableColumn();
+                        setShowTableMenu(false);
+                      }}
+                    >
+                      <Plus size={12} />
+                      <span>+ Add Column</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="doc-table-menu-item"
+                      onClick={() => {
+                        removeTableRow();
+                        setShowTableMenu(false);
+                      }}
+                    >
+                      <Minus size={12} />
+                      <span>- Delete Row</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="doc-table-menu-item"
+                      onClick={() => {
+                        removeTableColumn();
+                        setShowTableMenu(false);
+                      }}
+                    >
+                      <Minus size={12} />
+                      <span>- Delete Column</span>
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <button
                 type="button"
                 className="doc-toolbar-btn"
                 title="Attach Project Whiteboard"
                 onClick={() =>
-                  insertSnippet(
-                    `\n[🎨 Open Project Whiteboard](/projects/${projectId}?view=whiteboard)\n`,
-                    false
+                  insertRichHTML(
+                    `<p><a href="/projects/${projectId}?view=whiteboard" class="doc-link-pill">🎨 Open Project Whiteboard</a></p><p><br/></p>`
                   )
                 }
               >
@@ -1137,20 +1451,40 @@ export default function ClickUpDocWorkspace({
             {/* Writing / Editing view */}
             {(viewMode === "edit" || viewMode === "split") && (
               <div className="doc-textarea-container">
-                <textarea
-                  ref={textareaRef}
-                  className="doc-clickup-textarea"
-                  value={content}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setContent(val);
-                    triggerAutosave(title, val, meta);
+                {/* Floating Image Resizer Bar (Appears when an image is selected) */}
+                {selectedImg && (
+                  <div className="doc-img-resizer-bar">
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8", marginRight: "4px" }}>
+                      Resize Image:
+                    </span>
+                    <button type="button" onClick={() => resizeSelectedImg("25%")}>25%</button>
+                    <button type="button" onClick={() => resizeSelectedImg("50%")}>50%</button>
+                    <button type="button" onClick={() => resizeSelectedImg("75%")}>75%</button>
+                    <button type="button" onClick={() => resizeSelectedImg("100%")}>100%</button>
+                    <button type="button" onClick={deleteSelectedImg} style={{ color: "#ef4444" }}>
+                      <Trash2 size={11} /> Remove
+                    </button>
+                    <button type="button" onClick={() => setSelectedImg(null)} style={{ marginLeft: "4px" }}>
+                      Done ✓
+                    </button>
+                  </div>
+                )}
+
+                <div
+                  ref={editorRef}
+                  contentEditable={true}
+                  suppressContentEditableWarning={true}
+                  className="doc-clickup-wysiwyg"
+                  onClick={handleEditorClick}
+                  onInput={(e) => {
+                    const html = e.currentTarget.innerHTML;
+                    setContent(html);
+                    triggerAutosave(title, html, meta);
                   }}
                   onPaste={handlePaste}
                   onDrop={handleDrop}
                   onKeyDown={handleKeyDown}
-                  placeholder="Write, press 'space' for AI, '/' for commands"
-                  rows={26}
+                  data-placeholder="Write notes, insert images, tables, checklists or type '/' for commands..."
                 />
 
                 {/* Floating Slash Commands Menu (matching Image 2) */}
@@ -1174,7 +1508,7 @@ export default function ClickUpDocWorkspace({
                           type="button"
                           className="slash-menu-item"
                           onClick={() => {
-                            cmd.action(true);
+                            cmd.action();
                             setSlashMenuOpen(false);
                           }}
                         >

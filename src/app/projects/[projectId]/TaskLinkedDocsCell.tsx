@@ -58,6 +58,10 @@ export default function TaskLinkedDocsCell({
   const openExistingCanvas = (att: TaskAttachmentItem) => {
     const isWb = att.mime_type.includes("whiteboard") || att.file_name.toLowerCase().includes("whiteboard");
     const isFc = att.mime_type.includes("flowchart") || att.file_name.toLowerCase().includes("flowchart");
+    if (!isWb && !isFc) {
+      window.open(`/api/attachments/${att.id}`, "_blank");
+      return;
+    }
     const doc = availableDocs.find((d) => d.id === att.external_file_id);
 
     let contentData = "";

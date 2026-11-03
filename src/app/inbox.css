@@ -1,4 +1,4 @@
-.inbox-page{max-width:1050px;padding:36px clamp(20px,5vw,70px);margin:auto}
+.inbox-page{width:min(100%,1660px);max-width:1660px;padding:24px 32px 60px;margin:0 auto}
 .inbox-heading{display:flex;align-items:flex-end;justify-content:space-between;margin:20px 0}
 .inbox-heading .eyebrow{margin:0 0 8px}
 .inbox-heading h1{font:800 29px Manrope,sans-serif;margin:0 0 7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -44,3 +44,17 @@
 .inbox-item .discussion-link{white-space:nowrap}
 .inbox-page .empty-tasks{padding:30px;background:var(--surface,#fff);text-align:center}
 .unread-pill{background:#fef3c7;color:#92400e}
+
+/* Dark mode adjustments for inbox */
+[data-color-scheme="dark"] .inbox-stat-num{color:#ffffff !important}
+[data-color-scheme="dark"] .inbox-stat-card{background:var(--surface,#16191f) !important;border-color:var(--line,#262a33) !important}
+[data-color-scheme="dark"] .inbox-task-row{border-bottom-color:#2a2e37}
+[data-color-scheme="dark"] .inbox-task-row:hover{background:#1e2229}
+[data-color-scheme="dark"] .inbox-item{border-bottom-color:#2a2e37}
+[data-color-scheme="dark"] .inbox-item.unread{background:#17251f}
+[data-color-scheme="dark"] .inbox-task-key{background:#232730;color:#94a3b8}
+[data-color-scheme="dark"] .inbox-project-pill{background:#232730;color:#94a3b8}
+[data-color-scheme="dark"] .inbox-stat-icon{background:#112a1d;color:#34d399}
+[data-color-scheme="dark"] .inbox-stat-icon.notif-icon{background:#2a1e0b;color:#fbbf24}
+[data-color-scheme="dark"] .inbox-icon{background:#112a1d;color:#34d399}
+[data-color-scheme="dark"] .unread-pill{background:#451a03;color:#fcd34d}

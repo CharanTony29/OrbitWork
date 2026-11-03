@@ -53,6 +53,21 @@
 .organization-members-table td{padding:12px 14px;border-bottom:1px solid #eff2ef;color:#5d6b62;font-size:10px;vertical-align:middle}
 .organization-members-table tbody tr:last-child td{border-bottom:0}
 .organization-members-table tbody tr:hover{background:#fcfdfc}
+[data-color-scheme="dark"] .organization-members-table tbody tr:hover{background:#1a1e26 !important}
+[data-color-scheme="dark"] .organization-members-table tbody tr{background:transparent !important}
+[data-color-scheme="dark"] .organization-members-table td{border-bottom-color:#262a33 !important;color:#cbd5e1 !important}
+[data-color-scheme="dark"] .organization-members-table th{background:#14171d !important;border-bottom-color:#262a33 !important;color:#94a3b8 !important}
+[data-color-scheme="dark"] .organization-members-table-wrap{background:var(--surface,#16191f) !important;border-color:#262a33 !important}
+[data-color-scheme="dark"] .organization-member-person strong{color:#f1f5f9 !important}
+[data-color-scheme="dark"] .organization-member-person small{color:#94a3b8 !important}
+[data-color-scheme="dark"] .organization-workspace-roles>span{background:#111317 !important;border-color:#262a33 !important}
+[data-color-scheme="dark"] .organization-workspace-roles strong{color:#e2e8f0 !important}
+[data-color-scheme="dark"] .organization-workspace-roles small{color:#94a3b8 !important}
+[data-color-scheme="dark"] .organization-role-badge{background:#1e2430 !important;color:#cbd5e1 !important}
+[data-color-scheme="dark"] .organization-role-badge.role-owner,[data-color-scheme="dark"] .organization-role-badge.role-admin{background:#064e3b !important;color:#6ee7b7 !important}
+[data-color-scheme="dark"] .organization-member-status.status-active{background:#064e3b !important;color:#6ee7b7 !important}
+[data-color-scheme="dark"] .organization-member-avatar{background:#1e293b !important;color:#34d399 !important}
+[data-color-scheme="dark"] .organization-members-count{border-color:#262a33 !important;color:#94a3b8 !important}
 .organization-member-person{display:flex;align-items:center;gap:9px;min-width:180px}
 .organization-member-avatar{width:31px;height:31px;display:grid;place-items:center;border-radius:50%;background:#eaf4ed;color:var(--green);font-size:12px;font-weight:750}
 .organization-member-person>span:last-child{display:grid;gap:3px}

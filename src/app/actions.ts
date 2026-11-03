@@ -1019,16 +1019,32 @@ export async function toggleChecklistItem(formData: FormData) {
 }
 
 export async function startTaskTimer(formData: FormData) {
-  const parsed = z.object({ projectId: z.string().uuid(), taskId: z.string().uuid() }).safeParse({ projectId: formData.get("projectId"), taskId: formData.get("taskId") });
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+    taskId: z.string().uuid(),
+    billable: z.enum(["true", "false"]).optional(),
+  }).safeParse({
+    projectId: formData.get("projectId"),
+    taskId: formData.get("taskId"),
+    billable: formData.get("billable") === "false" ? "false" : "true",
+  });
   if (!parsed.success) redirect("/dashboard?error=invalid_timer");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
   const { data: running } = await supabase.from("time_entries").select("id").eq("user_id", user.id).is("ended_at", null).maybeSingle();
   if (running) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=timer_already_running`);
-  const { error } = await supabase.from("time_entries").insert({ project_id: parsed.data.projectId, task_id: parsed.data.taskId, user_id: user.id, started_at: new Date().toISOString(), billable: true });
+  const isBillable = parsed.data.billable !== "false";
+  const { error } = await supabase.from("time_entries").insert({
+    project_id: parsed.data.projectId,
+    task_id: parsed.data.taskId,
+    user_id: user.id,
+    started_at: new Date().toISOString(),
+    billable: isBillable,
+  });
   if (error) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=timer_failed`);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+  revalidatePath(`/projects/${parsed.data.projectId}`);
 }
 
 export async function stopTaskTimer(formData: FormData) {
@@ -1049,6 +1065,28 @@ export async function stopTaskTimer(formData: FormData) {
   }).catch(console.error);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/time`);
+  revalidatePath(`/projects/${parsed.data.projectId}`);
+}
+
+export async function updateTaskProgress(formData: FormData) {
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+    taskId: z.string().uuid(),
+    progress: z.coerce.number().int().min(0).max(100),
+  }).safeParse({
+    projectId: formData.get("projectId"),
+    taskId: formData.get("taskId"),
+    progress: formData.get("progress"),
+  });
+  if (!parsed.success) return { ok: false };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false };
+  const { error } = await supabase.from("tasks").update({ progress: parsed.data.progress }).eq("id", parsed.data.taskId).eq("project_id", parsed.data.projectId);
+  if (error) return { ok: false };
+  revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+  revalidatePath(`/projects/${parsed.data.projectId}`);
+  return { ok: true, progress: parsed.data.progress };
 }
 
 export async function addManualTimeEntry(formData: FormData) {
@@ -1069,6 +1107,7 @@ export async function addManualTimeEntry(formData: FormData) {
   }).catch(console.error);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/time`);
+  revalidatePath(`/projects/${parsed.data.projectId}`);
 }
 
 export async function markNotificationsRead() {

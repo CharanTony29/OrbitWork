@@ -1,1 +1,9 @@
-.project-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:9px;margin:0 0 18px}.project-metrics article{display:grid;gap:7px;border:1px solid var(--line);border-radius:9px;padding:12px;background:#fff}.project-metrics article span{font-size:10px;color:#79857c;display:flex;align-items:center;gap:6px}.project-metrics article strong{font:700 20px Manrope,sans-serif;color:#26342c}
+.project-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:9px;margin:0 0 18px}
+.project-metrics article{display:grid;gap:7px;border:1px solid var(--line);border-radius:9px;padding:12px;background:#fff}
+.project-metrics article span{font-size:10px;color:#79857c;display:flex;align-items:center;gap:6px}
+.project-metrics article strong{font:800 20px Manrope,sans-serif;color:#26342c}
+
+/* Dark theme metric numbers - bright white crisp contrast (Fixes Screenshot 3) */
+[data-color-scheme="dark"] .project-metrics article{background:var(--surface,#16191f) !important;border-color:var(--line,#262a33) !important}
+[data-color-scheme="dark"] .project-metrics article span{color:#94a3b8 !important}
+[data-color-scheme="dark"] .project-metrics article strong{color:#ffffff !important}

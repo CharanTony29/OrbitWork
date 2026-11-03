@@ -1,4 +1,88 @@
-.timesheets-page{max-width:1100px;margin:auto;padding:34px clamp(18px,4vw,58px) 70px}.timesheets-heading{display:flex;align-items:end;justify-content:space-between;margin:18px 0 20px}.timesheets-heading .eyebrow{margin:0 0 8px}.timesheets-heading h1{font:800 28px Manrope,sans-serif;margin:0 0 8px}.timesheets-heading .muted{margin:0}.week-controls{display:flex;gap:12px}.week-controls a{font-size:11px;color:var(--green);font-weight:700}.timesheet-own-card{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:15px;border:1px solid var(--line);border-radius:10px;background:#f8faf8;margin-bottom:14px}.timesheet-own-card>div{display:flex;align-items:center;gap:10px;flex:1;color:var(--green)}.timesheet-own-card>div>div{display:grid;gap:3px}.timesheet-own-card strong{font-size:12px;color:#28372e}.timesheet-own-card span{font-size:10px;color:#758178}.timesheet-own-card .button{min-height:36px;font-size:11px}.timesheet-status{display:inline-flex;padding:4px 8px;border-radius:20px;background:#eef3ee;color:#617066;font-size:9px;text-transform:capitalize}.timesheet-status.state-approved{background:#e8f5eb;color:#15724d}.timesheet-status.state-rejected{background:#fff0ed;color:#a13c32}.timesheet-status.state-submitted{background:#fff6e5;color:#916820}.timesheet-review-note{flex-basis:100%;font-size:11px;color:#a13c32;margin:0}.timesheet-groups{display:grid;gap:12px}.timesheet-user-group{border:1px solid var(--line);border-radius:10px;padding:13px}.timesheet-user-group>header{display:flex;align-items:center;gap:10px;border-bottom:1px solid #eef1ee;padding-bottom:10px;margin-bottom:3px}.timesheet-user-group>header strong{font-size:12px;flex:1}.timesheet-user-group>header>span:nth-child(2){font-size:11px;color:#647168}.timesheet-entry{display:grid;grid-template-columns:1.5fr 75px 1.1fr 100px;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid #f0f2f0;font-size:10px}.timesheet-entry>a{font-weight:700;color:#36443b}.timesheet-entry>span,.timesheet-entry time{color:#7a867e}.timesheet-entry p{grid-column:1/-1;margin:0;color:#7a867e}.timesheet-review-form{display:flex;gap:7px;margin-top:10px}.timesheet-review-form input{flex:1;min-width:100px;height:33px;padding:0 9px;border:1px solid #dfe5e0;border-radius:7px;font-size:10px}.timesheet-review-form button{font-size:10px}
+.timesheets-page{width:min(100%,1660px);max-width:1660px;margin:0 auto;padding:24px 32px 60px}.timesheets-heading{display:flex;align-items:flex-end;justify-content:space-between;margin:18px 0 20px}.timesheets-heading .eyebrow{margin:0 0 8px}.timesheets-heading h1{font:800 28px Manrope,sans-serif;margin:0 0 8px}.timesheets-heading .muted{margin:0}.week-controls{display:flex;gap:12px}.week-controls a{font-size:11px;color:var(--green);font-weight:700}.timesheet-own-card{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:15px;border:1px solid var(--line);border-radius:10px;background:#f8faf8;margin-bottom:14px}.timesheet-own-card>div{display:flex;align-items:center;gap:10px;flex:1;color:var(--green)}.timesheet-own-card>div>div{display:grid;gap:3px}.timesheet-own-card strong{font-size:12px;color:#28372e}.timesheet-own-card span{font-size:10px;color:#758178}.timesheet-own-card .button{min-height:36px;font-size:11px}.timesheet-status{display:inline-flex;padding:4px 8px;border-radius:20px;background:#eef3ee;color:#617066;font-size:9px;text-transform:capitalize}.timesheet-status.state-approved{background:#e8f5eb;color:#15724d}.timesheet-status.state-rejected{background:#fff0ed;color:#a13c32}.timesheet-status.state-submitted{background:#fff6e5;color:#916820}.timesheet-review-note{flex-basis:100%;font-size:11px;color:#a13c32;margin:0}.timesheet-groups{display:grid;gap:12px}.timesheet-user-group{border:1px solid var(--line);border-radius:10px;padding:13px}.timesheet-user-group>header{display:flex;align-items:center;gap:10px;border-bottom:1px solid #eef1ee;padding-bottom:10px;margin-bottom:3px}.timesheet-user-group>header strong{font-size:12px;flex:1}.timesheet-user-group>header>span:nth-child(2){font-size:11px;color:#647168}.timesheet-entry{display:grid;grid-template-columns:1.5fr 75px 1.1fr 100px;gap:8px;align-items:center;padding:9px 4px;border-bottom:1px solid #f0f2f0;font-size:10px}.timesheet-entry>a{font-weight:700;color:#36443b}.timesheet-entry>span,.timesheet-entry time{color:#7a867e}.timesheet-entry p{grid-column:1/-1;margin:0;color:#7a867e}.timesheet-review-form{display:flex;gap:7px;margin-top:10px}.timesheet-review-form input{flex:1;min-width:100px;height:33px;padding:0 9px;border:1px solid #dfe5e0;border-radius:7px;font-size:10px}.timesheet-review-form button{font-size:10px}
 @media(max-width:700px){.timesheets-heading{align-items:flex-start;flex-direction:column;gap:12px}.timesheet-entry{grid-template-columns:1fr auto}.timesheet-entry time{grid-column:1}.timesheet-review-form{flex-wrap:wrap}.timesheet-review-form input{flex-basis:100%}}
 
 @media(max-width:700px){.timesheet-period-controls{justify-items:start}.timesheet-period-controls form{flex-wrap:wrap}.invite-form{grid-template-columns:1fr}.task-create-actions{justify-content:stretch}.task-create-actions>*{flex:1}}
+
+/* Workload Banner & Target Setting */
+.timesheet-workload-banner{display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:center;padding:16px 20px;border-radius:12px;background:var(--nav-hover,#f8faf9);border:1px solid var(--line);margin-bottom:18px}
+.workload-stats-left{display:flex;align-items:center;gap:14px}
+.workload-stat-box{display:flex;flex-direction:column;gap:2px}
+.workload-stat-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+.workload-stat-val{font-size:16px;font-weight:800;color:var(--ink);font-family:Manrope,sans-serif}
+.workload-bar-wrap{display:flex;flex-direction:column;gap:6px;width:100%}
+.workload-bar-header{display:flex;justify-content:space-between;align-items:center;font-size:11px}
+.workload-meter{height:8px;border-radius:4px;background:#e2e8f0;overflow:hidden;position:relative}
+.workload-fill{height:100%;border-radius:4px;transition:width .3s ease}
+.workload-fill.status-optimal{background:#10b981}
+.workload-fill.status-under{background:#3b82f6}
+.workload-fill.status-over{background:#ef4444}
+.workload-badge{font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:4px}
+.workload-badge.status-optimal{background:#dcfce7;color:#15803d}
+.workload-badge.status-under{background:#dbeafe;color:#1d4ed8}
+.workload-badge.status-over{background:#fee2e2;color:#b91c1c}
+
+.timesheet-target-form{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--line);border-radius:7px;background:var(--surface,#fff);font-size:11px}
+.timesheet-target-form input{width:46px;height:26px;border:1px solid var(--line);border-radius:4px;padding:0 4px;text-align:center;font-weight:700;color:var(--ink)}
+
+/* Timesheet View Switcher */
+.timesheet-view-tabs{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--surface,#fff)}
+.timesheet-view-tab{padding:6px 12px;font-size:11px;font-weight:600;color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:all .12s}
+.timesheet-view-tab.is-active{background:var(--green,#15803d);color:#fff}
+
+/* Calendar Day Matrix Grid */
+.timesheet-calendar-matrix{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:20px}
+.timesheet-day-card{border:1px solid var(--line);border-radius:10px;background:var(--surface,#fff);display:flex;flex-direction:column;min-height:160px;overflow:hidden;transition:all .15s ease}
+.timesheet-day-card:hover{box-shadow:0 4px 14px rgba(0,0,0,0.04);border-color:#bbf7d0}
+.timesheet-day-card.is-today{border-color:var(--green,#15803d);background:#f0fdf4}
+.timesheet-day-card.is-weekend{background:var(--nav-hover,#fafafa);opacity:.8}
+
+.day-card-header{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.day-card-title{display:flex;flex-direction:column}
+.day-card-name{font-size:12px;font-weight:700;color:var(--ink)}
+.day-card-date{font-size:10px;color:var(--muted)}
+.today-pill{font-size:8.5px;font-weight:800;background:var(--green,#15803d);color:#fff;padding:2px 5px;border-radius:4px;text-transform:uppercase}
+
+.day-card-body{padding:10px 12px;display:flex;flex-direction:column;gap:8px;flex:1}
+.day-card-hours-row{display:flex;align-items:baseline;justify-content:space-between}
+.day-card-hours{font-size:15px;font-weight:800;color:var(--ink);font-family:Manrope,sans-serif}
+.day-card-target{font-size:10px;color:var(--muted)}
+.day-card-progress{height:4px;border-radius:2px;background:#e2e8f0;overflow:hidden}
+.day-card-fill{height:100%;background:var(--green,#15803d);border-radius:2px}
+
+.day-tasks-list{display:flex;flex-direction:column;gap:4px;margin-top:4px;flex:1}
+.day-task-item{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;padding:3px 6px;border-radius:4px;background:var(--nav-hover,#f1f5f9);color:var(--ink);text-decoration:none}
+.day-task-item:hover{background:#e2e8f0}
+.day-task-key{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.day-task-time{font-weight:600;color:var(--muted);white-space:nowrap}
+.day-no-time{font-size:10px;color:var(--muted);text-align:center;margin:auto 0;padding:12px 0}
+
+@media(max-width:1100px){
+  .timesheet-calendar-matrix{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+  .timesheet-workload-banner{grid-template-columns:1fr;gap:14px}
+}
+
+/* Dark mode for timesheets */
+[data-color-scheme="dark"] .timesheet-workload-banner{background:#111317;border-color:var(--line)}
+[data-color-scheme="dark"] .workload-stat-val{color:#fff}
+[data-color-scheme="dark"] .workload-meter{background:#262a33}
+[data-color-scheme="dark"] .timesheet-target-form{background:#16191f;border-color:var(--line);color:#e2e8f0}
+[data-color-scheme="dark"] .timesheet-target-form input{background:#111317;border-color:var(--line);color:#fff}
+[data-color-scheme="dark"] .timesheet-view-tabs{background:#16191f;border-color:var(--line)}
+[data-color-scheme="dark"] .timesheet-calendar-matrix .timesheet-day-card{background:#16191f;border-color:var(--line)}
+[data-color-scheme="dark"] .timesheet-day-card.is-today{background:#06281e;border-color:#10b981}
+[data-color-scheme="dark"] .timesheet-day-card.is-weekend{background:#111317;opacity:.7}
+[data-color-scheme="dark"] .day-card-header{border-bottom-color:var(--line)}
+[data-color-scheme="dark"] .day-card-name,[data-color-scheme="dark"] .day-card-hours{color:#fff}
+[data-color-scheme="dark"] .day-card-progress{background:#262a33}
+[data-task-item]{background:#222731;color:#e2e8f0}
+[data-color-scheme="dark"] .day-task-item{background:#20242d;color:#e2e8f0}
+[data-color-scheme="dark"] .day-task-item:hover{background:#2c323e}
+[data-color-scheme="dark"] .timesheet-own-card{background:#16191f;border-color:var(--line)}
+[data-color-scheme="dark"] .timesheet-own-card strong{color:var(--ink)}
+[data-color-scheme="dark"] .timesheet-user-group{background:var(--surface,#16191f);border-color:var(--line)}
+[data-color-scheme="dark"] .timesheet-user-group>header{border-bottom-color:var(--line)}
+[data-color-scheme="dark"] .timesheet-user-group>header strong{color:var(--ink)}
+[data-color-scheme="dark"] .timesheet-entry{border-bottom-color:var(--line)}
+[data-color-scheme="dark"] .timesheet-entry:hover{background:#1e222a}
+[data-color-scheme="dark"] .timesheet-entry>a{color:var(--ink)}
+[data-color-scheme="dark"] .timesheet-review-form input{background:#111317;border-color:var(--line);color:var(--ink)}

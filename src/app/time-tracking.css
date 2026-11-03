@@ -11,3 +11,57 @@
 .hours-alert-banner.is-warning{background:#fffbeb;border:1px solid #fde68a;color:#92400e}
 .hours-alert-banner.is-danger{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
 @media(max-width:650px){.time-entry-row{grid-template-columns:1fr 1fr}.time-entry-row p{grid-column:1/-1}}
+
+/* Header and Table Start Timer Buttons */
+.start-timer-trigger-btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid #bbf7d0;border-radius:8px;background:#f0fdf4;color:#166534;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s ease}
+.start-timer-trigger-btn:hover{background:#16a34a;border-color:#16a34a;color:#fff;box-shadow:0 2px 8px rgba(22,163,74,0.25)}
+
+.running-timer-pill{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px;border:1px solid #fbcfe8;border-radius:20px;background:#fdf2f8;color:#9d174d;font-size:12px;font-weight:600}
+.timer-pulse-dot{width:7px;height:7px;border-radius:50%;background:#ef4444;animation:timerPulse 1.2s infinite ease-in-out}
+@keyframes timerPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+.timer-ticker{font-family:monospace;font-size:13px;font-weight:700;letter-spacing:.5px}
+.timer-billable-pill{font-size:9.5px;text-transform:uppercase;padding:2px 6px;border-radius:4px;font-weight:700}
+.timer-billable-pill.is-billable{background:#dcfce7;color:#15803d}
+.timer-billable-pill.is-non-billable{background:#f1f5f9;color:#64748b}
+.timer-stop-btn{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:0;border-radius:5px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;cursor:pointer;margin-left:4px;transition:background .12s}
+.timer-stop-btn:hover{background:#b91c1c}
+
+/* Table row compact timer */
+.table-timer-btn{width:22px;height:22px;border-radius:5px;border:1px solid var(--line,#dfe5e0);background:var(--surface,#fff);color:var(--green,#176a44);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all .12s ease;padding:0;flex:none}
+.table-timer-btn:hover{background:var(--green,#176a44);border-color:var(--green,#176a44);color:#fff}
+.table-timer-btn.is-running{background:#fee2e2;border-color:#f87171;color:#dc2626;position:relative;box-shadow:0 0 0 2px rgba(220,38,38,0.2);animation:tableTimerGlow 1.5s infinite ease-in-out}
+.table-timer-btn.is-running:hover{background:#dc2626;border-color:#dc2626;color:#fff}
+.table-timer-pulse{width:5px;height:5px;border-radius:50%;background:#ef4444;position:absolute;top:-2px;right:-2px;box-shadow:0 0 4px #ef4444}
+@keyframes tableTimerGlow{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+
+/* Modal Backdrop & Dialog (Fixes Screenshot 5) */
+.timer-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px}
+.timer-modal-dialog{background:var(--surface,#fff);border:1px solid var(--line,#e2e8f0);border-radius:12px;box-shadow:0 20px 45px rgba(0,0,0,0.22);width:min(94vw,420px);padding:22px;display:flex;flex-direction:column;gap:14px;animation:timerModalPop .15s ease-out}
+@keyframes timerModalPop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+.timer-modal-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid var(--line,#edf2f7)}
+.timer-modal-title{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:var(--ink,#1e293b)}
+.timer-modal-close{background:transparent;border:0;color:var(--muted,#64748b);cursor:pointer;padding:4px;border-radius:6px;display:grid;place-items:center;transition:color .12s}
+.timer-modal-close:hover{color:var(--ink,#1e293b)}
+.timer-task-name{font-size:12.5px;font-weight:600;color:var(--ink,#1e293b);background:var(--nav-hover,#f8fafc);padding:9px 12px;border-radius:7px;border:1px solid var(--line,#e2e8f0);margin:0}
+.timer-billable-selector{display:flex;flex-direction:column;gap:6px}
+.timer-billable-label{font-size:11px;font-weight:700;color:var(--muted,#64748b);text-transform:uppercase;letter-spacing:.4px}
+.timer-billable-options{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.timer-option-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:9px;border-radius:7px;border:1.5px solid var(--line,#e2e8f0);background:var(--surface,#fff);color:var(--ink,#334155);font-size:12px;font-weight:600;cursor:pointer;transition:all .12s}
+.timer-option-btn:hover{border-color:var(--green,#16a34a)}
+.timer-option-btn.is-active{background:#ecfdf5;border-color:#10b981;color:#047857}
+.timer-hint{font-size:10.5px;color:var(--muted,#64748b);line-height:1.4}
+.timer-modal-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;padding-top:12px;border-top:1px solid var(--line,#edf2f7)}
+
+/* Dark Mode for Timer */
+[data-color-scheme="dark"] .start-timer-trigger-btn{background:#064e3b;border-color:#059669;color:#6ee7b7}
+[data-color-scheme="dark"] .start-timer-trigger-btn:hover{background:#10b981;border-color:#10b981;color:#fff}
+[data-color-scheme="dark"] .running-timer-pill{background:#3b0764;border-color:#6b21a8;color:#f0abfc}
+[data-color-scheme="dark"] .timer-modal-dialog{background:#16191f;border-color:#262a33;box-shadow:0 20px 45px rgba(0,0,0,0.5)}
+[data-color-scheme="dark"] .timer-task-name{background:#111317;border-color:#262a33;color:#e2e8f0}
+[data-color-scheme="dark"] .timer-option-btn{background:#111317;border-color:#262a33;color:#cbd5e1}
+[data-color-scheme="dark"] .timer-option-btn.is-active{background:#064e3b;border-color:#10b981;color:#34d399}
+[data-color-scheme="dark"] .timer-modal-header,[data-color-scheme="dark"] .timer-modal-actions{border-color:#262a33}
+[data-color-scheme="dark"] .table-timer-btn{background:#16191f;border-color:#262a33;color:#34d399}
+[data-color-scheme="dark"] .table-timer-btn:hover{background:#10b981;border-color:#10b981;color:#fff}
+[data-color-scheme="dark"] .table-timer-btn.is-running{background:#450a0a;border-color:#ef4444;color:#fca5a5}
+[data-color-scheme="dark"] .table-timer-btn.is-running:hover{background:#dc2626;border-color:#dc2626;color:#fff}

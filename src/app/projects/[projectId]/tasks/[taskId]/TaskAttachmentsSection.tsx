@@ -19,6 +19,8 @@ import {
   Loader2,
   Plus,
   File as FileGeneric,
+  Eye,
+  X,
 } from "lucide-react";
 import { removeTaskAttachment, createAndAttachCanvas } from "@/app/actions";
 
@@ -128,6 +130,7 @@ export default function TaskAttachmentsSection({
   const [isDeleting, startDeleteTransition] = useTransition();
   const [isCreatingCanvas, startCreateCanvasTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
+  const [previewItem, setPreviewItem] = useState<AttachmentItem | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -425,7 +428,12 @@ export default function TaskAttachmentsSection({
                   background: meta.bg,
                   color: meta.color,
                   borderColor: meta.border,
+                  cursor: isCanvas ? "default" : "pointer",
                 }}
+                onClick={() => {
+                  if (!isCanvas) setPreviewItem(item);
+                }}
+                title={isCanvas ? undefined : "Click to preview"}
               >
                 {meta.kind === "whiteboard" ? (
                   <Palette size={18} />
@@ -446,15 +454,20 @@ export default function TaskAttachmentsSection({
 
               {/* File Info */}
               <div className="attachment-card-info">
-                <a
-                  href={targetHref}
-                  className="attachment-card-title"
-                  title={item.file_name}
-                  target={isCanvas ? undefined : "_blank"}
-                  rel="noopener noreferrer"
-                >
-                  {item.file_name}
-                </a>
+                {isCanvas ? (
+                  <Link href={targetHref} className="attachment-card-title" title={item.file_name}>
+                    {item.file_name}
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    className="attachment-card-title-btn"
+                    onClick={() => setPreviewItem(item)}
+                    title="Click to preview file"
+                  >
+                    {item.file_name}
+                  </button>
+                )}
                 <div className="attachment-card-meta">
                   <span
                     className="attachment-type-pill"
@@ -486,15 +499,26 @@ export default function TaskAttachmentsSection({
                     <ExternalLink size={12} />
                   </Link>
                 ) : (
-                  <a
-                    href={targetHref}
-                    className="btn-attachment-action btn-download"
-                    download={item.file_name}
-                    title="Download file"
-                  >
-                    <Download size={13} />
-                    <span>Download</span>
-                  </a>
+                  <>
+                    <button
+                      type="button"
+                      className="btn-attachment-action btn-preview"
+                      onClick={() => setPreviewItem(item)}
+                      title="Preview attachment"
+                    >
+                      <Eye size={13} />
+                      <span>Preview</span>
+                    </button>
+                    <a
+                      href={`/api/attachments/${item.id}?download=1`}
+                      className="btn-attachment-action btn-download"
+                      download={item.file_name}
+                      title="Download file"
+                    >
+                      <Download size={13} />
+                      <span>Download</span>
+                    </a>
+                  </>
                 )}
                 {canEdit && (
                   <button
@@ -528,6 +552,80 @@ export default function TaskAttachmentsSection({
           </div>
         )}
       </div>
+
+      {/* Attachment Preview Modal (Lightbox) */}
+      {previewItem && (
+        <div
+          className="attachment-preview-backdrop"
+          onClick={() => setPreviewItem(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="attachment-preview-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="attachment-preview-header">
+              <div className="attachment-preview-title">
+                <FileText size={16} />
+                <strong>{previewItem.file_name}</strong>
+                <span>({formatFileSize(previewItem.file_size_bytes)})</span>
+              </div>
+              <div className="attachment-preview-actions">
+                <a
+                  href={`/api/attachments/${previewItem.id}?download=1`}
+                  className="button button-primary"
+                  style={{ padding: "4px 10px", fontSize: "11px", minHeight: "28px" }}
+                  download={previewItem.file_name}
+                >
+                  <Download size={13} />
+                  <span>Download</span>
+                </a>
+                <button
+                  type="button"
+                  className="btn-preview-close"
+                  onClick={() => setPreviewItem(null)}
+                  aria-label="Close preview"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="attachment-preview-body">
+              {previewItem.mime_type.startsWith("image/") || ["png", "jpg", "jpeg", "svg", "webp", "gif"].some((ext) => previewItem.file_name.toLowerCase().endsWith(ext)) ? (
+                <div className="preview-image-wrap">
+                  <img
+                    src={`/api/attachments/${previewItem.id}`}
+                    alt={previewItem.file_name}
+                    className="preview-img"
+                  />
+                </div>
+              ) : previewItem.mime_type === "application/pdf" || previewItem.file_name.toLowerCase().endsWith(".pdf") ? (
+                <iframe
+                  src={`/api/attachments/${previewItem.id}`}
+                  className="preview-iframe"
+                  title={previewItem.file_name}
+                />
+              ) : (
+                <div className="preview-fallback">
+                  <FileText size={48} className="preview-fallback-icon" />
+                  <h3>{previewItem.file_name}</h3>
+                  <p>In-browser preview is not supported for this file type.</p>
+                  <a
+                    href={`/api/attachments/${previewItem.id}?download=1`}
+                    className="button button-primary"
+                    download={previewItem.file_name}
+                  >
+                    <Download size={14} />
+                    Download {previewItem.file_name}
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

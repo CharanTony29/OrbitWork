@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useRef, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { Plus, Pencil, Circle, Check, ChevronRight, CornerDownRight, Loader2 } from "lucide-react";
-import { updateTaskField, quickCreateSubtask } from "@/app/actions";
+import { updateTaskField, quickCreateSubtask, updateTaskStatus } from "@/app/actions";
 
 export default function TaskNameCell({
   projectId,
@@ -18,6 +18,9 @@ export default function TaskNameCell({
   subtaskCount = 0,
   isSubtask = false,
   canEdit = true,
+  isCompleted = false,
+  completedStatusId,
+  initialStatusId,
 }: {
   projectId: string;
   taskId: string;
@@ -31,16 +34,48 @@ export default function TaskNameCell({
   subtaskCount?: number;
   isSubtask?: boolean;
   canEdit?: boolean;
+  isCompleted?: boolean;
+  completedStatusId?: string;
+  initialStatusId?: string;
 }) {
   const [title, setTitle] = useState(initialTitle);
+  const [completed, setCompleted] = useState(isCompleted);
   const [isEditing, setIsEditing] = useState(false);
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [subtaskTitle, setSubtaskTitle] = useState("");
   const [isSubtaskPending, startSubtaskTransition] = useTransition();
   const [isRenamePending, startRenameTransition] = useTransition();
+  const [isStatusPending, startStatusTransition] = useTransition();
+
+  useEffect(() => {
+    setCompleted(isCompleted);
+  }, [isCompleted]);
+
+  useEffect(() => {
+    setTitle(initialTitle);
+  }, [initialTitle]);
 
   const editInputRef = useRef<HTMLInputElement>(null);
   const subtaskInputRef = useRef<HTMLInputElement>(null);
+
+  const handleToggleComplete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!canEdit || isStatusPending) return;
+
+    const targetStatusId = completed ? initialStatusId : completedStatusId;
+    if (!targetStatusId) return;
+
+    const nextCompleted = !completed;
+    setCompleted(nextCompleted);
+
+    startStatusTransition(async () => {
+      const fd = new FormData();
+      fd.set("projectId", projectId);
+      fd.set("taskId", taskId);
+      fd.set("statusId", targetStatusId);
+      await updateTaskStatus(fd);
+    });
+  };
 
   const handleStartEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -87,20 +122,33 @@ export default function TaskNameCell({
   return (
     <div className={`task-name-cell-wrap${isSubtask ? " is-subtask-cell" : ""}`}>
       <div className="task-name-row">
-        {/* Subtle Checkbox */}
+        {/* Interactive Checkbox */}
         <button
           type="button"
-          className="task-row-checkbox"
-          aria-label="Select task"
-          disabled={!canEdit}
-          onClick={(e) => e.stopPropagation()}
+          className={`task-row-checkbox${completed ? " is-checked" : ""}`}
+          aria-label={completed ? "Mark task incomplete" : "Mark task complete"}
+          title={
+            !canEdit
+              ? "View-only"
+              : completed
+              ? "Mark incomplete"
+              : "Mark complete"
+          }
+          disabled={!canEdit || isStatusPending}
+          onClick={handleToggleComplete}
         >
-          <span className="checkbox-box" />
+          <span className="checkbox-box">
+            {isStatusPending ? (
+              <Loader2 size={9} className="animate-spin" />
+            ) : completed ? (
+              <Check size={10} strokeWidth={3} />
+            ) : null}
+          </span>
         </button>
 
         {/* Expand Arrow or Subtask Connector */}
         {isSubtask ? (
-          <span className="task-subtask-branch" title="Subtask">
+          <span className="task-subtask-branch" title="Subtask of parent">
             <CornerDownRight size={13} className="text-muted" />
           </span>
         ) : (
@@ -148,11 +196,12 @@ export default function TaskNameCell({
           <div className="task-title-and-badges">
             <Link
               href={`/projects/${projectId}/tasks/${taskId}`}
-              className="task-title-link"
+              className={`task-title-link${completed ? " is-completed-title" : ""}`}
               title="Click to view task details"
             >
               {title}
             </Link>
+            {isSubtask && <span className="subtask-indicator-pill">subtask</span>}
             {hasSubtasks && subtaskCount > 0 && (
               <span
                 className="task-subtasks-count"

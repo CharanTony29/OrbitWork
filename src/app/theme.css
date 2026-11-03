@@ -34,3 +34,189 @@ html,body{background:var(--app-bg);color:var(--ink)}
 @media(max-width:700px){.theme-picker{right:10px;bottom:10px}.dashboard-project-links{margin-left:7px}.calendar-day{min-height:88px}}
 
 .sidebar{background:var(--nav-bg);border-color:var(--nav-line);color:var(--nav-ink)}.sidebar-label{color:var(--nav-muted)}.nav-item{color:var(--nav-ink)}.nav-item.active{background:var(--nav-hover);color:var(--green)}.dashboard-org-tree>summary,.dashboard-workspace-tree>summary{color:var(--nav-ink)}.dashboard-project-links>a{color:var(--nav-muted)}[data-color-scheme=dark] :is(.workspace-list,.workspace-row,.org-metrics,.organization-directory-heading>div>p:last-child,.org-card-title p,.organization-member-person small,.calendar-event-row,.leave-request-card>p){color:#aeb9b1}[data-color-scheme=dark] :is(.organization-members-page,.people-calendar-page,.integrations-page,.timesheets-page,.documents-page,.document-editor,.reports-page){background:var(--app-bg);color:var(--ink)}[data-color-scheme=dark] :is(.people-calendar-card,.leave-requests-section,.integration-setup,.organization-members-table-wrap){background:var(--surface);border-color:var(--line);color:var(--ink)}[data-color-scheme=dark] .calendar-event-row,[data-color-scheme=dark] .leave-request-card{border-color:var(--line)}[data-color-scheme=dark] .project-card{background:var(--surface);border-color:var(--line)}[data-color-scheme=dark] .workspace-heading .muted,[data-color-scheme=dark] .task-detail-heading .muted{color:var(--muted)}
+
+/* Comprehensive Dark Mode Rules Across All Pages */
+[data-color-scheme="dark"] {
+  --app-bg: #0f1114;
+  --surface: #16191f;
+  --ink: #e2e8f0;
+  --muted: #8b95a5;
+  --line: #262a33;
+}
+
+[data-color-scheme="dark"] .topbar {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .project-metrics article strong,
+  .report-stat-grid article strong,
+  .inbox-stat-num,
+  .time-metric-card .metric-val,
+  .report-person-hours
+) {
+  color: #ffffff !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .task-detail-main,
+  .task-properties,
+  .task-comments-section,
+  .task-custom-fields,
+  .report-card,
+  .report-stat-grid article,
+  .inbox-stat-card,
+  .inbox-tasks-list,
+  .inbox-list,
+  .task-table-wrap,
+  .project-card,
+  .workspace-card,
+  .settings-card,
+  .org-card,
+  .timer-modal-dialog,
+  .preview-modal-dialog,
+  .lightbox-content,
+  .comments-modal,
+  .task-comments-modal-dialog
+) {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .detail-field input,
+  .detail-field textarea,
+  .detail-field select,
+  .custom-field-item input,
+  .custom-field-item select,
+  .custom-field-item textarea,
+  .sheet-edit input,
+  .sheet-edit select,
+  .task-comment-form textarea,
+  .comments-input,
+  .quick-subtask-input,
+  .estimate-amount-input,
+  .estimate-unit-select
+) {
+  background: #111317 !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  input:focus,
+  select:focus,
+  textarea:focus
+) {
+  border-color: var(--green) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
+}
+
+[data-color-scheme="dark"] option {
+  background: #16191f !important;
+  color: #e2e8f0 !important;
+}
+
+[data-color-scheme="dark"] .task-table {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+[data-color-scheme="dark"] .task-table thead th {
+  background: #121418 !important;
+  color: var(--muted) !important;
+  border-color: var(--line) !important;
+}
+
+[data-color-scheme="dark"] .task-table td {
+  border-color: var(--line) !important;
+  color: var(--ink);
+}
+
+[data-color-scheme="dark"] .task-data-tr:hover {
+  background: #191c23 !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .table-comment-btn,
+  .task-estimate-btn,
+  .table-timer-btn,
+  .doc-toolbar-btn,
+  .quiet-button
+) {
+  background: #1b1e25 !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .table-comment-btn:hover,
+  .task-estimate-btn:hover,
+  .table-timer-btn:hover,
+  .doc-toolbar-btn:hover
+) {
+  border-color: var(--green) !important;
+  color: var(--green) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .property-line,
+  .detail-save-row,
+  .comments-heading,
+  .comment-card,
+  .custom-fields-heading,
+  .relationship-heading,
+  .timer-modal-header,
+  .timer-modal-actions,
+  .lightbox-header,
+  .lightbox-footer
+) {
+  border-color: var(--line) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .detail-field,
+  .custom-field-item > label,
+  .custom-field-item > span,
+  .eyebrow,
+  .report-footnote
+) {
+  color: var(--muted) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  h1,
+  h2,
+  h3,
+  .task-title-link,
+  .report-card h2
+) {
+  color: var(--ink) !important;
+}
+
+[data-color-scheme="dark"] .task-row-checkbox .checkbox-box {
+  background: #111317;
+  border-color: #3b4252;
+}
+
+[data-color-scheme="dark"] .task-row-checkbox.is-checked .checkbox-box {
+  background: var(--green, #10b981);
+  border-color: var(--green, #10b981);
+}
+
+[data-color-scheme="dark"] .timer-option-btn {
+  background: #111317;
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+[data-color-scheme="dark"] .timer-option-btn.is-active {
+  background: #064e3b;
+  border-color: var(--green);
+  color: #34d399;
+}

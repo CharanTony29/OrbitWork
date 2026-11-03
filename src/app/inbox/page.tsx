@@ -1,8 +1,8 @@
 import Link from "next/link";
 import CurrentUserBadge from "@/app/CurrentUserBadge";
 import { redirect } from "next/navigation";
+import BackButton from "@/app/BackButton";
 import {
-  ArrowLeft,
   Bell,
   CheckSquare,
   Clock,
@@ -119,9 +119,7 @@ export default async function InboxPage() {
       </header>
 
       <section className="inbox-page">
-        <Link className="back-link" href="/dashboard">
-          <ArrowLeft size={15} /> Dashboard
-        </Link>
+        <BackButton fallbackHref="/dashboard" label="Dashboard" />
 
         <div className="inbox-heading">
           <div>

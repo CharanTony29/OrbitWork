@@ -10,6 +10,7 @@ import InlineTaskRow from "./InlineTaskRow";
 import TaskNameCell from "./TaskNameCell";
 import TaskCommentsModal from "./TaskCommentsModal";
 import TaskEstimateCell from "./TaskEstimateCell";
+import TaskTableTimer from "./TaskTableTimer";
 import TaskLinkedDocsCell, {
   TaskAttachmentItem,
   AvailableProjectDoc,
@@ -152,6 +153,7 @@ export default function TaskTable({
   attachmentsMap,
   projectDocuments = [],
   commentCounts,
+  runningTimerMap,
 }: {
   projectId: string;
   canEdit?: boolean;
@@ -164,6 +166,7 @@ export default function TaskTable({
   attachmentsMap?: Map<string, TaskAttachmentItem[]>;
   projectDocuments?: AvailableProjectDoc[];
   commentCounts?: Map<string, number>;
+  runningTimerMap?: Map<string, { id: string; started_at: string; billable?: boolean }>;
 }) {
   const [activeCommentsTask, setActiveCommentsTask] = useState<{
     id: string;
@@ -206,9 +209,30 @@ export default function TaskTable({
     });
   };
 
+  const completedStatus =
+    statuses.find(
+      (s) =>
+        s.name.toLowerCase().includes("complete") ||
+        s.name.toLowerCase().includes("done") ||
+        s.name.toLowerCase().includes("closed")
+    ) || statuses[statuses.length - 1];
+
+  const initialStatus =
+    statuses.find(
+      (s) =>
+        s.name.toLowerCase().includes("new") ||
+        s.name.toLowerCase().includes("to do") ||
+        s.name.toLowerCase().includes("open")
+    ) || statuses[0];
+
   const renderTaskRow = (task: TaskRow, isSubtask = false, subtasks: TaskRow[] = []) => {
     const currentStatus = statusMap.get(task.status_id);
     const count = commentCounts?.get(task.id) ?? 0;
+    const isCompleted = Boolean(
+      currentStatus?.name.toLowerCase().includes("complete") ||
+      currentStatus?.name.toLowerCase().includes("done") ||
+      currentStatus?.name.toLowerCase().includes("closed")
+    );
 
     return (
       <tr key={task.id} className={`task-data-tr${isSubtask ? " is-subtask-row" : ""}`}>
@@ -227,6 +251,9 @@ export default function TaskTable({
             subtaskCount={subtasks.length}
             isSubtask={isSubtask}
             canEdit={canEdit}
+            isCompleted={isCompleted}
+            completedStatusId={completedStatus?.id}
+            initialStatusId={initialStatus?.id}
           />
         </td>
 
@@ -360,12 +387,21 @@ export default function TaskTable({
 
         {/* Worked (Billable) */}
         <td>
-          <span
-            className="billable-time-badge"
-            title="Total billable hours worked on this task"
-          >
-            {formatMinutes(task.billable_minutes)}
-          </span>
+          <div className="table-worked-cell" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            <TaskTableTimer
+              projectId={projectId}
+              taskId={task.id}
+              taskTitle={task.title}
+              runningEntry={runningTimerMap?.get(task.id) ?? null}
+              canEdit={canEdit}
+            />
+            <span
+              className="billable-time-badge"
+              title="Total billable hours worked on this task"
+            >
+              {formatMinutes(task.billable_minutes)}
+            </span>
+          </div>
         </td>
 
         {/* Hours Left / Added (Remaining from estimate) */}

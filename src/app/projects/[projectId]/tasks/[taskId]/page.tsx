@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import CurrentUserBadge from "@/app/CurrentUserBadge";
+import BackButton from "@/app/BackButton";
 import Link from "next/link";
 import { ArrowLeft, CheckSquare, GitBranch, MessageSquareText, Save, Eye } from "lucide-react";
 import { addManualTimeEntry, createChecklistItem, createTaskChecklist, createTaskComment, createTaskDependency, createTaskSubtask, removeTaskDependency, signOut, startTaskTimer, stopTaskTimer, toggleChecklistItem, updateTask } from "@/app/actions";
@@ -9,6 +10,8 @@ import { saveTaskCustomField } from "@/app/actions";
 import { formatEstimate, formatEstimateDetailed, formatMinutes, formatRemaining } from "@/lib/work";
 import TaskDetailCanvas from "./TaskDetailCanvas";
 import TaskAttachmentsSection from "./TaskAttachmentsSection";
+import TaskDetailProgress from "./TaskDetailProgress";
+import TaskHeaderTimer from "./TaskHeaderTimer";
 
 const attachmentMessages: Record<string, string> = { uploaded: "File uploaded to the organization’s Google Drive.", too_large: "Files must be between 1 byte and 15 MB.", save_failed: "The Drive upload succeeded, but the app could not save its file reference." };
 const driveErrorMessages: Record<string, string> = {
@@ -49,7 +52,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
   const { data: timeEntries } = await supabase.from("time_entries").select("id, user_id, started_at, ended_at, duration_minutes, description, billable").eq("project_id", projectId).eq("task_id", taskId).order("started_at", { ascending: false }).limit(100);
   const { data: attachments } = await supabase.from("task_attachments").select("id, file_name, mime_type, file_size_bytes, storage_provider, external_file_id, external_url, uploaded_by, created_at").eq("project_id", projectId).eq("task_id", taskId).order("created_at", { ascending: false });
   const { data: activityEvents } = await supabase.from("project_activity_events").select("id, actor_id, event_type, details, created_at").eq("project_id", projectId).eq("task_id", taskId).order("created_at", { ascending: false }).limit(100);
-  const { data: runningTimer } = await supabase.from("time_entries").select("id, started_at").eq("user_id", user.id).eq("task_id", taskId).is("ended_at", null).maybeSingle();
+  const { data: runningTimer } = await supabase.from("time_entries").select("id, started_at, billable").eq("user_id", user.id).eq("task_id", taskId).is("ended_at", null).maybeSingle();
   const { data: canEditData } = await supabase.rpc("can_edit_project_tasks", { target_project: projectId });
   const canEdit = Boolean(canEditData);
   const taskStatus = (statuses ?? []).find((s) => s.id === task.status_id);
@@ -94,7 +97,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
   return <main className="app-shell">
     <header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/><form action={signOut}><button className="quiet-button">Sign out</button></form></div></header>
     <div className="task-detail-page">
-      <div className="task-detail-nav"><Link className="back-link" href={`/projects/${projectId}`}><ArrowLeft size={15}/>{project.name}</Link><span className="task-key">{task.generated_key}</span></div>
+      <div className="task-detail-nav"><BackButton fallbackHref={`/projects/${projectId}`} label={project.name}/><span className="task-key">{task.generated_key}</span></div>
       <div className="task-detail-heading">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -108,10 +111,22 @@ export default async function TaskDetailPage({ params, searchParams }: {
           <h1>{task.title}</h1>
           <p className="muted">{workspace?.name ?? "Workspace"} <span className="crumb-dot">·</span> {project.name}</p>
         </div>
-        <div className="task-detail-progress">
-          <span>{task.progress}%</span>
-          <div><i style={{ width: `${task.progress}%` }}/></div>
-          <small>complete</small>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+          <TaskHeaderTimer
+            projectId={projectId}
+            taskId={taskId}
+            taskTitle={task.title}
+            runningEntry={runningTimer}
+            canEdit={canEdit}
+          />
+          <TaskDetailProgress
+            projectId={projectId}
+            taskId={taskId}
+            initialProgress={task.progress ?? 0}
+            canEdit={canEdit}
+            checklistTotal={(checklistItems ?? []).length}
+            checklistCompleted={(checklistItems ?? []).filter((i) => i.is_complete).length}
+          />
         </div>
       </div>
       
@@ -157,350 +172,379 @@ export default async function TaskDetailPage({ params, searchParams }: {
           )}
           {saved && <p className="notice" role="status">Task changes saved.</p>}
           {error && <p className="error" role="alert">Could not save those changes. Check that the due date is not before the start date.</p>}
-          <form action={updateTask} className="task-detail-grid">
-            <input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/>
-            <section className="task-detail-main">
-              <label className="detail-field">
-                Task name
-                <input
-                  name="title"
-                  defaultValue={task.title}
-                  maxLength={240}
-                  required
-                  readOnly={!canEdit}
-                  disabled={!canEdit}
-                  style={!canEdit ? { background: '#f8fafc', cursor: 'default' } : undefined}
-                />
-              </label>
-              <label className="detail-field">
-                Description
-                <textarea
-                  name="description"
-                  defaultValue={task.description}
-                  maxLength={10000}
-                  placeholder={canEdit ? "Add context, notes, or acceptance criteria…" : "No description provided."}
-                  readOnly={!canEdit}
-                  disabled={!canEdit}
-                  style={!canEdit ? { background: '#f8fafc', cursor: 'default' } : undefined}
-                />
-              </label>
-              <div className="detail-save-row">
-                <span>Last updated {new Date(task.updated_at).toLocaleString()}</span>
-                {canEdit && <button className="button button-primary"><Save size={15}/> Save changes</button>}
-              </div>
-            </section>
-            <aside className="task-properties">
-              <p className="eyebrow">PROPERTIES</p>
-              <label className="detail-field">
-                Status
-                {canEdit ? (
-                  <select name="statusId" defaultValue={task.status_id}>
-                    {(statuses ?? []).map((status) => (
-                      <option key={status.id} value={status.id}>{status.name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '6px', border: `1px solid ${taskStatus?.color ?? '#cbd5cd'}`, color: taskStatus?.color ?? '#526057', background: `${taskStatus?.color ?? '#526057'}12`, fontWeight: 500, fontSize: '12px', width: 'fit-content', marginTop: '4px' }}>
-                    <i style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: taskStatus?.color ?? '#526057', display: 'inline-block' }} />
-                    {taskStatus?.name ?? "Unknown"}
-                  </div>
-                )}
-              </label>
-              <label className="detail-field">
-                Priority
-                {canEdit ? (
-                  <select name="priority" defaultValue={task.priority}>
-                    <option value="low">Low</option>
-                    <option value="normal">Normal</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                ) : (
-                  <span className={`priority-pill priority-${task.priority}`} style={{ width: 'fit-content', marginTop: '4px', textTransform: 'capitalize' }}>
-                    {task.priority}
-                  </span>
-                )}
-              </label>
-              <label className="detail-field">
-                Start date
-                {canEdit ? (
-                  <input name="startDate" type="date" defaultValue={task.start_date ?? ""}/>
-                ) : (
-                  <span style={{ fontSize: '13px', color: '#334155', marginTop: '4px' }}>
-                    {task.start_date ? new Date(`${task.start_date}T00:00:00`).toLocaleDateString() : "Not set"}
-                  </span>
-                )}
-              </label>
-              <label className="detail-field">
-                Due date
-                {canEdit ? (
-                  <input name="dueDate" type="date" defaultValue={task.due_date ?? ""}/>
-                ) : (
-                  <span style={{ fontSize: '13px', color: '#334155', marginTop: '4px' }}>
-                    {task.due_date ? new Date(`${task.due_date}T00:00:00`).toLocaleDateString() : "No due date"}
-                  </span>
-                )}
-              </label>
-              <label className="detail-field">
-                Estimate (e.g. 2h, 1d, 3w, 30m)
-                {canEdit ? (
-                  <input name="estimateMinutes" type="text" placeholder="e.g. 2h, 1d, 3w, 30m" defaultValue={task.estimate_minutes ? formatEstimate(task.estimate_minutes) : ""}/>
-                ) : (
-                  <span style={{ fontSize: '13px', color: '#334155', marginTop: '4px' }}>
-                    {task.estimate_minutes ? formatEstimate(task.estimate_minutes) : "None"}
-                  </span>
-                )}
-              </label>
-              <div className="property-line"><span>Worked (Billable)</span><strong>{formatMinutes(billableMinutes)}</strong></div>
-              <div className="property-line"><span>Remaining / Added</span><strong className={`remaining-badge is-${remainingInfo.status}`}>{remainingInfo.label}</strong></div>
-              <div className="detail-assignees">
-                <p className="eyebrow">ASSIGNEES</p>
-                {canEdit ? (
-                  <AssigneeDropdowns key={`${task.id}-${task.primary_assignee_id ?? ""}-${task.secondary_assignee_id ?? ""}`} projectId={projectId} taskId={taskId} members={members} initialPrimary={task.primary_assignee_id} initialSecondary={task.secondary_assignee_id}/>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', marginTop: '6px' }}>
-                    <div className="property-line"><span>Primary</span><strong>{task.primary_assignee_id ? profileLabel(task.primary_assignee_id) : "Unassigned"}</strong></div>
-                    <div className="property-line"><span>Secondary</span><strong>{task.secondary_assignee_id ? profileLabel(task.secondary_assignee_id) : "Unassigned"}</strong></div>
-                  </div>
-                )}
-              </div>
-              <div className="property-line"><span>Created by</span><strong>{profileLabel(task.created_by)}</strong></div>
-              <div className="property-line"><span>Created</span><strong>{new Date(task.created_at).toLocaleDateString()}</strong></div>
-            </aside>
-          </form>
-          {!!customFields?.length && <section className="task-custom-fields"><div className="custom-fields-heading"><div><p className="eyebrow">CUSTOM FIELDS</p><h2>Project-specific details</h2></div></div><div className="custom-field-grid">{customFields.map((field) => {
-            const options = Array.isArray(field.options) ? field.options.map(String) : [];
-            const storedValue = customValueMap.get(field.id);
-            const value = storedValue == null ? "" : Array.isArray(storedValue) ? storedValue.join(", ") : String(storedValue);
-            if (field.field_type === "formula") return <div className="custom-field-item" key={field.id}><span>{field.name}</span><p className="muted small">Formula fields are read-only until formula configuration is available.</p></div>;
-            if (!canEdit) {
-              return (
-                <div className="custom-field-item" key={field.id}>
-                  <label>{field.name}</label>
-                  <span style={{ fontSize: '13px', color: '#334155', padding: '6px 0', minHeight: '28px', display: 'flex', alignItems: 'center' }}>
-                    {value || "—"}
-                  </span>
+
+          <div className="task-detail-two-col">
+            {/* Left Column (Wide): Task execution, subtasks, checklists, attachments, comments */}
+            <div className="task-detail-left-col">
+              <form action={updateTask} className="task-detail-main">
+                <input type="hidden" name="projectId" value={projectId}/>
+                <input type="hidden" name="taskId" value={taskId}/>
+                <input type="hidden" name="statusId" value={task.status_id}/>
+                <input type="hidden" name="priority" value={task.priority}/>
+                <input type="hidden" name="startDate" value={task.start_date ?? ""}/>
+                <input type="hidden" name="dueDate" value={task.due_date ?? ""}/>
+                <input type="hidden" name="estimateMinutes" value={task.estimate_minutes ? formatEstimate(task.estimate_minutes) : ""}/>
+
+                <label className="detail-field">
+                  Task name
+                  <input
+                    name="title"
+                    defaultValue={task.title}
+                    maxLength={240}
+                    required
+                    readOnly={!canEdit}
+                    disabled={!canEdit}
+                    style={!canEdit ? { background: '#f8fafc', cursor: 'default' } : undefined}
+                  />
+                </label>
+                <label className="detail-field">
+                  Description
+                  <textarea
+                    name="description"
+                    defaultValue={task.description}
+                    maxLength={10000}
+                    placeholder={canEdit ? "Add context, notes, or acceptance criteria…" : "No description provided."}
+                    readOnly={!canEdit}
+                    disabled={!canEdit}
+                    style={!canEdit ? { background: '#f8fafc', cursor: 'default' } : undefined}
+                  />
+                </label>
+                <div className="detail-save-row">
+                  <span>Last updated {new Date(task.updated_at).toLocaleString()}</span>
+                  {canEdit && <button className="button button-primary"><Save size={15}/> Save changes</button>}
                 </div>
-              );
-            }
-            return <form action={saveTaskCustomField} className="custom-field-item" key={field.id}><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="fieldId" value={field.id}/><label htmlFor={`field-${field.id}`}>{field.name}{field.required && <span className="required-mark">*</span>}</label>
-              {field.field_type === "long_text" ? <textarea id={`field-${field.id}`} name="value" defaultValue={value} required={field.required} maxLength={10000}/> : field.field_type === "dropdown" ? <select id={`field-${field.id}`} name="value" defaultValue={value} required={field.required}><option value="">Choose…</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select> : field.field_type === "checkbox" ? <select id={`field-${field.id}`} name="value" defaultValue={value || "false"}><option value="false">No</option><option value="true">Yes</option></select> : field.field_type === "user" ? <select id={`field-${field.id}`} name="value" defaultValue={value}><option value="">Unassigned</option>{members.map((member) => <option key={member.id} value={member.id}>{member.label}</option>)}</select> : <input id={`field-${field.id}`} name="value" type={field.field_type === "date" ? "date" : field.field_type === "datetime" ? "datetime-local" : ["number", "currency", "rating", "progress", "duration"].includes(field.field_type) ? "number" : field.field_type === "email" ? "email" : field.field_type === "url" ? "url" : "text"} defaultValue={value} required={field.required} maxLength={field.field_type === "text" ? 2000 : undefined} step={field.field_type === "rating" || field.field_type === "progress" ? "1" : field.field_type === "currency" ? "0.01" : undefined} placeholder={field.field_type === "multi_select" ? "Comma-separated values" : ""}/>}<button className="mini-save">Save field</button></form>;
-          })}</div></section>}
-          <div className="task-relationships-grid">
-            <section className="task-subtasks">
-              <div className="relationship-heading">
-                <div>
-                  <p className="eyebrow">CHILD TASKS</p>
-                  <h2>Subtasks <span className="count-pill">{subtasks?.length ?? 0}</span></h2>
-                </div>
-              </div>
-              <div className="subtask-list">
-                {subtasks?.map((subtask) => {
-                  const statusObj = statuses?.find((status) => status.id === subtask.status_id);
-                  return (
-                    <Link className="subtask-row" href={`/projects/${projectId}/tasks/${subtask.id}`} key={subtask.id}>
-                      <span className="task-key">{subtask.generated_key}</span>
-                      <strong className="subtask-title">{subtask.title}</strong>
-                      <span
-                        className="subtask-status-pill"
-                        style={{
-                          borderColor: statusObj?.color ?? "#cbd5cd",
-                          color: statusObj?.color ?? "#526057",
-                        }}
-                      >
-                        {statusObj?.name ?? "New"}
-                      </span>
-                    </Link>
-                  );
-                })}
-                {(!subtasks || subtasks.length === 0) && (
-                  <div className="relationship-empty-state">
-                    <p>No subtasks yet</p>
-                    <small>Break down this task into smaller manageable steps.</small>
+              </form>
+
+              {/* Subtasks (Child Tasks) */}
+              <section className="task-subtasks">
+                <div className="relationship-heading">
+                  <div>
+                    <p className="eyebrow">CHILD TASKS</p>
+                    <h2>Subtasks <span className="count-pill">{subtasks?.length ?? 0}</span></h2>
                   </div>
-                )}
-              </div>
-              {canEdit && (
-                <form action={createTaskSubtask} className="relationship-form">
-                  <input type="hidden" name="projectId" value={projectId}/>
-                  <input type="hidden" name="parentTaskId" value={taskId}/>
-                  <input name="title" placeholder="Add a subtask…" maxLength={240} required className="relationship-input"/>
-                  <button className="mini-save">+ Add subtask</button>
-                </form>
-              )}
-            </section>
-            <section className="task-dependencies">
-              <div className="relationship-heading">
-                <div>
-                  <p className="eyebrow">RELATED WORK</p>
-                  <h2>Dependencies <span className="count-pill">{dependencies?.length ?? 0}</span></h2>
                 </div>
-                <div className="relationship-header-icon"><GitBranch size={17}/></div>
-              </div>
-              <div className="dependency-list">
-                {dependencies?.map((dependency) => {
-                  const linked = linkedTaskMap.get(dependency.linked_task_id);
-                  return (
-                    <div className="dependency-row" key={`${dependency.linked_task_id}-${dependency.relation}`}>
-                      <span className={`dependency-badge rel-${dependency.relation}`}>
-                        {dependency.relation.replace("_", " ")}
-                      </span>
-                      {linked ? (
-                        <Link href={`/projects/${projectId}/tasks/${linked.id}`} className="dependency-task-link">
-                          <span className="dependency-task-key">{linked.generated_key}</span>
-                          <span className="dependency-task-title">{linked.title}</span>
-                        </Link>
-                      ) : (
-                        <span className="dependency-task-title muted">Unknown task</span>
-                      )}
-                      {canEdit && (
-                        <form action={removeTaskDependency} className="dependency-remove-form">
-                          <input type="hidden" name="projectId" value={projectId}/>
-                          <input type="hidden" name="taskId" value={taskId}/>
-                          <input type="hidden" name="linkedTaskId" value={dependency.linked_task_id}/>
-                          <input type="hidden" name="relation" value={dependency.relation}/>
-                          <button className="dependency-remove-btn" aria-label="Remove dependency" title="Remove dependency">×</button>
-                        </form>
-                      )}
+                <div className="subtask-list">
+                  {subtasks?.map((subtask) => {
+                    const statusObj = statuses?.find((status) => status.id === subtask.status_id);
+                    return (
+                      <Link className="subtask-row" href={`/projects/${projectId}/tasks/${subtask.id}`} key={subtask.id}>
+                        <span className="task-key">{subtask.generated_key}</span>
+                        <strong className="subtask-title">{subtask.title}</strong>
+                        <span
+                          className="subtask-status-pill"
+                          style={{
+                            borderColor: statusObj?.color ?? "#cbd5cd",
+                            color: statusObj?.color ?? "#526057",
+                          }}
+                        >
+                          {statusObj?.name ?? "New"}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                  {(!subtasks || subtasks.length === 0) && (
+                    <div className="relationship-empty-state">
+                      <p>No subtasks yet</p>
+                      <small>Break down this task into smaller manageable steps.</small>
                     </div>
-                  );
-                })}
-                {(!dependencies || dependencies.length === 0) && (
-                  <div className="relationship-empty-state">
-                    <GitBranch size={22} className="empty-state-icon" />
-                    <p>No dependencies linked yet</p>
-                    <small>Link tasks that block this task, are blocked by it, or are related.</small>
+                  )}
+                </div>
+                {canEdit && (
+                  <form action={createTaskSubtask} className="relationship-form">
+                    <input type="hidden" name="projectId" value={projectId}/>
+                    <input type="hidden" name="parentTaskId" value={taskId}/>
+                    <input name="title" placeholder="Add a subtask…" maxLength={240} required className="relationship-input"/>
+                    <button className="mini-save">+ Add subtask</button>
+                  </form>
+                )}
+              </section>
+
+              {/* Task Checklists */}
+              <section className="task-checklists">
+                <div className="relationship-heading"><div><p className="eyebrow">TASK CHECKLISTS</p><h2>Checklists</h2></div><CheckSquare size={17}/></div>
+                {checklists?.map((checklist) => <div className="checklist-block" key={checklist.id}><h3>{checklist.title}</h3>{itemsByChecklist.get(checklist.id)?.map((item) => canEdit ? <form action={toggleChecklistItem} className="checklist-item" key={item.id}><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="itemId" value={item.id}/><input type="hidden" name="complete" value={item.is_complete ? "false" : "true"}/><button aria-label={item.is_complete ? `Reopen ${item.title}` : `Complete ${item.title}`}><span className={item.is_complete ? "checkmark checked" : "checkmark"}>{item.is_complete ? "✓" : ""}</span><span className={item.is_complete ? "item-complete" : ""}>{item.title}</span></button></form> : <div className="checklist-item" key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}><span className={item.is_complete ? "checkmark checked" : "checkmark"}>{item.is_complete ? "✓" : ""}</span><span className={item.is_complete ? "item-complete" : ""}>{item.title}</span></div>)}{canEdit && <form action={createChecklistItem} className="relationship-form"><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="checklistId" value={checklist.id}/><input name="title" placeholder="Add checklist item" maxLength={300} required/><button className="mini-save">Add item</button></form>}</div>)}
+                {canEdit && <form action={createTaskChecklist} className="relationship-form checklist-create-form"><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input name="title" placeholder="New checklist name" maxLength={100} required/><button className="mini-save">Create checklist</button></form>}
+              </section>
+
+              {/* Attachments Section */}
+              <TaskAttachmentsSection
+                projectId={projectId}
+                taskId={taskId}
+                taskTitle={task.title}
+                attachments={(attachments ?? []).map((item) => ({
+                  ...item,
+                  uploader_name: profileLabel(item.uploaded_by),
+                }))}
+                attachmentStatus={attachment}
+                driveError={driveError}
+                canEdit={canEdit}
+              />
+
+              {/* Comments Section */}
+              <section className="task-comments-section">
+                <div className="comments-heading"><div className="comments-icon"><MessageSquareText size={17}/></div><div><h2>Comments</h2><p>{comments?.length ?? 0} messages on this task</p></div></div>
+                <div className="comments-feed">{comments?.length ? comments.map((comment) => <article className="comment-card" key={comment.id}><div className="comment-avatar">{profileLabel(comment.author_id)[0].toUpperCase()}</div><div className="comment-content"><div className="comment-author"><strong>{profileLabel(comment.author_id)}</strong><time>{new Date(comment.created_at).toLocaleString()}</time></div><p>{comment.body}</p></div></article>) : <div className="no-comments">No comments yet. Add a note or question for your team.</div>}</div>
+                {canEdit ? (
+                  <form action={createTaskComment} className="task-comment-form"><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><label htmlFor="task-comment">Add a comment</label><textarea id="task-comment" name="body" placeholder="Share an update, ask a question, or leave context…" maxLength={10000} required/><div className="comment-submit-row"><span>Comments are visible to people with project access.</span><button className="button button-primary">Post comment</button></div></form>
+                ) : (
+                  <div style={{ padding: '14px 16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '13px', textAlign: 'center', marginTop: '12px' }}>
+                    Comments are read-only for Viewers.
                   </div>
                 )}
-              </div>
-              {canEdit && (
-                <form action={createTaskDependency} className="dependency-form">
-                  <input type="hidden" name="projectId" value={projectId}/>
-                  <input type="hidden" name="taskId" value={taskId}/>
-                  <div className="dependency-form-fields">
-                    <select name="linkedTaskId" required defaultValue="" className="dependency-task-select">
-                      <option value="" disabled>Choose a task to link…</option>
-                      {projectTasks?.filter((item) => item.id !== taskId && !(dependencies ?? []).some((dependency) => dependency.linked_task_id === item.id)).map((item) => (
-                        <option key={item.id} value={item.id}>{item.generated_key} · {item.title}</option>
+              </section>
+
+              {/* Activity Section */}
+              <section className="task-activity-section"><div className="relationship-heading"><div><p className="eyebrow">HISTORY</p><h2>Activity</h2></div></div>{activityEvents?.length ? <ol className="activity-list">{activityEvents.map((event) => { const details = event.details && typeof event.details === "object" ? event.details as Record<string, unknown> : {}; const actor = event.actor_id ? profileLabel(event.actor_id) : "System"; const label = event.event_type.replaceAll("_", " "); const change = typeof details.from === "string" || typeof details.to === "string" ? ` · ${String(details.from ?? "—")} → ${String(details.to ?? "—")}` : ""; return <li key={event.id}><span className="activity-dot"/><div><p><strong>{actor}</strong> {label}{change}</p><time>{new Date(event.created_at).toLocaleString()}</time></div></li>; })}</ol> : <p className="muted small">Task changes and comments will appear here.</p>}</section>
+            </div>
+
+            {/* Right Column (Sidebar): Properties, Time tracking, Dependencies, Custom fields */}
+            <div className="task-detail-right-col">
+              <form action={updateTask} className="task-properties">
+                <input type="hidden" name="projectId" value={projectId}/>
+                <input type="hidden" name="taskId" value={taskId}/>
+                <input type="hidden" name="title" value={task.title}/>
+                <input type="hidden" name="description" value={task.description}/>
+
+                <p className="eyebrow">PROPERTIES</p>
+                <label className="detail-field">
+                  Status
+                  {canEdit ? (
+                    <select name="statusId" defaultValue={task.status_id}>
+                      {(statuses ?? []).map((status) => (
+                        <option key={status.id} value={status.id}>{status.name}</option>
                       ))}
                     </select>
-                    <select name="relation" defaultValue="related" className="dependency-type-select">
-                      <option value="blocks">Blocks</option>
-                      <option value="blocked_by">Blocked by</option>
-                      <option value="related">Related</option>
-                      <option value="duplicate">Duplicate of</option>
+                  ) : (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '6px', border: `1px solid ${taskStatus?.color ?? '#cbd5cd'}`, color: taskStatus?.color ?? '#526057', background: `${taskStatus?.color ?? '#526057'}12`, fontWeight: 500, fontSize: '12px', width: 'fit-content', marginTop: '4px' }}>
+                      <i style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: taskStatus?.color ?? '#526057', display: 'inline-block' }} />
+                      {taskStatus?.name ?? "Unknown"}
+                    </div>
+                  )}
+                </label>
+                <label className="detail-field">
+                  Priority
+                  {canEdit ? (
+                    <select name="priority" defaultValue={task.priority}>
+                      <option value="low">Low</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
                     </select>
+                  ) : (
+                    <span className={`priority-pill priority-${task.priority}`} style={{ width: 'fit-content', marginTop: '4px', textTransform: 'capitalize' }}>
+                      {task.priority}
+                    </span>
+                  )}
+                </label>
+                <label className="detail-field">
+                  Start date
+                  {canEdit ? (
+                    <input name="startDate" type="date" defaultValue={task.start_date ?? ""}/>
+                  ) : (
+                    <span style={{ fontSize: '13px', color: '#334155', marginTop: '4px' }}>
+                      {task.start_date ? new Date(`${task.start_date}T00:00:00`).toLocaleDateString() : "Not set"}
+                    </span>
+                  )}
+                </label>
+                <label className="detail-field">
+                  Due date
+                  {canEdit ? (
+                    <input name="dueDate" type="date" defaultValue={task.due_date ?? ""}/>
+                  ) : (
+                    <span style={{ fontSize: '13px', color: '#334155', marginTop: '4px' }}>
+                      {task.due_date ? new Date(`${task.due_date}T00:00:00`).toLocaleDateString() : "No due date"}
+                    </span>
+                  )}
+                </label>
+                <label className="detail-field">
+                  Estimate (e.g. 2h, 1d, 3w, 30m)
+                  {canEdit ? (
+                    <input name="estimateMinutes" type="text" placeholder="e.g. 2h, 1d, 3w, 30m" defaultValue={task.estimate_minutes ? formatEstimate(task.estimate_minutes) : ""}/>
+                  ) : (
+                    <span style={{ fontSize: '13px', color: '#334155', marginTop: '4px' }}>
+                      {task.estimate_minutes ? formatEstimate(task.estimate_minutes) : "None"}
+                    </span>
+                  )}
+                </label>
+                <div className="property-line"><span>Worked (Billable)</span><strong>{formatMinutes(billableMinutes)}</strong></div>
+                <div className="property-line"><span>Remaining / Added</span><strong className={`remaining-badge is-${remainingInfo.status}`}>{remainingInfo.label}</strong></div>
+                <div className="detail-assignees">
+                  <p className="eyebrow">ASSIGNEES</p>
+                  {canEdit ? (
+                    <AssigneeDropdowns key={`${task.id}-${task.primary_assignee_id ?? ""}-${task.secondary_assignee_id ?? ""}`} projectId={projectId} taskId={taskId} members={members} initialPrimary={task.primary_assignee_id} initialSecondary={task.secondary_assignee_id}/>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', marginTop: '6px' }}>
+                      <div className="property-line"><span>Primary</span><strong>{task.primary_assignee_id ? profileLabel(task.primary_assignee_id) : "Unassigned"}</strong></div>
+                      <div className="property-line"><span>Secondary</span><strong>{task.secondary_assignee_id ? profileLabel(task.secondary_assignee_id) : "Unassigned"}</strong></div>
+                    </div>
+                  )}
+                </div>
+                <div className="property-line"><span>Created by</span><strong>{profileLabel(task.created_by)}</strong></div>
+                <div className="property-line"><span>Created</span><strong>{new Date(task.created_at).toLocaleDateString()}</strong></div>
+
+                {canEdit && (
+                  <div style={{ marginTop: '14px', paddingTop: '10px', borderTop: '1px solid var(--line)' }}>
+                    <button className="button button-secondary" style={{ width: '100%', justifyContent: 'center' }}>
+                      <Save size={13}/> Update properties
+                    </button>
                   </div>
-                  <button className="dependency-submit-btn">+ Link task</button>
-                </form>
-              )}
-            </section>
-          </div>
-          <section className="task-checklists"><div className="relationship-heading"><div><p className="eyebrow">TASK CHECKLISTS</p><h2>Checklists</h2></div><CheckSquare size={17}/></div>
-            {checklists?.map((checklist) => <div className="checklist-block" key={checklist.id}><h3>{checklist.title}</h3>{itemsByChecklist.get(checklist.id)?.map((item) => canEdit ? <form action={toggleChecklistItem} className="checklist-item" key={item.id}><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="itemId" value={item.id}/><input type="hidden" name="complete" value={item.is_complete ? "false" : "true"}/><button aria-label={item.is_complete ? `Reopen ${item.title}` : `Complete ${item.title}`}><span className={item.is_complete ? "checkmark checked" : "checkmark"}>{item.is_complete ? "✓" : ""}</span><span className={item.is_complete ? "item-complete" : ""}>{item.title}</span></button></form> : <div className="checklist-item" key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}><span className={item.is_complete ? "checkmark checked" : "checkmark"}>{item.is_complete ? "✓" : ""}</span><span className={item.is_complete ? "item-complete" : ""}>{item.title}</span></div>)}{canEdit && <form action={createChecklistItem} className="relationship-form"><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="checklistId" value={checklist.id}/><input name="title" placeholder="Add checklist item" maxLength={300} required/><button className="mini-save">Add item</button></form>}</div>)}
-            {canEdit && <form action={createTaskChecklist} className="relationship-form checklist-create-form"><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input name="title" placeholder="New checklist name" maxLength={100} required/><button className="mini-save">Create checklist</button></form>}
-          </section>
-          <section className="task-time-section">
-            <div className="relationship-heading">
-              <div>
-                <p className="eyebrow">TIME TRACKING</p>
-                <h2>Time entries &amp; Budget</h2>
-              </div>
-            </div>
+                )}
+              </form>
 
-            <div className="task-time-metrics">
-              <div className="time-metric-card">
-                <span className="metric-label">Estimated Budget</span>
-                <span className="metric-val">{formatEstimateDetailed(task.estimate_minutes)}</span>
-              </div>
-              <div className="time-metric-card">
-                <span className="metric-label">Billable Worked</span>
-                <span className="metric-val">{formatMinutes(billableMinutes)}</span>
-              </div>
-              <div className={`time-metric-card is-${remainingInfo.status}`}>
-                <span className="metric-label">Remaining / Added</span>
-                <span className="metric-val">
-                  {remainingInfo.status === "exhausting" && "⚠️ "}
-                  {remainingInfo.status === "exceeded" && "🚨 "}
-                  {remainingInfo.label}
-                </span>
-              </div>
-            </div>
+              {/* Time Tracking Section */}
+              <section className="task-time-section">
+                <div className="relationship-heading">
+                  <div>
+                    <p className="eyebrow">TIME TRACKING</p>
+                    <h2>Time &amp; Budget</h2>
+                  </div>
+                </div>
 
-            {remainingInfo.status === "exhausting" && (
-              <div className="hours-alert-banner is-warning">
-                ⚠️ <strong>Hours Exhausting Alert:</strong> Less than 1 hour ({remainingInfo.label}) remains on this task. An automated email alert has been dispatched to the creator and assignees.
-              </div>
-            )}
-            {remainingInfo.status === "exceeded" && (
-              <div className="hours-alert-banner is-danger">
-                🚨 <strong>Budget Exceeded Alert:</strong> Actual billable hours worked have exceeded the estimate by {formatMinutes(Math.abs(remainingInfo.diff || 0))}. An automated email alert has been dispatched to the creator and assignees.
-              </div>
-            )}
+                <div className="task-time-metrics">
+                  <div className="time-metric-card">
+                    <span className="metric-label">Estimated Budget</span>
+                    <span className="metric-val">{formatEstimateDetailed(task.estimate_minutes)}</span>
+                  </div>
+                  <div className="time-metric-card">
+                    <span className="metric-label">Billable Worked</span>
+                    <span className="metric-val">{formatMinutes(billableMinutes)}</span>
+                  </div>
+                  <div className={`time-metric-card is-${remainingInfo.status}`}>
+                    <span className="metric-label">Remaining / Added</span>
+                    <span className="metric-val">
+                      {remainingInfo.status === "exhausting" && "⚠️ "}
+                      {remainingInfo.status === "exceeded" && "🚨 "}
+                      {remainingInfo.label}
+                    </span>
+                  </div>
+                </div>
 
-            {canEdit && (
-              <div className="timer-controls">
-                {runningTimer ? (
-                  <form action={stopTaskTimer}>
-                    <input type="hidden" name="projectId" value={projectId} />
-                    <input type="hidden" name="taskId" value={taskId} />
-                    <input type="hidden" name="entryId" value={runningTimer.id} />
-                    <span>Timer running since {new Date(runningTimer.started_at).toLocaleTimeString()}</span>
-                    <button className="button button-primary">Stop timer</button>
-                  </form>
-                ) : (
-                  <form action={startTaskTimer}>
-                    <input type="hidden" name="projectId" value={projectId} />
-                    <input type="hidden" name="taskId" value={taskId} />
-                    <button className="button button-secondary">Start timer</button>
+                {remainingInfo.status === "exhausting" && (
+                  <div className="hours-alert-banner is-warning">
+                    ⚠️ <strong>Hours Exhausting Alert:</strong> Less than 1 hour ({remainingInfo.label}) remains on this task. An automated email alert has been dispatched to the creator and assignees.
+                  </div>
+                )}
+                {remainingInfo.status === "exceeded" && (
+                  <div className="hours-alert-banner is-danger">
+                    🚨 <strong>Budget Exceeded Alert:</strong> Actual billable hours worked have exceeded the estimate by {formatMinutes(Math.abs(remainingInfo.diff || 0))}. An automated email alert has been dispatched to the creator and assignees.
+                  </div>
+                )}
+
+                {canEdit && (
+                  <div className="timer-controls">
+                    <form action={addManualTimeEntry} className="manual-time-form">
+                      <input type="hidden" name="projectId" value={projectId} />
+                      <input type="hidden" name="taskId" value={taskId} />
+                      <label>Minutes<input name="minutes" type="number" min="1" max="100000" required placeholder="30" /></label>
+                      <label>Description<input name="description" maxLength={2000} placeholder="What did you work on?" /></label>
+                      <label className="billable-option"><input name="billable" type="checkbox" value="true" defaultChecked /> Billable</label>
+                      <button className="mini-save">Add time</button>
+                    </form>
+                  </div>
+                )}
+                <div className="time-entry-list">
+                  {timeEntries?.map((entry) => (
+                    <div className="time-entry-row" key={entry.id}>
+                      <strong>{profileLabel(entry.user_id)}</strong>
+                      <span>{entry.duration_minutes ? `${Math.floor(entry.duration_minutes / 60)}h ${entry.duration_minutes % 60}m` : "Running"}</span>
+                      <span>{new Date(entry.started_at).toLocaleString()}</span>
+                      <span>{entry.billable ? "Billable" : "Non-billable"}</span>
+                      {entry.description && <p>{entry.description}</p>}
+                    </div>
+                  ))}
+                  {!timeEntries?.length && <p className="muted small">No time recorded on this task yet.</p>}
+                </div>
+              </section>
+
+              {/* Dependencies Section */}
+              <section className="task-dependencies">
+                <div className="relationship-heading">
+                  <div>
+                    <p className="eyebrow">RELATED WORK</p>
+                    <h2>Dependencies <span className="count-pill">{dependencies?.length ?? 0}</span></h2>
+                  </div>
+                  <div className="relationship-header-icon"><GitBranch size={17}/></div>
+                </div>
+                <div className="dependency-list">
+                  {dependencies?.map((dependency) => {
+                    const linked = linkedTaskMap.get(dependency.linked_task_id);
+                    return (
+                      <div className="dependency-row" key={`${dependency.linked_task_id}-${dependency.relation}`}>
+                        <span className={`dependency-badge rel-${dependency.relation}`}>
+                          {dependency.relation.replace("_", " ")}
+                        </span>
+                        {linked ? (
+                          <Link href={`/projects/${projectId}/tasks/${linked.id}`} className="dependency-task-link">
+                            <span className="dependency-task-key">{linked.generated_key}</span>
+                            <span className="dependency-task-title">{linked.title}</span>
+                          </Link>
+                        ) : (
+                          <span className="dependency-task-title muted">Unknown task</span>
+                        )}
+                        {canEdit && (
+                          <form action={removeTaskDependency} className="dependency-remove-form">
+                            <input type="hidden" name="projectId" value={projectId}/>
+                            <input type="hidden" name="taskId" value={taskId}/>
+                            <input type="hidden" name="linkedTaskId" value={dependency.linked_task_id}/>
+                            <input type="hidden" name="relation" value={dependency.relation}/>
+                            <button className="dependency-remove-btn" aria-label="Remove dependency" title="Remove dependency">×</button>
+                          </form>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {(!dependencies || dependencies.length === 0) && (
+                    <div className="relationship-empty-state">
+                      <GitBranch size={22} className="empty-state-icon" />
+                      <p>No dependencies linked yet</p>
+                      <small>Link tasks that block this task, are blocked by it, or are related.</small>
+                    </div>
+                  )}
+                </div>
+                {canEdit && (
+                  <form action={createTaskDependency} className="dependency-form">
+                    <input type="hidden" name="projectId" value={projectId}/>
+                    <input type="hidden" name="taskId" value={taskId}/>
+                    <div className="dependency-form-fields">
+                      <select name="linkedTaskId" required defaultValue="" className="dependency-task-select">
+                        <option value="" disabled>Choose a task to link…</option>
+                        {projectTasks?.filter((item) => item.id !== taskId && !(dependencies ?? []).some((dependency) => dependency.linked_task_id === item.id)).map((item) => (
+                          <option key={item.id} value={item.id}>{item.generated_key} · {item.title}</option>
+                        ))}
+                      </select>
+                      <select name="relation" defaultValue="related" className="dependency-type-select">
+                        <option value="blocks">Blocks</option>
+                        <option value="blocked_by">Blocked by</option>
+                        <option value="related">Related</option>
+                        <option value="duplicate">Duplicate of</option>
+                      </select>
+                    </div>
+                    <button className="dependency-submit-btn">+ Link task</button>
                   </form>
                 )}
-                <form action={addManualTimeEntry} className="manual-time-form">
-                  <input type="hidden" name="projectId" value={projectId} />
-                  <input type="hidden" name="taskId" value={taskId} />
-                  <label>Minutes<input name="minutes" type="number" min="1" max="100000" required placeholder="30" /></label>
-                  <label>Description<input name="description" maxLength={2000} placeholder="What did you work on?" /></label>
-                  <label className="billable-option"><input name="billable" type="checkbox" value="true" defaultChecked /> Billable</label>
-                  <button className="mini-save">Add time</button>
-                </form>
-              </div>
-            )}
-            <div className="time-entry-list">
-              {timeEntries?.map((entry) => (
-                <div className="time-entry-row" key={entry.id}>
-                  <strong>{profileLabel(entry.user_id)}</strong>
-                  <span>{entry.duration_minutes ? `${Math.floor(entry.duration_minutes / 60)}h ${entry.duration_minutes % 60}m` : "Running"}</span>
-                  <span>{new Date(entry.started_at).toLocaleString()}</span>
-                  <span>{entry.billable ? "Billable" : "Non-billable"}</span>
-                  {entry.description && <p>{entry.description}</p>}
-                </div>
-              ))}
-              {!timeEntries?.length && <p className="muted small">No time recorded on this task yet.</p>}
+              </section>
+
+              {/* Custom Fields Section */}
+              {!!customFields?.length && <section className="task-custom-fields"><div className="custom-fields-heading"><div><p className="eyebrow">CUSTOM FIELDS</p><h2>Project details</h2></div></div><div className="custom-field-grid">{customFields.map((field) => {
+                const options = Array.isArray(field.options) ? field.options.map(String) : [];
+                const storedValue = customValueMap.get(field.id);
+                const value = storedValue == null ? "" : Array.isArray(storedValue) ? storedValue.join(", ") : String(storedValue);
+                if (field.field_type === "formula") return <div className="custom-field-item" key={field.id}><span>{field.name}</span><p className="muted small">Formula fields are read-only until formula configuration is available.</p></div>;
+                if (!canEdit) {
+                  return (
+                    <div className="custom-field-item" key={field.id}>
+                      <label>{field.name}</label>
+                      <span style={{ fontSize: '13px', color: '#334155', padding: '6px 0', minHeight: '28px', display: 'flex', alignItems: 'center' }}>
+                        {value || "—"}
+                      </span>
+                    </div>
+                  );
+                }
+                return <form action={saveTaskCustomField} className="custom-field-item" key={field.id}><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="fieldId" value={field.id}/><label htmlFor={`field-${field.id}`}>{field.name}{field.required && <span className="required-mark">*</span>}</label>
+                  {field.field_type === "long_text" ? <textarea id={`field-${field.id}`} name="value" defaultValue={value} required={field.required} maxLength={10000}/> : field.field_type === "dropdown" ? <select id={`field-${field.id}`} name="value" defaultValue={value} required={field.required}><option value="">Choose…</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select> : field.field_type === "checkbox" ? <select id={`field-${field.id}`} name="value" defaultValue={value || "false"}><option value="false">No</option><option value="true">Yes</option></select> : field.field_type === "user" ? <select id={`field-${field.id}`} name="value" defaultValue={value}><option value="">Unassigned</option>{members.map((member) => <option key={member.id} value={member.id}>{member.label}</option>)}</select> : <input id={`field-${field.id}`} name="value" type={field.field_type === "date" ? "date" : field.field_type === "datetime" ? "datetime-local" : ["number", "currency", "rating", "progress", "duration"].includes(field.field_type) ? "number" : field.field_type === "email" ? "email" : field.field_type === "url" ? "url" : "text"} defaultValue={value} required={field.required} maxLength={field.field_type === "text" ? 2000 : undefined} step={field.field_type === "rating" || field.field_type === "progress" ? "1" : field.field_type === "currency" ? "0.01" : undefined} placeholder={field.field_type === "multi_select" ? "Comma-separated values" : ""}/>}<button className="mini-save">Save field</button></form>;
+              })}</div></section>}
             </div>
-          </section>
-          <TaskAttachmentsSection
-            projectId={projectId}
-            taskId={taskId}
-            taskTitle={task.title}
-            attachments={(attachments ?? []).map((item) => ({
-              ...item,
-              uploader_name: profileLabel(item.uploaded_by),
-            }))}
-            attachmentStatus={attachment}
-            driveError={driveError}
-            canEdit={canEdit}
-          />
-          <section className="task-activity-section"><div className="relationship-heading"><div><p className="eyebrow">HISTORY</p><h2>Activity</h2></div></div>{activityEvents?.length ? <ol className="activity-list">{activityEvents.map((event) => { const details = event.details && typeof event.details === "object" ? event.details as Record<string, unknown> : {}; const actor = event.actor_id ? profileLabel(event.actor_id) : "System"; const label = event.event_type.replaceAll("_", " "); const change = typeof details.from === "string" || typeof details.to === "string" ? ` · ${String(details.from ?? "—")} → ${String(details.to ?? "—")}` : ""; return <li key={event.id}><span className="activity-dot"/><div><p><strong>{actor}</strong> {label}{change}</p><time>{new Date(event.created_at).toLocaleString()}</time></div></li>; })}</ol> : <p className="muted small">Task changes and comments will appear here.</p>}</section>
-          <section className="task-comments-section"><div className="comments-heading"><div className="comments-icon"><MessageSquareText size={17}/></div><div><h2>Comments</h2><p>{comments?.length ?? 0} messages on this task</p></div></div>
-            <div className="comments-feed">{comments?.length ? comments.map((comment) => <article className="comment-card" key={comment.id}><div className="comment-avatar">{profileLabel(comment.author_id)[0].toUpperCase()}</div><div className="comment-content"><div className="comment-author"><strong>{profileLabel(comment.author_id)}</strong><time>{new Date(comment.created_at).toLocaleString()}</time></div><p>{comment.body}</p></div></article>) : <div className="no-comments">No comments yet. Add a note or question for your team.</div>}</div>
-            {canEdit ? (
-              <form action={createTaskComment} className="task-comment-form"><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><label htmlFor="task-comment">Add a comment</label><textarea id="task-comment" name="body" placeholder="Share an update, ask a question, or leave context…" maxLength={10000} required/><div className="comment-submit-row"><span>Comments are visible to people with project access.</span><button className="button button-primary">Post comment</button></div></form>
-            ) : (
-              <div style={{ padding: '14px 16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '13px', textAlign: 'center', marginTop: '12px' }}>
-                Comments are read-only for Viewers.
-              </div>
-            )}
-          </section>
+          </div>
         </>
       )}
     </div>

@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { getDriveFile, googleDriveAccessToken } from "@/lib/google-drive";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ attachmentId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ attachmentId: string }> }) {
   const { attachmentId } = await params;
+  const url = new URL(request.url);
+  const isDownload = url.searchParams.get("download") === "1";
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
@@ -20,7 +22,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ att
     const fileName = driveFile.metadata.name.replace(/[\r\n]/g, "_");
     return new Response(driveFile.body, { headers: {
       "Content-Type": attachment.mime_type || "application/octet-stream",
-      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+      "Content-Disposition": `${isDownload ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(fileName)}`,
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, no-store",
     } });
