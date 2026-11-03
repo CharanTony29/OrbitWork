@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import PasswordInput from "@/app/PasswordInput";
 
 async function updatePassword(formData: FormData) {
   "use server";
@@ -39,7 +40,7 @@ export default async function ResetPasswordPage({
         <form action={updatePassword} className="form-stack">
           <label>
             New password
-            <input name="password" type="password" minLength={8} maxLength={128} required autoComplete="new-password" placeholder="At least 8 characters" />
+            <PasswordInput name="password" minLength={8} maxLength={128} required autoComplete="new-password" placeholder="At least 8 characters" />
           </label>
           <button className="button button-primary" type="submit">
             Update Password &amp; Sign In

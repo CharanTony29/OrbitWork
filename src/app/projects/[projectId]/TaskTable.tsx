@@ -142,6 +142,7 @@ function AutosaveInput({
 
 export default function TaskTable({
   projectId,
+  canEdit = true,
   tasks,
   statuses,
   members,
@@ -153,6 +154,7 @@ export default function TaskTable({
   commentCounts,
 }: {
   projectId: string;
+  canEdit?: boolean;
   tasks: TaskRow[];
   statuses: WorkflowStatus[];
   members: Person[];
@@ -224,86 +226,135 @@ export default function TaskTable({
             onToggleExpand={() => toggleExpand(task.id)}
             subtaskCount={subtasks.length}
             isSubtask={isSubtask}
+            canEdit={canEdit}
           />
         </td>
 
         {/* Created by */}
         <td>{createdBy.get(task.created_by) ?? "Team member"}</td>
 
-        {/* Assignees — numbered multi-picker */}
+        {/* Assignees — numbered multi-picker or static badges for viewers */}
         <td>
-          <AssigneePicker
-            key={`${task.id}-${task.assigneeIds.join(",")}`}
-            projectId={projectId}
-            taskId={task.id}
-            members={members}
-            initialAssignees={task.assigneeIds}
-          />
-        </td>
-
-        {/* Status — autosave on change */}
-        <td>
-          <form className="sheet-edit">
-            <input type="hidden" name="projectId" value={projectId} />
-            <input type="hidden" name="taskId" value={task.id} />
-            <AutosaveSelect
-              action={updateTaskStatus}
-              name="statusId"
-              value={task.status_id}
-              ariaLabel={`Status for ${task.title}`}
-            >
-              {statuses.map((status) => (
-                <option key={status.id} value={status.id}>
-                  {status.name}
-                </option>
-              ))}
-            </AutosaveSelect>
-          </form>
-        </td>
-
-        {/* Priority — autosave on change */}
-        <td>
-          <form className="sheet-edit">
-            <input type="hidden" name="projectId" value={projectId} />
-            <input type="hidden" name="taskId" value={task.id} />
-            <input type="hidden" name="field" value="priority" />
-            <AutosaveSelect
-              action={updateTaskField}
-              name="value"
-              value={task.priority}
-              ariaLabel={`Priority for ${task.title}`}
-            >
-              <option value="low">Low</option>
-              <option value="normal">Normal</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </AutosaveSelect>
-          </form>
-        </td>
-
-        {/* Due date — autosave on change */}
-        <td>
-          <form className="sheet-edit">
-            <input type="hidden" name="projectId" value={projectId} />
-            <input type="hidden" name="taskId" value={task.id} />
-            <input type="hidden" name="field" value="due_date" />
-            <AutosaveInput
-              action={updateTaskField}
-              name="value"
-              value={task.due_date ?? ""}
-              type="date"
-              ariaLabel={`Due date for ${task.title}`}
+          {canEdit ? (
+            <AssigneePicker
+              key={`${task.id}-${task.assigneeIds.join(",")}`}
+              projectId={projectId}
+              taskId={task.id}
+              members={members}
+              initialAssignees={task.assigneeIds}
             />
-          </form>
+          ) : (
+            <div className="assignees-static-list" style={{ display: "flex", gap: "4px", flexWrap: "wrap", fontSize: "12px" }}>
+              {task.assigneeIds.length ? (
+                task.assigneeIds.map((id) => {
+                  const m = members.find((x) => x.id === id);
+                  return (
+                    <span key={id} className="assignee-pill-static" style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: "4px", color: "#334155" }}>
+                      {m?.label ?? "Team member"}
+                    </span>
+                  );
+                })
+              ) : (
+                <span style={{ color: "#94a3b8" }}>Unassigned</span>
+              )}
+            </div>
+          )}
         </td>
 
-        {/* Estimate — interactive unit selector (minutes, hours, days, weeks, months) */}
+        {/* Status — autosave on change or static pill for viewers */}
+        <td>
+          {canEdit ? (
+            <form className="sheet-edit">
+              <input type="hidden" name="projectId" value={projectId} />
+              <input type="hidden" name="taskId" value={task.id} />
+              <AutosaveSelect
+                action={updateTaskStatus}
+                name="statusId"
+                value={task.status_id}
+                ariaLabel={`Status for ${task.title}`}
+              >
+                {statuses.map((status) => (
+                  <option key={status.id} value={status.id}>
+                    {status.name}
+                  </option>
+                ))}
+              </AutosaveSelect>
+            </form>
+          ) : (
+            <span
+              className="status-pill-static"
+              style={{
+                border: `1px solid ${currentStatus?.color ?? "#cbd5cd"}`,
+                color: currentStatus?.color ?? "#526057",
+                background: `${currentStatus?.color ?? "#526057"}18`,
+                padding: "3px 8px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: 500,
+                display: "inline-block",
+              }}
+            >
+              {currentStatus?.name ?? "Unknown"}
+            </span>
+          )}
+        </td>
+
+        {/* Priority — autosave on change or static pill for viewers */}
+        <td>
+          {canEdit ? (
+            <form className="sheet-edit">
+              <input type="hidden" name="projectId" value={projectId} />
+              <input type="hidden" name="taskId" value={task.id} />
+              <input type="hidden" name="field" value="priority" />
+              <AutosaveSelect
+                action={updateTaskField}
+                name="value"
+                value={task.priority}
+                ariaLabel={`Priority for ${task.title}`}
+              >
+                <option value="low">Low</option>
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </AutosaveSelect>
+            </form>
+          ) : (
+            <span className={`priority-pill-static priority-${task.priority}`} style={{ textTransform: "capitalize", fontSize: "12px" }}>
+              {task.priority}
+            </span>
+          )}
+        </td>
+
+        {/* Due date — autosave on change or static text for viewers */}
+        <td>
+          {canEdit ? (
+            <form className="sheet-edit">
+              <input type="hidden" name="projectId" value={projectId} />
+              <input type="hidden" name="taskId" value={task.id} />
+              <input type="hidden" name="field" value="due_date" />
+              <AutosaveInput
+                action={updateTaskField}
+                name="value"
+                value={task.due_date ?? ""}
+                type="date"
+                ariaLabel={`Due date for ${task.title}`}
+              />
+            </form>
+          ) : (
+            <span style={{ fontSize: "12px", color: "#475569" }}>
+              {task.due_date ? new Date(`${task.due_date}T00:00:00`).toLocaleDateString() : "—"}
+            </span>
+          )}
+        </td>
+
+        {/* Estimate — interactive unit selector or static for viewers */}
         <td>
           <TaskEstimateCell
             projectId={projectId}
             taskId={task.id}
             taskTitle={task.title}
             initialMinutes={task.estimate_minutes}
+            canEdit={canEdit}
           />
         </td>
 
@@ -351,6 +402,7 @@ export default function TaskTable({
             taskTitle={task.title}
             attachments={attachmentsMap?.get(task.id) ?? []}
             availableDocs={projectDocuments}
+            canEdit={canEdit}
           />
         </td>
 
@@ -404,10 +456,18 @@ export default function TaskTable({
               <th key={field.id}>{field.name}</th>
             ))}
             <th>Comments</th>
-            <AddColumnButton projectId={projectId} />
+            {canEdit ? <AddColumnButton projectId={projectId} /> : <th className="add-col-empty-cell" />}
           </tr>
         </thead>
         <tbody>
+          {parentTasks.length === 0 && (
+            <tr>
+              <td colSpan={13 + customFields.length} style={{ textAlign: "center", padding: "42px 16px", color: "var(--muted)" }}>
+                <p style={{ margin: "0 0 4px", fontSize: "13px", fontWeight: 600, color: "var(--ink)" }}>No tasks found</p>
+                <small style={{ fontSize: "11px" }}>No tasks match the current search or filters.</small>
+              </td>
+            </tr>
+          )}
           {parentTasks.map((parentTask) => {
             const children = subtasksByParent.get(parentTask.id) ?? [];
             const isExpanded = expandedTaskIds.has(parentTask.id);
@@ -420,12 +480,14 @@ export default function TaskTable({
               </Fragment>
             );
           })}
-          <InlineTaskRow
-            projectId={projectId}
-            statuses={statuses}
-            members={members}
-            colSpan={12 + customFields.length}
-          />
+          {canEdit && (
+            <InlineTaskRow
+              projectId={projectId}
+              statuses={statuses}
+              members={members}
+              colSpan={12 + customFields.length}
+            />
+          )}
         </tbody>
       </table>
 

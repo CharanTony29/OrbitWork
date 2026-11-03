@@ -22,11 +22,13 @@ export default function TaskEstimateCell({
   taskId,
   taskTitle,
   initialMinutes,
+  canEdit = true,
 }: {
   projectId: string;
   taskId: string;
   taskTitle: string;
   initialMinutes: number | null;
+  canEdit?: boolean;
 }) {
   const [minutes, setMinutes] = useState<number | null>(initialMinutes);
   const [isOpen, setIsOpen] = useState(false);
@@ -113,6 +115,21 @@ export default function TaskEstimateCell({
   };
 
   const displayLabel = minutes ? formatEstimate(minutes) : null;
+
+  if (!canEdit) {
+    return (
+      <div className="task-estimate-cell-wrap">
+        <span
+          className={`task-estimate-btn${displayLabel ? " has-estimate" : ""}`}
+          style={{ cursor: "default", opacity: 0.9 }}
+          title={displayLabel ? `Estimate: ${displayLabel}` : "No estimate set"}
+        >
+          <Clock size={12} className="estimate-icon" />
+          <span className="estimate-text">{displayLabel || <span className="estimate-empty">—</span>}</span>
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="task-estimate-cell-wrap" ref={popoverRef}>

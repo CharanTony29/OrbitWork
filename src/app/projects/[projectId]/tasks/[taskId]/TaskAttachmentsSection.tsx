@@ -112,6 +112,7 @@ export default function TaskAttachmentsSection({
   attachments,
   attachmentStatus,
   driveError,
+  canEdit = true,
 }: {
   projectId: string;
   taskId: string;
@@ -119,6 +120,7 @@ export default function TaskAttachmentsSection({
   attachments: AttachmentItem[];
   attachmentStatus?: string;
   driveError?: string;
+  canEdit?: boolean;
 }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -222,28 +224,30 @@ export default function TaskAttachmentsSection({
         </div>
 
         {/* Quick Canvas Actions */}
-        <div className="attachments-header-actions">
-          <button
-            type="button"
-            className="quick-canvas-btn wb-btn"
-            onClick={() => handleCreateCanvas("whiteboard")}
-            disabled={isCreatingCanvas}
-            title="Create and attach an interactive Whiteboard"
-          >
-            <Palette size={13} />
-            <span>+ Whiteboard</span>
-          </button>
-          <button
-            type="button"
-            className="quick-canvas-btn fc-btn"
-            onClick={() => handleCreateCanvas("flowchart")}
-            disabled={isCreatingCanvas}
-            title="Create and attach an interactive Flowchart"
-          >
-            <GitFork size={13} />
-            <span>+ Flowchart</span>
-          </button>
-        </div>
+        {canEdit && (
+          <div className="attachments-header-actions">
+            <button
+              type="button"
+              className="quick-canvas-btn wb-btn"
+              onClick={() => handleCreateCanvas("whiteboard")}
+              disabled={isCreatingCanvas}
+              title="Create and attach an interactive Whiteboard"
+            >
+              <Palette size={13} />
+              <span>+ Whiteboard</span>
+            </button>
+            <button
+              type="button"
+              className="quick-canvas-btn fc-btn"
+              onClick={() => handleCreateCanvas("flowchart")}
+              disabled={isCreatingCanvas}
+              title="Create and attach an interactive Flowchart"
+            >
+              <GitFork size={13} />
+              <span>+ Flowchart</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Status Notice Banners */}
@@ -266,90 +270,92 @@ export default function TaskAttachmentsSection({
       )}
 
       {/* Drag & Drop Upload Zone */}
-      <form
-        ref={formRef}
-        action="/api/tasks/attachments"
-        method="post"
-        encType="multipart/form-data"
-        onSubmit={handleFormSubmit}
-        className={`modern-dropzone${isDragging ? " is-dragging" : ""}${selectedFile ? " has-file" : ""}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <input type="hidden" name="projectId" value={projectId} />
-        <input type="hidden" name="taskId" value={taskId} />
-        <input
-          ref={fileInputRef}
-          type="file"
-          name="file"
-          className="hidden-file-input"
-          onChange={handleFileChange}
-        />
+      {canEdit && (
+        <form
+          ref={formRef}
+          action="/api/tasks/attachments"
+          method="post"
+          encType="multipart/form-data"
+          onSubmit={handleFormSubmit}
+          className={`modern-dropzone${isDragging ? " is-dragging" : ""}${selectedFile ? " has-file" : ""}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <input type="hidden" name="projectId" value={projectId} />
+          <input type="hidden" name="taskId" value={taskId} />
+          <input
+            ref={fileInputRef}
+            type="file"
+            name="file"
+            className="hidden-file-input"
+            onChange={handleFileChange}
+          />
 
-        {!selectedFile ? (
-          <div
-            className="dropzone-idle-content"
-            onClick={() => fileInputRef.current?.click()}
-            role="button"
-            tabIndex={0}
-          >
-            <div className="dropzone-icon-circle">
-              <UploadCloud size={24} />
-            </div>
-            <div className="dropzone-text-block">
-              <p className="dropzone-primary-text">
-                <strong>Click to browse</strong> or drag &amp; drop your files here
-              </p>
-              <p className="dropzone-secondary-text">
-                Supports Images, PDF, Docs, Sheets, ZIP (Max 15 MB) · Stored securely in Google Drive
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="dropzone-selected-content">
-            <div className="selected-file-card">
-              <div className="selected-file-icon">
-                <FileGeneric size={20} />
+          {!selectedFile ? (
+            <div
+              className="dropzone-idle-content"
+              onClick={() => fileInputRef.current?.click()}
+              role="button"
+              tabIndex={0}
+            >
+              <div className="dropzone-icon-circle">
+                <UploadCloud size={24} />
               </div>
-              <div className="selected-file-info">
-                <span className="selected-file-name">{selectedFile.name}</span>
-                <span className="selected-file-size">{formatFileSize(selectedFile.size)}</span>
+              <div className="dropzone-text-block">
+                <p className="dropzone-primary-text">
+                  <strong>Click to browse</strong> or drag &amp; drop your files here
+                </p>
+                <p className="dropzone-secondary-text">
+                  Supports Images, PDF, Docs, Sheets, ZIP (Max 15 MB) · Stored securely in Google Drive
+                </p>
               </div>
-              <button
-                type="button"
-                className="selected-file-remove"
-                onClick={handleClearSelection}
-                title="Remove selection"
-              >
-                ×
-              </button>
             </div>
+          ) : (
+            <div className="dropzone-selected-content">
+              <div className="selected-file-card">
+                <div className="selected-file-icon">
+                  <FileGeneric size={20} />
+                </div>
+                <div className="selected-file-info">
+                  <span className="selected-file-name">{selectedFile.name}</span>
+                  <span className="selected-file-size">{formatFileSize(selectedFile.size)}</span>
+                </div>
+                <button
+                  type="button"
+                  className="selected-file-remove"
+                  onClick={handleClearSelection}
+                  title="Remove selection"
+                >
+                  ×
+                </button>
+              </div>
 
-            <div className="selected-file-actions">
-              <button
-                type="button"
-                className="btn-cancel-selection"
-                onClick={handleClearSelection}
-                disabled={uploading}
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn-upload-submit" disabled={uploading}>
-                {uploading ? (
-                  <>
-                    <Loader2 size={13} className="animate-spin" /> Uploading to Drive…
-                  </>
-                ) : (
-                  <>
-                    <UploadCloud size={14} /> Upload Attachment
-                  </>
-                )}
-              </button>
+              <div className="selected-file-actions">
+                <button
+                  type="button"
+                  className="btn-cancel-selection"
+                  onClick={handleClearSelection}
+                  disabled={uploading}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-upload-submit" disabled={uploading}>
+                  {uploading ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" /> Uploading to Drive…
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud size={14} /> Upload Attachment
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-      </form>
+          )}
+        </form>
+      )}
 
       {/* Filter Tabs if multiple items */}
       {attachments.length > 2 && (
@@ -490,16 +496,18 @@ export default function TaskAttachmentsSection({
                     <span>Download</span>
                   </a>
                 )}
-                <button
-                  type="button"
-                  className="btn-attachment-remove"
-                  onClick={() => handleDeleteAttachment(item.id)}
-                  disabled={isDeleting}
-                  title="Remove attachment"
-                  aria-label="Remove attachment"
-                >
-                  <Trash2 size={13} />
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="btn-attachment-remove"
+                    onClick={() => handleDeleteAttachment(item.id)}
+                    disabled={isDeleting}
+                    title="Remove attachment"
+                    aria-label="Remove attachment"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -513,8 +521,9 @@ export default function TaskAttachmentsSection({
             </div>
             <h4>No attachments yet</h4>
             <p>
-              Upload documents, images, mockups, or create interactive Whiteboard and Flowchart
-              diagrams for this task.
+              {canEdit
+                ? "Upload documents, images, mockups, or create interactive Whiteboard and Flowchart diagrams for this task."
+                : "No files or canvases attached to this task."}
             </p>
           </div>
         )}

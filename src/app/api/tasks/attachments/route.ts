@@ -6,7 +6,21 @@ const maxBytes = 15 * 1024 * 1024;
 
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
-  if (!origin || new URL(origin).origin !== new URL(request.url).origin) return new Response("Invalid origin", { status: 403 });
+  const host = request.headers.get("host");
+  const referer = request.headers.get("referer");
+  if (origin && host) {
+    try {
+      if (new URL(origin).host !== host) return new Response("Invalid origin", { status: 403 });
+    } catch {
+      return new Response("Invalid origin", { status: 403 });
+    }
+  } else if (referer && host) {
+    try {
+      if (new URL(referer).host !== host) return new Response("Invalid referer", { status: 403 });
+    } catch {
+      return new Response("Invalid referer", { status: 403 });
+    }
+  }
   const contentLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(contentLength) && contentLength > maxBytes + 1024 * 1024) return new Response("Files must be 15 MB or smaller", { status: 413 });
   const supabase = await createClient();

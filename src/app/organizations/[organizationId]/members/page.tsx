@@ -3,7 +3,7 @@ import CurrentUserBadge from "@/app/CurrentUserBadge";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, UsersRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { signOut } from "@/app/actions";
+import { signOut, updateOrganizationMemberRole } from "@/app/actions";
 
 export default async function OrganizationMembersPage({ params }: { params: Promise<{ organizationId: string }> }) {
   const { organizationId } = await params;
@@ -12,9 +12,10 @@ export default async function OrganizationMembersPage({ params }: { params: Prom
   if (!user) redirect("/");
   const { data: organization } = await supabase.from("organizations").select("id, name").eq("id", organizationId).maybeSingle();
   if (!organization) notFound();
-  const [{ data: memberships }, { data: workspaces }] = await Promise.all([
+  const [{ data: memberships }, { data: workspaces }, { data: canManageOrg }] = await Promise.all([
     supabase.from("organization_members").select("user_id, role, status, joined_at").eq("organization_id", organizationId).order("joined_at"),
     supabase.from("workspaces").select("id, name").eq("organization_id", organizationId).order("name"),
+    supabase.rpc("has_org_role", { target_org: organizationId, allowed_roles: ["owner", "admin"] }),
   ]);
   const memberIds = (memberships ?? []).map((member) => member.user_id);
   const workspaceIds = (workspaces ?? []).map((workspace) => workspace.id);
@@ -34,6 +35,20 @@ export default async function OrganizationMembersPage({ params }: { params: Prom
     const name = profile?.display_name?.trim() || profile?.email || "Team member";
     const workspaceRoles = workspaceRoleByUser.get(membership.user_id) ?? [];
     const profileDetails = [profile?.designation, profile?.department, profile?.contact_information].filter(Boolean).join(" · ");
-    return <tr key={membership.user_id}><td><div className="organization-member-person"><span className="organization-member-avatar">{name[0]?.toUpperCase() ?? "U"}</span><span><strong>{name}</strong>{profile?.email && profile.display_name?.trim() && <small>{profile.email}</small>}{profileDetails && <small>{profileDetails}</small>}</span></div></td><td><span className={`organization-role-badge role-${membership.role}`}>{membership.role}</span></td><td>{workspaceRoles.length ? <div className="organization-workspace-roles">{workspaceRoles.map((item) => <span key={`${item.name}-${item.role}`}><strong>{item.name}</strong><small>{item.role}</small></span>)}</div> : <span className="organization-member-muted">No workspace access</span>}</td><td><span className={`organization-member-status status-${membership.status}`}>{membership.status}</span></td><td>{new Date(membership.joined_at).toLocaleDateString()}</td></tr>;
+    return <tr key={membership.user_id}><td><div className="organization-member-person"><span className="organization-member-avatar">{name[0]?.toUpperCase() ?? "U"}</span><span><strong>{name}</strong>{profile?.email && profile.display_name?.trim() && <small>{profile.email}</small>}{profileDetails && <small>{profileDetails}</small>}</span></div></td><td>{canManageOrg && membership.role !== "owner" ? (
+      <form action={updateOrganizationMemberRole} style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center" }}>
+        <input type="hidden" name="organizationId" value={organizationId} />
+        <input type="hidden" name="userId" value={membership.user_id} />
+        <select name="role" defaultValue={membership.role} style={{ fontSize: "0.82rem", padding: "0.25rem 0.5rem", borderRadius: "6px", border: "1px solid var(--border-color, #cbd5e1)" }}>
+          <option value="admin">Admin</option>
+          <option value="manager">Manager</option>
+          <option value="member">Member</option>
+          <option value="viewer">Viewer</option>
+        </select>
+        <button type="submit" className="button button-secondary" style={{ padding: "0.25rem 0.55rem", fontSize: "0.78rem" }}>Update</button>
+      </form>
+    ) : (
+      <span className={`organization-role-badge role-${membership.role}`}>{membership.role}</span>
+    )}</td><td>{workspaceRoles.length ? <div className="organization-workspace-roles">{workspaceRoles.map((item) => <span key={`${item.name}-${item.role}`}><strong>{item.name}</strong><small>{item.role}</small></span>)}</div> : <span className="organization-member-muted">No workspace access</span>}</td><td><span className={`organization-member-status status-${membership.status}`}>{membership.status}</span></td><td>{new Date(membership.joined_at).toLocaleDateString()}</td></tr>;
   })}</tbody></table>{!memberships?.length && <p className="organization-members-empty">No members found.</p>}</div></section></main>;
 }

@@ -17,6 +17,7 @@ export default function TaskNameCell({
   onToggleExpand,
   subtaskCount = 0,
   isSubtask = false,
+  canEdit = true,
 }: {
   projectId: string;
   taskId: string;
@@ -29,6 +30,7 @@ export default function TaskNameCell({
   onToggleExpand?: () => void;
   subtaskCount?: number;
   isSubtask?: boolean;
+  canEdit?: boolean;
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [isEditing, setIsEditing] = useState(false);
@@ -90,6 +92,7 @@ export default function TaskNameCell({
           type="button"
           className="task-row-checkbox"
           aria-label="Select task"
+          disabled={!canEdit}
           onClick={(e) => e.stopPropagation()}
         >
           <span className="checkbox-box" />
@@ -166,7 +169,7 @@ export default function TaskNameCell({
         )}
 
         {/* Hover Action Buttons (ClickUp style) */}
-        {!isEditing && (
+        {!isEditing && canEdit && (
           <div className="task-row-hover-actions">
             {!isSubtask && (
               <button

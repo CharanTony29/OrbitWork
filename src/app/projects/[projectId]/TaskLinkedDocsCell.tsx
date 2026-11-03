@@ -25,12 +25,14 @@ export default function TaskLinkedDocsCell({
   taskTitle,
   attachments = [],
   availableDocs = [],
+  canEdit = true,
 }: {
   projectId: string;
   taskId: string;
   taskTitle: string;
   attachments: TaskAttachmentItem[];
   availableDocs: AvailableProjectDoc[];
+  canEdit?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [modalState, setModalState] = useState<{
@@ -117,64 +119,66 @@ export default function TaskLinkedDocsCell({
         })}
 
         {/* Plus Button to add or link */}
-        <div className="linked-plus-wrap">
-          <button
-            type="button"
-            className="linked-add-btn"
-            onClick={() => setMenuOpen((v) => !v)}
-            title="Attach Whiteboard, Flowchart or Document"
-          >
-            <Plus size={12} />
-          </button>
+        {canEdit && (
+          <div className="linked-plus-wrap">
+            <button
+              type="button"
+              className="linked-add-btn"
+              onClick={() => setMenuOpen((v) => !v)}
+              title="Attach Whiteboard, Flowchart or Document"
+            >
+              <Plus size={12} />
+            </button>
 
-          {menuOpen && (
-            <div className="linked-add-menu">
-              <span className="linked-menu-title">Attach to task</span>
-              <button
-                type="button"
-                className="linked-menu-item"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setModalState({ open: true, type: "whiteboard" });
-                }}
-              >
-                <Layout size={13} className="text-wb" />
-                <span>New Whiteboard</span>
-              </button>
-              <button
-                type="button"
-                className="linked-menu-item"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setModalState({ open: true, type: "flowchart" });
-                }}
-              >
-                <GitBranch size={13} className="text-fc" />
-                <span>New Flowchart</span>
-              </button>
+            {menuOpen && (
+              <div className="linked-add-menu">
+                <span className="linked-menu-title">Attach to task</span>
+                <button
+                  type="button"
+                  className="linked-menu-item"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setModalState({ open: true, type: "whiteboard" });
+                  }}
+                >
+                  <Layout size={13} className="text-wb" />
+                  <span>New Whiteboard</span>
+                </button>
+                <button
+                  type="button"
+                  className="linked-menu-item"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setModalState({ open: true, type: "flowchart" });
+                  }}
+                >
+                  <GitBranch size={13} className="text-fc" />
+                  <span>New Flowchart</span>
+                </button>
 
-              {availableDocs.length > 0 && (
-                <>
-                  <div className="linked-menu-sep" />
-                  <span className="linked-menu-title">Existing Documents</span>
-                  <div className="linked-menu-sublist">
-                    {availableDocs.map((doc) => (
-                      <button
-                        key={doc.id}
-                        type="button"
-                        className="linked-menu-item"
-                        onClick={() => handleLinkDoc(doc.id)}
-                      >
-                        <FileText size={12} />
-                        <span className="truncate">{doc.title}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+                {availableDocs.length > 0 && (
+                  <>
+                    <div className="linked-menu-sep" />
+                    <span className="linked-menu-title">Existing Documents</span>
+                    <div className="linked-menu-sublist">
+                      {availableDocs.map((doc) => (
+                        <button
+                          key={doc.id}
+                          type="button"
+                          className="linked-menu-item"
+                          onClick={() => handleLinkDoc(doc.id)}
+                        >
+                          <FileText size={12} />
+                          <span className="truncate">{doc.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Canvas Modal */}

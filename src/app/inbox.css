@@ -1,1 +1,46 @@
-.inbox-page{max-width:1050px;padding:36px clamp(20px,5vw,70px);margin:auto}.inbox-heading{display:flex;align-items:end;justify-content:space-between;margin:20px 0}.inbox-heading .eyebrow{margin:0 0 8px}.inbox-heading h1{font:800 29px Manrope,sans-serif;margin:0 0 7px}.inbox-heading .muted{margin:0}.inbox-list{border:1px solid var(--line);border-radius:11px;overflow:hidden}.inbox-item{display:flex;align-items:center;gap:12px;padding:14px;border-bottom:1px solid #edf0ed}.inbox-item:last-child{border-bottom:0}.inbox-item.unread{background:#f3f8f4}.inbox-icon{width:34px;height:34px;border-radius:9px;background:#e7f2e9;color:var(--green);display:grid;place-items:center;flex:none}.inbox-copy{flex:1;min-width:0}.inbox-copy p{font-size:12px;line-height:1.5;margin:0 0 4px}.inbox-copy time{font-size:10px;color:#89958d}.inbox-item .discussion-link{white-space:nowrap}.inbox-page .empty-tasks{padding:30px}
+.inbox-page{max-width:1050px;padding:36px clamp(20px,5vw,70px);margin:auto}
+.inbox-heading{display:flex;align-items:flex-end;justify-content:space-between;margin:20px 0}
+.inbox-heading .eyebrow{margin:0 0 8px}
+.inbox-heading h1{font:800 29px Manrope,sans-serif;margin:0 0 7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.inbox-heading .muted{margin:0}
+
+.inbox-stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:24px 0 32px}
+.inbox-stat-card{display:flex;align-items:center;gap:14px;padding:16px 18px;border:1px solid var(--line);border-radius:10px;background:var(--surface,#fff);box-shadow:0 2px 8px rgba(0,0,0,0.02)}
+.inbox-stat-icon{width:42px;height:42px;border-radius:10px;background:#eef7f1;color:var(--green);display:grid;place-items:center;flex:none}
+.inbox-stat-icon.notif-icon{background:#fdf3e2;color:#b45309}
+.inbox-stat-num{font-family:Manrope,sans-serif;font-size:26px;font-weight:800;color:var(--ink);line-height:1}
+.inbox-stat-label{font-size:11px;color:var(--muted);font-weight:600;margin-top:2px}
+
+.inbox-section{margin-bottom:34px}
+.inbox-section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.inbox-section-title h2{font:700 17px Manrope,sans-serif;margin:0;display:flex;align-items:center;gap:8px;color:var(--ink)}
+
+.inbox-tasks-list{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--surface,#fff)}
+.inbox-task-row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #edf0ed;transition:background .12s ease}
+.inbox-task-row:last-child{border-bottom:0}
+.inbox-task-row:hover{background:#f7faf8}
+.inbox-task-main{flex:1;min-width:0;display:flex;align-items:center;gap:10px}
+.inbox-task-key{font-size:10px;font-weight:700;color:var(--muted);padding:2px 6px;background:#eef2ef;border-radius:4px;flex:none}
+.inbox-task-title{font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inbox-task-title:hover{color:var(--green)}
+.inbox-task-meta{display:flex;align-items:center;gap:8px;flex:none}
+.inbox-project-pill{font-size:10px;color:var(--muted);padding:2px 7px;background:#f0f4f1;border-radius:4px;display:inline-flex;align-items:center;gap:4px}
+.inbox-priority-pill{font-size:9px;font-weight:700;text-transform:uppercase;padding:2px 6px;border-radius:4px}
+.inbox-priority-urgent{background:#fee2e2;color:#dc2626}
+.inbox-priority-high{background:#fef3c7;color:#d97706}
+.inbox-priority-normal{background:#e0f2fe;color:#0284c7}
+.inbox-priority-low{background:#f1f5f9;color:#64748b}
+.inbox-due-tag{font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:4px}
+.inbox-due-overdue{color:#dc2626;font-weight:600}
+
+.inbox-list{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--surface,#fff)}
+.inbox-item{display:flex;align-items:center;gap:12px;padding:14px;border-bottom:1px solid #edf0ed}
+.inbox-item:last-child{border-bottom:0}
+.inbox-item.unread{background:#f3f8f4}
+.inbox-icon{width:34px;height:34px;border-radius:9px;background:#e7f2e9;color:var(--green);display:grid;place-items:center;flex:none}
+.inbox-copy{flex:1;min-width:0}
+.inbox-copy p{font-size:12px;line-height:1.5;margin:0 0 4px}
+.inbox-copy time{font-size:10px;color:#89958d}
+.inbox-item .discussion-link{white-space:nowrap}
+.inbox-page .empty-tasks{padding:30px;background:var(--surface,#fff);text-align:center}
+.unread-pill{background:#fef3c7;color:#92400e}

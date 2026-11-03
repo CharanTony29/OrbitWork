@@ -8,6 +8,7 @@ import {
   createProjectStatus,
   deleteProjectStatus,
   removeProjectMember,
+  updateProjectMemberRole,
   updateProjectStatus,
 } from "@/app/actions";
 
@@ -224,7 +225,16 @@ function MembersPanel({
             <div className="member-row" key={member.user_id}>
               <span className="assignee-avatar">{(people.get(member.user_id) ?? "T")[0].toUpperCase()}</span>
               <strong>{people.get(member.user_id) ?? "Team member"}</strong>
-              <span className="role-pill">{member.role}</span>
+              <form action={updateProjectMemberRole} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <input type="hidden" name="projectId" value={projectId} />
+                <input type="hidden" name="userId" value={member.user_id} />
+                <select name="role" defaultValue={member.role} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff' }}>
+                  <option value="manager">Manager</option>
+                  <option value="member">Member</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+                <button type="submit" className="mini-save" style={{ fontSize: 11, padding: '2px 6px' }}>Update</button>
+              </form>
               <form action={removeProjectMember}>
                 <input type="hidden" name="projectId" value={projectId} />
                 <input type="hidden" name="userId" value={member.user_id} />

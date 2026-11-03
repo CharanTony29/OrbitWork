@@ -12,7 +12,8 @@ html,body{background:var(--app-bg);color:var(--ink)}
 .dashboard-org-tree>summary::-webkit-details-marker,.dashboard-workspace-tree>summary::-webkit-details-marker{display:none}
 .dashboard-org-tree>summary svg:first-child,.dashboard-workspace-tree>summary svg:first-child{color:var(--nav-muted);transition:transform .15s;flex:none}
 .dashboard-org-tree:not([open])>summary svg:first-child,.dashboard-workspace-tree:not([open])>summary svg:first-child{transform:rotate(-90deg)}
-.dashboard-org-tree>summary span,.dashboard-workspace-tree>summary span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dashboard-org-tree>summary span,.dashboard-workspace-tree>summary span,.dashboard-tree-ws-link{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:inherit;text-decoration:none;flex:1}
+.dashboard-tree-ws-link:hover{color:var(--green);text-decoration:underline}
 .dashboard-org-tree>summary:hover,.dashboard-workspace-tree>summary:hover{background:var(--nav-hover);color:var(--green)}
 .dashboard-tree-children{margin:2px 0 8px 12px;padding-left:8px;border-left:1px solid var(--nav-line)}
 .dashboard-workspace-tree>summary{font-size:9px;font-weight:600}

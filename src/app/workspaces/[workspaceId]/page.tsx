@@ -88,9 +88,9 @@ export default async function WorkspacePage({ params, searchParams }: {
                 </select>
               </label>
               <label>Workspace role
-                <select name="role" defaultValue="viewer">
-                  <option value="viewer">Viewer</option>
-                  <option value="member">Member</option>
+                <select name="role" defaultValue="member">
+                  <option value="member">Member (Can edit &amp; upload)</option>
+                  <option value="viewer">Viewer (Read-only)</option>
                   <option value="manager">Manager</option>
                   {isOrgAdmin && <option value="admin">Admin</option>}
                 </select>
@@ -106,9 +106,9 @@ export default async function WorkspacePage({ params, searchParams }: {
                   <input name="email" type="email" placeholder="user@example.com" required />
                 </label>
                 <label>Workspace role
-                  <select name="role" defaultValue="viewer">
-                    <option value="viewer">Viewer</option>
-                    <option value="member">Member</option>
+                  <select name="role" defaultValue="member">
+                    <option value="member">Member (Can edit &amp; upload)</option>
+                    <option value="viewer">Viewer (Read-only)</option>
                     <option value="manager">Manager</option>
                     <option value="admin">Admin</option>
                   </select>

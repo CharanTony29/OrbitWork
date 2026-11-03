@@ -299,6 +299,28 @@ export async function removeWorkspaceMember(formData: FormData) {
   redirect(`/workspaces/${parsed.data.workspaceId}?member_removed=1`);
 }
 
+export async function updateOrganizationMemberRole(formData: FormData) {
+  const parsed = z.object({
+    organizationId: z.string().uuid(),
+    userId: z.string().uuid(),
+    role: z.enum(["admin", "manager", "member", "viewer"]),
+  }).safeParse({
+    organizationId: formData.get("organizationId"),
+    userId: formData.get("userId"),
+    role: formData.get("role"),
+  });
+  if (!parsed.success) redirect("/dashboard?error=invalid_org_member");
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+  const { data: canManage } = await supabase.rpc("has_org_role", { target_org: parsed.data.organizationId, allowed_roles: ["owner", "admin"] });
+  if (!canManage) redirect(`/organizations/${parsed.data.organizationId}/members?error=forbidden`);
+  const { error } = await supabase.from("organization_members").update({ role: parsed.data.role }).eq("organization_id", parsed.data.organizationId).eq("user_id", parsed.data.userId);
+  if (error) redirect(`/organizations/${parsed.data.organizationId}/members?error=update_failed`);
+  revalidatePath(`/organizations/${parsed.data.organizationId}/members`);
+  redirect(`/organizations/${parsed.data.organizationId}/members?member_updated=1`);
+}
+
 export async function createProject(formData: FormData) {
   const parsed = z.object({
     workspaceId: z.string().uuid(),
@@ -794,6 +816,28 @@ export async function addProjectMember(formData: FormData) {
   const { data: member } = await supabase.from("organization_members").select("user_id").eq("organization_id", workspace.organization_id).eq("user_id", parsed.data.userId).eq("status", "active").maybeSingle();
   if (!member) redirect(`/projects/${parsed.data.projectId}?error=member_must_belong_to_organization`);
   const { error } = await supabase.from("project_members").upsert({ project_id: parsed.data.projectId, user_id: parsed.data.userId, role: parsed.data.role }, { onConflict: "project_id,user_id" });
+  if (error) redirect(`/projects/${parsed.data.projectId}?error=member_update_failed`);
+  revalidatePath(`/projects/${parsed.data.projectId}`);
+  redirect(`/projects/${parsed.data.projectId}`);
+}
+
+export async function updateProjectMemberRole(formData: FormData) {
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+    userId: z.string().uuid(),
+    role: z.enum(["manager", "member", "viewer"]),
+  }).safeParse({
+    projectId: formData.get("projectId"),
+    userId: formData.get("userId"),
+    role: formData.get("role"),
+  });
+  if (!parsed.success) redirect("/dashboard?error=invalid_project_member");
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+  const { data: canManage } = await supabase.rpc("can_manage_project", { target_project: parsed.data.projectId });
+  if (!canManage) redirect(`/projects/${parsed.data.projectId}?error=member_forbidden`);
+  const { error } = await supabase.from("project_members").update({ role: parsed.data.role }).eq("project_id", parsed.data.projectId).eq("user_id", parsed.data.userId);
   if (error) redirect(`/projects/${parsed.data.projectId}?error=member_update_failed`);
   revalidatePath(`/projects/${parsed.data.projectId}`);
   redirect(`/projects/${parsed.data.projectId}`);

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signIn, signInWithMagicLink } from "../actions";
 import { createClient } from "@/lib/supabase/server";
+import PasswordInput from "@/app/PasswordInput";
 
 export default async function LoginPage({
   searchParams,
@@ -59,7 +60,7 @@ export default async function LoginPage({
                 Forgot password?
               </Link>
             </div>
-            <input name="password" type="password" autoComplete="current-password" required minLength={8} maxLength={128} />
+            <PasswordInput name="password" autoComplete="current-password" required minLength={8} maxLength={128} />
           </label>
           <button className="button button-primary" type="submit">
             Sign in with Password

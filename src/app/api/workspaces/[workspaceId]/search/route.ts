@@ -10,7 +10,7 @@ export async function GET(
   const q = searchParams.get("q")?.trim() ?? "";
 
   if (!q || q.length < 2) {
-    return NextResponse.json({ tasks: [], documents: [], discussions: [] });
+    return NextResponse.json({ workspaces: [], projects: [], tasks: [], documents: [], discussions: [] });
   }
 
   const supabase = await createClient();
@@ -21,21 +21,61 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Get all accessible projects in this workspace
-  const { data: projects, error: projectsError } = await supabase
-    .from("projects")
-    .select("id, name")
-    .eq("workspace_id", workspaceId);
-
-  if (projectsError || !projects?.length) {
-    return NextResponse.json({ tasks: [], documents: [], discussions: [] });
-  }
-
-  const projectMap = new Map(projects.map((p) => [p.id, p.name]));
-  const projectIds = projects.map((p) => p.id);
   const cleanQuery = q.replace(/[,%()]/g, " ").slice(0, 80);
 
-  // Parallel search across tasks, documents, and discussions
+  // 1. Get current workspace to know its organization
+  const { data: currentWs } = await supabase
+    .from("workspaces")
+    .select("id, name, organization_id")
+    .eq("id", workspaceId)
+    .maybeSingle();
+
+  // 2. Search workspaces in the same organization
+  const orgId = currentWs?.organization_id;
+  const { data: matchedWsList } = orgId
+    ? await supabase
+        .from("workspaces")
+        .select("id, name, description")
+        .eq("organization_id", orgId)
+        .ilike("name", `%${cleanQuery}%`)
+        .limit(6)
+    : { data: [] };
+
+  const workspaces = (matchedWsList ?? []).map((w) => ({
+    id: w.id,
+    name: w.name,
+    description: w.description ?? "",
+    type: "workspace" as const,
+  }));
+
+  // 3. Get projects in this workspace (or matching query)
+  const { data: allProjects } = await supabase
+    .from("projects")
+    .select("id, name, description, workspace_id")
+    .eq("workspace_id", workspaceId);
+
+  const matchedProjects = (allProjects ?? []).filter(
+    (p) =>
+      p.name.toLowerCase().includes(cleanQuery.toLowerCase()) ||
+      (p.description && p.description.toLowerCase().includes(cleanQuery.toLowerCase()))
+  );
+
+  const projects = matchedProjects.slice(0, 8).map((p) => ({
+    id: p.id,
+    workspaceId: p.workspace_id,
+    name: p.name,
+    description: p.description ?? "",
+    type: "project" as const,
+  }));
+
+  const projectMap = new Map((allProjects ?? []).map((p) => [p.id, p.name]));
+  const projectIds = (allProjects ?? []).map((p) => p.id);
+
+  if (!projectIds.length) {
+    return NextResponse.json({ workspaces, projects, tasks: [], documents: [], discussions: [] });
+  }
+
+  // 4. Parallel search across tasks, documents, and discussions
   const [tasksRes, docsRes, commentsRes] = await Promise.all([
     supabase
       .from("tasks")
@@ -94,5 +134,5 @@ export async function GET(
     };
   });
 
-  return NextResponse.json({ tasks, documents, discussions });
+  return NextResponse.json({ workspaces, projects, tasks, documents, discussions });
 }
