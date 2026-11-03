@@ -22,7 +22,11 @@ export async function POST(request: Request) {
   const { data: task } = await supabase.from("tasks").select("id, project_id").eq("id", taskId).eq("project_id", projectId).maybeSingle();
   if (!task) return new Response("Task not found", { status: 404 });
   const { data: canEdit } = await supabase.rpc("can_edit_project_tasks", { target_project: projectId });
-  if (!canEdit) return new Response("Forbidden", { status: 403 });
+  if (!canEdit) {
+    const target = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
+    target.searchParams.set("attachment", "forbidden");
+    return NextResponse.redirect(target, 303);
+  }
   const { data: project } = await supabase.from("projects").select("workspaces(organization_id)").eq("id", projectId).maybeSingle();
   const workspaceRelation = project?.workspaces;
   const workspace = Array.isArray(workspaceRelation) ? workspaceRelation[0] : workspaceRelation;

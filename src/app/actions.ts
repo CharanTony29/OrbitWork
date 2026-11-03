@@ -252,6 +252,38 @@ export async function addWorkspaceMember(formData: FormData) {
   redirect(`/workspaces/${parsed.data.workspaceId}?member_added=1`);
 }
 
+export async function updateWorkspaceMemberRole(formData: FormData) {
+  const parsed = z.object({
+    workspaceId: z.string().uuid(),
+    userId: z.string().uuid(),
+    role: z.enum(["admin", "manager", "member", "viewer"]),
+  }).safeParse({
+    workspaceId: formData.get("workspaceId"),
+    userId: formData.get("userId"),
+    role: formData.get("role"),
+  });
+  if (!parsed.success) redirect("/dashboard?error=invalid_workspace_member");
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+  const { data: canManage } = await supabase.rpc("can_manage_workspace", { target_workspace: parsed.data.workspaceId });
+  if (!canManage) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
+  const { data: workspace } = await supabase.from("workspaces").select("organization_id").eq("id", parsed.data.workspaceId).maybeSingle();
+  if (!workspace) redirect("/dashboard?error=workspace_not_found");
+  const { data: isOrgAdmin } = await supabase.rpc("has_org_role", { target_org: workspace.organization_id, allowed_roles: ["owner", "admin"] });
+  if (parsed.data.role === "admin" && !isOrgAdmin) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
+
+  const { error } = await supabase
+    .from("workspace_members")
+    .update({ role: parsed.data.role })
+    .eq("workspace_id", parsed.data.workspaceId)
+    .eq("user_id", parsed.data.userId);
+
+  if (error) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_add_failed`);
+  revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
+  redirect(`/workspaces/${parsed.data.workspaceId}?member_updated=1`);
+}
+
 export async function removeWorkspaceMember(formData: FormData) {
   const parsed = z.object({ workspaceId: z.string().uuid(), userId: z.string().uuid() }).safeParse({ workspaceId: formData.get("workspaceId"), userId: formData.get("userId") });
   if (!parsed.success) redirect("/dashboard?error=invalid_workspace_member");

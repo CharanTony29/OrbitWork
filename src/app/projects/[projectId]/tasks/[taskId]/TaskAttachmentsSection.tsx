@@ -39,6 +39,7 @@ const attachmentMessages: Record<string, string> = {
   uploaded: "File uploaded successfully and synced to Google Drive.",
   too_large: "File exceeds the 15 MB limit. Please select a smaller file.",
   save_failed: "The Drive upload succeeded, but the app could not save its reference.",
+  forbidden: "You have view-only access (Viewer). Only workspace Members, Managers, and Admins can upload attachments.",
 };
 
 const driveErrorMessages: Record<string, string> = {
