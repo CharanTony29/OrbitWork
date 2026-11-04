@@ -3,6 +3,7 @@ import BackButton from "@/app/BackButton";
 import { notFound, redirect } from "next/navigation";
 import { Calendar, ListFilter, Settings, FolderKanban } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import DateInput from "@/app/DateInput";
 
 function isoWeekStart(value: string | undefined) {
   const parsed = value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : new Date();
@@ -200,7 +201,7 @@ export default async function WorkspaceTimesheetsPage({
               <option value="month">Month</option>
             </select>
             {period === "week" ? (
-              <input type="date" name="week" defaultValue={weekStart} aria-label="Week of" />
+              <DateInput name="week" defaultValue={weekStart} ariaLabel="Week of" containerClassName="timesheet-date-picker" />
             ) : (
               <input type="month" name="month" defaultValue={month} aria-label="Month" />
             )}

@@ -16,6 +16,7 @@ import TaskLinkedDocsCell, {
   AvailableProjectDoc,
 } from "./TaskLinkedDocsCell";
 import { formatMinutes, formatRemaining } from "@/lib/work";
+import DateInput from "@/app/DateInput";
 
 type TaskRow = {
   id: string;
@@ -113,6 +114,30 @@ function AutosaveInput({
     },
     [action, name, required]
   );
+
+  if (type === "date") {
+    return (
+      <DateInput
+        name={name}
+        defaultValue={initialValue}
+        disabled={pending}
+        ariaLabel={ariaLabel}
+        className={className}
+        containerClassName="sheet-date-picker"
+        onChange={(nextValue, form) => {
+          currentValue.current = nextValue;
+          if (debounceTimer.current) clearTimeout(debounceTimer.current);
+          if (form) {
+            debounceTimer.current = setTimeout(() => save(nextValue, form), 800);
+          }
+        }}
+        onBlur={(nextValue, form) => {
+          if (debounceTimer.current) clearTimeout(debounceTimer.current);
+          if (form) save(nextValue, form);
+        }}
+      />
+    );
+  }
 
   return (
     <input

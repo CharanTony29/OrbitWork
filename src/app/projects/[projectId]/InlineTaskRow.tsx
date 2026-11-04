@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { quickCreateTask } from "@/app/actions";
 import { formatEstimate, parseEstimateToMinutes } from "@/lib/work";
+import DateInput from "@/app/DateInput";
 
 type WorkflowStatus = { id: string; name: string; color: string; category?: string };
 type Member = { id: string; label: string };
@@ -216,20 +217,20 @@ export default function InlineTaskRow({
                 type="button"
                 className={`inline-ctrl-btn${dueDate ? " has-value" : ""}`}
                 onClick={() => setActiveMenu(activeMenu === "date" ? null : "date")}
-                title={dueDate ? `Due: ${dueDate}` : "Set due date"}
+                title={dueDate ? `Due: ${dueDate.slice(8, 10)}/${dueDate.slice(5, 7)}/${dueDate.slice(0, 4)}` : "Set due date"}
               >
                 <Calendar size={14} />
-                {dueDate && <span className="inline-date-tag">{dueDate.slice(5)}</span>}
+                {dueDate && <span className="inline-date-tag">{dueDate.slice(8, 10)}/{dueDate.slice(5, 7)}</span>}
               </button>
               {activeMenu === "date" && (
                 <div className="inline-picker-menu inline-date-menu">
                   <span className="inline-picker-title">Due date</span>
-                  <input
-                    type="date"
+                  <DateInput
                     className="inline-date-input"
                     value={dueDate}
-                    onChange={(e) => {
-                      setDueDate(e.target.value);
+                    ariaLabel="Task due date"
+                    onChange={(value) => {
+                      setDueDate(value);
                       setActiveMenu(null);
                     }}
                   />

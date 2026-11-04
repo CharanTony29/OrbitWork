@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { Clock3, Calendar, ListFilter, BarChart3, Settings } from "lucide-react";
 import { reviewProjectTimesheet, signOut, submitProjectTimesheet } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
+import DateInput from "@/app/DateInput";
 
 function isoWeekStart(value: string | undefined) {
   const parsed = value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : new Date();
@@ -195,7 +196,7 @@ export default async function ProjectTimesheetsPage({
                 <option value="month">Month</option>
               </select>
               {period === "week" ? (
-                <input type="date" name="week" defaultValue={weekStart} aria-label="Week of" />
+                <DateInput name="week" defaultValue={weekStart} ariaLabel="Week of" containerClassName="timesheet-date-picker" />
               ) : (
                 <input type="month" name="month" defaultValue={month} aria-label="Month" />
               )}

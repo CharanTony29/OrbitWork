@@ -21,6 +21,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { createTask, quickCreateProjectDocument } from "@/app/actions";
+import DateInput from "@/app/DateInput";
 
 type StatusItem = { id: string; name: string; color: string; category?: string };
 type MemberItem = { id: string; label: string };
@@ -517,19 +518,10 @@ export default function UniversalCreateModal({
                       }}
                     >
                       <div style={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>Due Date & Time</div>
-                      <input
-                        type="date"
+                      <DateInput
                         value={dueDate}
-                        onChange={(e) => setDueDate(e.target.value)}
-                        style={{
-                          background: "#12141a",
-                          color: "#fff",
-                          border: "1px solid #333a48",
-                          padding: "5px 8px",
-                          borderRadius: 6,
-                          fontSize: 11.5,
-                          colorScheme: "dark",
-                        }}
+                        ariaLabel="Due date"
+                        onChange={(value) => setDueDate(value)}
                       />
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <Clock size={12} color="#94a3b8" />
@@ -885,23 +877,12 @@ export default function UniversalCreateModal({
                           Tomorrow
                         </button>
                       </div>
-                      <input
-                        type="date"
+                      <DateInput
                         value={reminderDate}
-                        onChange={(e) => {
-                          setReminderDate(e.target.value);
+                        ariaLabel="Reminder date"
+                        onChange={(value) => {
+                          setReminderDate(value);
                           setShowDatePicker(false);
-                        }}
-                        style={{
-                          background: "#12141a",
-                          color: "#fff",
-                          border: "1px solid #333a48",
-                          padding: "6px 10px",
-                          borderRadius: 6,
-                          fontSize: 12,
-                          colorScheme: "dark",
-                          width: "100%",
-                          boxSizing: "border-box",
                         }}
                       />
                     </div>

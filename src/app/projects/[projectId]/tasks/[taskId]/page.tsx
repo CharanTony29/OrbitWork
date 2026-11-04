@@ -12,6 +12,7 @@ import TaskDetailCanvas from "./TaskDetailCanvas";
 import TaskAttachmentsSection from "./TaskAttachmentsSection";
 import TaskDetailProgress from "./TaskDetailProgress";
 import TaskHeaderTimer from "./TaskHeaderTimer";
+import DateInput from "@/app/DateInput";
 
 const attachmentMessages: Record<string, string> = { uploaded: "File uploaded to the organization’s Google Drive.", too_large: "Files must be between 1 byte and 15 MB.", save_failed: "The Drive upload succeeded, but the app could not save its file reference." };
 const driveErrorMessages: Record<string, string> = {
@@ -339,7 +340,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
                 <label className="detail-field">
                   Start date
                   {canEdit ? (
-                    <input name="startDate" type="date" defaultValue={task.start_date ?? ""}/>
+                    <DateInput name="startDate" defaultValue={task.start_date ?? ""}/>
                   ) : (
                     <span style={{ fontSize: '13px', color: '#334155', marginTop: '4px' }}>
                       {task.start_date ? new Date(`${task.start_date}T00:00:00`).toLocaleDateString() : "Not set"}
@@ -349,7 +350,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
                 <label className="detail-field">
                   Due date
                   {canEdit ? (
-                    <input name="dueDate" type="date" defaultValue={task.due_date ?? ""}/>
+                    <DateInput name="dueDate" defaultValue={task.due_date ?? ""}/>
                   ) : (
                     <span style={{ fontSize: '13px', color: '#334155', marginTop: '4px' }}>
                       {task.due_date ? new Date(`${task.due_date}T00:00:00`).toLocaleDateString() : "No due date"}
@@ -545,7 +546,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
                   );
                 }
                 return <form action={saveTaskCustomField} className="custom-field-item" key={field.id}><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="fieldId" value={field.id}/><label htmlFor={`field-${field.id}`}>{field.name}{field.required && <span className="required-mark">*</span>}</label>
-                  {field.field_type === "long_text" ? <textarea id={`field-${field.id}`} name="value" defaultValue={value} required={field.required} maxLength={10000}/> : field.field_type === "dropdown" ? <select id={`field-${field.id}`} name="value" defaultValue={value} required={field.required}><option value="">Choose…</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select> : field.field_type === "checkbox" ? <select id={`field-${field.id}`} name="value" defaultValue={value || "false"}><option value="false">No</option><option value="true">Yes</option></select> : field.field_type === "user" ? <select id={`field-${field.id}`} name="value" defaultValue={value}><option value="">Unassigned</option>{members.map((member) => <option key={member.id} value={member.id}>{member.label}</option>)}</select> : <input id={`field-${field.id}`} name="value" type={field.field_type === "date" ? "date" : field.field_type === "datetime" ? "datetime-local" : ["number", "currency", "rating", "progress", "duration"].includes(field.field_type) ? "number" : field.field_type === "email" ? "email" : field.field_type === "url" ? "url" : "text"} defaultValue={value} required={field.required} maxLength={field.field_type === "text" ? 2000 : undefined} step={field.field_type === "rating" || field.field_type === "progress" ? "1" : field.field_type === "currency" ? "0.01" : undefined} placeholder={field.field_type === "multi_select" ? "Comma-separated values" : ""}/>}<button className="mini-save">Save field</button></form>;
+                  {field.field_type === "long_text" ? <textarea id={`field-${field.id}`} name="value" defaultValue={value} required={field.required} maxLength={10000}/> : field.field_type === "dropdown" ? <select id={`field-${field.id}`} name="value" defaultValue={value} required={field.required}><option value="">Choose…</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select> : field.field_type === "checkbox" ? <select id={`field-${field.id}`} name="value" defaultValue={value || "false"}><option value="false">No</option><option value="true">Yes</option></select> : field.field_type === "user" ? <select id={`field-${field.id}`} name="value" defaultValue={value}><option value="">Unassigned</option>{members.map((member) => <option key={member.id} value={member.id}>{member.label}</option>)}</select> : field.field_type === "date" ? <DateInput id={`field-${field.id}`} name="value" defaultValue={value} required={field.required}/> : <input id={`field-${field.id}`} name="value" type={field.field_type === "datetime" ? "datetime-local" : ["number", "currency", "rating", "progress", "duration"].includes(field.field_type) ? "number" : field.field_type === "email" ? "email" : field.field_type === "url" ? "url" : "text"} defaultValue={value} required={field.required} maxLength={field.field_type === "text" ? 2000 : undefined} step={field.field_type === "rating" || field.field_type === "progress" ? "1" : field.field_type === "currency" ? "0.01" : undefined} placeholder={field.field_type === "multi_select" ? "Comma-separated values" : ""}/>}<button className="mini-save">Save field</button></form>;
               })}</div></section>}
             </div>
           </div>
