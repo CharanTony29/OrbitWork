@@ -1,7 +1,7 @@
-:root{--app-bg:#f7f9f7;--surface:#fff;--ink:#17231f;--muted:#77827c;--line:#e4e9e5;--nav-bg:#fafbf9;--nav-ink:#59665e;--nav-strong:#26352c;--nav-muted:#8a958d;--nav-line:#e4e9e5;--nav-hover:#eaf4ed;--rail-bg:#0c6243;--rail-line:#0c6243;--rail-ink:#d2eadb;--rail-icon:#b9e0ca;--rail-strong:#fff;--rail-hover:#177653;color-scheme:light}
+:root{--app-bg:#f7f9f7;--surface:#fff;--surface-raised:#fff;--surface-subtle:#f5f8f5;--ink:#17231f;--muted:#77827c;--line:#e4e9e5;--paper:#fff;--soft:#f5f8f5;--sidebar:#fafbf9;--green:#167c58;--green-dark:#0c6243;--nav-bg:#fafbf9;--nav-ink:#59665e;--nav-strong:#26352c;--nav-muted:#8a958d;--nav-line:#e4e9e5;--nav-hover:#eaf4ed;--rail-bg:#0c6243;--rail-line:#0c6243;--rail-ink:#d2eadb;--rail-icon:#b9e0ca;--rail-strong:#fff;--rail-hover:#177653;color-scheme:light}
 :root[data-theme="light"],[data-color-scheme="light"]{color-scheme:light}
-@media(prefers-color-scheme:dark){:root[data-theme="system"]:not([data-color-scheme]){--app-bg:#101212;--surface:#171b19;--ink:#e5e9e6;--muted:#9ba59e;--line:#303734;--nav-bg:#121715;--nav-ink:#b2bdb5;--nav-strong:#e0e7e2;--nav-muted:#849087;--nav-line:#282e2a;--nav-hover:#1d2a23;--rail-bg:#0b211a;--rail-line:#19352a;--rail-ink:#a8c5b5;--rail-icon:#a9d8bd;--rail-strong:#e5fff0;--rail-hover:#15352a;color-scheme:dark}}
-[data-color-scheme="dark"]{--app-bg:#101212;--surface:#171b19;--ink:#e5e9e6;--muted:#9ba59e;--line:#303734;--nav-bg:#121715;--nav-ink:#b2bdb5;--nav-strong:#e0e7e2;--nav-muted:#849087;--nav-line:#282e2a;--nav-hover:#1d2a23;--rail-bg:#0b211a;--rail-line:#19352a;--rail-ink:#a8c5b5;--rail-icon:#a9d8bd;--rail-strong:#e5fff0;--rail-hover:#15352a;color-scheme:dark}
+@media(prefers-color-scheme:dark){:root[data-theme="system"]:not([data-color-scheme]){--app-bg:#0f1210;--surface:#171c19;--surface-raised:#1e2520;--surface-subtle:#141916;--ink:#e8eee9;--muted:#a3afa6;--line:#303a33;--paper:#171c19;--soft:#0f1210;--sidebar:#121815;--green:#168052;--green-dark:#0d6642;--nav-bg:#121815;--nav-ink:#c1ccc4;--nav-strong:#edf4ee;--nav-muted:#9ba79f;--nav-line:#29332d;--nav-hover:#1d2a23;--rail-bg:#0b211a;--rail-line:#19352a;--rail-ink:#c2ddce;--rail-icon:#a9d8bd;--rail-strong:#e5fff0;--rail-hover:#15352a;color-scheme:dark}}
+[data-color-scheme="dark"]{--app-bg:#0f1210;--surface:#171c19;--surface-raised:#1e2520;--surface-subtle:#141916;--ink:#e8eee9;--muted:#a3afa6;--line:#303a33;--paper:#171c19;--soft:#0f1210;--sidebar:#121815;--green:#168052;--green-dark:#0d6642;--nav-bg:#121815;--nav-ink:#c1ccc4;--nav-strong:#edf4ee;--nav-muted:#9ba79f;--nav-line:#29332d;--nav-hover:#1d2a23;--rail-bg:#0b211a;--rail-line:#19352a;--rail-ink:#c2ddce;--rail-icon:#a9d8bd;--rail-strong:#e5fff0;--rail-hover:#15352a;color-scheme:dark}
 html,body{background:var(--app-bg);color:var(--ink)}
 .theme-picker{display:none !important}
 .theme-picker-icon{display:grid;place-items:center;color:var(--green)}
@@ -37,11 +37,18 @@ html,body{background:var(--app-bg);color:var(--ink)}
 
 /* Comprehensive Dark Mode Rules Across All Pages */
 [data-color-scheme="dark"] {
-  --app-bg: #0f1114;
-  --surface: #16191f;
-  --ink: #e2e8f0;
-  --muted: #8b95a5;
-  --line: #262a33;
+  --app-bg: #0f1210;
+  --surface: #171c19;
+  --surface-raised: #1e2520;
+  --surface-subtle: #141916;
+  --paper: #171c19;
+  --soft: #0f1210;
+  --sidebar: #121815;
+  --green: #168052;
+  --green-dark: #0d6642;
+  --ink: #e8eee9;
+  --muted: #a3afa6;
+  --line: #303a33;
 }
 
 [data-color-scheme="dark"] .topbar {
@@ -219,4 +226,583 @@ html,body{background:var(--app-bg);color:var(--ink)}
   background: #064e3b;
   border-color: var(--green);
   color: #34d399;
+}
+
+/* Site-wide dark surfaces: cover the pages and controls that use fixed light colors. */
+[data-color-scheme="dark"] :is(
+  .app-shell,
+  .dashboard-layout,
+  .hierarchy-content,
+  .dashboard-content,
+  .workspace-page,
+  .project-page,
+  .task-detail-page,
+  .documents-page,
+  .document-editor,
+  .timesheets-page,
+  .inbox-page,
+  .people-calendar-page,
+  .organization-members-page,
+  .integrations-page,
+  .project-report-page,
+  .profile-page,
+  .chat-workspace-root
+) {
+  background-color: var(--app-bg);
+  color: var(--ink);
+}
+
+[data-color-scheme="dark"] :is(
+  .topbar,
+  .auth-card,
+  .empty-card,
+  .org-card,
+  .organization-create > form,
+  .organization-empty,
+  .organization-members-count,
+  .organization-members-table-wrap,
+  .organization-workspace-roles > span,
+  .project-card,
+  .create-project,
+  .project-admin,
+  .task-panel,
+  .task-panel-head,
+  .task-detail-main,
+  .task-properties,
+  .task-comments-section,
+  .task-custom-fields,
+  .task-time-section,
+  .task-activity-section,
+  .report-card,
+  .report-stat-grid article,
+  .inbox-stat-card,
+  .inbox-tasks-list,
+  .inbox-list,
+  .timesheet-own-card,
+  .timesheet-user-group,
+  .people-calendar-card,
+  .leave-requests-section,
+  .integration-card,
+  .integration-setup,
+  .document-preview,
+  .document-editor-form,
+  .document-list,
+  .workspace-access-section,
+  .workspace-add-panel,
+  .task-attachments-section,
+  .modern-attachment-card,
+  .selected-file-card,
+  .attachments-empty-state,
+  .timer-modal-dialog,
+  .preview-modal-dialog,
+  .lightbox-content,
+  .comments-modal,
+  .task-comments-modal-dialog
+) {
+  background-color: var(--surface) !important;
+  border-color: var(--line) !important;
+  color: var(--ink);
+  box-shadow: none;
+}
+
+[data-color-scheme="dark"] :is(
+  .new-document-form,
+  .document-toolbar,
+  .manual-time-form,
+  .kanban-column,
+  .kanban-card,
+  .calendar-day,
+  .calendar-day.outside,
+  .workload-person,
+  .workload-tasks a,
+  .gantt-task-name,
+  .task-filter-bar,
+  .task-pagination,
+  .task-table-wrap,
+  .task-table,
+  .organization-members-table,
+  .organization-workspace-roles,
+  .organization-members-table tbody tr,
+  .inbox-page .empty-tasks,
+  .timesheet-calendar-matrix .timesheet-day-card,
+  .timesheet-day-card.is-weekend,
+  .timesheet-workload-banner,
+  .timesheet-target-form,
+  .timesheet-view-tabs,
+  .canvas-viewport
+) {
+  background-color: var(--surface-subtle);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+[data-color-scheme="dark"] :is(
+  .document-row,
+  .inbox-task-row,
+  .inbox-item,
+  .calendar-event-row,
+  .leave-request-card,
+  .timesheet-entry,
+  .report-people-row,
+  .activity-list li,
+  .organization-members-table td,
+  .organization-members-table th,
+  .document-list,
+  .comments-heading,
+  .comment-card,
+  .property-line,
+  .detail-save-row,
+  .people-calendar-form,
+  .timesheet-user-group > header
+) {
+  border-color: var(--line) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .document-row,
+  .document-row strong,
+  .document-row span,
+  .document-rendered,
+  .document-rendered h1,
+  .document-rendered h2,
+  .document-rendered h3,
+  .document-rendered blockquote,
+  .document-editor-hint,
+  .integration-copy p,
+  .integration-state,
+  .integration-connected-time,
+  .organization-directory-heading > div > p:last-child,
+  .org-card-title p,
+  .org-metrics,
+  .workspace-row,
+  .workspace-row small,
+  .project-card > p,
+  .project-card-meta,
+  .inbox-copy time,
+  .calendar-event-row span,
+  .leave-request-card > p,
+  .timesheet-entry > span,
+  .timesheet-entry time,
+  .timesheet-entry p,
+  .time-entry-row-sub,
+  .activity-list p,
+  .activity-list p strong,
+  .activity-list time,
+  .task-table td,
+  .task-table td:first-child small,
+  .task-pagination,
+  .sheet-description,
+  .detail-save-row > span,
+  .comment-content > p,
+  .comment-author strong,
+  .property-line strong,
+  .workload-person > header > span:nth-of-type(2),
+  .workload-tasks a span,
+  .workload-tasks a small
+) {
+  color: var(--muted) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .document-row strong,
+  .document-rendered,
+  .document-rendered h1,
+  .document-rendered h2,
+  .document-rendered h3,
+  .inbox-task-title,
+  .project-card h3,
+  .task-title-link,
+  .organization-member-person strong,
+  .organization-workspace-roles strong,
+  .timesheet-own-card strong,
+  .timesheet-user-group > header strong,
+  .timesheet-entry > a,
+  .report-person-name,
+  .integration-copy h2,
+  .detail-field,
+  .task-form label,
+  .project-form label,
+  .organization-create > form label,
+  .org-danger-zone form label,
+  .people-calendar-form label,
+  .manual-time-form label,
+  .assignee-picker legend,
+  .detail-assignees legend,
+  .task-comment-form > label,
+  .custom-field-item > label,
+  .custom-field-item > span
+) {
+  color: var(--ink) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .task-table th,
+  .calendar-weekday,
+  .gantt-scale,
+  .organization-members-table th
+) {
+  background-color: var(--surface-raised) !important;
+  color: var(--muted) !important;
+  border-color: var(--line) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .task-table td,
+  .document-row,
+  .inbox-task-row,
+  .inbox-item,
+  .calendar-day,
+  .calendar-weekday,
+  .gantt-cell,
+  .gantt-scale > span,
+  .organization-members-table td
+) {
+  border-color: var(--line) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .task-table tr:hover td,
+  .inbox-task-row:hover,
+  .inbox-item.unread,
+  .calendar-event-row:hover,
+  .timesheet-entry:hover,
+  .organization-members-table tbody tr:hover,
+  .search-item:hover,
+  .toolbar-dropdown-item:hover,
+  .dashboard-project-links > a:hover
+) {
+  background-color: #202923 !important;
+}
+
+[data-color-scheme="dark"] .calendar-day.is-today {
+  background-color: #1a2b20 !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .calendar-task,
+  .calendar-task.is-planned,
+  .calendar-task.is-active,
+  .calendar-task.is-overdue
+) {
+  border-color: color-mix(in srgb, var(--task-color, #168052) 60%, var(--line)) !important;
+}
+
+[data-color-scheme="dark"] .calendar-task {
+  background: #26362b !important;
+  color: #e3eee6 !important;
+  box-shadow: inset 0 0 0 1px #374b3d;
+}
+
+[data-color-scheme="dark"] .calendar-task.is-planned {
+  background: #252b27 !important;
+  color: #cad4cc !important;
+  opacity: .7;
+}
+
+[data-color-scheme="dark"] .calendar-task.is-active {
+  background: #21452f !important;
+  color: #d9f7e2 !important;
+  opacity: 1;
+}
+
+[data-color-scheme="dark"] .calendar-task.is-overdue {
+  background: #482521 !important;
+  color: #ffd3cd !important;
+  border-left-color: #ff7163 !important;
+  opacity: 1;
+}
+
+[data-color-scheme="dark"] :is(
+  .calendar-event-holiday,
+  .calendar-event-leave,
+  .gantt-event-row .gantt-task-name
+) {
+  color: #ffe49b;
+}
+
+[data-color-scheme="dark"] .calendar-event-holiday {
+  background: #493c1b;
+  border: 1px solid #66552a;
+}
+
+[data-color-scheme="dark"] :is(.calendar-event-leave, .gantt-event-row:has(.gantt-event-leave) .gantt-task-name) {
+  background: #25375a;
+  color: #d5e1ff;
+  border-color: #364a72;
+}
+
+[data-color-scheme="dark"] :is(
+  .role-pill,
+  .count-pill,
+  .project-priority,
+  .organization-role-badge,
+  .organization-member-status,
+  .timesheet-status,
+  .inbox-task-key,
+  .inbox-project-pill,
+  .search-item-key,
+  .search-item-project,
+  .group-count,
+  .tab-count,
+  .toolbar-pill,
+  .toolbar-icon-pill,
+  .toolbar-dropdown,
+  .filter-opt-btn,
+  .task-hover-btn,
+  .linked-doc-pill
+) {
+  border-color: var(--line);
+}
+
+[data-color-scheme="dark"] :is(
+  .document-toolbar button,
+  .document-image-button,
+  .sheet-edit input,
+  .sheet-edit select,
+  .assignee-dropdowns select,
+  .assignee-slot select,
+  .status-edit select,
+  .task-form input,
+  .task-form select,
+  .task-form textarea,
+  .project-form input,
+  .project-form select,
+  .project-form textarea,
+  .new-document-form input,
+  .document-editor-form input,
+  .document-editor-form textarea,
+  .people-calendar-form input,
+  .people-calendar-form select,
+  .people-calendar-form textarea,
+  .leave-review-form input,
+  .timesheet-review-form input,
+  .timesheet-period-controls input,
+  .timesheet-period-controls select
+) {
+  background-color: #111714 !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+  color-scheme: dark;
+}
+
+[data-color-scheme="dark"] :is(
+  .assignee-options label,
+  .detail-assignee-list label,
+  .toolbar-dropdown-item,
+  .filter-opt-btn,
+  .toolbar-pill,
+  .task-hover-btn,
+  .linked-doc-pill,
+  .document-toolbar button,
+  .document-image-button
+) {
+  background-color: var(--surface-raised) !important;
+  color: var(--ink) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .empty-card,
+  .empty-projects,
+  .empty-tasks,
+  .organization-empty
+) {
+  background: var(--surface-subtle) !important;
+  border-color: var(--line) !important;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+[data-color-scheme="dark"] :is(
+  .workspace-symbol,
+  .project-symbol,
+  .profile-icon,
+  .integration-icon,
+  .comments-icon,
+  .empty-icon,
+  .org-icon,
+  .organization-member-avatar,
+  .report-person-avatar
+) {
+  background-color: #1d3829;
+  color: #7dd8a7;
+}
+
+[data-color-scheme="dark"] .canvas-viewport {
+  background-color: #111714 !important;
+}
+
+[data-color-scheme="dark"] .task-activity-section,
+[data-color-scheme="dark"] .task-time-section {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+
+[data-color-scheme="dark"] .manual-time-form {
+  background: var(--surface-subtle) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .project-admin > summary,
+  .admin-section h2,
+  .member-row strong,
+  .field-row strong,
+  .proj-settings-btn,
+  .proj-settings-menu-item,
+  .add-col-btn
+) {
+  color: var(--ink) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .admin-section,
+  .admin-row,
+  .member-row,
+  .field-row,
+  .project-admin[open] > summary,
+  .admin-section:last-child
+) {
+  border-color: var(--line) !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .proj-settings-menu-item:hover,
+  .proj-modal-close:hover,
+  .add-col-close:hover,
+  .add-col-btn:hover
+) {
+  background: var(--nav-hover) !important;
+  color: var(--ink) !important;
+}
+
+[data-color-scheme="dark"] :is(.notice, .success-message) {
+  background: #143323;
+  border-color: #24543a;
+  color: #b7e8c8;
+}
+
+[data-color-scheme="dark"] :is(.error, .error-message) {
+  background: #3b211e;
+  border-color: #663630;
+  color: #ffd0c9;
+}
+
+[data-color-scheme="dark"] .auth-tab-group {
+  background: var(--surface-subtle);
+  border-color: var(--line);
+}
+
+[data-color-scheme="dark"] .auth-tab-btn {
+  color: var(--muted);
+}
+
+[data-color-scheme="dark"] .auth-tab-btn.is-active {
+  background: var(--surface-raised);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+[data-color-scheme="dark"] :is(
+  .inbox-priority-urgent,
+  .priority-urgent-pill,
+  .dependency-badge.rel-blocks
+) {
+  background: #482326;
+  color: #ffc1ba;
+  border-color: #713632;
+}
+
+[data-color-scheme="dark"] :is(
+  .inbox-priority-high,
+  .priority-high-pill,
+  .dependency-badge.rel-blocked_by,
+  .state-on_hold,
+  .timesheet-status.state-submitted,
+  .time-metric-card.is-warning,
+  .hours-alert-banner.is-warning
+) {
+  background: #3d3019;
+  color: #ffdf91;
+  border-color: #665027;
+}
+
+[data-color-scheme="dark"] :is(
+  .inbox-priority-normal,
+  .priority-normal-pill,
+  .dependency-badge.rel-duplicate
+) {
+  background: #18334a;
+  color: #b3dcff;
+  border-color: #2c4c68;
+}
+
+[data-color-scheme="dark"] :is(
+  .inbox-priority-low,
+  .priority-low-pill,
+  .timesheet-status,
+  .state-completed
+) {
+  background: #252d31;
+  color: #cbd8d2;
+  border-color: #3a4540;
+}
+
+[data-color-scheme="dark"] :is(
+  .time-metric-card.is-exceeded,
+  .hours-alert-banner.is-danger,
+  .attachment-alert-banner.is-error,
+  .toolbar-clear-all,
+  .remaining-badge.is-exceeded,
+  .timesheet-status.state-rejected
+) {
+  background: #482326;
+  color: #ffc1ba;
+  border-color: #713632;
+}
+
+[data-color-scheme="dark"] .workload-badge.status-optimal {
+  background: #143323;
+  color: #9ce4b5;
+}
+
+[data-color-scheme="dark"] .workload-badge.status-under {
+  background: #18334a;
+  color: #b3dcff;
+}
+
+[data-color-scheme="dark"] .workload-badge.status-over {
+  background: #482326;
+  color: #ffc1ba;
+}
+
+[data-color-scheme="dark"] .remaining-badge.is-warning {
+  background: #3d3019;
+  color: #ffdf91;
+  border-color: #665027;
+}
+
+[data-color-scheme="dark"] .progress-auto-btn {
+  background: #183324;
+  color: #9ce4b5;
+}
+
+[data-color-scheme="dark"] .preview-iframe {
+  background: var(--surface);
+}
+
+[data-color-scheme="dark"] .document-rendered code {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+[data-color-scheme="dark"] .document-rendered hr {
+  border-color: var(--line);
+}
+
+[data-color-scheme="dark"] :is(.auth-divider span, .sidebar-note, .fine-print, .muted) {
+  color: var(--muted);
+}
+
+[data-color-scheme="dark"] ::selection {
+  background: #286744;
+  color: #f4fff7;
 }
