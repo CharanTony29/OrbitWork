@@ -135,3 +135,31 @@
 [data-color-scheme="dark"] .organization-members-table td{color:#dbe2dc;border-color:var(--line)}
 [data-color-scheme="dark"] .organization-workspace-roles>span{background:#202522;border-color:var(--line)}
 [data-color-scheme="dark"] .organization-workspace-roles strong,[data-color-scheme="dark"] .organization-member-person strong{color:var(--ink)}
+
+/* Dark theme numbers and metrics: clean bright white text */
+[data-color-scheme="dark"] :is(
+  .project-metrics strong,
+  .metric-val,
+  .workload-stat-val,
+  .day-card-hours,
+  .count-pill,
+  .calendar-day-number,
+  .time-metric-card .metric-val,
+  .task-subtasks-count,
+  .stat-card strong,
+  .inbox-stat strong,
+  .report-metric-number,
+  .number-val
+) {
+  color: #ffffff !important;
+}
+
+[data-color-scheme="dark"] .project-metrics article {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+}
+
+[data-color-scheme="dark"] .project-metrics span {
+  color: #94a3b8 !important;
+}
+

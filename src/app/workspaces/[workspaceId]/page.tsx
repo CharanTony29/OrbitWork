@@ -1,17 +1,31 @@
 import { notFound, redirect } from "next/navigation";
 import CurrentUserBadge from "@/app/CurrentUserBadge";
 import Link from "next/link";
-import { ArrowLeft, FolderKanban, Plus, UserPlus, Mail, Send } from "lucide-react";
+import { ArrowLeft, FolderKanban } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { addWorkspaceMember, createProject, inviteOrganizationMember, removeWorkspaceMember, updateWorkspaceMemberRole, signOut } from "@/app/actions";
+import { removeWorkspaceMember, updateWorkspaceMemberRole } from "@/app/actions";
+import WorkspaceProjectsList from "./WorkspaceProjectsList";
+import WorkspaceInviteSection from "./WorkspaceInviteSection";
 
-export default async function WorkspacePage({ params, searchParams }: {
+export default async function WorkspacePage({
+  params,
+  searchParams,
+}: {
   params: Promise<{ workspaceId: string }>;
-  searchParams: Promise<{ error?: string; member_added?: string; member_removed?: string; member_updated?: string; invited?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    member_added?: string;
+    member_removed?: string;
+    member_updated?: string;
+    invited?: string;
+    status_updated?: string;
+  }>;
 }) {
   const { workspaceId } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
   // Automatically process any pending invitations for this user
@@ -19,140 +33,227 @@ export default async function WorkspacePage({ params, searchParams }: {
     await supabase.rpc("accept_user_pending_invitations");
   } catch {}
 
-  const { data: workspace } = await supabase.from("workspaces").select("id, name, description, organization_id").eq("id", workspaceId).maybeSingle();
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("id, name, description, organization_id")
+    .eq("id", workspaceId)
+    .maybeSingle();
   if (!workspace) notFound();
-  const [{ data: projects }, { data: organizationMembers }, { data: workspaceMembers }, { data: canManage }, { data: isOrgAdmin }] = await Promise.all([
-    supabase.from("projects").select("id, name, description, status, priority, due_date, created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
-    supabase.from("organization_members").select("user_id").eq("organization_id", workspace.organization_id).eq("status", "active"),
-    supabase.from("workspace_members").select("user_id, role, status").eq("workspace_id", workspaceId),
+
+  const [
+    { data: projects },
+    { data: organizationMembers },
+    { data: workspaceMembers },
+    { data: canManage },
+    { data: isOrgAdmin },
+  ] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("id, name, description, status, priority, due_date, created_at")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("organization_members")
+      .select("user_id")
+      .eq("organization_id", workspace.organization_id)
+      .eq("status", "active"),
+    supabase
+      .from("workspace_members")
+      .select("user_id, role, status")
+      .eq("workspace_id", workspaceId),
     supabase.rpc("can_manage_workspace", { target_workspace: workspaceId }),
-    supabase.rpc("has_org_role", { target_org: workspace.organization_id, allowed_roles: ["owner", "admin"] }),
+    supabase.rpc("has_org_role", {
+      target_org: workspace.organization_id,
+      allowed_roles: ["owner", "admin"],
+    }),
   ]);
-  const memberIds = [...new Set([...(organizationMembers ?? []).map((member) => member.user_id), ...(workspaceMembers ?? []).map((member) => member.user_id)])];
-  const { data: profiles } = memberIds.length ? await supabase.from("profiles").select("id, display_name, email").in("id", memberIds) : { data: [] };
-  const people = new Map((profiles ?? []).map((profile) => [profile.id, profile.display_name?.trim() || profile.email || "Team member"]));
-  const activeWorkspaceMembers = (workspaceMembers ?? []).filter((member) => member.status === "active");
-  const activeWorkspaceMemberIds = new Set(activeWorkspaceMembers.map((member) => member.user_id));
-  const availableMembers = (organizationMembers ?? []).filter((member) => !activeWorkspaceMemberIds.has(member.user_id));
-  const { error, member_added, member_removed, member_updated, invited } = await searchParams;
+
+  const memberIds = [
+    ...new Set([
+      ...(organizationMembers ?? []).map((member) => member.user_id),
+      ...(workspaceMembers ?? []).map((member) => member.user_id),
+    ]),
+  ];
+
+  const { data: profiles } = memberIds.length
+    ? await supabase.from("profiles").select("id, display_name, email").in("id", memberIds)
+    : { data: [] };
+
+  const people = new Map(
+    (profiles ?? []).map((profile) => [
+      profile.id,
+      profile.display_name?.trim() || profile.email || "Team member",
+    ])
+  );
+
+  const activeWorkspaceMembers = (workspaceMembers ?? []).filter(
+    (member) => member.status === "active"
+  );
+  const activeWorkspaceMemberIds = new Set(
+    activeWorkspaceMembers.map((member) => member.user_id)
+  );
+  const availableMembers = (organizationMembers ?? [])
+    .filter((member) => !activeWorkspaceMemberIds.has(member.user_id))
+    .map((member) => ({
+      user_id: member.user_id,
+      name: people.get(member.user_id) ?? "Team member",
+    }));
+
+  const { error, member_added, member_removed, member_updated, invited, status_updated } =
+    await searchParams;
+
   const memberErrors: Record<string, string> = {
-    workspace_member_forbidden: "Only a workspace owner, admin, or manager can change workspace access.",
-    workspace_member_not_in_org: "Only active organization members can be added to this workspace.",
-    workspace_member_add_failed: "The member could not be added. Check the workspace access migration and try again.",
-    workspace_member_remove_failed: "The member could not be removed. Check your workspace role and the workspace access migration.",
+    workspace_member_forbidden:
+      "Only a workspace owner, admin, or manager can change workspace access.",
+    workspace_member_not_in_org:
+      "Only active organization members can be added to this workspace.",
+    workspace_member_add_failed:
+      "The member could not be added. Check the workspace access migration and try again.",
+    workspace_member_remove_failed:
+      "The member could not be removed. Check your workspace role and the workspace access migration.",
   };
 
-  return <main className="app-shell">
-    <header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/><form action={signOut}><button className="quiet-button">Sign out</button></form></div></header>
-    <div className="workspace-page"><Link className="back-link" href="/dashboard"><ArrowLeft size={15}/> All organizations</Link>
-      <div className="workspace-heading"><div><p className="eyebrow">WORKSPACE</p><h1>{workspace.name}</h1><p className="muted">{workspace.description || "Projects and shared work in one place."}</p></div><div className="workspace-symbol"><FolderKanban size={22}/></div></div>
-      {invited && <p className="notice" role="status">Invitation email sent.</p>}
-      {member_added && <p className="notice" role="status">Workspace access added.</p>}{member_removed && <p className="notice" role="status">Workspace access removed.</p>}
-      {member_updated && <p className="notice" role="status">Workspace member role updated.</p>}
-      {error && <p className="error" role="alert">{memberErrors[error] ?? "The project could not be created. Check your access and try again."}</p>}
-      <div className="project-section-head"><div><p className="eyebrow">PROJECT DIRECTORY</p><h2>Projects <span className="count-pill">{projects?.length ?? 0}</span></h2></div></div>
-      {projects?.length ? <div className="project-grid">{projects.map((project) => <Link className="project-card" href={`/projects/${project.id}`} key={project.id}><div className="project-card-top"><span className="project-symbol"><FolderKanban size={17}/></span><span className={`project-state state-${project.status}`}>{project.status.replace("_", " ")}</span></div><h3>{project.name}</h3><p>{project.description || "No project description yet."}</p><div className="project-card-meta"><span>{project.priority} priority</span>{project.due_date && <span>Due {new Date(`${project.due_date}T00:00:00`).toLocaleDateString()}</span>}</div></Link>)}</div> : <div className="empty-projects"><div className="empty-icon"><FolderKanban size={21}/></div><h3>No projects yet</h3><p>Create the first project in this workspace. Its own task workflow will be created automatically.</p></div>}
-      <section className="workspace-access-section"><header><div><p className="eyebrow">WORKSPACE ACCESS</p><h2>Members <span className="count-pill">{activeWorkspaceMembers.length}</span></h2></div></header>
-        {activeWorkspaceMembers.length ? <div className="workspace-member-list">{activeWorkspaceMembers.map((member) => (
-          <div className="workspace-member-row" key={member.user_id}>
-            <span className="organization-member-avatar">{(people.get(member.user_id) ?? "T")[0].toUpperCase()}</span>
-            <div style={{ flex: 1, minWidth: 120 }}>
-              <strong>{people.get(member.user_id) ?? "Team member"}</strong>
-            </div>
-            {canManage ? (
-              <form action={updateWorkspaceMemberRole} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <input type="hidden" name="workspaceId" value={workspaceId}/>
-                <input type="hidden" name="userId" value={member.user_id}/>
-                <select name="role" defaultValue={member.role} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, border: '1px solid #dfe5e0', background: '#fff' }}>
-                  <option value="viewer">Viewer (Read-only)</option>
-                  <option value="member">Member (Can edit &amp; upload)</option>
-                  <option value="manager">Manager</option>
-                  {isOrgAdmin && <option value="admin">Admin</option>}
-                </select>
-                <button type="submit" className="button button-secondary" style={{ minHeight: 28, padding: '0 8px', fontSize: 11 }}>Update</button>
-              </form>
-            ) : (
-              <span className="role-pill">{member.role}</span>
-            )}
-            {canManage && <form action={removeWorkspaceMember}><input type="hidden" name="workspaceId" value={workspaceId}/><input type="hidden" name="userId" value={member.user_id}/><button className="mini-remove">Remove</button></form>}
-          </div>
-        ))}</div> : <p className="muted small">No one has explicit workspace access yet. Organization owners and admins can still access it.</p>}
-        {canManage && (
-          <div className="workspace-invite-box">
-            <div className="workspace-invite-header">
-              <h4>
-                <UserPlus size={15} />
-                <span>Add or Invite Workspace Members</span>
-              </h4>
-              <p className="muted small">Grant access to existing organization members or invite new team members directly via email.</p>
-            </div>
+  return (
+    <main className="app-shell">
+      <header className="topbar">
+        <Link className="brand" href="/dashboard">
+          <span className="brand-mark">O</span>Orbit<span>work</span>
+        </Link>
+        <div className="topbar-right">
+          <CurrentUserBadge
+            email={user.email ?? ""}
+            workspaceId={workspaceId}
+            organizationId={workspace.organization_id}
+          />
+        </div>
+      </header>
 
-            <div className="workspace-invite-grid">
-              {/* Option 1: Existing Org Member */}
-              <form action={addWorkspaceMember} className="workspace-add-panel">
-                <input type="hidden" name="workspaceId" value={workspaceId}/>
-                <div className="invite-panel-title">
-                  <UserPlus size={13} />
-                  <strong>Existing Organization Member</strong>
-                </div>
-                <div className="invite-fields-row">
-                  <div className="invite-field-group">
-                    <label>Select member</label>
-                    <select name="userId" required defaultValue="" disabled={!availableMembers.length} className="invite-select">
-                      <option value="">{availableMembers.length ? "Choose an organization member…" : "All org members already added"}</option>
-                      {availableMembers.map((member) => <option key={member.user_id} value={member.user_id}>{people.get(member.user_id) ?? "Team member"}</option>)}
-                    </select>
-                  </div>
-                  <div className="invite-field-group" style={{ maxWidth: '170px' }}>
-                    <label>Workspace role</label>
-                    <select name="role" defaultValue="member" className="invite-select">
-                      <option value="member">Member (Can edit)</option>
-                      <option value="viewer">Viewer (Read-only)</option>
-                      <option value="manager">Manager</option>
-                      {isOrgAdmin && <option value="admin">Admin</option>}
-                    </select>
-                  </div>
-                  <button className="button button-primary invite-action-btn" disabled={!availableMembers.length}>
-                    Add to workspace
-                  </button>
-                </div>
-              </form>
+      <div className="workspace-page">
+        <Link className="back-link" href="/dashboard">
+          <ArrowLeft size={15} /> All organizations
+        </Link>
 
-              {/* Option 2: Invite by email */}
-              {isOrgAdmin && (
-                <form action={inviteOrganizationMember} className="workspace-add-panel is-email-panel">
-                  <input type="hidden" name="organizationId" value={workspace.organization_id} />
-                  <input type="hidden" name="workspaceId" value={workspaceId} />
-                  <div className="invite-panel-title">
-                    <Mail size={13} />
-                    <strong>Invite New User via Email</strong>
-                  </div>
-                  <div className="invite-fields-row">
-                    <div className="invite-field-group">
-                      <label>Email address</label>
-                      <input name="email" type="email" placeholder="name@company.com" required className="invite-input" />
-                    </div>
-                    <div className="invite-field-group" style={{ maxWidth: '170px' }}>
-                      <label>Workspace role</label>
-                      <select name="role" defaultValue="member" className="invite-select">
-                        <option value="member">Member (Can edit)</option>
-                        <option value="viewer">Viewer (Read-only)</option>
-                        <option value="manager">Manager</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </div>
-                    <button className="button button-primary invite-action-btn" style={{ gap: '6px' }}>
-                      <Send size={12} />
-                      <span>Send Invite</span>
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
+        <div className="workspace-heading">
+          <div>
+            <p className="eyebrow">WORKSPACE</p>
+            <h1>{workspace.name}</h1>
+            <p className="muted">
+              {workspace.description || "Projects and shared work in one place."}
+            </p>
           </div>
+          <div className="workspace-symbol">
+            <FolderKanban size={22} />
+          </div>
+        </div>
+
+        {invited && <p className="notice" role="status">Invitation email sent.</p>}
+        {member_added && <p className="notice" role="status">Workspace access added.</p>}
+        {member_removed && <p className="notice" role="status">Workspace access removed.</p>}
+        {member_updated && <p className="notice" role="status">Workspace member role updated.</p>}
+        {status_updated && <p className="notice" role="status">Project status updated.</p>}
+        {error && (
+          <p className="error" role="alert">
+            {memberErrors[error] ?? "That change could not be saved. Check your access and try again."}
+          </p>
         )}
-      </section>
-      <details className="create-project"><summary><Plus size={16}/> Create a project</summary><form action={createProject} className="project-form"><input type="hidden" name="workspaceId" value={workspace.id}/><label>Project name<input name="name" placeholder="e.g. Website refresh" minLength={2} maxLength={120} required/></label><label>Description <span className="optional">optional</span><textarea name="description" placeholder="What is this project for?" maxLength={2000}/></label><button className="button button-primary">Create project</button></form></details>
-    </div>
-  </main>;
+
+        {/* 1. Projects Directory with Compact Top Creator & Inactive/Active Filter */}
+        <WorkspaceProjectsList
+          workspaceId={workspaceId}
+          projects={(projects ?? []).map((p) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            status: p.status,
+            priority: p.priority,
+            due_date: p.due_date,
+            created_at: p.created_at,
+          }))}
+          canManage={Boolean(canManage)}
+        />
+
+        {/* 2. Workspace Access & Professional Member Management */}
+        <section className="workspace-access-section">
+          <header>
+            <div>
+              <p className="eyebrow">WORKSPACE ACCESS</p>
+              <h2>
+                Members <span className="count-pill">{activeWorkspaceMembers.length}</span>
+              </h2>
+            </div>
+          </header>
+
+          {activeWorkspaceMembers.length ? (
+            <div className="workspace-member-list">
+              {activeWorkspaceMembers.map((member) => (
+                <div className="workspace-member-row" key={member.user_id}>
+                  <span className="organization-member-avatar">
+                    {(people.get(member.user_id) ?? "T")[0].toUpperCase()}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 120 }}>
+                    <strong>{people.get(member.user_id) ?? "Team member"}</strong>
+                  </div>
+                  {canManage ? (
+                    <form
+                      action={updateWorkspaceMemberRole}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                    >
+                      <input type="hidden" name="workspaceId" value={workspaceId} />
+                      <input type="hidden" name="userId" value={member.user_id} />
+                      <select
+                        name="role"
+                        defaultValue={member.role}
+                        style={{
+                          fontSize: 11,
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                          border: "1px solid #dfe5e0",
+                          background: "#fff",
+                        }}
+                      >
+                        <option value="viewer">Viewer (Read-only)</option>
+                        <option value="member">Member (Can edit &amp; upload)</option>
+                        <option value="manager">Manager</option>
+                        {isOrgAdmin && <option value="admin">Admin</option>}
+                      </select>
+                      <button
+                        type="submit"
+                        className="button button-secondary"
+                        style={{ minHeight: 28, padding: "0 10px", fontSize: 11 }}
+                      >
+                        Update
+                      </button>
+                    </form>
+                  ) : (
+                    <span className="role-pill">{member.role}</span>
+                  )}
+                  {canManage && (
+                    <form action={removeWorkspaceMember}>
+                      <input type="hidden" name="workspaceId" value={workspaceId} />
+                      <input type="hidden" name="userId" value={member.user_id} />
+                      <button className="mini-remove">Remove</button>
+                    </form>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="muted small">
+              No one has explicit workspace access yet. Organization owners and admins can still access it.
+            </p>
+          )}
+
+          {/* Professional Add or Invite Workspace Members Section */}
+          {canManage && (
+            <WorkspaceInviteSection
+              workspaceId={workspaceId}
+              organizationId={workspace.organization_id}
+              availableMembers={availableMembers}
+              isOrgAdmin={Boolean(isOrgAdmin)}
+            />
+          )}
+        </section>
+      </div>
+    </main>
+  );
 }

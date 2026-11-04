@@ -346,6 +346,38 @@ export async function createProject(formData: FormData) {
   redirect(`/workspaces/${parsed.data.workspaceId}`);
 }
 
+export async function toggleProjectActiveStatus(formData: FormData) {
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+    status: z.enum(["active", "archived", "on_hold", "completed"]),
+    workspaceId: z.string().uuid().optional(),
+  }).safeParse({
+    projectId: formData.get("projectId"),
+    status: formData.get("status"),
+    workspaceId: formData.get("workspaceId") || undefined,
+  });
+  if (!parsed.success) redirect("/dashboard?error=invalid_status");
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+  const { data: canManage } = await supabase.rpc("can_manage_project", { target_project: parsed.data.projectId });
+  if (!canManage) redirect(`/projects/${parsed.data.projectId}?error=project_forbidden`);
+
+  const { error } = await supabase
+    .from("projects")
+    .update({ status: parsed.data.status })
+    .eq("id", parsed.data.projectId);
+
+  if (error) redirect(`/projects/${parsed.data.projectId}?error=project_update_failed`);
+  revalidatePath(`/projects/${parsed.data.projectId}`);
+  if (parsed.data.workspaceId) {
+    revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
+    redirect(`/workspaces/${parsed.data.workspaceId}?status_updated=1`);
+  }
+  redirect(`/projects/${parsed.data.projectId}?status_updated=1`);
+}
+
+
 export async function createTask(formData: FormData) {
   const parsed = z.object({
     projectId: z.string().uuid(),

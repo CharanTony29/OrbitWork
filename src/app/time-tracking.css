@@ -1,4 +1,14 @@
-.task-time-section{border:1px solid var(--line);border-radius:11px;padding:17px;margin:18px 0;background:#fff}.task-time-section .relationship-heading{margin:0 0 12px}.timer-controls{display:grid;gap:10px}.timer-controls>form:first-child{display:flex;align-items:center;gap:10px}.timer-controls>form:first-child span{font-size:11px;color:#647168}.manual-time-form{display:flex;align-items:end;gap:8px;flex-wrap:wrap;padding:12px;background:#f8faf8;border-radius:8px}.manual-time-form label{display:grid;gap:5px;font-size:10px;color:#647168}.manual-time-form label input:not([type=checkbox]){height:34px;min-width:110px;border:1px solid #dfe5e0;border-radius:7px;padding:0 8px;font-size:11px}.manual-time-form label:nth-child(4){flex:1}.manual-time-form label:nth-child(4) input{width:100%}.manual-time-form .billable-option{display:flex;align-items:center;gap:6px;height:34px}.time-entry-list{display:grid;margin-top:12px}.time-entry-row{display:grid;grid-template-columns:minmax(110px,1fr) 75px minmax(140px,1.4fr) 100px;align-items:center;gap:8px;padding:9px;border-bottom:1px solid #edf0ed;font-size:10px}.time-entry-row strong{font-size:11px}.time-entry-row span{color:#768279}.time-entry-row p{grid-column:1/-1;margin:0;color:#57645c}.task-time-section .muted{margin:10px 0 0}
+.task-time-section{border:1px solid var(--line);border-radius:11px;padding:17px;margin:18px 0;background:#fff}.task-time-section .relationship-heading{margin:0 0 12px}.timer-controls{display:grid;gap:10px}.timer-controls>form:first-child{display:flex;align-items:center;gap:10px}.timer-controls>form:first-child span{font-size:11px;color:#647168}.manual-time-form{display:flex;align-items:end;gap:8px;flex-wrap:wrap;padding:12px;background:#f8faf8;border-radius:8px}.manual-time-form label{display:grid;gap:5px;font-size:10px;color:#647168}.manual-time-form label input:not([type=checkbox]){height:34px;min-width:110px;border:1px solid #dfe5e0;border-radius:7px;padding:0 8px;font-size:11px}.manual-time-form label:nth-child(4){flex:1}.manual-time-form label:nth-child(4) input{width:100%}.manual-time-form .billable-option{display:flex;align-items:center;gap:6px;height:34px}.time-entry-list{display:grid;margin-top:12px;gap:4px}
+.time-entry-row{display:flex;flex-direction:column;gap:5px;padding:9px 10px;border-bottom:1px solid var(--line,#edf0ed);background:var(--paper,#fff);border-radius:6px;width:100%;box-sizing:border-box}
+.time-entry-row-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.time-entry-row-top strong{font-size:11.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.time-entry-row-dur{font-weight:700;color:var(--green,#167c58);font-size:11px;white-space:nowrap}
+.time-entry-row-sub{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted);gap:6px}
+.time-entry-row-type{font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:4px;background:var(--soft,#f1f5f9);color:var(--muted)}
+.time-entry-row-type.is-billable{background:#dcfce7;color:#15803d}
+.time-entry-row p{margin:2px 0 0;font-size:10.5px;color:var(--muted);line-height:1.4}
+.task-time-section .muted{margin:10px 0 0}
+
 .task-time-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
 .time-metric-card{padding:10px 12px;border-radius:8px;background:var(--nav-hover,#f8faf8);border:1px solid var(--line,#dfe5e0);display:flex;flex-direction:column;gap:3px}
 .time-metric-card .metric-label{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted,#647168);letter-spacing:.5px}
@@ -10,7 +20,8 @@
 .hours-alert-banner{padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.4;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .hours-alert-banner.is-warning{background:#fffbeb;border:1px solid #fde68a;color:#92400e}
 .hours-alert-banner.is-danger{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
-@media(max-width:650px){.time-entry-row{grid-template-columns:1fr 1fr}.time-entry-row p{grid-column:1/-1}}
+.task-time-section{overflow:hidden;box-sizing:border-box}
+@media(max-width:650px){.manual-time-form{flex-direction:column;align-items:stretch}}
 
 /* Header and Table Start Timer Buttons */
 .start-timer-trigger-btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid #bbf7d0;border-radius:8px;background:#f0fdf4;color:#166534;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s ease}

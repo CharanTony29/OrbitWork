@@ -445,10 +445,14 @@ export default async function TaskDetailPage({ params, searchParams }: {
                 <div className="time-entry-list">
                   {timeEntries?.map((entry) => (
                     <div className="time-entry-row" key={entry.id}>
-                      <strong>{profileLabel(entry.user_id)}</strong>
-                      <span>{entry.duration_minutes ? `${Math.floor(entry.duration_minutes / 60)}h ${entry.duration_minutes % 60}m` : "Running"}</span>
-                      <span>{new Date(entry.started_at).toLocaleString()}</span>
-                      <span>{entry.billable ? "Billable" : "Non-billable"}</span>
+                      <div className="time-entry-row-top">
+                        <strong>{profileLabel(entry.user_id)}</strong>
+                        <span className="time-entry-row-dur">{entry.duration_minutes ? `${Math.floor(entry.duration_minutes / 60)}h ${entry.duration_minutes % 60}m` : "Running"}</span>
+                      </div>
+                      <div className="time-entry-row-sub">
+                        <span>{new Date(entry.started_at).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
+                        <span className={`time-entry-row-type ${entry.billable ? "is-billable" : ""}`}>{entry.billable ? "Billable" : "Non-billable"}</span>
+                      </div>
                       {entry.description && <p>{entry.description}</p>}
                     </div>
                   ))}

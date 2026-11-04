@@ -1,34 +1,40 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 export default function BackButton({
   fallbackHref,
+  href,
   label = "Back",
   className = "back-link",
 }: {
   fallbackHref?: string;
+  href?: string;
   label?: string;
   className?: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
 
-  const handleBack = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-    } else if (fallbackHref) {
-      router.push(fallbackHref);
+  // Determine parent hierarchical target
+  let targetHref = href || fallbackHref;
+  if (!targetHref && pathname) {
+    // Strip the last path segment: e.g. /projects/123/tasks/456 -> /projects/123
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments.length > 1) {
+      segments.pop();
+      targetHref = `/${segments.join("/")}`;
     } else {
-      router.back();
+      targetHref = "/dashboard";
     }
-  };
+  }
+  if (!targetHref) targetHref = "/dashboard";
 
   return (
-    <button
-      type="button"
-      onClick={handleBack}
+    <Link
+      href={targetHref}
       className={className}
       aria-label={label}
       title={label}
@@ -47,6 +53,6 @@ export default function BackButton({
     >
       <ArrowLeft size={15} />
       <span>{label}</span>
-    </button>
+    </Link>
   );
 }

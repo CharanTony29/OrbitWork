@@ -293,3 +293,45 @@
 .remaining-badge.is-exceeded{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-weight:700}
 [data-color-scheme="dark"] .remaining-badge.is-exceeded{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.35);color:#f87171}
 .warning-dot{font-size:10px}
+
+/* Frozen / Sticky Task Name Column when horizontally dragging */
+.task-table-wrap {
+  overflow-x: auto;
+  position: relative;
+}
+
+.task-table th:first-child,
+.task-table td:first-child,
+.task-table .task-title-cell {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 4 !important;
+  background: var(--paper, #fff) !important;
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.05);
+}
+
+.task-table th:first-child {
+  z-index: 6 !important;
+  background: #f8faf9 !important;
+}
+
+.task-table tr:hover td:first-child,
+.task-table tr:hover .task-title-cell {
+  background: #f4f7f5 !important;
+}
+
+[data-color-scheme="dark"] .task-table td:first-child,
+[data-color-scheme="dark"] .task-table .task-title-cell {
+  background: #16191f !important;
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.35);
+}
+
+[data-color-scheme="dark"] .task-table th:first-child {
+  background: #111317 !important;
+}
+
+[data-color-scheme="dark"] .task-table tr:hover td:first-child,
+[data-color-scheme="dark"] .task-table tr:hover .task-title-cell {
+  background: #1e222a !important;
+}
+

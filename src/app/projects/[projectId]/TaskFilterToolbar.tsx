@@ -14,17 +14,20 @@ import {
   ArrowUpDown,
   Plus,
 } from "lucide-react";
+import UniversalCreateModal from "@/app/UniversalCreateModal";
 
 type WorkflowStatus = { id: string; name: string; color: string; category?: string };
 type Member = { id: string; label: string };
 
 export default function TaskFilterToolbar({
   projectId,
+  projectName = "OrbitWork Application",
   statuses,
   members,
   currentFilters,
 }: {
   projectId: string;
+  projectName?: string;
   statuses: WorkflowStatus[];
   members: Member[];
   currentFilters: {
@@ -46,6 +49,7 @@ export default function TaskFilterToolbar({
   const [assigneeMenuOpen, setAssigneeMenuOpen] = useState(false);
   const [groupMenuOpen, setGroupMenuOpen] = useState(false);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [isUniversalCreateOpen, setIsUniversalCreateOpen] = useState(false);
 
   const filterRef = useRef<HTMLDivElement>(null);
   const assigneeRef = useRef<HTMLDivElement>(null);
@@ -281,25 +285,12 @@ export default function TaskFilterToolbar({
           )}
         </div>
 
-        {/* Add Task Quick button (scrolls down and focuses inline add task row) */}
+        {/* Add Task Button (Opens ClickUp-style Universal Create Modal) */}
         <button
           type="button"
           className="toolbar-pill toolbar-pill-action"
-          onClick={() => {
-            const inlineInput = document.querySelector(".inline-task-input") as HTMLInputElement | null;
-            if (inlineInput) {
-              inlineInput.scrollIntoView({ behavior: "smooth", block: "center" });
-              inlineInput.focus();
-            } else {
-              const el = document.querySelector(".add-task");
-              if (el) {
-                (el as HTMLDetailsElement).open = true;
-                el.scrollIntoView({ behavior: "smooth" });
-                const input = el.querySelector("input[name='title']") as HTMLInputElement | null;
-                input?.focus();
-              }
-            }
-          }}
+          onClick={() => setIsUniversalCreateOpen(true)}
+          title="Create a new task (ClickUp style)"
         >
           <span>Add Task</span>
           <ChevronDown size={12} />
@@ -470,6 +461,16 @@ export default function TaskFilterToolbar({
           </button>
         )}
       </div>
+
+      <UniversalCreateModal
+        isOpen={isUniversalCreateOpen}
+        onClose={() => setIsUniversalCreateOpen(false)}
+        initialTab="task"
+        projectId={projectId}
+        projectName={projectName}
+        statuses={statuses}
+        members={members}
+      />
     </div>
   );
 }

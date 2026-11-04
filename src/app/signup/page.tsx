@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signUp, signInWithMagicLink } from "../actions";
 import { createClient } from "@/lib/supabase/server";
-import PasswordInput from "@/app/PasswordInput";
+import SignupForm from "./SignupForm";
 
 export default async function SignupPage({
   searchParams,
@@ -37,50 +37,21 @@ export default async function SignupPage({
         <Link className="brand" href="/">
           <span className="brand-mark">O</span>Orbit<span>work</span>
         </Link>
-        <p className="eyebrow">NEW ACCOUNT</p>
-        <h1>Create your account</h1>
-        <p className="muted">Get started managing projects, tracking time, and collaborating with your team.</p>
+        <p className="eyebrow" style={{ marginTop: 18, marginBottom: 6 }}>NEW ACCOUNT</p>
+        <h1 style={{ fontSize: 26, marginBottom: 4 }}>Create your account</h1>
+        <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>Get started managing projects, tracking time, and collaborating.</p>
 
-        {params.message && <p className="notice" role="status">{messages[params.message] ?? params.message}</p>}
-        {params.error && <p className="error" role="alert">{messages[params.error] ?? params.error}</p>}
+        {params.message && <p className="notice" role="status" style={{ margin: "10px 0" }}>{messages[params.message] ?? params.message}</p>}
+        {params.error && <p className="error" role="alert" style={{ margin: "10px 0" }}>{messages[params.error] ?? params.error}</p>}
 
-        {/* 1. Standard Account Creation */}
-        <form action={signUp} className="form-stack">
-          {returnUrl && <input type="hidden" name="returnUrl" value={returnUrl} />}
-          <label>
-            Email
-            <input name="email" type="email" autoComplete="email" required maxLength={254} defaultValue={params.email ?? ""} />
-          </label>
-          <label>
-            Password
-            <PasswordInput name="password" autoComplete="new-password" required minLength={8} maxLength={128} />
-          </label>
-          <button className="button button-primary" type="submit">
-            Create Account
-          </button>
-        </form>
+        <SignupForm
+          returnUrl={returnUrl}
+          emailDefault={params.email ?? ""}
+          signUpAction={signUp}
+          magicLinkAction={signInWithMagicLink}
+        />
 
-        <div className="auth-divider">
-          <span>or passwordless signup</span>
-        </div>
-
-        {/* 2. Magic Link Signup */}
-        <form action={signInWithMagicLink} className="form-stack" style={{ marginTop: 20 }}>
-          <input type="hidden" name="from" value="signup" />
-          {returnUrl && <input type="hidden" name="returnUrl" value={returnUrl} />}
-          <label>
-            Email for Magic Link
-            <input name="email" type="email" placeholder="you@company.com" required maxLength={254} defaultValue={params.email ?? ""} />
-          </label>
-          <button className="button button-secondary" type="submit">
-            Sign up with Magic Link
-          </button>
-          <p style={{ fontSize: 11, color: "var(--muted)", margin: "4px 0 0", lineHeight: 1.4 }}>
-            No password required. We’ll email you a secure direct-access link to instantly start.
-          </p>
-        </form>
-
-        <div style={{ marginTop: 32, paddingTop: 20, borderTop: "1px solid var(--line)", textAlign: "center", fontSize: 13, color: "var(--muted)" }}>
+        <div className="auth-footer-link">
           Already have an account?{" "}
           <Link href={loginLink} style={{ color: "var(--green)", fontWeight: 700 }}>
             Sign in
@@ -98,10 +69,10 @@ export default async function SignupPage({
           <div className="aside-stats">
             <div><strong>01</strong><span>Organization</span></div>
             <div><strong>∞</strong><span>Workspaces</span></div>
-            <div><strong>✓</strong><span>Team aligned</span></div>
+            <div><strong>100%</strong><span>Clarity</span></div>
           </div>
         </div>
-        <div className="aside-foot">PLAN TOGETHER · MOVE FORWARD</div>
+        <div className="aside-foot">ORBITWORK · PRODUCTIVITY PLATFORM</div>
       </aside>
     </main>
   );

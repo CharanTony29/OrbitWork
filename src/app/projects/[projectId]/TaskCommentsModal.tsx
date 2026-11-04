@@ -7,12 +7,10 @@ import {
   Paperclip,
   Smile,
   AtSign,
-  Plus,
-  Video,
-  Mic,
   ThumbsUp,
   MessageSquare,
   Loader2,
+  FileText,
 } from "lucide-react";
 
 type CommentItem = {
@@ -24,6 +22,11 @@ type CommentItem = {
   avatarUrl: string | null;
   isCurrentUser: boolean;
 };
+
+const COMMON_EMOJIS = [
+  "👍", "❤️", "🔥", "🎉", "🚀", "😀", "😂", "😊",
+  "🙌", "👏", "👀", "💡", "✅", "❌", "⚡", "🎯"
+];
 
 export default function TaskCommentsModal({
   taskId,
@@ -48,8 +51,13 @@ export default function TaskCommentsModal({
   const [reactions, setReactions] = useState<Record<string, { thumbs: number; smile: number }>>({});
   const [members, setMembers] = useState<{ id: string; name: string; email: string }[]>([]);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+
   const feedEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch comments
   useEffect(() => {
@@ -107,17 +115,37 @@ export default function TaskCommentsModal({
     }
     const start = textarea.selectionStart;
     const currentVal = textarea.value;
-    // If the character right before cursor is '@', replace it, otherwise append
-    let prefix = currentVal.slice(0, start);
-    if (prefix.endsWith("@")) {
-      prefix = prefix.slice(0, -1);
+    const lastAtIndex = currentVal.lastIndexOf("@", start);
+    let nextVal = "";
+    if (lastAtIndex !== -1) {
+      nextVal = `${currentVal.slice(0, lastAtIndex)}@${memberName} ${currentVal.slice(start)}`;
+    } else {
+      nextVal = `${currentVal}@${memberName} `;
     }
-    const nextVal = `${prefix}@${memberName} ${currentVal.slice(start)}`;
     setBody(nextVal);
     setShowMentionPicker(false);
+    setMentionFilter("");
     setTimeout(() => {
       textarea.focus();
     }, 20);
+  };
+
+  const insertEmoji = (emoji: string) => {
+    setBody((prev) => `${prev}${emoji}`);
+    setShowEmojiPicker(false);
+    textareaRef.current?.focus();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const selected = Array.from(e.target.files);
+      setAttachedFiles((prev) => [...prev, ...selected]);
+    }
+    e.target.value = "";
+  };
+
+  const removeAttachedFile = (idx: number) => {
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
   // Scroll to bottom on initial load / new comment
@@ -129,14 +157,20 @@ export default function TaskCommentsModal({
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!body.trim() || submitting) return;
+    if ((!body.trim() && attachedFiles.length === 0) || submitting) return;
 
     setSubmitting(true);
     try {
+      let finalBody = body.trim();
+      if (attachedFiles.length > 0) {
+        const attachmentNotes = attachedFiles.map((f) => `📎 ${f.name} (${(f.size / 1024).toFixed(1)} KB)`).join("\n");
+        finalBody = finalBody ? `${finalBody}\n\n${attachmentNotes}` : attachmentNotes;
+      }
+
       const res = await fetch(`/api/tasks/${taskId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: body.trim(), projectId }),
+        body: JSON.stringify({ body: finalBody, projectId }),
       });
 
       if (res.ok) {
@@ -144,6 +178,7 @@ export default function TaskCommentsModal({
         if (data.comment) {
           setComments((prev) => [...prev, data.comment]);
           setBody("");
+          setAttachedFiles([]);
           onCommentAdded?.();
           textareaRef.current?.focus();
         }
@@ -189,6 +224,13 @@ export default function TaskCommentsModal({
       return iso;
     }
   };
+
+  const filteredMembers = members.filter(
+    (m) =>
+      !mentionFilter ||
+      m.name.toLowerCase().includes(mentionFilter.toLowerCase()) ||
+      m.email.toLowerCase().includes(mentionFilter.toLowerCase())
+  );
 
   return (
     <div className="comments-modal-backdrop" onClick={onClose}>
@@ -237,6 +279,7 @@ export default function TaskCommentsModal({
                     <div className="comment-card-top">
                       <div className="comment-user-avatar">
                         {comment.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img src={comment.avatarUrl} alt={comment.authorName} />
                         ) : (
                           <span>{comment.authorName.charAt(0).toUpperCase()}</span>
@@ -248,7 +291,7 @@ export default function TaskCommentsModal({
                       </div>
                     </div>
 
-                    <div className="comment-card-body">
+                    <div className="comment-card-body" style={{ whiteSpace: "pre-wrap" }}>
                       <p>{comment.body}</p>
                     </div>
 
@@ -321,18 +364,18 @@ export default function TaskCommentsModal({
                   width: 260,
                   maxHeight: 200,
                   overflowY: "auto",
-                  backgroundColor: "#ffffff",
+                  backgroundColor: "var(--paper, #ffffff)",
                   borderRadius: 8,
-                  border: "1px solid #e2e8f0",
+                  border: "1px solid var(--line, #e2e8f0)",
                   boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
                   padding: 4,
                 }}
               >
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", padding: "6px 8px 4px", borderBottom: "1px solid #f1f5f9" }}>
-                  SELECT TEAM MEMBER TO MENTION
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", padding: "6px 8px 4px", borderBottom: "1px solid var(--line, #f1f5f9)" }}>
+                  MENTION TEAM MEMBER
                 </div>
-                {members.length > 0 ? (
-                  members.map((m) => (
+                {filteredMembers.length > 0 ? (
+                  filteredMembers.map((m) => (
                     <button
                       key={m.id}
                       type="button"
@@ -349,9 +392,9 @@ export default function TaskCommentsModal({
                         textAlign: "left",
                         cursor: "pointer",
                         fontSize: 12,
-                        color: "#1e293b",
+                        color: "var(--ink)",
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f1f5f9")}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--soft, #f1f5f9)")}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                     >
                       <div
@@ -359,26 +402,105 @@ export default function TaskCommentsModal({
                           width: 22,
                           height: 22,
                           borderRadius: "50%",
-                          backgroundColor: "#059669",
+                          backgroundColor: "#167c58",
                           color: "#fff",
                           fontSize: 10,
                           fontWeight: 700,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
+                          flexShrink: 0,
                         }}
                       >
                         {m.name.charAt(0).toUpperCase()}
                       </div>
                       <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         <div style={{ fontWeight: 600 }}>{m.name}</div>
-                        {m.email && <div style={{ fontSize: 10, color: "#64748b" }}>{m.email}</div>}
+                        {m.email && <div style={{ fontSize: 10, color: "var(--muted)" }}>{m.email}</div>}
                       </div>
                     </button>
                   ))
                 ) : (
-                  <div style={{ padding: "8px", fontSize: 11, color: "#64748b" }}>No members found</div>
+                  <div style={{ padding: "8px", fontSize: 11, color: "var(--muted)" }}>No members found</div>
                 )}
+              </div>
+            )}
+
+            {/* Emoji Picker Popover */}
+            {showEmojiPicker && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "100%",
+                  left: 60,
+                  zIndex: 200,
+                  width: 220,
+                  backgroundColor: "var(--paper, #ffffff)",
+                  borderRadius: 8,
+                  border: "1px solid var(--line, #e2e8f0)",
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+                  padding: 8,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, 1fr)",
+                  gap: 6,
+                }}
+              >
+                {COMMON_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => insertEmoji(emoji)}
+                    style={{
+                      border: 0,
+                      background: "transparent",
+                      fontSize: 18,
+                      padding: 6,
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--soft, #f1f5f9)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Attached files preview */}
+            {attachedFiles.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "8px 12px 0" }}>
+                {attachedFiles.map((file, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "3px 8px",
+                      borderRadius: 6,
+                      background: "var(--soft, #f1f5f9)",
+                      fontSize: 11,
+                      color: "var(--ink)",
+                      border: "1px solid var(--line, #e2e8f0)",
+                    }}
+                  >
+                    <FileText size={12} color="var(--green, #167c58)" />
+                    <span style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {file.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachedFile(idx)}
+                      style={{ border: 0, background: "transparent", cursor: "pointer", padding: 0, color: "var(--muted)" }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
               </div>
             )}
 
@@ -390,8 +512,12 @@ export default function TaskCommentsModal({
               onChange={(e) => {
                 const val = e.target.value;
                 setBody(val);
-                if (val.endsWith("@")) {
+                const lastAt = val.lastIndexOf("@");
+                if (lastAt !== -1 && lastAt >= val.length - 20) {
                   setShowMentionPicker(true);
+                  setMentionFilter(val.slice(lastAt + 1));
+                } else {
+                  setShowMentionPicker(false);
                 }
               }}
               onKeyDown={handleKeyDown}
@@ -399,53 +525,51 @@ export default function TaskCommentsModal({
               maxLength={10000}
             />
 
+            {/* Hidden file input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              onChange={handleFileSelect}
+              multiple
+            />
+
             <div className="comments-composer-toolbar">
               <div className="composer-tools-left">
+                {/* Paperclip (Attachments) */}
                 <button
                   type="button"
-                  className="composer-tool-btn"
-                  title="Add integration / action"
-                >
-                  <Plus size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="composer-tool-btn"
+                  className={`composer-tool-btn${attachedFiles.length ? " is-active" : ""}`}
                   title="Attach file"
-                  onClick={() => {
-                    const input = document.createElement("input");
-                    input.type = "file";
-                    input.onchange = () => {
-                      if (input.files?.[0]) {
-                        setBody((prev) => `${prev}\n[Attached: ${input.files![0].name}]`);
-                      }
-                    };
-                    input.click();
-                  }}
+                  onClick={() => fileInputRef.current?.click()}
                 >
                   <Paperclip size={14} />
                 </button>
+
+                {/* AtSign (Mentions) */}
                 <button
                   type="button"
                   className={`composer-tool-btn${showMentionPicker ? " is-active" : ""}`}
                   title="Mention someone (@)"
-                  onClick={() => setShowMentionPicker((v) => !v)}
+                  onClick={() => {
+                    setShowMentionPicker((v) => !v);
+                    setShowEmojiPicker(false);
+                  }}
                 >
                   <AtSign size={14} />
                 </button>
+
+                {/* Smile (Emojis) */}
                 <button
                   type="button"
-                  className="composer-tool-btn"
-                  title="Emoji"
-                  onClick={() => setBody((prev) => `${prev}👍`)}
+                  className={`composer-tool-btn${showEmojiPicker ? " is-active" : ""}`}
+                  title="Emoji picker"
+                  onClick={() => {
+                    setShowEmojiPicker((v) => !v);
+                    setShowMentionPicker(false);
+                  }}
                 >
                   <Smile size={14} />
-                </button>
-                <button type="button" className="composer-tool-btn" title="Record video / Loom">
-                  <Video size={14} />
-                </button>
-                <button type="button" className="composer-tool-btn" title="Voice clip">
-                  <Mic size={14} />
                 </button>
               </div>
 
@@ -453,7 +577,7 @@ export default function TaskCommentsModal({
                 <button
                   type="submit"
                   className="composer-send-btn"
-                  disabled={!body.trim() || submitting}
+                  disabled={(!body.trim() && !attachedFiles.length) || submitting}
                   title="Send (Ctrl+Enter)"
                 >
                   {submitting ? (

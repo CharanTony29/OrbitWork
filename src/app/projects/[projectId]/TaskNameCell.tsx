@@ -2,7 +2,7 @@
 
 import { useState, useRef, useTransition, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Pencil, Circle, Check, ChevronRight, CornerDownRight, Loader2 } from "lucide-react";
+import { Plus, Pencil, Circle, Check, ChevronRight, CornerDownRight, Loader2, FileText } from "lucide-react";
 import { updateTaskField, quickCreateSubtask, updateTaskStatus } from "@/app/actions";
 
 export default function TaskNameCell({
@@ -43,9 +43,27 @@ export default function TaskNameCell({
   const [isEditing, setIsEditing] = useState(false);
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [subtaskTitle, setSubtaskTitle] = useState("");
+  const [showDescOverlay, setShowDescOverlay] = useState(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isSubtaskPending, startSubtaskTransition] = useTransition();
   const [isRenamePending, startRenameTransition] = useTransition();
   const [isStatusPending, startStatusTransition] = useTransition();
+
+  const handleMouseEnter = () => {
+    if (!description?.trim()) return;
+    hoverTimerRef.current = setTimeout(() => {
+      setShowDescOverlay(true);
+    }, 2000); // 2 seconds
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setShowDescOverlay(false);
+  };
+
 
   useEffect(() => {
     setCompleted(isCompleted);
@@ -120,7 +138,11 @@ export default function TaskNameCell({
   };
 
   return (
-    <div className={`task-name-cell-wrap${isSubtask ? " is-subtask-cell" : ""}`}>
+    <div
+      className={`task-name-cell-wrap${isSubtask ? " is-subtask-cell" : ""}`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <div className="task-name-row">
         {/* Interactive Checkbox */}
         <button
@@ -246,9 +268,35 @@ export default function TaskNameCell({
         )}
       </div>
 
-      {/* Description if present */}
-      {description && !isEditing && (
-        <small className="sheet-description">{description}</small>
+      {/* 2-Second Hover Description Overlay Popover */}
+      {showDescOverlay && description && (
+        <div
+          className="task-desc-overlay-popup"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: isSubtask ? 24 : 0,
+            zIndex: 1000,
+            width: 320,
+            maxWidth: "90vw",
+            padding: "10px 14px",
+            background: "var(--paper, #fff)",
+            color: "var(--ink, #1e293b)",
+            borderRadius: 8,
+            border: "1px solid var(--line, #cbd5e1)",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.06)",
+            fontSize: 12,
+            lineHeight: 1.5,
+            whiteSpace: "pre-wrap",
+            pointerEvents: "none",
+          }}
+        >
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--green, #167c58)", textTransform: "uppercase", marginBottom: 4, display: "flex", alignItems: "center", gap: 5 }}>
+            <FileText size={11} />
+            <span>{title}</span>
+          </div>
+          <p style={{ margin: 0, color: "var(--ink)", wordBreak: "break-word" }}>{description}</p>
+        </div>
       )}
 
       {/* Quick Add Subtask Input Form */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Settings, X, GitBranch, Users, Columns } from "lucide-react";
+import { Settings, X, GitBranch, Users, Columns, Archive, RotateCcw } from "lucide-react";
 import {
   addProjectMember,
   createCustomField,
@@ -10,6 +10,7 @@ import {
   removeProjectMember,
   updateProjectMemberRole,
   updateProjectStatus,
+  toggleProjectActiveStatus,
 } from "@/app/actions";
 
 type Status = { id: string; name: string; color: string; category: string };
@@ -17,12 +18,13 @@ type Member = { id: string; label: string };
 type ProjectMember = { user_id: string; role: string };
 type CustomField = { id: string; name: string; field_type: string; required?: boolean };
 
-type Panel = "statuses" | "members" | "fields" | null;
+type Panel = "statuses" | "members" | "fields" | "status" | null;
 
 const MENU_ITEMS: { panel: Panel; label: string; icon: React.ReactNode }[] = [
   { panel: "statuses", label: "Workflow statuses", icon: <GitBranch size={14} /> },
   { panel: "members", label: "Project members", icon: <Users size={14} /> },
   { panel: "fields", label: "Custom fields", icon: <Columns size={14} /> },
+  { panel: "status", label: "Project status & archive", icon: <Archive size={14} /> },
 ];
 
 export default function ProjectSettingsPanel({
@@ -33,6 +35,7 @@ export default function ProjectSettingsPanel({
   customFields,
   people,
   availableMembers,
+  currentStatus = "active",
 }: {
   projectId: string;
   statuses: Status[];
@@ -41,6 +44,7 @@ export default function ProjectSettingsPanel({
   customFields: CustomField[];
   people: Map<string, string>;
   availableMembers: Member[];
+  currentStatus?: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<Panel>(null);
@@ -138,6 +142,9 @@ export default function ProjectSettingsPanel({
               {activePanel === "fields" && (
                 <FieldsPanel projectId={projectId} customFields={customFields} />
               )}
+              {activePanel === "status" && (
+                <StatusPanel projectId={projectId} currentStatus={currentStatus} />
+              )}
             </div>
           </div>
         </div>
@@ -145,6 +152,74 @@ export default function ProjectSettingsPanel({
     </>
   );
 }
+
+/* ── Project Status & Archive ────────────────────────── */
+function StatusPanel({ projectId, currentStatus }: { projectId: string; currentStatus: string }) {
+  const isInactive = currentStatus === "archived" || currentStatus === "on_hold";
+
+  return (
+    <div className="admin-panel-section" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <div style={{ padding: "12px 14px", borderRadius: 8, background: "var(--soft, #f8fafc)", border: "1px solid var(--line, #e2e8f0)" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>
+          Current Project State
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className={`project-state state-${currentStatus}`} style={{ fontSize: 13, padding: "3px 10px" }}>
+            {currentStatus === "archived" ? "Inactive (Archived)" : currentStatus.replace("_", " ").toUpperCase()}
+          </span>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>
+            {isInactive
+              ? "This project is currently inactive and hidden from active views."
+              : "This project is active and available to team members."}
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Change Project State</h4>
+        <form action={toggleProjectActiveStatus} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input type="hidden" name="projectId" value={projectId} />
+          {isInactive ? (
+            <>
+              <input type="hidden" name="status" value="active" />
+              <button
+                type="submit"
+                className="button button-primary"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 }}
+              >
+                <RotateCcw size={14} />
+                <span>Reactivate Project</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <input type="hidden" name="status" value="archived" />
+              <button
+                type="submit"
+                className="button button-secondary"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  borderColor: "#ef4444",
+                  color: "#dc2626",
+                }}
+              >
+                <Archive size={14} />
+                <span>Make Project Inactive (Archive)</span>
+              </button>
+            </>
+          )}
+        </form>
+        <p style={{ margin: 0, fontSize: 11.5, color: "var(--muted)", lineHeight: 1.5 }}>
+          When made inactive, tasks, documents, and time entries are safely preserved, and the project can be reactivated at any time from workspace settings.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 
 /* ── Workflow Statuses ─────────────────────────────── */
 function StatusesPanel({ projectId, statuses }: { projectId: string; statuses: Status[] }) {

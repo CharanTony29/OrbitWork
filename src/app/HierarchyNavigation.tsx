@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, Building2, CalendarDays, ChevronDown, Clock3, FileText, FolderKanban, House, Layers3, UsersRound } from "lucide-react";
+import { Bell, Building2, CalendarDays, ChevronDown, Clock3, FileText, FolderKanban, House, Layers3, UsersRound, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import ProjectSublinks from "./ProjectSublinks";
 import GlobalSearchModal from "./GlobalSearchModal";
@@ -17,7 +17,8 @@ export default async function HierarchyNavigation({ organizationId, organization
       <Link href="/inbox" title="Inbox"><Bell size={17}/><span>Inbox</span></Link>
       <Link href={currentProjectId ? `/projects/${currentProjectId}?view=calendar` : `/workspaces/${currentWorkspaceId}`} title="Planner"><CalendarDays size={17}/><span>Planner</span></Link>
       {currentProjectId && <Link href={`/projects/${currentProjectId}/documents`} title="Documents"><FileText size={17}/><span>Docs</span></Link>}
-      {currentProjectId && <Link href={`/projects/${currentProjectId}/timesheets`} title="Timesheets"><Clock3 size={17}/><span>Time</span></Link>}
+      <Link href={`/workspaces/${currentWorkspaceId}/timesheets`} title="Workspace Timesheets"><Clock3 size={17}/><span>Time</span></Link>
+      <Link href="/chat" title="Team & Personal Chat"><MessageSquare size={17}/><span>Chat</span></Link>
       <Link href={`/organizations/${organizationId}/members`} title="Members"><UsersRound size={17}/><span>People</span></Link>
       <Link className="work-rail-more" href={`/organizations/${organizationId}/calendar`} title="Holidays and leave"><Layers3 size={17}/><span>More</span></Link>
     </nav>

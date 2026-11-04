@@ -25,6 +25,7 @@ import "./theme.css";
 import "./profile/profile.css";
 import "./workspace-access.css";
 import ThemePicker from "./ThemePicker";
+import ChatNotificationListener from "./ChatNotificationListener";
 
 export const metadata: Metadata = {
   title: "Orbitwork — Project and Work Management",
@@ -32,5 +33,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" data-theme="system"><body>{children}<ThemePicker/></body></html>;
+  return <html lang="en" data-theme="system"><body>{children}<ThemePicker/><ChatNotificationListener/></body></html>;
 }

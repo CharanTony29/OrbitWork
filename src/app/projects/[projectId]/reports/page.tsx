@@ -65,7 +65,7 @@ export default async function ProjectReportsPage({
       .eq("project_id", projectId),
     supabase
       .from("profiles")
-      .select("id, full_name, email"),
+      .select("id, display_name, email"),
   ]);
 
   if (metricsResult.error) {
@@ -81,7 +81,7 @@ export default async function ProjectReportsPage({
   const profiles = profilesResult.data ?? [];
 
   const profileMap = new Map(
-    profiles.map((p) => [p.id, p.full_name || p.email || "Team member"])
+    profiles.map((p) => [p.id, p.display_name?.trim() || p.email || "Team member"])
   );
 
   // Summary figures
@@ -198,10 +198,7 @@ export default async function ProjectReportsPage({
           <span className="brand-mark">O</span>Orbit<span>work</span>
         </Link>
         <div className="topbar-right">
-          <CurrentUserBadge email={user.email ?? ""} />
-          <form action={signOut}>
-            <button className="quiet-button">Sign out</button>
-          </form>
+          <CurrentUserBadge email={user.email ?? ""} projectId={projectId} />
         </div>
       </header>
 

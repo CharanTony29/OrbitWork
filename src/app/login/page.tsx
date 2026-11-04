@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signIn, signInWithMagicLink } from "../actions";
 import { createClient } from "@/lib/supabase/server";
-import PasswordInput from "@/app/PasswordInput";
+import LoginForm from "./LoginForm";
 
 export default async function LoginPage({
   searchParams,
@@ -39,55 +39,22 @@ export default async function LoginPage({
         <Link className="brand" href="/">
           <span className="brand-mark">O</span>Orbit<span>work</span>
         </Link>
-        <p className="eyebrow">WELCOME BACK</p>
-        <h1>Sign in to Orbitwork</h1>
-        <p className="muted">Choose password login or get a magic link sent to your email.</p>
+        <p className="eyebrow" style={{ marginTop: 18, marginBottom: 6 }}>WELCOME BACK</p>
+        <h1 style={{ fontSize: 26, marginBottom: 4 }}>Sign in to Orbitwork</h1>
+        <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>Choose password login or get a magic link sent to your email.</p>
 
-        {params.message && <p className="notice" role="status">{messages[params.message] ?? params.message}</p>}
-        {params.error && <p className="error" role="alert">{messages[params.error] ?? params.error}</p>}
+        {params.message && <p className="notice" role="status" style={{ margin: "10px 0" }}>{messages[params.message] ?? params.message}</p>}
+        {params.error && <p className="error" role="alert" style={{ margin: "10px 0" }}>{messages[params.error] ?? params.error}</p>}
 
-        {/* 1. Password Login */}
-        <form action={signIn} className="form-stack">
-          {returnUrl && <input type="hidden" name="returnUrl" value={returnUrl} />}
-          <label>
-            Email
-            <input name="email" type="email" autoComplete="email" required maxLength={254} defaultValue={params.email ?? ""} />
-          </label>
-          <label>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>Password</span>
-              <Link href={resetLink} style={{ color: "var(--green)", fontSize: "11px", fontWeight: 600 }}>
-                Forgot password?
-              </Link>
-            </div>
-            <PasswordInput name="password" autoComplete="current-password" required minLength={8} maxLength={128} />
-          </label>
-          <button className="button button-primary" type="submit">
-            Sign in with Password
-          </button>
-        </form>
+        <LoginForm
+          returnUrl={returnUrl}
+          emailDefault={params.email ?? ""}
+          signInAction={signIn}
+          magicLinkAction={signInWithMagicLink}
+          resetLink={resetLink}
+        />
 
-        <div className="auth-divider">
-          <span>or passwordless</span>
-        </div>
-
-        {/* 2. Magic Link Login */}
-        <form action={signInWithMagicLink} className="form-stack" style={{ marginTop: 20 }}>
-          <input type="hidden" name="from" value="login" />
-          {returnUrl && <input type="hidden" name="returnUrl" value={returnUrl} />}
-          <label>
-            Email for Magic Link
-            <input name="email" type="email" placeholder="you@company.com" required maxLength={254} defaultValue={params.email ?? ""} />
-          </label>
-          <button className="button button-secondary" type="submit">
-            Send Magic Sign-in Link
-          </button>
-          <p style={{ fontSize: 11, color: "var(--muted)", margin: "4px 0 0", lineHeight: 1.4 }}>
-            We’ll send a secure one-click sign-in link to your inbox. No password required.
-          </p>
-        </form>
-
-        <div style={{ marginTop: 32, paddingTop: 20, borderTop: "1px solid var(--line)", textAlign: "center", fontSize: 13, color: "var(--muted)" }}>
+        <div className="auth-footer-link">
           Don’t have an account?{" "}
           <Link href={signupLink} style={{ color: "var(--green)", fontWeight: 700 }}>
             Create an account
@@ -105,10 +72,10 @@ export default async function LoginPage({
           <div className="aside-stats">
             <div><strong>01</strong><span>Organization</span></div>
             <div><strong>∞</strong><span>Workspaces</span></div>
-            <div><strong>✓</strong><span>Team aligned</span></div>
+            <div><strong>100%</strong><span>Clarity</span></div>
           </div>
         </div>
-        <div className="aside-foot">PLAN TOGETHER · MOVE FORWARD</div>
+        <div className="aside-foot">ORBITWORK · PRODUCTIVITY PLATFORM</div>
       </aside>
     </main>
   );

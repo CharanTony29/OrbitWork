@@ -86,3 +86,11 @@
 [data-color-scheme="dark"] .timesheet-entry:hover{background:#1e222a}
 [data-color-scheme="dark"] .timesheet-entry>a{color:var(--ink)}
 [data-color-scheme="dark"] .timesheet-review-form input{background:#111317;border-color:var(--line);color:var(--ink)}
+
+/* Workspace Timesheet Integration */
+.hierarchy-content .timesheets-page {
+  width: 100%;
+  max-width: 100%;
+  padding: 20px 28px 60px;
+}
+
