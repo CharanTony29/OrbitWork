@@ -25,6 +25,18 @@ import { createTask, quickCreateProjectDocument } from "@/app/actions";
 type StatusItem = { id: string; name: string; color: string; category?: string };
 type MemberItem = { id: string; label: string };
 
+function formatTime12h(timeStr: string) {
+  if (!timeStr) return "9:00 AM";
+  const parts = timeStr.split(":");
+  let h = parseInt(parts[0], 10);
+  const m = parts[1] || "00";
+  if (isNaN(h)) return timeStr;
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${m} ${ampm}`;
+}
+
 export default function UniversalCreateModal({
   isOpen,
   onClose,
@@ -51,6 +63,7 @@ export default function UniversalCreateModal({
   const [selectedStatusId, setSelectedStatusId] = useState(statuses[0]?.id || "");
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
   const [priority, setPriority] = useState<"low" | "normal" | "high" | "urgent">("normal");
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -59,6 +72,7 @@ export default function UniversalCreateModal({
   const [reminderName, setReminderName] = useState("");
   const [reminderDesc, setReminderDesc] = useState("");
   const [reminderDate, setReminderDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reminderTime, setReminderTime] = useState("09:00");
   const [reminderNotifyOption, setReminderNotifyOption] = useState("At time of event");
   const [sendEmailReminder, setSendEmailReminder] = useState(true);
 
@@ -67,6 +81,7 @@ export default function UniversalCreateModal({
   const [showAssigneeMenu, setShowAssigneeMenu] = useState(false);
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [showNotifyMenu, setShowNotifyMenu] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
@@ -95,7 +110,8 @@ export default function UniversalCreateModal({
       const fd = new FormData();
       fd.set("projectId", projectId);
       fd.set("title", taskName.trim());
-      if (taskDesc.trim()) fd.set("description", taskDesc.trim());
+      const fullTaskDesc = [taskDesc.trim(), dueTime ? `Due time: ${formatTime12h(dueTime)}` : ""].filter(Boolean).join("\n\n");
+      if (fullTaskDesc) fd.set("description", fullTaskDesc);
       fd.set("statusId", selectedStatusId || statuses[0]?.id || "");
       fd.set("priority", priority);
       if (dueDate) fd.set("dueDate", dueDate);
@@ -121,8 +137,9 @@ export default function UniversalCreateModal({
     try {
       const fd = new FormData();
       fd.set("projectId", projectId);
-      fd.set("title", `⏰ Reminder: ${reminderName.trim()}`);
-      const desc = `${reminderDesc ? reminderDesc + "\n\n" : ""}Schedule: ${reminderDate} · Notice: ${reminderNotifyOption}${sendEmailReminder ? " · Email reminder enabled" : ""}`;
+      const formattedTime = formatTime12h(reminderTime);
+      fd.set("title", `⏰ Reminder: ${reminderName.trim()} (${formattedTime})`);
+      const desc = `${reminderDesc ? reminderDesc + "\n\n" : ""}Schedule: ${reminderDate} at ${formattedTime} (${reminderTime}) · Notice: ${reminderNotifyOption}${sendEmailReminder ? " · Email reminder enabled" : ""}`;
       fd.set("description", desc);
       fd.set("statusId", statuses[0]?.id || "");
       fd.set("priority", "high");
@@ -455,7 +472,7 @@ export default function UniversalCreateModal({
                   )}
                 </div>
 
-                {/* Due Date Pill */}
+                {/* Due Date & Time Pill */}
                 <div style={{ position: "relative" }}>
                   <button
                     type="button"
@@ -475,7 +492,11 @@ export default function UniversalCreateModal({
                     }}
                   >
                     <Calendar size={12} />
-                    <span>{dueDate || "Due date"}</span>
+                    <span>
+                      {dueDate
+                        ? `${dueDate}${dueTime ? ` (${formatTime12h(dueTime)})` : ""}`
+                        : "Due date"}
+                    </span>
                   </button>
                   {showDatePicker && (
                     <div
@@ -487,27 +508,64 @@ export default function UniversalCreateModal({
                         background: "#1c212b",
                         border: "1px solid #333a48",
                         borderRadius: 8,
-                        padding: 8,
+                        padding: 10,
                         boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+                        minWidth: 200,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
                       }}
                     >
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>Due Date & Time</div>
                       <input
                         type="date"
                         value={dueDate}
-                        onChange={(e) => {
-                          setDueDate(e.target.value);
-                          setShowDatePicker(false);
-                        }}
+                        onChange={(e) => setDueDate(e.target.value)}
                         style={{
                           background: "#12141a",
                           color: "#fff",
                           border: "1px solid #333a48",
-                          padding: "4px 8px",
+                          padding: "5px 8px",
                           borderRadius: 6,
                           fontSize: 11.5,
                           colorScheme: "dark",
                         }}
                       />
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <Clock size={12} color="#94a3b8" />
+                        <input
+                          type="time"
+                          value={dueTime}
+                          onChange={(e) => setDueTime(e.target.value)}
+                          style={{
+                            background: "#12141a",
+                            color: "#fff",
+                            border: "1px solid #333a48",
+                            padding: "4px 8px",
+                            borderRadius: 6,
+                            fontSize: 11.5,
+                            colorScheme: "dark",
+                            flex: 1,
+                          }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowDatePicker(false)}
+                        style={{
+                          alignSelf: "flex-end",
+                          background: "#16a34a",
+                          color: "#fff",
+                          border: 0,
+                          borderRadius: 4,
+                          padding: "4px 10px",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Set
+                      </button>
                     </div>
                   )}
                 </div>
@@ -741,13 +799,17 @@ export default function UniversalCreateModal({
                 }}
               />
 
-              {/* Pills: [ Today ], [ For me ], [ Notify me ] (Screenshot 2) */}
+              {/* Pills: [ Today ], [ 9:00 AM ], [ For me ], [ Notify me ] (Screenshot 2) */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginTop: 8 }}>
                 {/* Date Picker Pill */}
                 <div style={{ position: "relative" }}>
                   <button
                     type="button"
-                    onClick={() => setShowDatePicker((v) => !v)}
+                    onClick={() => {
+                      setShowDatePicker((v) => !v);
+                      setShowTimePicker(false);
+                      setShowNotifyMenu(false);
+                    }}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -769,16 +831,60 @@ export default function UniversalCreateModal({
                     <div
                       style={{
                         position: "absolute",
-                        top: "calc(100% + 4px)",
+                        top: "calc(100% + 6px)",
                         left: 0,
-                        zIndex: 100,
+                        zIndex: 200,
                         background: "#1c212b",
                         border: "1px solid #333a48",
-                        borderRadius: 8,
-                        padding: 8,
-                        boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+                        borderRadius: 10,
+                        padding: 12,
+                        minWidth: 220,
+                        boxShadow: "0 12px 30px rgba(0,0,0,0.6)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
                       }}
                     >
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>Select Date</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReminderDate(new Date().toISOString().slice(0, 10));
+                            setShowDatePicker(false);
+                          }}
+                          style={{
+                            padding: "3px 8px",
+                            borderRadius: 4,
+                            border: "1px solid #333a48",
+                            background: "#12141a",
+                            color: "#cbd5e1",
+                            fontSize: 11,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Today
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const tom = new Date(Date.now() + 86400000);
+                            setReminderDate(tom.toISOString().slice(0, 10));
+                            setShowDatePicker(false);
+                          }}
+                          style={{
+                            padding: "3px 8px",
+                            borderRadius: 4,
+                            border: "1px solid #333a48",
+                            background: "#12141a",
+                            color: "#cbd5e1",
+                            fontSize: 11,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Tomorrow
+                        </button>
+                      </div>
                       <input
                         type="date"
                         value={reminderDate}
@@ -790,12 +896,136 @@ export default function UniversalCreateModal({
                           background: "#12141a",
                           color: "#fff",
                           border: "1px solid #333a48",
-                          padding: "4px 8px",
+                          padding: "6px 10px",
                           borderRadius: 6,
-                          fontSize: 11.5,
+                          fontSize: 12,
                           colorScheme: "dark",
+                          width: "100%",
+                          boxSizing: "border-box",
                         }}
                       />
+                    </div>
+                  )}
+                </div>
+
+                {/* Time Picker Pill */}
+                <div style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTimePicker((v) => !v);
+                      setShowDatePicker(false);
+                      setShowNotifyMenu(false);
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "5px 12px",
+                      borderRadius: 6,
+                      border: "1px solid #333a48",
+                      background: "#1c212b",
+                      color: "#cbd5e1",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                    title="Set reminder time"
+                  >
+                    <Clock size={13} color="#16a34a" />
+                    <span>{formatTime12h(reminderTime)}</span>
+                    <ChevronDown size={11} color="#64748b" />
+                  </button>
+                  {showTimePicker && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 6px)",
+                        left: 0,
+                        zIndex: 200,
+                        background: "#1c212b",
+                        border: "1px solid #333a48",
+                        borderRadius: 10,
+                        padding: 12,
+                        minWidth: 240,
+                        boxShadow: "0 12px 30px rgba(0,0,0,0.6)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>Select Time</div>
+                      {/* Presets Grid */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                        {[
+                          { label: "9:00 AM (Morning)", val: "09:00" },
+                          { label: "12:00 PM (Noon)", val: "12:00" },
+                          { label: "2:00 PM (Afternoon)", val: "14:00" },
+                          { label: "5:00 PM (Evening)", val: "17:00" },
+                          { label: "8:00 PM (Night)", val: "20:00" },
+                          { label: "10:00 PM (Late)", val: "22:00" },
+                        ].map((t) => (
+                          <button
+                            key={t.val}
+                            type="button"
+                            onClick={() => {
+                              setReminderTime(t.val);
+                              setShowTimePicker(false);
+                            }}
+                            style={{
+                              padding: "6px 8px",
+                              borderRadius: 6,
+                              border: `1px solid ${reminderTime === t.val ? "#16a34a" : "#333a48"}`,
+                              background: reminderTime === t.val ? "rgba(22, 163, 74, 0.2)" : "#12141a",
+                              color: reminderTime === t.val ? "#4ade80" : "#cbd5e1",
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              textAlign: "left",
+                            }}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Custom Exact Time Input */}
+                      <div style={{ borderTop: "1px solid #282f3c", paddingTop: 8, display: "flex", flexDirection: "column", gap: 5 }}>
+                        <span style={{ fontSize: 10.5, color: "#94a3b8" }}>Or pick custom time:</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="time"
+                            value={reminderTime}
+                            onChange={(e) => setReminderTime(e.target.value)}
+                            style={{
+                              background: "#12141a",
+                              color: "#fff",
+                              border: "1px solid #333a48",
+                              padding: "5px 10px",
+                              borderRadius: 6,
+                              fontSize: 12,
+                              colorScheme: "dark",
+                              flex: 1,
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowTimePicker(false)}
+                            style={{
+                              padding: "6px 12px",
+                              background: "#16a34a",
+                              color: "#fff",
+                              border: 0,
+                              borderRadius: 6,
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Set
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -823,7 +1053,11 @@ export default function UniversalCreateModal({
                 <div style={{ position: "relative" }}>
                   <button
                     type="button"
-                    onClick={() => setShowNotifyMenu((v) => !v)}
+                    onClick={() => {
+                      setShowNotifyMenu((v) => !v);
+                      setShowDatePicker(false);
+                      setShowTimePicker(false);
+                    }}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -846,9 +1080,9 @@ export default function UniversalCreateModal({
                     <div
                       style={{
                         position: "absolute",
-                        top: "calc(100% + 4px)",
+                        top: "calc(100% + 6px)",
                         left: 0,
-                        zIndex: 100,
+                        zIndex: 200,
                         background: "#1c212b",
                         border: "1px solid #333a48",
                         borderRadius: 8,
@@ -857,7 +1091,7 @@ export default function UniversalCreateModal({
                         boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
                       }}
                     >
-                      {["At time of event", "10 min before", "1 hour before", "1 day before"].map((opt) => (
+                      {["At time of event", "5 min before", "10 min before", "30 min before", "1 hour before", "1 day before"].map((opt) => (
                         <button
                           key={opt}
                           type="button"

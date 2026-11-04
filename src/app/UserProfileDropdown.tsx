@@ -101,7 +101,13 @@ export default function UserProfileDropdown({
 
   const setTheme = (theme: "light" | "dark" | "system") => {
     try {
-      document.documentElement.setAttribute("data-color-scheme", theme);
+      const isDark =
+        theme === "dark" ||
+        (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.setAttribute("data-color-scheme", isDark ? "dark" : "light");
+      document.documentElement.dataset.colorScheme = isDark ? "dark" : "light";
+      document.documentElement.dataset.theme = theme;
+      localStorage.setItem("orbitwork-theme", theme);
       localStorage.setItem("color-scheme", theme);
     } catch {}
     setThemeSubmenu(false);
