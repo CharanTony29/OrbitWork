@@ -1,0 +1,276 @@
+/* Shared safeguards for pages and panels that can be narrower than the viewport. */
+:where(main, section, article, form, fieldset, .dashboard-content, .workspace-page, .project-page, .task-detail-page) {
+  min-width: 0;
+}
+
+:where(input, select, textarea) {
+  max-width: 100%;
+}
+
+.org-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
+}
+
+.project-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+}
+
+.custom-field-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+}
+
+.workspace-invite-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+}
+
+.report-categories-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+}
+
+.report-stat-grid,
+.task-time-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+}
+
+.timesheet-calendar-matrix {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+}
+
+/* The task detail sidebar remains narrow on desktop; adapt its forms to that card. */
+.task-detail-right-col {
+  container: task-sidebar / inline-size;
+}
+
+.task-subtasks,
+.task-checklists {
+  container-type: inline-size;
+}
+
+@container task-sidebar (max-width: 430px) {
+  .dependency-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .dependency-form-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(86px, .85fr);
+    width: 100%;
+    gap: 8px;
+  }
+
+  .dependency-task-select,
+  .dependency-type-select {
+    width: 100%;
+    min-width: 0;
+    height: 40px;
+    padding-inline: 9px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dependency-submit-btn {
+    width: 100%;
+    height: 38px;
+  }
+
+  .manual-time-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .manual-time-form label,
+  .manual-time-form label input:not([type="checkbox"]) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .manual-time-form .billable-option {
+    justify-content: start;
+  }
+
+  .manual-time-form > button {
+    width: 100%;
+  }
+}
+
+@container task-sidebar (max-width: 280px) {
+  .dependency-form-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 360px) {
+  .task-subtasks .relationship-form,
+  .task-checklists .relationship-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .task-subtasks .relationship-form input:not([type="hidden"]),
+  .task-checklists .relationship-form input:not([type="hidden"]),
+  .task-subtasks .relationship-form button,
+  .task-checklists .relationship-form button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .task-subtasks .relationship-form button,
+  .task-checklists .relationship-form button {
+    white-space: normal;
+  }
+
+  .task-subtasks .subtask-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 7px;
+  }
+
+  .task-subtasks .subtask-title {
+    grid-column: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .task-subtasks .subtask-status-pill {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .task-checklists .checklist-item button > span:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Member and invite cards also adapt to their own width, not just viewport breakpoints. */
+.workspace-access-section {
+  container: workspace-access / inline-size;
+}
+
+.workspace-invite-box {
+  container: workspace-invite / inline-size;
+  min-width: 0;
+}
+
+@container workspace-invite (max-width: 560px) {
+  .workspace-invite-box > form {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .workspace-invite-box > form > div,
+  .workspace-invite-box > form > div select,
+  .workspace-invite-box > form > div input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .workspace-invite-box > form > button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .workspace-invite-header {
+    align-items: stretch !important;
+  }
+
+  .workspace-invite-header > div:last-child {
+    display: flex !important;
+    width: 100%;
+  }
+
+  .workspace-invite-header > div:last-child button {
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+    padding-inline: 8px !important;
+  }
+}
+
+@container workspace-access (max-width: 560px) {
+  .workspace-member-row {
+    grid-template-columns: 30px minmax(0, 1fr);
+    align-items: start;
+    gap: 7px 9px;
+    padding: 10px 0;
+  }
+
+  .workspace-member-row > .organization-member-avatar {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .workspace-member-row > div {
+    grid-column: 2;
+    min-width: 0 !important;
+    overflow-wrap: anywhere;
+  }
+
+  .workspace-member-row > form {
+    grid-column: 2;
+    min-width: 0;
+  }
+
+  .workspace-member-row > form:first-of-type {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .workspace-member-row > form:first-of-type select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .workspace-member-row > form:last-of-type {
+    justify-self: start;
+  }
+
+  .workspace-member-add {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workspace-member-add select,
+  .workspace-member-add button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 390px) {
+  .topbar {
+    gap: 8px;
+    padding-inline: 12px !important;
+  }
+
+  .topbar-right {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .topbar-right .user-chip,
+  .topbar-right .current-user-email {
+    max-width: 45vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dashboard-content,
+  .workspace-page,
+  .project-page,
+  .task-detail-page,
+  .timesheets-page,
+  .people-calendar-page,
+  .project-report-page {
+    padding-inline: 14px;
+  }
+}
