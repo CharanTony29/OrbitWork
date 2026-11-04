@@ -802,7 +802,231 @@ html,body{background:var(--app-bg);color:var(--ink)}
   color: var(--muted);
 }
 
+/* Green is the shared interaction color for every native form control. */
+:root {
+  --control-bg: #ffffff;
+  --control-border: #d5ded7;
+  --control-hover: #78a98c;
+  --focus-ring: rgba(22, 124, 88, .18);
+}
+
+:root[data-color-scheme="dark"] {
+  --control-bg: #111714;
+  --control-border: #3a453e;
+  --control-hover: #4e936d;
+  --focus-ring: rgba(66, 185, 119, .24);
+}
+
+select:not([multiple]):not([size]) {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  border: 1px solid var(--control-border) !important;
+  border-radius: 9px !important;
+  padding-right: 30px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 20 20'%3E%3Cpath d='m5 7 5 5 5-5' fill='none' stroke='%23168052' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 9px center !important;
+  background-size: 14px !important;
+  accent-color: var(--green) !important;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+
+[data-color-scheme="light"] select:not([multiple]):not([size]),
+[data-color-scheme="light"] option {
+  background-color: var(--control-bg);
+  color: var(--ink);
+}
+
+[data-color-scheme="dark"] select:not([multiple]):not([size]) {
+  background-color: var(--control-bg) !important;
+  color: var(--ink) !important;
+  color-scheme: dark;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 20 20'%3E%3Cpath d='m5 7 5 5 5-5' fill='none' stroke='%2359d995' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'/%3E%3C/svg%3E") !important;
+}
+
+[data-color-scheme="dark"] option {
+  background-color: var(--control-bg) !important;
+  color: var(--ink) !important;
+}
+
+select:not([multiple]):not([size]):hover:enabled {
+  border-color: var(--control-hover) !important;
+}
+
+select:not([multiple]):not([size]):focus-visible,
+select:not([multiple]):not([size]):focus,
+select[multiple]:focus-visible,
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible,
+textarea:focus-visible {
+  border-color: var(--green) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px var(--focus-ring) !important;
+}
+
+option:checked,
+option:focus {
+  background-color: var(--green) !important;
+  color: #ffffff !important;
+}
+
+option:hover {
+  background-color: #e4f3e8 !important;
+  color: #123c29 !important;
+}
+
+[data-color-scheme="dark"] option:checked,
+[data-color-scheme="dark"] option:focus {
+  background-color: var(--green) !important;
+  color: #ffffff !important;
+}
+
+[data-color-scheme="dark"] option:hover {
+  background-color: #245337 !important;
+  color: #f2fff6 !important;
+}
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--green) !important;
+  outline-offset: 2px;
+}
+
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"],
+progress {
+  accent-color: var(--green) !important;
+}
+
+::selection {
+  background: #d8f0e1;
+  color: #123c29;
+}
+
 [data-color-scheme="dark"] ::selection {
   background: #286744;
   color: #f4fff7;
+}
+
+/* Use the browser's customizable select picker where supported. */
+@supports (appearance: base-select) {
+  select:not([multiple]):not([size]),
+  select:not([multiple]):not([size])::picker(select) {
+    appearance: base-select !important;
+  }
+
+  select:not([multiple]):not([size])::picker(select) {
+    margin-block: 6px;
+    padding: 5px;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .22);
+  }
+
+  select:not([multiple]):not([size])::picker-icon {
+    display: none;
+  }
+
+  select:not([multiple]):not([size]):open {
+    border-color: var(--green) !important;
+    box-shadow: 0 0 0 3px var(--focus-ring) !important;
+  }
+
+  select:not([multiple]):not([size]) option {
+    min-height: 34px;
+    padding: 8px 10px;
+    border-radius: 7px;
+    background: transparent !important;
+    color: var(--ink) !important;
+    cursor: pointer;
+  }
+
+  select:not([multiple]):not([size]) option:checked {
+    background: var(--green) !important;
+    color: #ffffff !important;
+    font-weight: 700;
+  }
+
+  select:not([multiple]):not([size]) option:hover,
+  select:not([multiple]):not([size]) option:focus {
+    background: #e4f3e8 !important;
+    color: #123c29 !important;
+  }
+
+  select:not([multiple]):not([size]) option::checkmark {
+    color: #ffffff;
+  }
+
+  [data-color-scheme="dark"] select:not([multiple]):not([size])::picker(select) {
+    background: var(--surface);
+    border-color: var(--line);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .48);
+  }
+
+  [data-color-scheme="dark"] select:not([multiple]):not([size]) option:hover,
+  [data-color-scheme="dark"] select:not([multiple]):not([size]) option:focus {
+    background: #245337 !important;
+    color: #f2fff6 !important;
+  }
+}
+
+/* Organization overview card details also follow the active palette. */
+[data-color-scheme="dark"] :is(.org-metrics, .workspace-form, .organization-links, .org-danger-zone) {
+  border-color: var(--line) !important;
+}
+
+[data-color-scheme="dark"] .organization-links a {
+  border-color: var(--line) !important;
+  color: #8ee0b2 !important;
+}
+
+[data-color-scheme="dark"] .organization-links a:hover {
+  background: #1d2a23 !important;
+  border-color: #426a50 !important;
+}
+
+[data-color-scheme="dark"] .workspace-row:hover {
+  background: #1d2a23 !important;
+  color: var(--ink) !important;
+}
+
+[data-color-scheme="dark"] .workspace-row:hover strong {
+  color: var(--ink) !important;
+}
+
+[data-color-scheme="dark"] .org-danger-zone {
+  border-top-color: #50312e !important;
+}
+
+[data-color-scheme="dark"] .org-danger-zone > p {
+  color: #d3aaa4 !important;
+}
+
+[data-color-scheme="dark"] :is(
+  .nav-item.active,
+  .hierarchy-dashboard:hover,
+  .hierarchy-tree details > summary:hover,
+  .hierarchy-tree details > summary.is-current,
+  .hierarchy-workspace-link:hover,
+  .hierarchy-project-link:hover,
+  .hierarchy-workspace-link.is-current,
+  .hierarchy-project-link.is-current,
+  .hierarchy-sublink:hover,
+  .hierarchy-sublink.is-current,
+  .dashboard-org-tree > summary:hover,
+  .dashboard-workspace-tree > summary:hover,
+  .dashboard-project-links > a:hover,
+  .dashboard-org-members,
+  .dashboard-org-members:hover
+) {
+  color: #8ee0b2 !important;
+}
+
+[data-color-scheme="dark"] .hierarchy-project-link.is-current .hierarchy-project-dot {
+  background: #8ee0b2;
+  border-color: #8ee0b2;
 }
