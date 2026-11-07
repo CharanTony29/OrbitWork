@@ -35,9 +35,44 @@ function decryptRefreshToken(encrypted: string) {
   return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");
 }
 
-export async function googleDriveAccessToken(supabase: SupabaseClient, organizationId: string) {
-  const { data: connection, error } = await supabase.from("google_drive_connections").select("refresh_token_ciphertext").eq("organization_id", organizationId).maybeSingle();
-  if (error || !connection) throw new GoogleDriveError(error ? "request_failed" : "not_connected");
+export async function googleDriveAccessToken(
+  supabase: SupabaseClient,
+  organizationId: string,
+  workspaceId?: string
+) {
+  let connection: { refresh_token_ciphertext: string } | null = null;
+  let queryError: unknown = null;
+
+  // 1. Check workspace-specific connection first (isolated storage location)
+  if (workspaceId) {
+    const { data: wsConn, error: wsError } = await supabase
+      .from("google_drive_connections")
+      .select("refresh_token_ciphertext")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (wsConn) {
+      connection = wsConn;
+    } else if (wsError) {
+      queryError = wsError;
+    }
+  }
+
+  // 2. Fall back to organization-level connection if no workspace connection exists
+  if (!connection && organizationId) {
+    const { data: orgConn, error: orgError } = await supabase
+      .from("google_drive_connections")
+      .select("refresh_token_ciphertext")
+      .eq("organization_id", organizationId)
+      .is("workspace_id", null)
+      .maybeSingle();
+    if (orgConn) {
+      connection = orgConn;
+    } else if (orgError && !queryError) {
+      queryError = orgError;
+    }
+  }
+
+  if (queryError || !connection) throw new GoogleDriveError(queryError ? "request_failed" : "not_connected");
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new GoogleDriveError("configuration");
@@ -87,13 +122,31 @@ async function createFolder(accessToken: string, name: string, parent?: string) 
   return folder.id;
 }
 
-async function getProjectFolder(accessToken: string, projectId: string) {
-  const root = await findFolder(accessToken, "Orbitwork") ?? await createFolder(accessToken, "Orbitwork");
-  return await findFolder(accessToken, projectId, root) ?? await createFolder(accessToken, projectId, root);
+async function getProjectFolder(
+  accessToken: string,
+  projectId: string,
+  workspaceName?: string,
+  projectName?: string
+) {
+  const root = (await findFolder(accessToken, "Orbitwork")) ?? (await createFolder(accessToken, "Orbitwork"));
+  if (workspaceName) {
+    const safeWs = workspaceName.trim() || "Workspace";
+    const wsFolder = (await findFolder(accessToken, safeWs, root)) ?? (await createFolder(accessToken, safeWs, root));
+    const safeProj = projectName ? projectName.trim() : projectId;
+    return (await findFolder(accessToken, safeProj, wsFolder)) ?? (await createFolder(accessToken, safeProj, wsFolder));
+  }
+  return (await findFolder(accessToken, projectId, root)) ?? (await createFolder(accessToken, projectId, root));
 }
 
-export async function uploadProjectDriveFile(accessToken: string, projectId: string, fileName: string, mimeType: string, bytes: Uint8Array) {
-  const parent = await getProjectFolder(accessToken, projectId);
+export async function uploadProjectDriveFile(
+  accessToken: string,
+  projectId: string,
+  fileName: string,
+  mimeType: string,
+  bytes: Uint8Array,
+  context?: { workspaceName?: string; projectName?: string }
+) {
+  const parent = await getProjectFolder(accessToken, projectId, context?.workspaceName, context?.projectName);
   const boundary = `orbitwork_${randomUUID().replaceAll("-", "")}`;
   const metadata = JSON.stringify({ name: fileName, parents: [parent] });
   const body = Buffer.concat([

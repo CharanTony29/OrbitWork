@@ -41,15 +41,26 @@ export async function POST(request: Request) {
     target.searchParams.set("attachment", "forbidden");
     return NextResponse.redirect(target, 303);
   }
-  const { data: project } = await supabase.from("projects").select("workspaces(organization_id)").eq("id", projectId).maybeSingle();
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, name, workspace_id, workspaces(id, name, organization_id)")
+    .eq("id", projectId)
+    .maybeSingle();
   const workspaceRelation = project?.workspaces;
   const workspace = Array.isArray(workspaceRelation) ? workspaceRelation[0] : workspaceRelation;
-  if (!workspace?.organization_id) return new Response("Project not found", { status: 404 });
+  if (!project || !workspace?.organization_id) return new Response("Project not found", { status: 404 });
   const safeName = file.name.replace(/[\\/\u0000-\u001f\u007f]/g, "_").trim().slice(0, 255) || "attachment";
   const contentType = (file.type || "application/octet-stream").slice(0, 150);
   try {
-    const accessToken = await googleDriveAccessToken(supabase, workspace.organization_id);
-    const uploaded = await uploadProjectDriveFile(accessToken, projectId, safeName, contentType, new Uint8Array(await file.arrayBuffer()));
+    const accessToken = await googleDriveAccessToken(supabase, workspace.organization_id, workspace.id || project.workspace_id);
+    const uploaded = await uploadProjectDriveFile(
+      accessToken,
+      projectId,
+      safeName,
+      contentType,
+      new Uint8Array(await file.arrayBuffer()),
+      { workspaceName: workspace.name, projectName: project.name }
+    );
     const { error } = await supabase.from("task_attachments").insert({
       project_id: projectId, task_id: taskId, file_name: uploaded.name, mime_type: uploaded.mimeType || contentType,
       file_size_bytes: Number(uploaded.size) || file.size, storage_provider: "google_drive", external_file_id: uploaded.id,

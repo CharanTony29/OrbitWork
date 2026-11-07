@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { removeWorkspaceMember, updateWorkspaceMemberRole } from "@/app/actions";
 import WorkspaceProjectsList from "./WorkspaceProjectsList";
 import WorkspaceInviteSection from "./WorkspaceInviteSection";
+import WorkspaceStorageSection from "./WorkspaceStorageSection";
 
 export default async function WorkspacePage({
   params,
@@ -19,6 +20,7 @@ export default async function WorkspacePage({
     member_updated?: string;
     invited?: string;
     status_updated?: string;
+    drive?: string;
   }>;
 }) {
   const { workspaceId } = await params;
@@ -46,6 +48,7 @@ export default async function WorkspacePage({
     { data: workspaceMembers },
     { data: canManage },
     { data: isOrgAdmin },
+    { data: driveConnection },
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -66,7 +69,19 @@ export default async function WorkspacePage({
       target_org: workspace.organization_id,
       allowed_roles: ["owner", "admin"],
     }),
+    supabase
+      .from("google_drive_connections")
+      .select("id, connected_at, updated_at, connected_by, account_email, folder_name")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle(),
   ]);
+
+  const configured = Boolean(
+    process.env.GOOGLE_CLIENT_ID &&
+    process.env.GOOGLE_CLIENT_SECRET &&
+    process.env.GOOGLE_REDIRECT_URI &&
+    process.env.GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY
+  );
 
   const memberIds = [
     ...new Set([
@@ -99,7 +114,7 @@ export default async function WorkspacePage({
       name: people.get(member.user_id) ?? "Team member",
     }));
 
-  const { error, member_added, member_removed, member_updated, invited, status_updated } =
+  const { error, member_added, member_removed, member_updated, invited, status_updated, drive } =
     await searchParams;
 
   const memberErrors: Record<string, string> = {
@@ -256,6 +271,16 @@ export default async function WorkspacePage({
             />
           )}
         </section>
+
+        {/* 3. Workspace Google Drive Storage & Privacy */}
+        <WorkspaceStorageSection
+          workspaceId={workspaceId}
+          workspaceName={workspace.name}
+          connection={driveConnection}
+          canManage={Boolean(canManage)}
+          configured={configured}
+          driveStatus={drive}
+        />
       </div>
     </main>
   );

@@ -49,9 +49,9 @@ const attachmentMessages: Record<string, string> = {
 };
 
 const driveErrorMessages: Record<string, string> = {
-  not_connected: "Google Drive is not connected for this organization. Ask an owner or admin to connect it.",
+  not_connected: "Google Drive storage is not connected for this workspace. A Workspace Manager or Owner can connect it in Workspace Settings.",
   configuration: "Google Drive setup is incomplete. Ask an administrator to check the configuration.",
-  reconnect: "Google Drive authorization expired. Please reconnect in Organization settings.",
+  reconnect: "Google Drive authorization expired. Please reconnect in Workspace Settings.",
   permissions: "Google Drive denied this upload. Check account permissions and available storage.",
   api_disabled: "Google Drive API is disabled for this project.",
   quota: "Google Drive storage quota was exceeded.",

@@ -14,12 +14,16 @@ import TaskDetailProgress from "./TaskDetailProgress";
 import TaskHeaderTimer from "./TaskHeaderTimer";
 import DateInput from "@/app/DateInput";
 
-const attachmentMessages: Record<string, string> = { uploaded: "File uploaded to the organization’s Google Drive.", too_large: "Files must be between 1 byte and 15 MB.", save_failed: "The Drive upload succeeded, but the app could not save its file reference." };
+const attachmentMessages: Record<string, string> = {
+  uploaded: "File uploaded to workspace Google Drive storage.",
+  too_large: "Files must be between 1 byte and 15 MB.",
+  save_failed: "The Drive upload succeeded, but the app could not save its file reference.",
+};
 const driveErrorMessages: Record<string, string> = {
-  not_connected: "Google Drive is not connected for this organization. Ask an owner or admin to connect it.",
+  not_connected: "Google Drive storage is not connected for this workspace. A Workspace Manager or Owner can connect it in Workspace Settings.",
   configuration: "Google Drive setup is incomplete. Ask an administrator to check the app’s Drive configuration.",
-  reconnect: "The Google Drive connection has expired. Ask an owner or admin to reconnect it.",
-  permissions: "Google Drive denied this upload. Check the connected account’s access to the Orbitwork folder and available storage.",
+  reconnect: "The Google Drive connection has expired. Ask a workspace manager or owner to reconnect it.",
+  permissions: "Google Drive denied this upload. Check the connected account’s access and available storage.",
   api_disabled: "The Google Drive API is disabled for the connected Google Cloud project. Ask an administrator to enable it.",
   quota: "Google Drive storage or request quota was exceeded. Check the connected account’s storage and try again later.",
   request_failed: "The Google Drive request failed. Ask an administrator to check the server logs for the Drive error.",
