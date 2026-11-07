@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useRef, useTransition, useEffect } from "react";
 import Link from "next/link";
 import {
   UploadCloud,
@@ -21,6 +21,10 @@ import {
   File as FileGeneric,
   Eye,
   X,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { removeTaskAttachment, createAndAttachCanvas } from "@/app/actions";
 
@@ -59,6 +63,241 @@ function formatFileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function PdfPreviewViewer({ url, fileName }: { url: string; fileName: string }) {
+  const [loading, setLoading] = useState(true);
+  const [numPages, setNumPages] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [scale, setScale] = useState<number>(1.2);
+  const [useFallback, setUseFallback] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pdfDocRef = useRef<any>(null);
+  const renderTaskRef = useRef<any>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initPdf() {
+      try {
+        setLoading(true);
+
+        if (!(window as any).pdfjsLib) {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+            script.async = true;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error("Could not load PDF.js engine"));
+            document.head.appendChild(script);
+          });
+        }
+
+        const pdfjsLib = (window as any).pdfjsLib;
+        if (!pdfjsLib) throw new Error("PDF.js library not available");
+
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+        const loadingTask = pdfjsLib.getDocument({
+          url,
+          cMapUrl: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/",
+          cMapPacked: true,
+        });
+
+        const pdf = await loadingTask.promise;
+        if (!isMounted) return;
+
+        pdfDocRef.current = pdf;
+        setNumPages(pdf.numPages);
+        setCurrentPage(1);
+        setLoading(false);
+      } catch (err: any) {
+        console.warn("PDF.js failed, switching to native embed fallback:", err);
+        if (isMounted) {
+          setUseFallback(true);
+          setLoading(false);
+        }
+      }
+    }
+
+    initPdf();
+
+    return () => {
+      isMounted = false;
+      if (renderTaskRef.current) {
+        try {
+          renderTaskRef.current.cancel();
+        } catch {}
+      }
+    };
+  }, [url]);
+
+  useEffect(() => {
+    if (!pdfDocRef.current || !canvasRef.current || useFallback) return;
+
+    let cancel = false;
+
+    async function renderPage() {
+      try {
+        if (renderTaskRef.current) {
+          try {
+            renderTaskRef.current.cancel();
+          } catch {}
+        }
+
+        const page = await pdfDocRef.current.getPage(currentPage);
+        if (cancel || !canvasRef.current) return;
+
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const viewport = page.getViewport({ scale });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+          canvasContext: ctx,
+          viewport,
+        };
+
+        const task = page.render(renderContext);
+        renderTaskRef.current = task;
+        await task.promise;
+      } catch (err: any) {
+        if (err?.name !== "RenderingCancelledException") {
+          console.error("Page render error:", err);
+        }
+      }
+    }
+
+    renderPage();
+
+    return () => {
+      cancel = true;
+    };
+  }, [currentPage, scale, useFallback]);
+
+  if (useFallback) {
+    return (
+      <div style={{ width: "100%", height: "75vh", display: "flex", flexDirection: "column", background: "var(--paper, #fff)", borderRadius: 8, overflow: "hidden" }}>
+        <embed
+          src={url}
+          type="application/pdf"
+          style={{ width: "100%", height: "100%", border: 0 }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ width: "100%", height: "75vh", display: "flex", flexDirection: "column", background: "var(--paper, #fff)", borderRadius: 8, overflow: "hidden" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "8px 14px",
+          borderBottom: "1px solid var(--line, #e2e8f0)",
+          background: "var(--nav-hover, #f8fafc)",
+          fontSize: 12,
+          flexShrink: 0,
+          gap: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <button
+            type="button"
+            className="button button-secondary"
+            style={{ padding: "3px 8px", fontSize: 11, minHeight: 26 }}
+            disabled={currentPage <= 1 || loading}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            title="Previous page"
+          >
+            <ChevronLeft size={13} />
+          </button>
+          <span style={{ fontWeight: 600, color: "var(--ink, #1e293b)", minWidth: 80, textAlign: "center" }}>
+            {loading ? "Loading…" : `Page ${currentPage} of ${numPages}`}
+          </span>
+          <button
+            type="button"
+            className="button button-secondary"
+            style={{ padding: "3px 8px", fontSize: 11, minHeight: 26 }}
+            disabled={currentPage >= numPages || loading}
+            onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
+            title="Next page"
+          >
+            <ChevronRight size={13} />
+          </button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <button
+            type="button"
+            className="button button-secondary"
+            style={{ padding: "3px 8px", fontSize: 11, minHeight: 26 }}
+            disabled={scale <= 0.6 || loading}
+            onClick={() => setScale((s) => Math.max(0.5, Number((s - 0.2).toFixed(1))))}
+            title="Zoom out"
+          >
+            <ZoomOut size={13} />
+          </button>
+          <span style={{ fontSize: 11, color: "var(--muted, #64748b)", minWidth: 42, textAlign: "center" }}>
+            {Math.round(scale * 100)}%
+          </span>
+          <button
+            type="button"
+            className="button button-secondary"
+            style={{ padding: "3px 8px", fontSize: 11, minHeight: 26 }}
+            disabled={scale >= 3.0 || loading}
+            onClick={() => setScale((s) => Math.min(3.0, Number((s + 0.2).toFixed(1))))}
+            title="Zoom in"
+          >
+            <ZoomIn size={13} />
+          </button>
+          <button
+            type="button"
+            className="button button-secondary"
+            style={{ padding: "3px 8px", fontSize: 11, minHeight: 26 }}
+            onClick={() => setScale(1.2)}
+            title="Reset zoom"
+          >
+            Fit
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          overflow: "auto",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "flex-start",
+          padding: "20px",
+          background: "var(--surface, #64748b20)",
+        }}
+      >
+        {loading ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, margin: "auto", color: "var(--muted)" }}>
+            <Loader2 size={24} className="animate-spin text-green" />
+            <span style={{ fontSize: 12, fontWeight: 600 }}>Rendering PDF preview…</span>
+          </div>
+        ) : (
+          <canvas
+            ref={canvasRef}
+            style={{
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+              borderRadius: 4,
+              background: "#ffffff",
+              maxWidth: "100%",
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
 }
 
 function getFileMeta(fileName: string, mimeType: string) {
@@ -131,9 +370,56 @@ export default function TaskAttachmentsSection({
   const [isCreatingCanvas, startCreateCanvasTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
   const [previewItem, setPreviewItem] = useState<AttachmentItem | null>(null);
+  const [textContent, setTextContent] = useState<string | null>(null);
+  const [loadingText, setLoadingText] = useState(false);
+  const [copiedText, setCopiedText] = useState(false);
+  const [showHtmlRendered, setShowHtmlRendered] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasUploadRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  const isTextType = (fileName: string, mimeType: string) => {
+    const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+    return (
+      [
+        "txt", "xml", "html", "htm", "json", "csv", "md", "log", "js", "ts",
+        "tsx", "jsx", "css", "scss", "sql", "yaml", "yml", "ini", "env", "sh", "py"
+      ].includes(ext) ||
+      mimeType.startsWith("text/") ||
+      mimeType.includes("xml") ||
+      mimeType.includes("json") ||
+      mimeType.includes("javascript")
+    );
+  };
+
+  useEffect(() => {
+    if (!previewItem) {
+      setTextContent(null);
+      setShowHtmlRendered(false);
+      return;
+    }
+
+    if (isTextType(previewItem.file_name, previewItem.mime_type)) {
+      setLoadingText(true);
+      fetch(`/api/attachments/${previewItem.id}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to load text");
+          return res.text();
+        })
+        .then((txt) => {
+          setTextContent(txt);
+          setLoadingText(false);
+        })
+        .catch((err) => {
+          console.error(err);
+          setTextContent("Error loading preview content.");
+          setLoadingText(false);
+        });
+    } else {
+      setTextContent(null);
+    }
+  }, [previewItem]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -197,8 +483,64 @@ export default function TaskAttachmentsSection({
       fd.set("taskId", taskId);
       fd.set("type", type);
       fd.set("title", `${taskTitle} - ${type === "whiteboard" ? "Whiteboard" : "Flowchart"}`);
-      await createAndAttachCanvas(fd);
+      fd.set(
+        "data",
+        type === "whiteboard"
+          ? JSON.stringify({ version: 1, strokes: [], stickyNotes: [], images: [] })
+          : JSON.stringify({ nodes: [], edges: [] })
+      );
+      const res = await createAndAttachCanvas(fd);
+      if (res?.ok) {
+        window.location.href = `/projects/${projectId}/tasks/${taskId}?tab=${type}`;
+      } else {
+        alert(res?.error ? `Could not create ${type}: ${res.error}` : `Failed to create ${type}`);
+      }
     });
+  };
+
+  const handleUploadCanvasFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      startCreateCanvasTransition(async () => {
+        const resultStr = typeof reader.result === "string" ? reader.result : "";
+        let initialData = "";
+        let type: "whiteboard" | "flowchart" = "whiteboard";
+
+        if (file.type.startsWith("image/")) {
+          type = "whiteboard";
+          initialData = JSON.stringify({
+            version: 1,
+            strokes: [],
+            stickyNotes: [],
+            images: [{ id: "img-1", x: 60, y: 60, w: 400, h: 280, src: resultStr }],
+          });
+        } else if (file.name.endsWith(".json")) {
+          try {
+            const parsed = JSON.parse(resultStr);
+            if (parsed.nodes) type = "flowchart";
+            initialData = resultStr;
+          } catch {
+            initialData = JSON.stringify({ version: 1, strokes: [], stickyNotes: [], images: [] });
+          }
+        }
+
+        const fd = new FormData();
+        fd.set("projectId", projectId);
+        fd.set("taskId", taskId);
+        fd.set("type", type);
+        fd.set("title", `${taskTitle} - ${file.name.replace(/\.[^/.]+$/, "")}`);
+        fd.set("data", initialData);
+        const res = await createAndAttachCanvas(fd);
+        if (res?.ok) {
+          window.location.href = `/projects/${projectId}/tasks/${taskId}?tab=${type}`;
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
   };
 
   const filteredAttachments = attachments.filter((item) => {
@@ -249,6 +591,24 @@ export default function TaskAttachmentsSection({
               <GitFork size={13} />
               <span>+ Flowchart</span>
             </button>
+            <button
+              type="button"
+              className="quick-canvas-btn"
+              onClick={() => canvasUploadRef.current?.click()}
+              disabled={isCreatingCanvas}
+              title="Upload image or JSON into a new canvas"
+              style={{ background: "var(--soft, #f1f5f9)", color: "var(--ink)", borderColor: "var(--line)" }}
+            >
+              <UploadCloud size={13} />
+              <span>Upload Canvas</span>
+            </button>
+            <input
+              type="file"
+              ref={canvasUploadRef}
+              accept="image/*,.json"
+              onChange={handleUploadCanvasFile}
+              style={{ display: "none" }}
+            />
           </div>
         )}
       </div>
@@ -573,6 +933,17 @@ export default function TaskAttachmentsSection({
               </div>
               <div className="attachment-preview-actions">
                 <a
+                  href={`/api/attachments/${previewItem.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="button button-secondary"
+                  style={{ padding: "4px 10px", fontSize: "11px", minHeight: "28px", display: "inline-flex", alignItems: "center", gap: 5 }}
+                  title="Open file in a new browser tab"
+                >
+                  <ExternalLink size={13} />
+                  <span>Open in Tab</span>
+                </a>
+                <a
                   href={`/api/attachments/${previewItem.id}?download=1`}
                   className="button button-primary"
                   style={{ padding: "4px 10px", fontSize: "11px", minHeight: "28px" }}
@@ -602,11 +973,74 @@ export default function TaskAttachmentsSection({
                   />
                 </div>
               ) : previewItem.mime_type === "application/pdf" || previewItem.file_name.toLowerCase().endsWith(".pdf") ? (
-                <iframe
-                  src={`/api/attachments/${previewItem.id}`}
-                  className="preview-iframe"
-                  title={previewItem.file_name}
+                <PdfPreviewViewer
+                  url={`/api/attachments/${previewItem.id}`}
+                  fileName={previewItem.file_name}
                 />
+              ) : isTextType(previewItem.file_name, previewItem.mime_type) ? (
+                <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "var(--paper, #fff)", borderRadius: 8, overflow: "hidden" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px", borderBottom: "1px solid var(--line, #e2e8f0)", background: "var(--nav-hover, #f8fafc)", fontSize: 11 }}>
+                    <span style={{ color: "var(--muted)", fontWeight: 600 }}>
+                      Text Preview ({textContent ? `${textContent.split("\n").length} lines` : "Loading..."})
+                    </span>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {(previewItem.file_name.toLowerCase().endsWith(".html") || previewItem.file_name.toLowerCase().endsWith(".htm")) && (
+                        <button
+                          type="button"
+                          onClick={() => setShowHtmlRendered(!showHtmlRendered)}
+                          className="button button-secondary"
+                          style={{ padding: "2px 8px", fontSize: 10.5 }}
+                        >
+                          {showHtmlRendered ? "View Code" : "Render HTML"}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (textContent) {
+                            navigator.clipboard.writeText(textContent);
+                            setCopiedText(true);
+                            setTimeout(() => setCopiedText(false), 2000);
+                          }
+                        }}
+                        className="button button-secondary"
+                        style={{ padding: "2px 8px", fontSize: 10.5 }}
+                      >
+                        {copiedText ? "✓ Copied!" : "Copy"}
+                      </button>
+                    </div>
+                  </div>
+                  {loadingText ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 40, color: "var(--muted)", gap: 8 }}>
+                      <Loader2 size={18} className="animate-spin" />
+                      <span>Loading text content…</span>
+                    </div>
+                  ) : showHtmlRendered && textContent ? (
+                    <iframe
+                      srcDoc={textContent}
+                      sandbox="allow-same-origin"
+                      style={{ width: "100%", height: "65vh", border: 0, background: "#fff" }}
+                      title="HTML Preview"
+                    />
+                  ) : (
+                    <pre
+                      style={{
+                        margin: 0,
+                        padding: "16px",
+                        fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace",
+                        fontSize: 12,
+                        lineHeight: 1.6,
+                        overflow: "auto",
+                        maxHeight: "65vh",
+                        color: "var(--ink, #1e293b)",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-all",
+                      }}
+                    >
+                      <code>{textContent}</code>
+                    </pre>
+                  )}
+                </div>
               ) : (
                 <div className="preview-fallback">
                   <FileText size={48} className="preview-fallback-icon" />

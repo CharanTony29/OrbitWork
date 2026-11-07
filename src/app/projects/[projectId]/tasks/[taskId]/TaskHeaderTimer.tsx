@@ -14,7 +14,14 @@ export default function TaskHeaderTimer({
   projectId: string;
   taskId: string;
   taskTitle: string;
-  runningEntry?: { id: string; started_at: string; billable?: boolean } | null;
+  runningEntry?: {
+    id: string;
+    started_at: string;
+    billable?: boolean;
+    user_id?: string;
+    user_name?: string;
+    is_current_user?: boolean;
+  } | null;
   canEdit?: boolean;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
@@ -46,7 +53,19 @@ export default function TaskHeaderTimer({
 
   return (
     <div className="task-header-timer-wrap">
-      {runningEntry ? (
+      {runningEntry && runningEntry.is_current_user === false ? (
+        <div
+          className="running-timer-pill"
+          style={{ background: "rgba(22, 163, 74, 0.1)", border: "1px solid rgba(22, 163, 74, 0.3)" }}
+        >
+          <span className="timer-pulse-dot" style={{ background: "#16a34a" }} />
+          <Clock size={13} className="timer-active-icon" />
+          <span className="timer-ticker" style={{ color: "#16a34a" }}>{elapsed}</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--ink)" }}>
+            In progress by {runningEntry.user_name || "Teammate"}
+          </span>
+        </div>
+      ) : runningEntry ? (
         <form action={stopTaskTimer} className="running-timer-pill">
           <input type="hidden" name="projectId" value={projectId} />
           <input type="hidden" name="taskId" value={taskId} />

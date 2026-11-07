@@ -204,11 +204,14 @@ export default async function WorkspacePage({
                         name="role"
                         defaultValue={member.role}
                         style={{
+                          height: 30,
+                          lineHeight: "28px",
                           fontSize: 11,
-                          padding: "4px 8px",
+                          padding: "0 8px",
                           borderRadius: 6,
                           border: "1px solid #dfe5e0",
                           background: "#fff",
+                          verticalAlign: "middle",
                         }}
                       >
                         <option value="viewer">Viewer (Read-only)</option>

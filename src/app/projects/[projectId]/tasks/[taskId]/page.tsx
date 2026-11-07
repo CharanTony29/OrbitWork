@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import CurrentUserBadge from "@/app/CurrentUserBadge";
 import BackButton from "@/app/BackButton";
 import Link from "next/link";
-import { ArrowLeft, CheckSquare, GitBranch, MessageSquareText, Save, Eye } from "lucide-react";
+import { ArrowLeft, CheckSquare, GitBranch, MessageSquareText, Save, Eye, ExternalLink } from "lucide-react";
 import { addManualTimeEntry, createChecklistItem, createTaskChecklist, createTaskComment, createTaskDependency, createTaskSubtask, removeTaskDependency, signOut, startTaskTimer, stopTaskTimer, toggleChecklistItem, updateTask } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
 import AssigneeDropdowns from "../../AssigneeDropdowns";
@@ -35,7 +35,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
   if (!user) redirect("/");
   const { data: project } = await supabase.from("projects").select("id, name, workspace_id, workspaces(name, organization_id)").eq("id", projectId).maybeSingle();
   if (!project) notFound();
-  const { data: task } = await supabase.from("tasks").select("id, project_id, generated_key, title, description, status_id, priority, start_date, due_date, estimate_minutes, progress, created_by, primary_assignee_id, secondary_assignee_id, created_at, updated_at").eq("id", taskId).eq("project_id", projectId).maybeSingle();
+  const { data: task } = await supabase.from("tasks").select("id, project_id, generated_key, title, task_type, tags, description, status_id, priority, start_date, due_date, estimate_minutes, progress, created_by, primary_assignee_id, secondary_assignee_id, created_at, updated_at").eq("id", taskId).eq("project_id", projectId).maybeSingle();
   if (!task) notFound();
   const { data: statuses } = await supabase.from("project_statuses").select("id, name, color, category").eq("project_id", projectId).order("position");
   const { data: comments } = await supabase.from("task_comments").select("id, author_id, body, created_at").eq("task_id", taskId).order("created_at");
@@ -53,7 +53,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
   const { data: timeEntries } = await supabase.from("time_entries").select("id, user_id, started_at, ended_at, duration_minutes, description, billable").eq("project_id", projectId).eq("task_id", taskId).order("started_at", { ascending: false }).limit(100);
   const { data: attachments } = await supabase.from("task_attachments").select("id, file_name, mime_type, file_size_bytes, storage_provider, external_file_id, external_url, uploaded_by, created_at").eq("project_id", projectId).eq("task_id", taskId).order("created_at", { ascending: false });
   const { data: activityEvents } = await supabase.from("project_activity_events").select("id, actor_id, event_type, details, created_at").eq("project_id", projectId).eq("task_id", taskId).order("created_at", { ascending: false }).limit(100);
-  const { data: runningTimer } = await supabase.from("time_entries").select("id, started_at, billable").eq("user_id", user.id).eq("task_id", taskId).is("ended_at", null).maybeSingle();
+  const { data: anyRunningTimer } = await supabase.from("time_entries").select("id, user_id, started_at, billable").eq("task_id", taskId).is("ended_at", null).maybeSingle();
   const { data: canEditData } = await supabase.rpc("can_edit_project_tasks", { target_project: projectId });
   const canEdit = Boolean(canEditData);
   const taskStatus = (statuses ?? []).find((s) => s.id === task.status_id);
@@ -82,12 +82,21 @@ export default async function TaskDetailPage({ params, searchParams }: {
   const workspace = Array.isArray(project.workspaces) ? project.workspaces[0] : project.workspaces;
   const orgId = workspace?.organization_id;
   const { data: orgMembers } = orgId ? await supabase.from("organization_members").select("user_id").eq("organization_id", orgId).eq("status", "active") : { data: [] };
-  const peopleIds = [...new Set([...(comments ?? []).map((comment) => comment.author_id), ...(timeEntries ?? []).map((entry) => entry.user_id), ...(attachments ?? []).map((item) => item.uploaded_by), ...(activityEvents ?? []).map((event) => event.actor_id).filter((id): id is string => Boolean(id)), ...(orgMembers ?? []).map((member) => member.user_id), task.created_by, ...[task.primary_assignee_id, task.secondary_assignee_id].filter((id): id is string => Boolean(id))])];
+  const peopleIds = [...new Set([...(comments ?? []).map((comment) => comment.author_id), ...(timeEntries ?? []).map((entry) => entry.user_id), ...(attachments ?? []).map((item) => item.uploaded_by), ...(activityEvents ?? []).map((event) => event.actor_id).filter((id): id is string => Boolean(id)), ...(orgMembers ?? []).map((member) => member.user_id), task.created_by, anyRunningTimer?.user_id, ...[task.primary_assignee_id, task.secondary_assignee_id].filter((id): id is string => Boolean(id))].filter((id): id is string => Boolean(id)))];
   const { data: authors } = peopleIds.length ? await supabase.from("profiles").select("id, display_name, email, avatar_url").in("id", peopleIds) : { data: [] };
   const profileById = new Map((authors ?? []).map((profile) => [profile.id, profile]));
   const profileLabel = (id: string) => { const profile = profileById.get(id); return profile?.display_name?.trim() || profile?.email || "Team member"; };
   const members = (orgMembers ?? []).map((member) => ({ id: member.user_id, label: profileLabel(member.user_id) }));
   const customValueMap = new Map((customFieldValues ?? []).map((item) => [item.field_id, item.value]));
+
+  const runningTimer = anyRunningTimer ? {
+    id: anyRunningTimer.id,
+    started_at: anyRunningTimer.started_at,
+    billable: anyRunningTimer.billable ?? true,
+    user_id: anyRunningTimer.user_id,
+    user_name: profileLabel(anyRunningTimer.user_id),
+    is_current_user: anyRunningTimer.user_id === user.id,
+  } : null;
   const billableMinutes = (timeEntries ?? [])
     .filter((e) => e.billable && e.duration_minutes)
     .reduce((acc, e) => acc + (e.duration_minutes || 0), 0);
@@ -96,7 +105,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
   const tab = ["details", "whiteboard", "flowchart"].includes(queryTab ?? "") ? queryTab! : "details";
 
   return <main className="app-shell">
-    <header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/><form action={signOut}><button className="quiet-button">Sign out</button></form></div></header>
+    <header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/></div></header>
     <div className="task-detail-page">
       <div className="task-detail-nav"><BackButton fallbackHref={`/projects/${projectId}`} label={project.name}/><span className="task-key">{task.generated_key}</span></div>
       <div className="task-detail-heading">
@@ -109,7 +118,11 @@ export default async function TaskDetailPage({ params, searchParams }: {
               </span>
             )}
           </div>
-          <h1>{task.title}</h1>
+          <div className="task-detail-title-row">
+            <h1>{task.title}</h1>
+            <span className="task-type-badge">{(task.task_type ?? "task").replaceAll("_", " ")}</span>
+            {(task.tags ?? []).map((tag: string) => <span className="task-tag-badge" key={tag}>{tag}</span>)}
+          </div>
           <p className="muted">{workspace?.name ?? "Workspace"} <span className="crumb-dot">·</span> {project.name}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
@@ -451,7 +464,9 @@ export default async function TaskDetailPage({ params, searchParams }: {
                         <span className="time-entry-row-dur">{entry.duration_minutes ? `${Math.floor(entry.duration_minutes / 60)}h ${entry.duration_minutes % 60}m` : "Running"}</span>
                       </div>
                       <div className="time-entry-row-sub">
-                        <span>{new Date(entry.started_at).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
+                        <span>
+                          {new Date(entry.started_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {new Date(entry.started_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                        </span>
                         <span className={`time-entry-row-type ${entry.billable ? "is-billable" : ""}`}>{entry.billable ? "Billable" : "Non-billable"}</span>
                       </div>
                       {entry.description && <p>{entry.description}</p>}
@@ -534,19 +549,166 @@ export default async function TaskDetailPage({ params, searchParams }: {
                 const options = Array.isArray(field.options) ? field.options.map(String) : [];
                 const storedValue = customValueMap.get(field.id);
                 const value = storedValue == null ? "" : Array.isArray(storedValue) ? storedValue.join(", ") : String(storedValue);
+                const isUrlField = field.field_type === "url" || field.field_type === "link";
+                const parsedLinks = (() => {
+                  if (!value) return [];
+                  const tokens = value.split(/[\s,;]+/).filter(Boolean);
+                  const links: { label: string; href: string }[] = [];
+                  for (const token of tokens) {
+                    const clean = token.trim();
+                    if (/^https?:\/\//i.test(clean)) {
+                      try {
+                        const url = new URL(clean);
+                        const domain = url.hostname.replace(/^www\./, "");
+                        const path = url.pathname !== "/" ? url.pathname : "";
+                        links.push({ label: domain + (path.length > 20 ? path.slice(0, 20) + "…" : path), href: clean });
+                      } catch {
+                        links.push({ label: clean, href: clean });
+                      }
+                    } else if (/^www\./i.test(clean) || /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/.*)?$/i.test(clean)) {
+                      links.push({ label: clean, href: `https://${clean}` });
+                    }
+                  }
+                  return links;
+                })();
+
                 if (field.field_type === "formula") return <div className="custom-field-item" key={field.id}><span>{field.name}</span><p className="muted small">Formula fields are read-only until formula configuration is available.</p></div>;
                 if (!canEdit) {
                   return (
                     <div className="custom-field-item" key={field.id}>
                       <label>{field.name}</label>
-                      <span style={{ fontSize: '13px', color: '#334155', padding: '6px 0', minHeight: '28px', display: 'flex', alignItems: 'center' }}>
-                        {value || "—"}
-                      </span>
+                      <div style={{ fontSize: '13px', color: '#334155', padding: '6px 0', minHeight: '28px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                        {parsedLinks.length > 0 ? (
+                          parsedLinks.map((link, idx) => (
+                            <a
+                              key={idx}
+                              href={link.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: "var(--green, #167c58)", textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 3, background: "rgba(22, 124, 88, 0.08)", padding: "2px 8px", borderRadius: 4, fontWeight: 600, fontSize: 11 }}
+                            >
+                              <span>{link.label}</span>
+                              <ExternalLink size={10} />
+                            </a>
+                          ))
+                        ) : (
+                          value || "—"
+                        )}
+                      </div>
                     </div>
                   );
                 }
-                return <form action={saveTaskCustomField} className="custom-field-item" key={field.id}><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="fieldId" value={field.id}/><label htmlFor={`field-${field.id}`}>{field.name}{field.required && <span className="required-mark">*</span>}</label>
-                  {field.field_type === "long_text" ? <textarea id={`field-${field.id}`} name="value" defaultValue={value} required={field.required} maxLength={10000}/> : field.field_type === "dropdown" ? <select id={`field-${field.id}`} name="value" defaultValue={value} required={field.required}><option value="">Choose…</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select> : field.field_type === "checkbox" ? <select id={`field-${field.id}`} name="value" defaultValue={value || "false"}><option value="false">No</option><option value="true">Yes</option></select> : field.field_type === "user" ? <select id={`field-${field.id}`} name="value" defaultValue={value}><option value="">Unassigned</option>{members.map((member) => <option key={member.id} value={member.id}>{member.label}</option>)}</select> : field.field_type === "date" ? <DateInput id={`field-${field.id}`} name="value" defaultValue={value} required={field.required}/> : <input id={`field-${field.id}`} name="value" type={field.field_type === "datetime" ? "datetime-local" : ["number", "currency", "rating", "progress", "duration"].includes(field.field_type) ? "number" : field.field_type === "email" ? "email" : field.field_type === "url" ? "url" : "text"} defaultValue={value} required={field.required} maxLength={field.field_type === "text" ? 2000 : undefined} step={field.field_type === "rating" || field.field_type === "progress" ? "1" : field.field_type === "currency" ? "0.01" : undefined} placeholder={field.field_type === "multi_select" ? "Comma-separated values" : ""}/>}<button className="mini-save">Save field</button></form>;
+                return (
+                  <form action={saveTaskCustomField} className="custom-field-item" key={field.id}>
+                    <input type="hidden" name="projectId" value={projectId}/>
+                    <input type="hidden" name="taskId" value={taskId}/>
+                    <input type="hidden" name="fieldId" value={field.id}/>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+                      <label htmlFor={`field-${field.id}`}>{field.name}{field.required && <span className="required-mark">*</span>}</label>
+                      {parsedLinks.length > 0 && (
+                        <div style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+                          {parsedLinks.map((link, idx) => (
+                            <a
+                              key={idx}
+                              href={link.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ fontSize: 10.5, color: "var(--green, #167c58)", textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 2, background: "rgba(22, 124, 88, 0.06)", padding: "1px 6px", borderRadius: 4 }}
+                              title={`Open ${link.href}`}
+                            >
+                              <span>{link.label}</span>
+                              <ExternalLink size={9} />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {field.field_type === "long_text" ? (
+                      <textarea id={`field-${field.id}`} name="value" defaultValue={value} required={field.required} maxLength={10000} placeholder="Enter text…"/>
+                    ) : field.field_type === "dropdown" ? (
+                      <div>
+                        <select id={`field-${field.id}`} name="value" defaultValue={value} required={field.required}>
+                          <option value="">Choose…</option>
+                          {options.map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      </div>
+                    ) : field.field_type === "multi_select" ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                        <input
+                          id={`field-${field.id}`}
+                          name="value"
+                          type="text"
+                          defaultValue={value}
+                          required={field.required}
+                          placeholder={options.length > 0 ? `e.g. ${options.slice(0, 2).join(", ")}` : "Comma-separated values…"}
+                        />
+                        {options.length > 0 && (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                            {options.map((opt) => (
+                              <button
+                                key={opt}
+                                type="button"
+                                style={{
+                                  padding: "2px 6px",
+                                  borderRadius: 4,
+                                  fontSize: 10,
+                                  border: "1px dashed var(--line, #cbd5e1)",
+                                  background: "var(--nav-hover, #f8fafc)",
+                                  color: "var(--ink)",
+                                  cursor: "pointer",
+                                }}
+                                onClick={(e) => {
+                                  const input = document.getElementById(`field-${field.id}`) as HTMLInputElement | null;
+                                  if (!input) return;
+                                  const current = input.value.split(",").map((s) => s.trim()).filter(Boolean);
+                                  if (current.includes(opt)) {
+                                    input.value = current.filter((s) => s !== opt).join(", ");
+                                  } else {
+                                    input.value = [...current, opt].join(", ");
+                                  }
+                                }}
+                                title="Click to toggle option"
+                              >
+                                + {opt}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : field.field_type === "checkbox" ? (
+                      <select id={`field-${field.id}`} name="value" defaultValue={value || "false"}>
+                        <option value="false">No</option>
+                        <option value="true">Yes</option>
+                      </select>
+                    ) : field.field_type === "user" ? (
+                      <select id={`field-${field.id}`} name="value" defaultValue={value}>
+                        <option value="">Unassigned</option>
+                        {members.map((member) => <option key={member.id} value={member.id}>{member.label}</option>)}
+                      </select>
+                    ) : field.field_type === "date" ? (
+                      <DateInput id={`field-${field.id}`} name="value" defaultValue={value} required={field.required}/>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        <input
+                          id={`field-${field.id}`}
+                          name="value"
+                          type={field.field_type === "datetime" ? "datetime-local" : ["number", "currency", "rating", "progress", "duration"].includes(field.field_type) ? "number" : field.field_type === "email" ? "text" : "text"}
+                          defaultValue={value}
+                          required={field.required}
+                          maxLength={field.field_type === "text" || isUrlField ? 2000 : undefined}
+                          step={field.field_type === "rating" || field.field_type === "progress" ? "1" : field.field_type === "currency" ? "0.01" : undefined}
+                          placeholder={isUrlField ? "https://link1.com, https://link2.com" : "Comma-separated values supported"}
+                        />
+                        {(isUrlField || field.field_type === "text" || field.field_type === "email") && (
+                          <small style={{ fontSize: 10, color: "var(--muted)" }}>
+                            Multiple values supported (comma-separated)
+                          </small>
+                        )}
+                      </div>
+                    )}
+                    <button className="mini-save">Save field</button>
+                  </form>
+                );
               })}</div></section>}
             </div>
           </div>

@@ -49,16 +49,17 @@
 [data-color-scheme="dark"] .add-task>summary.add-task-trigger:hover{border-color:var(--green);background:#1a2b22}
 
 /* Task Name Cell & Hover Actions (ClickUp style) */
-.task-title-cell{min-width:280px}
-.task-name-cell-wrap{display:flex;flex-direction:column;gap:3px;position:relative}
-.task-name-row{display:flex;align-items:center;gap:7px;min-height:26px}
-.task-row-checkbox{width:14px;height:14px;border:1px solid var(--line,#d5ded7);border-radius:3px;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;opacity:.6;padding:0;transition:all .12s}
+.task-title-cell{min-width:280px !important;max-width:440px !important;white-space:nowrap !important;overflow:hidden !important}
+.task-name-cell-wrap{display:inline-flex !important;flex-direction:row !important;align-items:center !important;position:relative !important;max-height:26px !important;overflow:hidden !important;white-space:nowrap !important;width:100% !important}
+.task-name-row{display:inline-flex !important;align-items:center !important;gap:6px !important;min-height:26px !important;height:26px !important;max-height:26px !important;flex-wrap:nowrap !important;white-space:nowrap !important;overflow:hidden !important;width:100% !important}
+.task-row-checkbox{width:14px;height:14px;border:1px solid var(--line,#d5ded7);border-radius:3px;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;opacity:.6;padding:0;transition:all .12s;flex:none !important;flex-shrink:0 !important}
 .task-row-checkbox:hover{opacity:1;border-color:var(--green)}
-.task-expand-arrow{color:var(--muted,#6f7d75);opacity:.6;display:inline-flex;cursor:pointer;flex:none}
-.task-status-dot{display:inline-flex;align-items:center;justify-content:center;flex:none}
-.task-title-link{color:var(--ink,#1f2d26);font-size:11.5px;font-weight:600;text-decoration:none;cursor:pointer;line-height:1.3;transition:color .12s}
+.task-expand-arrow{color:var(--muted,#6f7d75);opacity:.6;display:inline-flex;cursor:pointer;flex:none !important;flex-shrink:0 !important}
+.task-status-dot{display:inline-flex;align-items:center;justify-content:center;flex:none !important;flex-shrink:0 !important}
+.task-title-and-badges{display:inline-flex !important;align-items:center !important;gap:5px !important;white-space:nowrap !important;overflow:hidden !important;flex-wrap:nowrap !important;min-width:0 !important;max-height:26px !important}
+.task-title-link{color:var(--ink,#1f2d26);font-size:11.5px;font-weight:600;text-decoration:none;cursor:pointer;line-height:20px;transition:color .12s;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important;display:inline-block !important;max-width:240px !important;vertical-align:middle !important;flex-shrink:1 !important}
 .task-title-link:hover{color:var(--green);text-decoration:underline}
-.task-row-hover-actions{display:inline-flex;align-items:center;gap:3px;opacity:0;transition:opacity .12s ease;margin-left:6px}
+.task-row-hover-actions{display:inline-flex;align-items:center;gap:3px;opacity:0;transition:opacity .12s ease;margin-left:6px;flex-shrink:0 !important}
 .task-data-tr:hover .task-row-hover-actions{opacity:1}
 .task-hover-btn{width:20px;height:20px;border-radius:4px;border:1px solid var(--line,#dfe5e0);background:var(--surface,#fff);color:var(--muted,#6f7d75);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all .12s}
 .task-hover-btn:hover{border-color:var(--green);color:var(--green);background:var(--nav-hover,#f1f6f2)}
@@ -70,10 +71,20 @@
 .quick-subtask-cancel{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1}
 
 /* Linked Docs / Whiteboard / Flowchart Cell */
-.linked-docs-cell{display:flex;align-items:center;gap:4px;min-width:140px}
-.linked-docs-pills{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-.linked-doc-pill{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;border:1px solid var(--line,#dfe5e0);border-radius:5px;background:var(--surface,#fff);font-size:10px;color:var(--ink);cursor:pointer;max-width:130px;transition:all .12s}
+.linked-docs-cell{display:inline-flex !important;align-items:center !important;gap:4px !important;min-width:140px !important;max-height:26px !important;overflow:visible !important;position:relative !important;white-space:nowrap !important}
+.linked-docs-pills{display:inline-flex !important;align-items:center !important;gap:4px !important;flex-wrap:nowrap !important;white-space:nowrap !important;max-height:26px !important;overflow:hidden !important}
+.linked-doc-pill{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;border:1px solid var(--line,#dfe5e0);border-radius:5px;background:var(--surface,#fff);font-size:10px;color:var(--ink);cursor:pointer;max-width:130px;transition:all .12s;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .linked-doc-pill:hover{border-color:var(--green);color:var(--green)}
+.stacked-docs-pill{display:inline-flex;align-items:center;justify-content:center;height:20px;padding:0 6px;border-radius:10px;border:1px solid var(--line,#cbd5e1);background:var(--nav-hover,#f1f5f9);color:var(--muted,#475569);font-size:10px;font-weight:700;cursor:pointer;transition:all .12s ease;flex-shrink:0}
+.stacked-docs-pill:hover{border-color:var(--green,#167c58);color:var(--green,#167c58);background:#edf6f0}
+.stacked-docs-menu{position:absolute;top:calc(100% + 4px);left:0;z-index:200;min-width:190px;max-width:260px;background:var(--surface,#fff);border:1px solid var(--line,#dfe5e0);border-radius:8px;box-shadow:0 10px 28px rgba(0,0,0,.15);display:flex;flex-direction:column;overflow:hidden;padding:4px}
+[data-color-scheme="dark"] .stacked-docs-menu{background:#181b20;border-color:#2a2e36;box-shadow:0 10px 28px rgba(0,0,0,.45)}
+.stacked-docs-menu-header{font-size:9.5px;font-weight:700;text-transform:uppercase;color:var(--muted,#64748b);padding:5px 8px;letter-spacing:.4px;border-bottom:1px solid var(--line,#dfe5e0)}
+[data-color-scheme="dark"] .stacked-docs-menu-header{border-bottom-color:#2a2e36}
+.stacked-docs-menu-list{display:flex;flex-direction:column;gap:1px;max-height:160px;overflow-y:auto;padding-top:3px}
+.stacked-docs-item{display:flex;align-items:center;gap:6px;width:100%;padding:5px 8px;border:0;border-radius:5px;background:transparent;color:var(--ink);font-size:11px;cursor:pointer;text-align:left;transition:all .1s ease}
+.stacked-docs-item:hover{background:var(--nav-hover);color:var(--green)}
+.stacked-docs-item-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
 .pill-type-icon.text-wb{color:#8b5cf6}
 .pill-type-icon.text-fc{color:#3b82f6}
 .pill-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -219,16 +230,12 @@
 .tab-attached-dot{width:6px;height:6px;border-radius:50%;background:#ef4444;margin-left:2px}
 .task-detail-canvas-container{min-height:640px;height:70vh;border:1px solid var(--line);border-radius:12px;overflow:hidden}
 
-/* Subtask tree styling in table */
-.task-data-tr.is-subtask-row{background:#f8faf9;border-left:3px solid #10b981}
-[data-color-scheme="dark"] .task-data-tr.is-subtask-row{background:#15181c;border-left-color:#059669}
-.task-title-cell.is-subtask-title-cell{padding-left:42px !important;position:relative}
-.task-title-cell.is-subtask-title-cell::before{content:"";position:absolute;left:20px;top:0;bottom:50%;width:14px;border-left:2px solid #cbd5e1;border-bottom:2px solid #cbd5e1;border-bottom-left-radius:5px}
-[data-color-scheme="dark"] .task-title-cell.is-subtask-title-cell::before{border-color:#3b4252}
-.subtask-indicator-pill{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;background:#e0f2fe;color:#0369a1;border-radius:4px;padding:1px 5px;display:inline-block;line-height:1.2}
-[data-color-scheme="dark"] .subtask-indicator-pill{background:#0c2e42;color:#7dd3fc}
+/* Subtask styling in table: clean indentation matching ClickUp, no L shape */
+.task-data-tr.is-subtask-row{background:rgba(0,0,0,0.012);border-left:0 !important}
+[data-color-scheme="dark"] .task-data-tr.is-subtask-row{background:rgba(255,255,255,0.015);border-left:0 !important}
+.task-title-cell.is-subtask-title-cell{padding-left:32px !important;position:relative}
 .task-name-cell-wrap.is-subtask-cell{position:relative}
-.task-subtask-branch{display:inline-flex;align-items:center;justify-content:center;color:var(--muted,#6f7d75);flex:none;width:14px}
+.task-meta-indicator{display:inline-flex;align-items:center;color:var(--muted,#64748b);opacity:.75;flex:none}
 .task-expand-arrow{background:transparent;border:0;padding:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:var(--muted,#6f7d75);opacity:.6;transition:transform .15s ease,opacity .15s ease;width:14px;height:14px}
 .task-expand-arrow.has-children{opacity:1;color:var(--ink,#1f2d26)}
 .task-expand-arrow.is-expanded{transform:rotate(90deg)}
@@ -244,6 +251,9 @@
 .task-row-checkbox:not(:disabled):hover .checkbox-box{border-color:var(--green,#176a44);box-shadow:0 0 0 2px rgba(23,106,68,.15)}
 .task-row-checkbox.is-checked .checkbox-box{background:var(--green,#176a44);border-color:var(--green,#176a44);color:#fff}
 .task-title-link.is-completed-title{color:var(--muted,#64748b);text-decoration:line-through}
+.task-type-badge{display:inline-flex;align-items:center;flex:none;padding:2px 6px;border:1px solid var(--line);border-radius:999px;background:var(--nav-hover);color:var(--green);font-size:8px;font-weight:700;line-height:1.3;text-transform:capitalize}
+.task-tag-badge{display:inline-flex;align-items:center;flex:none;max-width:100px;padding:2px 6px;border:1px solid var(--line);border-radius:999px;background:var(--surface-subtle);color:var(--muted);font-size:8px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-tag-count{color:var(--green)}
 
 /* Table worked cell & table timer */
 .table-worked-cell{display:inline-flex;align-items:center;gap:6px}
@@ -294,44 +304,276 @@
 [data-color-scheme="dark"] .remaining-badge.is-exceeded{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.35);color:#f87171}
 .warning-dot{font-size:10px}
 
-/* Frozen / Sticky Task Name Column when horizontally dragging */
-.task-table-wrap {
-  overflow-x: auto;
-  position: relative;
+/* ClickUp full-height application viewport layout */
+html:has(.project-app-shell),
+body:has(.project-app-shell) {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  overflow: hidden !important;
 }
 
-.task-table th:first-child,
-.task-table td:first-child,
-.task-table .task-title-cell {
+.project-app-shell {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  background: var(--paper, #fff);
+}
+
+.project-app-shell .topbar {
+  height: 46px !important;
+  min-height: 46px !important;
+  max-height: 46px !important;
+  padding: 0 16px !important;
+  flex: none !important;
+  border-bottom: 1px solid var(--line);
+}
+
+.project-app-shell .project-page {
+  flex: 1 !important;
+  min-height: 0 !important;
+  height: calc(100vh - 46px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+.project-app-shell .task-panel {
+  flex: 1 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}
+
+.project-app-shell .view-tabs {
+  height: 38px !important;
+  min-height: 38px !important;
+  flex: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0 14px !important;
+  margin: 0 !important;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface, #fff);
+}
+
+.project-app-shell .view-tabs a {
+  padding: 8px 10px !important;
+  font-size: 11px !important;
+}
+
+.project-app-shell .task-toolbar-container {
+  padding: 6px 14px !important;
+  flex: none !important;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface, #fff);
+}
+
+/* Frozen / Sticky Task Name Column when horizontally dragging (ClickUp style) */
+.task-table-outer {
+  position: relative !important;
+  width: 100% !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.task-table-wrap {
+  flex: 1 !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  position: relative !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #94a3b8 #f1f5f9 !important;
+}
+
+.task-table-wrap::-webkit-scrollbar {
+  width: 8px !important;
+  height: 10px !important;
+  display: block !important;
+}
+
+.task-table-wrap::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+}
+
+.task-table-wrap::-webkit-scrollbar-thumb {
+  background: #94a3b8 !important;
+  border-radius: 5px !important;
+  border: 2px solid #f1f5f9 !important;
+}
+
+.task-table-wrap::-webkit-scrollbar-thumb:hover {
+  background: #64748b !important;
+}
+
+[data-color-scheme="dark"] .task-table-wrap {
+  scrollbar-color: #475569 #111317 !important;
+}
+
+[data-color-scheme="dark"] .task-table-wrap::-webkit-scrollbar-track {
+  background: #111317 !important;
+}
+
+[data-color-scheme="dark"] .task-table-wrap::-webkit-scrollbar-thumb {
+  background: #475569 !important;
+  border-color: #111317 !important;
+}
+
+.task-table {
+  width: 100%;
+  min-width: 1400px;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+/* Frozen thead to top of scroll container */
+.task-table thead th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10 !important;
+  background: var(--surface, #fff) !important;
+  border-bottom: 1.5px solid var(--line, #e2e8f0) !important;
+  height: 36px !important;
+  padding: 6px 10px !important;
+  vertical-align: middle !important;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  color: var(--muted, #64748b);
+  white-space: nowrap;
+}
+
+/* First column (Task Name) is frozen on the left */
+.task-table thead th:first-child {
+  position: sticky !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 15 !important;
+  background: var(--surface, #fff) !important;
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.05);
+}
+
+.task-table tbody tr.task-data-tr > td.task-title-cell,
+.task-table tbody tr.inline-task-tr > td.task-title-cell,
+.task-table tbody tr.inline-add-task-idle-tr > td.task-title-cell {
   position: sticky !important;
   left: 0 !important;
-  z-index: 4 !important;
+  z-index: 5 !important;
   background: var(--paper, #fff) !important;
   box-shadow: 2px 0 6px rgba(0, 0, 0, 0.05);
 }
 
-.task-table th:first-child {
-  z-index: 6 !important;
-  background: #f8faf9 !important;
+/* Uniform compact row heights */
+.task-table tbody tr {
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
 }
 
-.task-table tr:hover td:first-child,
-.task-table tr:hover .task-title-cell {
-  background: #f4f7f5 !important;
+.task-table tbody tr td {
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  padding: 0 10px !important;
+  vertical-align: middle !important;
+  font-size: 11.5px !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 
-[data-color-scheme="dark"] .task-table td:first-child,
-[data-color-scheme="dark"] .task-table .task-title-cell {
+.task-table tbody tr td > * {
+  max-height: 26px !important;
+  white-space: nowrap !important;
+}
+
+/* Allow popover menus (Priority, Status, Linked Docs, Assignees) to float over table rows without expanding row height */
+.task-table tbody tr td:has(.priority-dropdown-wrap),
+.task-table tbody tr td:has(.status-dropdown-wrap),
+.task-table tbody tr td:has(.linked-docs-cell),
+.task-table tbody tr td:has(.compact-assignee-cell),
+.task-table tbody tr td:has(.task-estimate-cell-wrap),
+.task-table tbody tr td:has(.custom-links-cell),
+.task-table tbody tr td:has(.custom-multivalue-cell),
+.task-table tbody tr td.custom-value-cell,
+.task-table tbody tr td.priority-td,
+.task-table tbody tr td.status-td,
+.task-table tbody tr td.linked-docs-td {
+  overflow: visible !important;
+}
+
+/* DO NOT make colSpan cells sticky (prevents table from warping or moving on scroll) */
+.task-table td[colspan],
+.task-table td.status-group-td,
+.task-table td.inline-add-task-empty {
+  position: static !important;
+  box-shadow: none !important;
+}
+
+/* Make inner group header sticky so pill stays visible on horizontal scroll */
+.status-group-header {
+  position: sticky;
+  left: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 3;
+}
+
+.task-table tr:hover td.task-title-cell {
+  background: var(--nav-hover, #f4f7f5) !important;
+}
+
+[data-color-scheme="dark"] .task-table thead th {
+  background: #131519 !important;
+  border-bottom-color: #272a30 !important;
+}
+
+[data-color-scheme="dark"] .task-table thead th:first-child {
+  background: #131519 !important;
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.45);
+}
+
+[data-color-scheme="dark"] .task-table tbody tr.task-data-tr > td.task-title-cell,
+[data-color-scheme="dark"] .task-table tbody tr.inline-task-tr > td.task-title-cell,
+[data-color-scheme="dark"] .task-table tbody tr.inline-add-task-idle-tr > td.task-title-cell {
   background: #16191f !important;
-  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.35);
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.45);
 }
 
-[data-color-scheme="dark"] .task-table th:first-child {
-  background: #111317 !important;
-}
-
-[data-color-scheme="dark"] .task-table tr:hover td:first-child,
-[data-color-scheme="dark"] .task-table tr:hover .task-title-cell {
+[data-color-scheme="dark"] .task-table tr:hover td.task-title-cell {
   background: #1e222a !important;
 }
 
+.kanban-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.kanban-card-heading .task-key {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

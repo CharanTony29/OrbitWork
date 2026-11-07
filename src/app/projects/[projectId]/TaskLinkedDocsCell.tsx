@@ -35,6 +35,7 @@ export default function TaskLinkedDocsCell({
   canEdit?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [stackedMenuOpen, setStackedMenuOpen] = useState(false);
   const [modalState, setModalState] = useState<{
     open: boolean;
     type: "whiteboard" | "flowchart";
@@ -49,6 +50,7 @@ export default function TaskLinkedDocsCell({
     function handleClickOutside(e: MouseEvent) {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
+        setStackedMenuOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -92,35 +94,51 @@ export default function TaskLinkedDocsCell({
     setMenuOpen(false);
   };
 
+  const renderPill = (att: TaskAttachmentItem) => {
+    const isWb =
+      att.mime_type.includes("whiteboard") || att.file_name.toLowerCase().includes("whiteboard");
+    const isFc =
+      att.mime_type.includes("flowchart") || att.file_name.toLowerCase().includes("flowchart");
+
+    return (
+      <button
+        key={att.id}
+        type="button"
+        className="linked-doc-pill"
+        onClick={() => openExistingCanvas(att)}
+        title={`Open ${att.file_name}`}
+      >
+        {isWb ? (
+          <Layout size={11} className="pill-type-icon text-wb" />
+        ) : isFc ? (
+          <GitBranch size={11} className="pill-type-icon text-fc" />
+        ) : (
+          <FileText size={11} className="pill-type-icon" />
+        )}
+        <span className="pill-name">{att.file_name}</span>
+      </button>
+    );
+  };
+
   return (
-    <div className="linked-docs-cell" ref={wrapRef}>
+    <div className="linked-docs-cell" ref={wrapRef} style={{ position: "relative", overflow: "visible" }}>
       {/* Existing Attached Badges */}
       <div className="linked-docs-pills">
-        {attachments.map((att) => {
-          const isWb =
-            att.mime_type.includes("whiteboard") || att.file_name.toLowerCase().includes("whiteboard");
-          const isFc =
-            att.mime_type.includes("flowchart") || att.file_name.toLowerCase().includes("flowchart");
+        {attachments.length > 0 && renderPill(attachments[0])}
 
-          return (
-            <button
-              key={att.id}
-              type="button"
-              className="linked-doc-pill"
-              onClick={() => openExistingCanvas(att)}
-              title={`Open ${att.file_name}`}
-            >
-              {isWb ? (
-                <Layout size={11} className="pill-type-icon text-wb" />
-              ) : isFc ? (
-                <GitBranch size={11} className="pill-type-icon text-fc" />
-              ) : (
-                <FileText size={11} className="pill-type-icon" />
-              )}
-              <span className="pill-name">{att.file_name}</span>
-            </button>
-          );
-        })}
+        {attachments.length > 1 && (
+          <button
+            type="button"
+            className="stacked-docs-pill"
+            onClick={(e) => {
+              e.stopPropagation();
+              setStackedMenuOpen(!stackedMenuOpen);
+            }}
+            title={`${attachments.length} attached items (click to view all)`}
+          >
+            +{attachments.length - 1}
+          </button>
+        )}
 
         {/* Plus Button to add or link */}
         {canEdit && (
@@ -173,7 +191,7 @@ export default function TaskLinkedDocsCell({
                           onClick={() => handleLinkDoc(doc.id)}
                         >
                           <FileText size={12} />
-                          <span className="truncate">{doc.title}</span>
+                          <span>{doc.title}</span>
                         </button>
                       ))}
                     </div>
@@ -184,6 +202,78 @@ export default function TaskLinkedDocsCell({
           </div>
         )}
       </div>
+
+      {/* Floating Stacked Menu (outside overflow:hidden container so it is fully visible) */}
+      {stackedMenuOpen && (
+        <div
+          className="stacked-docs-menu"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            zIndex: 9999,
+            minWidth: 200,
+            maxWidth: 280,
+            background: "var(--surface, #fff)",
+            border: "1px solid var(--line, #cbd5e1)",
+            borderRadius: 8,
+            boxShadow: "0 10px 28px rgba(0,0,0,0.18)",
+            padding: 4,
+            display: "flex",
+            flexDirection: "column",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="stacked-docs-menu-header" style={{ padding: "6px 8px", fontSize: 10, fontWeight: 700, color: "var(--muted)", borderBottom: "1px solid var(--line)" }}>
+            Attached Items ({attachments.length})
+          </div>
+          <div className="stacked-docs-menu-list" style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2, paddingTop: 4 }}>
+            {attachments.map((att) => {
+              const isWb =
+                att.mime_type.includes("whiteboard") || att.file_name.toLowerCase().includes("whiteboard");
+              const isFc =
+                att.mime_type.includes("flowchart") || att.file_name.toLowerCase().includes("flowchart");
+              return (
+                <button
+                  key={att.id}
+                  type="button"
+                  className="stacked-docs-item"
+                  onClick={() => {
+                    setStackedMenuOpen(false);
+                    openExistingCanvas(att);
+                  }}
+                  title={`Open ${att.file_name}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 8px",
+                    border: 0,
+                    borderRadius: 5,
+                    background: "transparent",
+                    color: "var(--ink)",
+                    fontSize: 11,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    width: "100%",
+                  }}
+                >
+                  {isWb ? (
+                    <Layout size={12} className="pill-type-icon text-wb" style={{ flexShrink: 0 }} />
+                  ) : isFc ? (
+                    <GitBranch size={12} className="pill-type-icon text-fc" style={{ flexShrink: 0 }} />
+                  ) : (
+                    <FileText size={12} className="pill-type-icon" style={{ flexShrink: 0 }} />
+                  )}
+                  <span className="stacked-docs-item-name" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {att.file_name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Canvas Modal */}
       {modalState.open && (

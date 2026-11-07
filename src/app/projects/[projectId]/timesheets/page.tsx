@@ -146,9 +146,6 @@ export default async function ProjectTimesheetsPage({
         </Link>
         <div className="topbar-right">
           <CurrentUserBadge email={user.email ?? ""} />
-          <form action={signOut}>
-            <button className="quiet-button">Sign out</button>
-          </form>
         </div>
       </header>
 

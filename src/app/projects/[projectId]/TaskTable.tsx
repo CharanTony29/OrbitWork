@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquare } from "lucide-react";
-import { useTransition, useRef, useState, useCallback, Fragment } from "react";
+import { MessageSquare, ExternalLink, ChevronDown, ChevronRight, Flag, Calendar, Layers, List, Check } from "lucide-react";
+import { useTransition, useRef, useState, useCallback, useEffect, Fragment } from "react";
 import { updateTaskField, updateTaskStatus } from "@/app/actions";
 import AssigneePicker from "./AssigneePicker";
 import AddColumnButton from "./AddColumnButton";
@@ -22,6 +22,8 @@ type TaskRow = {
   id: string;
   generated_key: string;
   title: string;
+  task_type?: string;
+  tags?: string[];
   description: string;
   priority: "low" | "normal" | "high" | "urgent";
   due_date: string | null;
@@ -36,6 +38,351 @@ type TaskRow = {
 type WorkflowStatus = { id: string; name: string; color: string };
 type Person = { id: string; label: string };
 type CustomField = { id: string; name: string; field_type: string };
+
+const AVATAR_COLORS = [
+  "#167c58",
+  "#2563eb",
+  "#d97706",
+  "#dc2626",
+  "#9333ea",
+  "#0891b2",
+  "#4f46e5",
+  "#e11d48",
+];
+
+function getAvatarColor(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash << 5) - hash + id.charCodeAt(i);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+const PRIORITY_META: Record<string, { label: string; color: string }> = {
+  urgent: { label: "Urgent", color: "#ef4444" },
+  high: { label: "High", color: "#f59e0b" },
+  normal: { label: "Normal", color: "#3b82f6" },
+  low: { label: "Low", color: "#94a3b8" },
+};
+
+function getStatusColor(status?: { name?: string; color?: string; category?: string }) {
+  if (status?.color && status.color !== "#87938b" && status.color !== "#526057") return status.color;
+  const name = (status?.name ?? "").toLowerCase();
+  if (name.includes("complete") || name.includes("done") || name.includes("closed") || status?.category === "completed") {
+    return "#167c58";
+  }
+  if (name.includes("progress") || name.includes("doing") || status?.category === "in_progress") {
+    return "#2563eb";
+  }
+  if (name.includes("hold") || name.includes("block") || name.includes("wait")) {
+    return "#d97706";
+  }
+  if (name.includes("reject") || name.includes("cancel") || status?.category === "cancelled") {
+    return "#dc2626";
+  }
+  if (name.includes("review") || name.includes("qa") || name.includes("test")) {
+    return "#9333ea";
+  }
+  return "#64748b"; // New / Default slate
+}
+
+function PriorityPickerCell({
+  projectId,
+  taskId,
+  priority: initialPriority,
+  canEdit = true,
+}: {
+  projectId: string;
+  taskId: string;
+  priority: "low" | "normal" | "high" | "urgent";
+  canEdit?: boolean;
+}) {
+  const [priority, setPriority] = useState(initialPriority);
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setPriority(initialPriority);
+  }, [initialPriority]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [open]);
+
+  const currentMeta = PRIORITY_META[priority] ?? PRIORITY_META.normal;
+
+  const handleSelect = (next: "low" | "normal" | "high" | "urgent") => {
+    setPriority(next);
+    setOpen(false);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("projectId", projectId);
+      fd.set("taskId", taskId);
+      fd.set("field", "priority");
+      fd.set("value", next);
+      await updateTaskField(fd);
+    });
+  };
+
+  if (!canEdit) {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 5,
+          color: currentMeta.color,
+          fontSize: 11.5,
+          fontWeight: 600,
+        }}
+      >
+        <Flag size={11} fill={currentMeta.color} color={currentMeta.color} />
+        <span>{currentMeta.label}</span>
+      </span>
+    );
+  }
+
+  return (
+    <div ref={ref} className="priority-dropdown-wrap" style={{ position: "relative", display: "inline-flex" }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="priority-trigger-btn"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 5,
+          height: 24,
+          padding: "2px 8px",
+          border: "1px solid var(--line, #dfe5e0)",
+          borderRadius: 6,
+          background: "var(--surface, #fff)",
+          color: currentMeta.color,
+          fontSize: 11.5,
+          fontWeight: 600,
+          cursor: "pointer",
+          transition: "all .12s ease",
+          whiteSpace: "nowrap",
+        }}
+        title={`Priority: ${currentMeta.label}`}
+      >
+        <Flag size={11} fill={currentMeta.color} color={currentMeta.color} />
+        <span>{currentMeta.label}</span>
+      </button>
+
+      {open && (
+        <div
+          className="priority-popover-menu"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            zIndex: 9999,
+            minWidth: 120,
+            background: "var(--surface, #fff)",
+            border: "1px solid var(--line, #cbd5e1)",
+            borderRadius: 8,
+            boxShadow: "0 10px 28px rgba(0,0,0,0.16)",
+            padding: "4px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {(["urgent", "high", "normal", "low"] as const).map((p) => {
+            const meta = PRIORITY_META[p];
+            const isSelected = priority === p;
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => handleSelect(p)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "6px 8px",
+                  border: 0,
+                  borderRadius: 6,
+                  background: isSelected ? "var(--nav-hover, #f1f5f9)" : "transparent",
+                  color: "var(--ink, #1e293b)",
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? 700 : 500,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  width: "100%",
+                }}
+              >
+                {isSelected ? <Check size={12} color="var(--green, #167c58)" /> : <span style={{ width: 12 }} />}
+                <Flag size={12} fill={meta.color} color={meta.color} />
+                <span style={{ color: meta.color, fontWeight: 600 }}>{meta.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatusPickerCell({
+  projectId,
+  taskId,
+  statusId: initialStatusId,
+  statuses,
+  canEdit = true,
+}: {
+  projectId: string;
+  taskId: string;
+  statusId: string;
+  statuses: WorkflowStatus[];
+  canEdit?: boolean;
+}) {
+  const [statusId, setStatusId] = useState(initialStatusId);
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setStatusId(initialStatusId);
+  }, [initialStatusId]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [open]);
+
+  const currentStatus = statuses.find((s) => s.id === statusId) || statuses[0];
+  const currentColor = getStatusColor(currentStatus);
+
+  const handleSelect = (nextId: string) => {
+    setStatusId(nextId);
+    setOpen(false);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("projectId", projectId);
+      fd.set("taskId", taskId);
+      fd.set("statusId", nextId);
+      await updateTaskStatus(fd);
+    });
+  };
+
+  return (
+    <div ref={ref} className="status-dropdown-wrap" style={{ position: "relative", display: "inline-flex" }}>
+      <button
+        type="button"
+        onClick={() => canEdit && setOpen(!open)}
+        disabled={!canEdit}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          height: 24,
+          padding: "2px 8px",
+          border: `1px solid ${currentColor}40`,
+          borderRadius: 6,
+          background: `${currentColor}15`,
+          color: currentColor,
+          fontSize: 11,
+          fontWeight: 700,
+          cursor: canEdit ? "pointer" : "default",
+          transition: "all .12s ease",
+          whiteSpace: "nowrap",
+        }}
+        title={`Status: ${currentStatus?.name ?? "Status"}`}
+      >
+        <span
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            backgroundColor: currentColor,
+            flexShrink: 0,
+          }}
+        />
+        <span>{currentStatus?.name ?? "Status"}</span>
+      </button>
+
+      {open && (
+        <div
+          className="status-popover-menu"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            zIndex: 9999,
+            minWidth: 150,
+            background: "var(--surface, #fff)",
+            border: "1px solid var(--line, #cbd5e1)",
+            borderRadius: 8,
+            boxShadow: "0 10px 28px rgba(0,0,0,0.16)",
+            padding: "4px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {statuses.map((status) => {
+            const isSelected = status.id === statusId;
+            const color = getStatusColor(status);
+            return (
+              <button
+                key={status.id}
+                type="button"
+                onClick={() => handleSelect(status.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "6px 8px",
+                  border: 0,
+                  borderRadius: 6,
+                  background: isSelected ? `${color}18` : "transparent",
+                  color: isSelected ? color : "var(--ink, #1e293b)",
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? 700 : 500,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  width: "100%",
+                }}
+              >
+                {isSelected ? <Check size={12} color={color} /> : <span style={{ width: 12 }} />}
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    backgroundColor: color,
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ fontWeight: 600 }}>{status.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function AutosaveSelect({
   action,
@@ -166,6 +513,312 @@ function AutosaveInput({
   );
 }
 
+function parseUrls(text: string): { label: string; href: string }[] {
+  if (!text) return [];
+  const tokens = text.split(/[\s,;]+/).filter(Boolean);
+  const links: { label: string; href: string }[] = [];
+  for (const token of tokens) {
+    const clean = token.trim();
+    if (/^https?:\/\//i.test(clean)) {
+      try {
+        const url = new URL(clean);
+        const domain = url.hostname.replace(/^www\./, "");
+        const path = url.pathname !== "/" ? url.pathname : "";
+        links.push({ label: domain + (path.length > 15 ? path.slice(0, 15) + "…" : path), href: clean });
+      } catch {
+        links.push({ label: clean, href: clean });
+      }
+    } else if (/^www\./i.test(clean) || /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/.*)?$/i.test(clean)) {
+      links.push({ label: clean, href: `https://${clean}` });
+    }
+  }
+  return links;
+}
+
+function CustomFieldCell({
+  fieldType,
+  val,
+}: {
+  fieldType: string;
+  val: string | undefined;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [open]);
+
+  if (!val) return <span className="muted">—</span>;
+  const trimmed = val.trim();
+  const isUrlField = fieldType === "url" || fieldType === "link";
+  const links = parseUrls(trimmed);
+
+  if (isUrlField || links.length > 0) {
+    if (links.length > 1) {
+      const first = links[0];
+      const remainingCount = links.length - 1;
+      return (
+        <div ref={ref} className="custom-links-cell" style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+          <a
+            href={first.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "3px",
+              padding: "2px 6px",
+              background: "rgba(22, 124, 88, 0.08)",
+              color: "var(--green, #167c58)",
+              borderRadius: "4px",
+              fontSize: "11px",
+              fontWeight: 600,
+              textDecoration: "none",
+              maxWidth: 130,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+            title={`Open ${first.href}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{first.label}</span>
+            <ExternalLink size={10} style={{ flexShrink: 0 }} />
+          </a>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(!open);
+            }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "1px 6px",
+              height: 20,
+              borderRadius: "4px",
+              background: "var(--nav-hover, #e2e8f0)",
+              color: "var(--muted, #475569)",
+              fontSize: "10px",
+              fontWeight: 700,
+              border: 0,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+            title={`${links.length} links (click to view all)`}
+          >
+            +{remainingCount}
+          </button>
+
+          {open && (
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 4px)",
+                left: 0,
+                zIndex: 9999,
+                minWidth: 180,
+                maxWidth: 280,
+                background: "var(--surface, #fff)",
+                border: "1px solid var(--line, #cbd5e1)",
+                borderRadius: 8,
+                boxShadow: "0 10px 28px rgba(0,0,0,0.18)",
+                padding: "6px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", padding: "2px 6px", borderBottom: "1px solid var(--line)" }}>
+                Attached Links ({links.length})
+              </div>
+              <div style={{ maxHeight: 160, overflowY: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
+                {links.map((link, idx) => (
+                  <a
+                    key={idx}
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 6,
+                      padding: "5px 8px",
+                      borderRadius: 4,
+                      fontSize: 11,
+                      color: "var(--green, #167c58)",
+                      textDecoration: "none",
+                      background: "rgba(22, 124, 88, 0.04)",
+                    }}
+                    title={link.href}
+                  >
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{link.label}</span>
+                    <ExternalLink size={10} style={{ flexShrink: 0 }} />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+    const single = links[0] || { label: trimmed, href: trimmed.startsWith("http") ? trimmed : `https://${trimmed}` };
+    return (
+      <a
+        href={single.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          color: "var(--green, #167c58)",
+          textDecoration: "underline",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          fontWeight: 600,
+        }}
+        title={`Open URL: ${single.href}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {single.label}
+        </span>
+        <ExternalLink size={11} />
+      </a>
+    );
+  }
+
+  // Multi-values (comma-separated tags / multi-select items)
+  const items = trimmed.split(/,\s*/).filter(Boolean);
+  if (items.length > 1) {
+    const first = items[0];
+    const remainingCount = items.length - 1;
+    return (
+      <div ref={ref} className="custom-multivalue-cell" style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "2px 7px",
+            background: "var(--nav-hover, #f1f5f9)",
+            color: "var(--ink, #1e293b)",
+            border: "1px solid var(--line, #cbd5e1)",
+            borderRadius: "4px",
+            fontSize: "11px",
+            fontWeight: 600,
+            maxWidth: 120,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+          title={first}
+        >
+          {first}
+        </span>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(!open);
+          }}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1px 6px",
+            height: 20,
+            borderRadius: "4px",
+            background: "var(--nav-hover, #e2e8f0)",
+            color: "var(--muted, #475569)",
+            fontSize: "10px",
+            fontWeight: 700,
+            border: 0,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
+          title={`${items.length} values (click to view all)`}
+        >
+          +{remainingCount}
+        </button>
+
+        {open && (
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              left: 0,
+              zIndex: 9999,
+              minWidth: 160,
+              maxWidth: 240,
+              background: "var(--surface, #fff)",
+              border: "1px solid var(--line, #cbd5e1)",
+              borderRadius: 8,
+              boxShadow: "0 10px 28px rgba(0,0,0,0.18)",
+              padding: "6px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", padding: "2px 6px", borderBottom: "1px solid var(--line)" }}>
+              Values ({items.length})
+            </div>
+            <div style={{ maxHeight: 160, overflowY: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
+              {items.map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    background: "var(--nav-hover, #f8fafc)",
+                    color: "var(--ink, #1e293b)",
+                    border: "1px solid var(--line, #e2e8f0)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={item}
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (fieldType === "email" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    return (
+      <a
+        href={`mailto:${trimmed}`}
+        style={{ color: "var(--green, #167c58)", textDecoration: "underline" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {trimmed}
+      </a>
+    );
+  }
+
+  return <span>{trimmed}</span>;
+}
+
 export default function TaskTable({
   projectId,
   canEdit = true,
@@ -179,6 +832,7 @@ export default function TaskTable({
   projectDocuments = [],
   commentCounts,
   runningTimerMap,
+  initialGroupBy = "status",
 }: {
   projectId: string;
   canEdit?: boolean;
@@ -192,12 +846,22 @@ export default function TaskTable({
   projectDocuments?: AvailableProjectDoc[];
   commentCounts?: Map<string, number>;
   runningTimerMap?: Map<string, { id: string; started_at: string; billable?: boolean }>;
+  initialGroupBy?: "status" | "priority" | "due_date" | "none";
 }) {
+  const [groupBy, setGroupBy] = useState<"status" | "priority" | "due_date" | "none">(initialGroupBy);
   const [activeCommentsTask, setActiveCommentsTask] = useState<{
     id: string;
     key: string;
     title: string;
   } | null>(null);
+
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (initialGroupBy) {
+      setGroupBy(initialGroupBy);
+    }
+  }, [initialGroupBy]);
 
   const statusMap = new Map(statuses.map((s) => [s.id, s]));
 
@@ -234,6 +898,29 @@ export default function TaskTable({
     });
   };
 
+  // Collapsed groups tracking
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    const set = new Set<string>();
+    for (const s of statuses) {
+      if (
+        s.name.toLowerCase().includes("complete") ||
+        s.name.toLowerCase().includes("closed")
+      ) {
+        set.add(s.id);
+      }
+    }
+    return set;
+  });
+
+  const toggleGroup = (groupId: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
   const completedStatus =
     statuses.find(
       (s) =>
@@ -250,6 +937,8 @@ export default function TaskTable({
         s.name.toLowerCase().includes("open")
     ) || statuses[0];
 
+  const colSpanCount = 13 + customFields.length;
+
   const renderTaskRow = (task: TaskRow, isSubtask = false, subtasks: TaskRow[] = []) => {
     const currentStatus = statusMap.get(task.status_id);
     const count = commentCounts?.get(task.id) ?? 0;
@@ -258,22 +947,26 @@ export default function TaskTable({
       currentStatus?.name.toLowerCase().includes("done") ||
       currentStatus?.name.toLowerCase().includes("closed")
     );
+    const hasAttachments = Boolean((attachmentsMap?.get(task.id)?.length ?? 0) > 0);
 
     return (
       <tr key={task.id} className={`task-data-tr${isSubtask ? " is-subtask-row" : ""}`}>
-        {/* Task Name — clean text with hover actions for subtasks and edit */}
+        {/* Task Name — clean text, indented subtask without L-shape, meta icons */}
         <td className={`task-title-cell${isSubtask ? " is-subtask-title-cell" : ""}`}>
           <TaskNameCell
             projectId={projectId}
             taskId={task.id}
             taskKey={task.generated_key}
             title={task.title}
+            taskType={task.task_type ?? "task"}
+            tags={task.tags ?? []}
             description={task.description}
-            statusColor={currentStatus?.color}
+            statusColor={getStatusColor(currentStatus)}
             hasSubtasks={subtasks.length > 0}
             isExpanded={expandedTaskIds.has(task.id)}
             onToggleExpand={() => toggleExpand(task.id)}
             subtaskCount={subtasks.length}
+            hasAttachments={hasAttachments}
             isSubtask={isSubtask}
             canEdit={canEdit}
             isCompleted={isCompleted}
@@ -282,10 +975,7 @@ export default function TaskTable({
           />
         </td>
 
-        {/* Created by */}
-        <td>{createdBy.get(task.created_by) ?? "Team member"}</td>
-
-        {/* Assignees — numbered multi-picker or static badges for viewers */}
+        {/* Assignees — compact circular avatar badges (ClickUp style) */}
         <td>
           {canEdit ? (
             <AssigneePicker
@@ -296,88 +986,41 @@ export default function TaskTable({
               initialAssignees={task.assigneeIds}
             />
           ) : (
-            <div className="assignees-static-list" style={{ display: "flex", gap: "4px", flexWrap: "wrap", fontSize: "12px" }}>
+            <div style={{ display: "inline-flex", alignItems: "center" }}>
               {task.assigneeIds.length ? (
-                task.assigneeIds.map((id) => {
+                task.assigneeIds.slice(0, 3).map((id, idx) => {
                   const m = members.find((x) => x.id === id);
                   return (
-                    <span key={id} className="assignee-pill-static" style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: "4px", color: "#334155" }}>
-                      {m?.label ?? "Team member"}
+                    <span
+                      key={id}
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: "50%",
+                        backgroundColor: getAvatarColor(id),
+                        color: "#ffffff",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginLeft: idx > 0 ? -6 : 0,
+                        border: "1.5px solid var(--paper, #ffffff)",
+                      }}
+                      title={m?.label ?? "Team member"}
+                    >
+                      {(m?.label ?? "T").charAt(0).toUpperCase()}
                     </span>
                   );
                 })
               ) : (
-                <span style={{ color: "#94a3b8" }}>Unassigned</span>
+                <span style={{ color: "var(--muted, #94a3b8)", fontSize: "11px" }}>—</span>
               )}
             </div>
           )}
         </td>
 
-        {/* Status — autosave on change or static pill for viewers */}
-        <td>
-          {canEdit ? (
-            <form className="sheet-edit">
-              <input type="hidden" name="projectId" value={projectId} />
-              <input type="hidden" name="taskId" value={task.id} />
-              <AutosaveSelect
-                action={updateTaskStatus}
-                name="statusId"
-                value={task.status_id}
-                ariaLabel={`Status for ${task.title}`}
-              >
-                {statuses.map((status) => (
-                  <option key={status.id} value={status.id}>
-                    {status.name}
-                  </option>
-                ))}
-              </AutosaveSelect>
-            </form>
-          ) : (
-            <span
-              className="status-pill-static"
-              style={{
-                border: `1px solid ${currentStatus?.color ?? "#cbd5cd"}`,
-                color: currentStatus?.color ?? "#526057",
-                background: `${currentStatus?.color ?? "#526057"}18`,
-                padding: "3px 8px",
-                borderRadius: "6px",
-                fontSize: "12px",
-                fontWeight: 500,
-                display: "inline-block",
-              }}
-            >
-              {currentStatus?.name ?? "Unknown"}
-            </span>
-          )}
-        </td>
-
-        {/* Priority — autosave on change or static pill for viewers */}
-        <td>
-          {canEdit ? (
-            <form className="sheet-edit">
-              <input type="hidden" name="projectId" value={projectId} />
-              <input type="hidden" name="taskId" value={task.id} />
-              <input type="hidden" name="field" value="priority" />
-              <AutosaveSelect
-                action={updateTaskField}
-                name="value"
-                value={task.priority}
-                ariaLabel={`Priority for ${task.title}`}
-              >
-                <option value="low">Low</option>
-                <option value="normal">Normal</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </AutosaveSelect>
-            </form>
-          ) : (
-            <span className={`priority-pill-static priority-${task.priority}`} style={{ textTransform: "capitalize", fontSize: "12px" }}>
-              {task.priority}
-            </span>
-          )}
-        </td>
-
-        {/* Due date — autosave on change or static text for viewers */}
+        {/* Due date */}
         <td>
           {canEdit ? (
             <form className="sheet-edit">
@@ -399,7 +1042,31 @@ export default function TaskTable({
           )}
         </td>
 
-        {/* Estimate — interactive unit selector or static for viewers */}
+        {/* Priority — colored flag pill */}
+        <td className="priority-td">
+          <PriorityPickerCell
+            projectId={projectId}
+            taskId={task.id}
+            priority={task.priority}
+            canEdit={canEdit}
+          />
+        </td>
+
+        {/* Status — colored pill & popup */}
+        <td className="status-td">
+          <StatusPickerCell
+            projectId={projectId}
+            taskId={task.id}
+            statusId={task.status_id}
+            statuses={statuses}
+            canEdit={canEdit}
+          />
+        </td>
+
+        {/* Created by */}
+        <td>{createdBy.get(task.created_by) ?? "Team member"}</td>
+
+        {/* Estimate */}
         <td>
           <TaskEstimateCell
             projectId={projectId}
@@ -429,7 +1096,7 @@ export default function TaskTable({
           </div>
         </td>
 
-        {/* Hours Left / Added (Remaining from estimate) */}
+        {/* Hours Left / Added */}
         {(() => {
           const rem = formatRemaining(task.estimate_minutes, task.billable_minutes);
           let badgeClass = "remaining-badge is-none";
@@ -455,7 +1122,7 @@ export default function TaskTable({
           );
         })()}
 
-        {/* Linked Docs / Whiteboard / Flowchart */}
+        {/* Linked Docs */}
         <td>
           <TaskLinkedDocsCell
             projectId={projectId}
@@ -470,11 +1137,14 @@ export default function TaskTable({
         {/* Custom fields */}
         {customFields.map((field) => (
           <td className="custom-value-cell" key={field.id}>
-            {customValues.get(task.id)?.get(field.id) ?? <span className="muted">—</span>}
+            <CustomFieldCell
+              fieldType={field.field_type}
+              val={customValues.get(task.id)?.get(field.id)}
+            />
           </td>
         ))}
 
-        {/* Comments / Discussion Column — opens modal in place, full details link removed */}
+        {/* Comments */}
         <td>
           <button
             type="button"
@@ -498,70 +1168,366 @@ export default function TaskTable({
     );
   };
 
-  return (
-    <div className="task-table-wrap">
-      <table className="task-table">
-        <thead>
-          <tr>
-            <th>Task</th>
-            <th>Created by</th>
-            <th>Assignees</th>
-            <th>Status</th>
-            <th>Priority</th>
-            <th>Due date</th>
-            <th>Estimate</th>
-            <th>Worked (Billable)</th>
-            <th>Remaining</th>
-            <th>Linked Docs</th>
-            {customFields.map((field) => (
-              <th key={field.id}>{field.name}</th>
-            ))}
-            <th>Comments</th>
-            {canEdit ? <AddColumnButton projectId={projectId} /> : <th className="add-col-empty-cell" />}
+  // --- Render Priority Groups (Matching Image 2) ---
+  const renderPriorityGroups = () => {
+    const PRIORITY_GROUPS: Array<{
+      key: "urgent" | "high" | "normal" | "low" | "none";
+      label: string;
+      flagColor: string;
+    }> = [
+      { key: "urgent", label: "Urgent", flagColor: "#ef4444" },
+      { key: "high", label: "High", flagColor: "#f59e0b" },
+      { key: "normal", label: "Normal", flagColor: "#3b82f6" },
+      { key: "low", label: "Low", flagColor: "#94a3b8" },
+      { key: "none", label: "No Priority", flagColor: "#cbd5e1" },
+    ];
+
+    const tasksByPriority = new Map<string, TaskRow[]>();
+    PRIORITY_GROUPS.forEach((g) => tasksByPriority.set(g.key, []));
+
+    parentTasks.forEach((t) => {
+      const p = t.priority && ["urgent", "high", "normal", "low"].includes(t.priority) ? t.priority : "none";
+      tasksByPriority.get(p)!.push(t);
+    });
+
+    return PRIORITY_GROUPS.map((grp) => {
+      const groupTasks = tasksByPriority.get(grp.key) ?? [];
+      const isCollapsed = collapsedGroups.has(grp.key);
+
+      return (
+        <Fragment key={grp.key}>
+          {/* Priority Group Header (ClickUp Style matching Image 2) */}
+          <tr className="status-group-tr">
+            <td colSpan={colSpanCount} className="status-group-td">
+              <div className="status-group-header" onClick={() => toggleGroup(grp.key)}>
+                <button type="button" className="status-group-caret-btn" aria-label="Toggle group">
+                  {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                </button>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontWeight: 700,
+                    fontSize: "12px",
+                  }}
+                >
+                  <Flag size={13} style={{ fill: grp.flagColor, color: grp.flagColor }} />
+                  <span style={{ color: "var(--ink, #1e293b)" }}>{grp.label}</span>
+                </span>
+                <span className="status-group-count">{groupTasks.length}</span>
+              </div>
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {parentTasks.length === 0 && (
-            <tr>
-              <td colSpan={13 + customFields.length} style={{ textAlign: "center", padding: "42px 16px", color: "var(--muted)" }}>
-                <p style={{ margin: "0 0 4px", fontSize: "13px", fontWeight: 600, color: "var(--ink)" }}>No tasks found</p>
-                <small style={{ fontSize: "11px" }}>No tasks match the current search or filters.</small>
+
+          {/* Tasks in this priority group */}
+          {!isCollapsed &&
+            groupTasks.map((parentTask) => {
+              const children = subtasksByParent.get(parentTask.id) ?? [];
+              const isExpanded = expandedTaskIds.has(parentTask.id);
+
+              return (
+                <Fragment key={parentTask.id}>
+                  {renderTaskRow(parentTask, false, children)}
+                  {isExpanded && children.map((subtask) => renderTaskRow(subtask, true))}
+                </Fragment>
+              );
+            })}
+
+          {/* Minimal Inline Add Task Row */}
+          {!isCollapsed && canEdit && (
+            <InlineTaskRow
+              projectId={projectId}
+              statuses={statuses}
+              defaultPriority={grp.key !== "none" ? grp.key : "normal"}
+              members={members}
+              colSpan={colSpanCount}
+            />
+          )}
+        </Fragment>
+      );
+    });
+  };
+
+  // --- Render Status Groups (Matching Image 3 & 5) ---
+  const renderStatusGroups = () => {
+    const tasksByStatus = new Map<string, TaskRow[]>();
+    for (const s of statuses) {
+      tasksByStatus.set(s.id, []);
+    }
+    const otherTasks: TaskRow[] = [];
+    for (const task of parentTasks) {
+      if (tasksByStatus.has(task.status_id)) {
+        tasksByStatus.get(task.status_id)!.push(task);
+      } else {
+        otherTasks.push(task);
+      }
+    }
+
+    return (
+      <>
+        {statuses.map((status) => {
+          const groupTasks = tasksByStatus.get(status.id) ?? [];
+          const isCollapsed = collapsedGroups.has(status.id);
+
+          return (
+            <Fragment key={status.id}>
+              {/* Status Group Header */}
+              <tr className="status-group-tr">
+                <td colSpan={colSpanCount} className="status-group-td">
+                  <div className="status-group-header" onClick={() => toggleGroup(status.id)}>
+                    <button type="button" className="status-group-caret-btn" aria-label="Toggle status group">
+                      {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                    </button>
+                    <span
+                      className="status-group-pill"
+                      style={{
+                        backgroundColor: getStatusColor(status),
+                        color: "#ffffff",
+                      }}
+                    >
+                      {status.name.toUpperCase()}
+                    </span>
+                    <span className="status-group-count">{groupTasks.length}</span>
+                  </div>
+                </td>
+              </tr>
+
+              {/* Tasks in this status */}
+              {!isCollapsed &&
+                groupTasks.map((parentTask) => {
+                  const children = subtasksByParent.get(parentTask.id) ?? [];
+                  const isExpanded = expandedTaskIds.has(parentTask.id);
+
+                  return (
+                    <Fragment key={parentTask.id}>
+                      {renderTaskRow(parentTask, false, children)}
+                      {isExpanded && children.map((subtask) => renderTaskRow(subtask, true))}
+                    </Fragment>
+                  );
+                })}
+
+              {/* Minimal Add Task Row */}
+              {!isCollapsed && canEdit && (
+                <InlineTaskRow
+                  projectId={projectId}
+                  statuses={statuses}
+                  defaultStatusId={status.id}
+                  members={members}
+                  colSpan={colSpanCount}
+                />
+              )}
+            </Fragment>
+          );
+        })}
+
+        {otherTasks.length > 0 && (
+          <Fragment key="unmapped-group">
+            <tr className="status-group-tr">
+              <td colSpan={colSpanCount} className="status-group-td">
+                <div className="status-group-header">
+                  <span className="status-group-pill" style={{ backgroundColor: "#64748b", color: "#fff" }}>
+                    OTHER
+                  </span>
+                  <span className="status-group-count">{otherTasks.length}</span>
+                </div>
               </td>
             </tr>
-          )}
-          {parentTasks.map((parentTask) => {
-            const children = subtasksByParent.get(parentTask.id) ?? [];
-            const isExpanded = expandedTaskIds.has(parentTask.id);
+            {otherTasks.map((parentTask) => {
+              const children = subtasksByParent.get(parentTask.id) ?? [];
+              const isExpanded = expandedTaskIds.has(parentTask.id);
 
-            return (
-              <Fragment key={parentTask.id}>
-                {renderTaskRow(parentTask, false, children)}
-                {isExpanded &&
-                  children.map((subtask) => renderTaskRow(subtask, true))}
-              </Fragment>
-            );
-          })}
-          {canEdit && (
+              return (
+                <Fragment key={parentTask.id}>
+                  {renderTaskRow(parentTask, false, children)}
+                  {isExpanded && children.map((subtask) => renderTaskRow(subtask, true))}
+                </Fragment>
+              );
+            })}
+          </Fragment>
+        )}
+      </>
+    );
+  };
+
+  // --- Render Due Date Groups ---
+  const renderDueDateGroups = () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const nextWeekDate = new Date();
+    nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+    const nextWeekStr = nextWeekDate.toISOString().slice(0, 10);
+
+    const DUE_DATE_GROUPS = [
+      { key: "overdue", label: "Overdue", color: "#ef4444" },
+      { key: "today", label: "Today", color: "#f59e0b" },
+      { key: "this_week", label: "This Week", color: "#3b82f6" },
+      { key: "later", label: "Later", color: "#64748b" },
+      { key: "no_date", label: "No Due Date", color: "#94a3b8" },
+    ];
+
+    const tasksByDue = new Map<string, TaskRow[]>();
+    DUE_DATE_GROUPS.forEach((g) => tasksByDue.set(g.key, []));
+
+    parentTasks.forEach((t) => {
+      if (!t.due_date) {
+        tasksByDue.get("no_date")!.push(t);
+      } else if (t.due_date < todayStr) {
+        tasksByDue.get("overdue")!.push(t);
+      } else if (t.due_date === todayStr) {
+        tasksByDue.get("today")!.push(t);
+      } else if (t.due_date <= nextWeekStr) {
+        tasksByDue.get("this_week")!.push(t);
+      } else {
+        tasksByDue.get("later")!.push(t);
+      }
+    });
+
+    return DUE_DATE_GROUPS.map((grp) => {
+      const groupTasks = tasksByDue.get(grp.key) ?? [];
+      const isCollapsed = collapsedGroups.has(grp.key);
+
+      return (
+        <Fragment key={grp.key}>
+          <tr className="status-group-tr">
+            <td colSpan={colSpanCount} className="status-group-td">
+              <div className="status-group-header" onClick={() => toggleGroup(grp.key)}>
+                <button type="button" className="status-group-caret-btn" aria-label="Toggle group">
+                  {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                </button>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontWeight: 700,
+                    fontSize: "12px",
+                  }}
+                >
+                  <Calendar size={13} style={{ color: grp.color }} />
+                  <span style={{ color: "var(--ink, #1e293b)" }}>{grp.label}</span>
+                </span>
+                <span className="status-group-count">{groupTasks.length}</span>
+              </div>
+            </td>
+          </tr>
+
+          {!isCollapsed &&
+            groupTasks.map((parentTask) => {
+              const children = subtasksByParent.get(parentTask.id) ?? [];
+              const isExpanded = expandedTaskIds.has(parentTask.id);
+
+              return (
+                <Fragment key={parentTask.id}>
+                  {renderTaskRow(parentTask, false, children)}
+                  {isExpanded && children.map((subtask) => renderTaskRow(subtask, true))}
+                </Fragment>
+              );
+            })}
+
+          {!isCollapsed && canEdit && (
             <InlineTaskRow
               projectId={projectId}
               statuses={statuses}
               members={members}
-              colSpan={12 + customFields.length}
+              colSpan={colSpanCount}
             />
           )}
-        </tbody>
-      </table>
+        </Fragment>
+      );
+    });
+  };
 
-      {/* Popover / Overlay Comments Modal (matching Image 3) */}
-      {activeCommentsTask && (
-        <TaskCommentsModal
-          taskId={activeCommentsTask.id}
-          taskKey={activeCommentsTask.key}
-          taskTitle={activeCommentsTask.title}
-          projectId={projectId}
-          onClose={() => setActiveCommentsTask(null)}
-        />
-      )}
+  // --- Render Flat List (No Grouping) ---
+  const renderFlatList = () => {
+    return (
+      <>
+        {parentTasks.map((parentTask) => {
+          const children = subtasksByParent.get(parentTask.id) ?? [];
+          const isExpanded = expandedTaskIds.has(parentTask.id);
+
+          return (
+            <Fragment key={parentTask.id}>
+              {renderTaskRow(parentTask, false, children)}
+              {isExpanded && children.map((subtask) => renderTaskRow(subtask, true))}
+            </Fragment>
+          );
+        })}
+
+        {canEdit && (
+          <InlineTaskRow
+            projectId={projectId}
+            statuses={statuses}
+            members={members}
+            colSpan={colSpanCount}
+          />
+        )}
+      </>
+    );
+  };
+
+  return (
+    <div
+      className="task-table-outer"
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        flex: 1,
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
+      <div className="task-table-wrap" ref={tableWrapRef}>
+        <table className="task-table">
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Assignees</th>
+              <th>Due date</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Created by</th>
+              <th>Estimate</th>
+              <th>Worked (Billable)</th>
+              <th>Remaining</th>
+              <th>Linked Docs</th>
+              {customFields.map((field) => (
+                <th key={field.id}>{field.name}</th>
+              ))}
+              <th>Comments</th>
+              {canEdit ? <AddColumnButton projectId={projectId} /> : <th className="add-col-empty-cell" />}
+            </tr>
+          </thead>
+          <tbody>
+            {parentTasks.length === 0 && (
+              <tr>
+                <td colSpan={colSpanCount} style={{ textAlign: "center", padding: "36px 16px", color: "var(--muted)" }}>
+                  <p style={{ margin: "0 0 4px", fontSize: "13px", fontWeight: 600, color: "var(--ink)" }}>No tasks found</p>
+                  <small style={{ fontSize: "11px" }}>No tasks match the current search or filters.</small>
+                </td>
+              </tr>
+            )}
+
+            {groupBy === "priority" && renderPriorityGroups()}
+            {groupBy === "status" && renderStatusGroups()}
+            {groupBy === "due_date" && renderDueDateGroups()}
+            {groupBy === "none" && renderFlatList()}
+          </tbody>
+        </table>
+
+        {/* Popover / Overlay Comments Modal */}
+        {activeCommentsTask && (
+          <TaskCommentsModal
+            taskId={activeCommentsTask.id}
+            taskKey={activeCommentsTask.key}
+            taskTitle={activeCommentsTask.title}
+            projectId={projectId}
+            onClose={() => setActiveCommentsTask(null)}
+          />
+        )}
+      </div>
     </div>
   );
 }

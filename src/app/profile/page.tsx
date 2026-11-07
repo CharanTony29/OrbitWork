@@ -14,7 +14,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   ]);
   const displayName = profile?.display_name?.trim() || user.email?.split("@")[0] || "Team member";
   return <main className="app-shell">
-    <header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/><form action={signOut}><button className="quiet-button">Sign out</button></form></div></header>
+    <header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/></div></header>
     <section className="profile-page">
       <Link className="back-link" href="/dashboard"><ArrowLeft size={15}/> Dashboard</Link>
       <header className="profile-heading"><span className="profile-icon"><UserRound size={21}/></span><div><p className="eyebrow">ACCOUNT SETTINGS</p><h1>Personal details</h1><p className="muted">Choose how your name appears to teammates across Orbitwork.</p></div></header>

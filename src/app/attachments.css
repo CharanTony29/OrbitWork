@@ -737,3 +737,28 @@
   color: var(--muted, #6f7d75);
   margin: 0 0 8px;
 }
+
+/* Clean single-border focus for Attachments search (no nested box inside box) */
+.attachments-search-wrap {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.attachments-search-wrap:focus-within {
+  border-color: var(--green, #167c58) !important;
+  box-shadow: 0 0 0 2px rgba(22, 124, 88, 0.15) !important;
+  background: var(--paper, #fff) !important;
+}
+
+.attachments-search-wrap input,
+.attachments-search-wrap input:focus,
+.attachments-search-wrap input:focus-visible,
+input.attachments-search-input,
+input.attachments-search-input:focus,
+input.attachments-search-input:focus-visible,
+[data-color-scheme="dark"] .attachments-search-wrap input:focus,
+[data-color-scheme="dark"] input.attachments-search-input:focus {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}

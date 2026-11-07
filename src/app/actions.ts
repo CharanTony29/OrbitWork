@@ -385,6 +385,7 @@ export async function createTask(formData: FormData) {
     description: z.string().trim().max(10000).optional(),
     statusId: z.string().uuid(),
     priority: z.enum(["low", "normal", "high", "urgent"]),
+    taskType: z.enum(["task", "improvement", "enhancement", "bug", "defect", "error", "issue", "milestone", "epic", "story", "subtask", "support_request", "research"]),
     startDate: z.string().optional(),
     dueDate: z.string().optional(),
     estimateMinutes: z.union([z.string(), z.number()]).optional(),
@@ -394,6 +395,7 @@ export async function createTask(formData: FormData) {
     description: formData.get("description") || undefined,
     statusId: formData.get("statusId"),
     priority: formData.get("priority") || "normal",
+    taskType: formData.get("taskType") || "task",
     startDate: formData.get("startDate") || undefined,
     dueDate: formData.get("dueDate") || undefined,
     estimateMinutes: formData.get("estimateMinutes") || undefined,
@@ -410,12 +412,15 @@ export async function createTask(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
   const parsedEstimate = parsed.data.estimateMinutes ? parseEstimateToMinutes(parsed.data.estimateMinutes) : null;
+  const tags = [...new Set(formData.getAll("tags").map((tag) => String(tag).trim().slice(0, 40)).filter(Boolean))].slice(0, 20);
   const { data: newTask, error } = await supabase.from("tasks").insert({
     project_id: parsed.data.projectId,
     status_id: parsed.data.statusId,
     title: parsed.data.title,
     description: parsed.data.description ?? "",
     priority: parsed.data.priority,
+    task_type: parsed.data.taskType,
+    tags,
     start_date: parsed.data.startDate ?? null,
     due_date: parsed.data.dueDate ?? null,
     estimate_minutes: parsedEstimate,
@@ -906,6 +911,47 @@ export async function createCustomField(formData: FormData) {
   redirect(`/projects/${parsed.data.projectId}`);
 }
 
+export async function createCustomFieldFromComposer(formData: FormData) {
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+    name: z.string().trim().min(1).max(80),
+    fieldType: z.enum(["text", "long_text", "number", "currency", "date", "datetime", "dropdown", "multi_select", "checkbox", "email", "url", "user", "rating", "formula", "progress", "duration"]),
+    options: z.string().max(1000).optional(),
+    required: z.boolean(),
+  }).safeParse({
+    projectId: formData.get("projectId"),
+    name: formData.get("name"),
+    fieldType: formData.get("fieldType"),
+    options: formData.get("options") ?? "",
+    required: formData.get("required") === "on",
+  });
+  if (!parsed.success) return { ok: false as const, message: "Enter a field name and choose a valid field type." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, message: "Sign in before creating a field." };
+  const { data: canManage } = await supabase.rpc("can_manage_project", { target_project: parsed.data.projectId });
+  if (!canManage) return { ok: false as const, message: "Only project managers can create custom fields." };
+
+  const options = (parsed.data.options ?? "").split(",").map((option) => option.trim()).filter(Boolean).slice(0, 50);
+  if (["dropdown", "multi_select"].includes(parsed.data.fieldType) && !options.length) {
+    return { ok: false as const, message: "Add at least one comma-separated option for this field type." };
+  }
+
+  const { error } = await supabase.from("custom_field_definitions").insert({
+    project_id: parsed.data.projectId,
+    name: parsed.data.name,
+    field_type: parsed.data.fieldType,
+    options,
+    required: parsed.data.required,
+    created_by: user.id,
+  });
+  if (error) return { ok: false as const, message: "Could not create that field. Check for a duplicate name or your project permissions." };
+
+  revalidatePath(`/projects/${parsed.data.projectId}`);
+  return { ok: true as const, message: `“${parsed.data.name}” was added to this project.` };
+}
+
 export async function saveTaskCustomField(formData: FormData) {
   const parsed = z.object({ projectId: z.string().uuid(), taskId: z.string().uuid(), fieldId: z.string().uuid(), value: z.string().max(10000) }).safeParse({
     projectId: formData.get("projectId"), taskId: formData.get("taskId"), fieldId: formData.get("fieldId"), value: formData.get("value") ?? "",
@@ -927,17 +973,23 @@ export async function saveTaskCustomField(formData: FormData) {
   } else if (field.field_type === "checkbox") value = raw === "true";
   else if (field.field_type === "multi_select") {
     value = raw ? raw.split(",").map((item) => item.trim()).filter(Boolean) : [];
-    const allowed = Array.isArray(field.options) ? field.options as string[] : [];
-    if ((value as string[]).some((item) => !allowed.includes(item))) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=invalid_custom_field_value`);
   } else if (field.field_type === "dropdown" && raw !== "") {
-    const allowed = Array.isArray(field.options) ? field.options as string[] : [];
-    if (!allowed.includes(raw)) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=invalid_custom_field_value`);
+    const values = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    value = values.length > 1 ? values : raw;
   } else if (field.field_type === "email" && raw !== "") {
-    const email = z.string().email().safeParse(raw);
-    if (!email.success) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=invalid_custom_field_value`);
+    const emails = raw.split(/[\s,;]+/).filter(Boolean);
+    const allValid = emails.every((em) => z.string().email().safeParse(em).success);
+    if (!allValid && emails.length > 0) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=invalid_custom_field_value`);
+    value = emails.length > 1 ? emails.join(", ") : raw;
   } else if (field.field_type === "url" && raw !== "") {
-    const url = z.string().url().safeParse(raw);
-    if (!url.success) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=invalid_custom_field_value`);
+    const urls = raw.split(/[\s,;]+/).filter(Boolean);
+    const allValid = urls.every((u) => {
+      const clean = u.trim();
+      const target = /^https?:\/\//i.test(clean) ? clean : `https://${clean}`;
+      return z.string().url().safeParse(target).success;
+    });
+    if (!allValid && urls.length > 0) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=invalid_custom_field_value`);
+    value = urls.length > 1 ? urls.join(", ") : raw;
   } else if (field.field_type === "date" && raw !== "") {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=invalid_custom_field_value`);
   } else if (field.field_type === "user" && raw !== "") {
@@ -1378,14 +1430,14 @@ export async function createAndAttachCanvas(formData: FormData) {
       taskId: z.string().uuid().optional(),
       title: z.string().trim().min(1).max(200),
       type: z.enum(["whiteboard", "flowchart"]),
-      data: z.string().max(500000),
+      data: z.string().max(500000).optional().default("{}"),
     })
     .safeParse({
       projectId: formData.get("projectId"),
       taskId: formData.get("taskId") || undefined,
       title: formData.get("title"),
       type: formData.get("type"),
-      data: formData.get("data"),
+      data: (formData.get("data") as string) || "{}",
     });
 
   if (!parsed.success) return { ok: false, error: "invalid_input" };
@@ -1395,9 +1447,16 @@ export async function createAndAttachCanvas(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "unauthorized" };
 
+  const initialContent =
+    parsed.data.data && parsed.data.data !== "{}"
+      ? parsed.data.data
+      : parsed.data.type === "whiteboard"
+      ? JSON.stringify({ version: 1, strokes: [], stickyNotes: [], images: [] })
+      : JSON.stringify({ nodes: [], edges: [] });
+
   const payload = JSON.stringify({
     canvasType: parsed.data.type,
-    content: parsed.data.data,
+    content: initialContent,
   });
 
   const { data: doc, error: docError } = await supabase
@@ -1444,14 +1503,14 @@ export async function saveCanvasData(formData: FormData) {
       documentId: z.string().uuid(),
       title: z.string().trim().min(1).max(200),
       type: z.enum(["whiteboard", "flowchart"]),
-      data: z.string().max(500000),
+      data: z.string().max(500000).optional().default("{}"),
     })
     .safeParse({
       projectId: formData.get("projectId"),
       documentId: formData.get("documentId"),
       title: formData.get("title"),
       type: formData.get("type"),
-      data: formData.get("data"),
+      data: (formData.get("data") as string) || "{}",
     });
 
   if (!parsed.success) return { ok: false, error: "invalid_input" };

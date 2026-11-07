@@ -86,10 +86,10 @@ export default function WorkspaceInviteSection({
 
       {/* Tab 1: Existing Org Member */}
       {activeTab === "org" && (
-        <form action={addWorkspaceMember} style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
+        <form action={addWorkspaceMember} style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap", marginTop: 14 }}>
           <input type="hidden" name="workspaceId" value={workspaceId} />
-          <div style={{ flex: "2 1 240px", display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
+          <div style={{ flex: "2 1 240px", display: "flex", flexDirection: "column", gap: 6 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
               Select Organization Member
             </label>
             <select
@@ -98,14 +98,18 @@ export default function WorkspaceInviteSection({
               defaultValue=""
               disabled={!availableMembers.length}
               style={{
-                height: 38,
+                boxSizing: "border-box",
+                height: 40,
+                minHeight: 40,
+                lineHeight: "38px",
                 padding: "0 12px",
-                borderRadius: 7,
+                borderRadius: 8,
                 border: "1px solid var(--line, #cbd5e1)",
                 background: "var(--paper, #fff)",
                 color: "var(--ink)",
-                fontSize: 12.5,
+                fontSize: 13,
                 outline: "none",
+                verticalAlign: "middle",
               }}
             >
               <option value="">
@@ -119,22 +123,26 @@ export default function WorkspaceInviteSection({
             </select>
           </div>
 
-          <div style={{ flex: "1 1 180px", display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
+          <div style={{ flex: "1 1 200px", display: "flex", flexDirection: "column", gap: 6 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
               Workspace Role
             </label>
             <select
               name="role"
               defaultValue="member"
               style={{
-                height: 38,
+                boxSizing: "border-box",
+                height: 40,
+                minHeight: 40,
+                lineHeight: "38px",
                 padding: "0 12px",
-                borderRadius: 7,
+                borderRadius: 8,
                 border: "1px solid var(--line, #cbd5e1)",
                 background: "var(--paper, #fff)",
                 color: "var(--ink)",
-                fontSize: 12.5,
+                fontSize: 13,
                 outline: "none",
+                verticalAlign: "middle",
               }}
             >
               <option value="member">Member (Can edit &amp; upload)</option>
@@ -148,7 +156,19 @@ export default function WorkspaceInviteSection({
             type="submit"
             className="button button-primary"
             disabled={!availableMembers.length}
-            style={{ height: 38, minHeight: 38, padding: "0 18px", fontSize: 12.5, whiteSpace: "nowrap" }}
+            style={{
+              boxSizing: "border-box",
+              height: 40,
+              minHeight: 40,
+              padding: "0 20px",
+              fontSize: 13,
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 8,
+            }}
           >
             Add to workspace
           </button>
@@ -157,12 +177,12 @@ export default function WorkspaceInviteSection({
 
       {/* Tab 2: Invite by email */}
       {activeTab === "email" && isOrgAdmin && (
-        <form action={inviteOrganizationMember} style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
+        <form action={inviteOrganizationMember} style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap", marginTop: 14 }}>
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="workspaceId" value={workspaceId} />
 
-          <div style={{ flex: "2 1 240px", display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
+          <div style={{ flex: "2 1 240px", display: "flex", flexDirection: "column", gap: 6 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
               Email Address
             </label>
             <input
@@ -171,34 +191,40 @@ export default function WorkspaceInviteSection({
               placeholder="colleague@company.com"
               required
               style={{
-                height: 38,
+                boxSizing: "border-box",
+                height: 40,
+                minHeight: 40,
                 padding: "0 12px",
-                borderRadius: 7,
+                borderRadius: 8,
                 border: "1px solid var(--line, #cbd5e1)",
                 background: "var(--paper, #fff)",
                 color: "var(--ink)",
-                fontSize: 12.5,
+                fontSize: 13,
                 outline: "none",
               }}
             />
           </div>
 
-          <div style={{ flex: "1 1 180px", display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
+          <div style={{ flex: "1 1 200px", display: "flex", flexDirection: "column", gap: 6 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
               Workspace Role
             </label>
             <select
               name="role"
               defaultValue="member"
               style={{
-                height: 38,
+                boxSizing: "border-box",
+                height: 40,
+                minHeight: 40,
+                lineHeight: "38px",
                 padding: "0 12px",
-                borderRadius: 7,
+                borderRadius: 8,
                 border: "1px solid var(--line, #cbd5e1)",
                 background: "var(--paper, #fff)",
                 color: "var(--ink)",
-                fontSize: 12.5,
+                fontSize: 13,
                 outline: "none",
+                verticalAlign: "middle",
               }}
             >
               <option value="member">Member (Can edit &amp; upload)</option>
@@ -211,7 +237,20 @@ export default function WorkspaceInviteSection({
           <button
             type="submit"
             className="button button-primary"
-            style={{ height: 38, minHeight: 38, padding: "0 18px", fontSize: 12.5, whiteSpace: "nowrap", gap: 6 }}
+            style={{
+              boxSizing: "border-box",
+              height: 40,
+              minHeight: 40,
+              padding: "0 20px",
+              fontSize: 13,
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 8,
+              gap: 6,
+            }}
           >
             <Send size={13} />
             <span>Send Invitation</span>

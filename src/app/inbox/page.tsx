@@ -112,9 +112,6 @@ export default async function InboxPage() {
         </Link>
         <div className="topbar-right">
           <CurrentUserBadge email={user.email ?? ""} />
-          <form action={signOut}>
-            <button className="quiet-button">Sign out</button>
-          </form>
         </div>
       </header>
 

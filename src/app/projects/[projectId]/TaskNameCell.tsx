@@ -2,7 +2,7 @@
 
 import { useState, useRef, useTransition, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Pencil, Circle, Check, ChevronRight, CornerDownRight, Loader2, FileText } from "lucide-react";
+import { Plus, Pencil, Circle, Check, ChevronRight, Loader2, FileText, AlignLeft, Paperclip } from "lucide-react";
 import { updateTaskField, quickCreateSubtask, updateTaskStatus } from "@/app/actions";
 
 export default function TaskNameCell({
@@ -10,12 +10,15 @@ export default function TaskNameCell({
   taskId,
   taskKey,
   title: initialTitle,
+  taskType = "task",
+  tags = [],
   description,
   statusColor = "#87938b",
   hasSubtasks = false,
   isExpanded = false,
   onToggleExpand,
   subtaskCount = 0,
+  hasAttachments = false,
   isSubtask = false,
   canEdit = true,
   isCompleted = false,
@@ -26,12 +29,15 @@ export default function TaskNameCell({
   taskId: string;
   taskKey: string;
   title: string;
+  taskType?: string;
+  tags?: string[];
   description?: string;
   statusColor?: string;
   hasSubtasks?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
   subtaskCount?: number;
+  hasAttachments?: boolean;
   isSubtask?: boolean;
   canEdit?: boolean;
   isCompleted?: boolean;
@@ -168,12 +174,8 @@ export default function TaskNameCell({
           </span>
         </button>
 
-        {/* Expand Arrow or Subtask Connector */}
-        {isSubtask ? (
-          <span className="task-subtask-branch" title="Subtask of parent">
-            <CornerDownRight size={13} className="text-muted" />
-          </span>
-        ) : (
+        {/* Expand Arrow for parents */}
+        {!isSubtask && (
           <button
             type="button"
             className={`task-expand-arrow${isExpanded ? " is-expanded" : ""}${hasSubtasks ? " has-children" : ""}`}
@@ -190,7 +192,7 @@ export default function TaskNameCell({
 
         {/* Status circle */}
         <span className="task-status-dot" style={{ color: statusColor }}>
-          <Circle size={12} strokeWidth={3} />
+          <Circle size={11} strokeWidth={2.5} />
         </span>
 
         {/* Task Title / Inline Edit */}
@@ -223,7 +225,19 @@ export default function TaskNameCell({
             >
               {title}
             </Link>
-            {isSubtask && <span className="subtask-indicator-pill">subtask</span>}
+            <span className="task-type-badge">{taskType.replaceAll("_", " ")}</span>
+            {tags.slice(0, 2).map((tag) => <span className="task-tag-badge" key={tag}>{tag}</span>)}
+            {tags.length > 2 && <span className="task-tag-badge task-tag-count">+{tags.length - 2}</span>}
+            {Boolean(description && description.trim()) && (
+              <span className="task-meta-indicator" title="Has description: hover 2s to preview">
+                <AlignLeft size={11} />
+              </span>
+            )}
+            {hasAttachments && (
+              <span className="task-meta-indicator" title="Has attachments / documents">
+                <Paperclip size={11} />
+              </span>
+            )}
             {hasSubtasks && subtaskCount > 0 && (
               <span
                 className="task-subtasks-count"
@@ -233,7 +247,7 @@ export default function TaskNameCell({
                   if (onToggleExpand) onToggleExpand();
                 }}
               >
-                {subtaskCount}
+                %{subtaskCount}
               </span>
             )}
           </div>

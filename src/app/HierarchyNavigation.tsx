@@ -16,7 +16,7 @@ export default async function HierarchyNavigation({ organizationId, organization
       <Link href="/dashboard" title="Home"><House size={18}/><span>Home</span></Link>
       <Link href="/inbox" title="Inbox"><Bell size={17}/><span>Inbox</span></Link>
       <Link href={currentProjectId ? `/projects/${currentProjectId}?view=calendar` : `/workspaces/${currentWorkspaceId}`} title="Planner"><CalendarDays size={17}/><span>Planner</span></Link>
-      {currentProjectId && <Link href={`/projects/${currentProjectId}/documents`} title="Documents"><FileText size={17}/><span>Docs</span></Link>}
+      <Link href={currentProjectId ? `/projects/${currentProjectId}/documents` : `/organizations/${organizationId}/docs`} title="Docs & Attachments"><FileText size={17}/><span>Docs</span></Link>
       <Link href={`/workspaces/${currentWorkspaceId}/timesheets`} title="Workspace Timesheets"><Clock3 size={17}/><span>Time</span></Link>
       <Link href="/chat" title="Team & Personal Chat"><MessageSquare size={17}/><span>Chat</span></Link>
       <Link href={`/organizations/${organizationId}/members`} title="Members"><UsersRound size={17}/><span>People</span></Link>
@@ -26,6 +26,7 @@ export default async function HierarchyNavigation({ organizationId, organization
     <div className="hierarchy-sidebar-heading"><span>WORKSPACE</span><strong>{organizationName}</strong></div>
     <Link className="hierarchy-dashboard" href="/dashboard"><Layers3 size={15}/> All organizations</Link>
     <Link className="hierarchy-dashboard" href="/inbox"><Bell size={15}/> Inbox</Link>
+    <Link className="hierarchy-dashboard" href={`/organizations/${organizationId}/docs`}><FileText size={15}/> Docs &amp; Attachments</Link>
     <div className="hierarchy-org-label"><Building2 size={14}/><span>ORGANIZATION</span></div>
     <div className="hierarchy-org-name" title={organizationName}>{organizationName}</div>
     <div className="hierarchy-search-box">

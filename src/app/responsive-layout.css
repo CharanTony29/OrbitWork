@@ -36,6 +36,56 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
 }
 
+.org-card {
+  container: org-card / inline-size;
+}
+
+.task-detail-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  min-width: 0;
+}
+
+.task-detail-title-row h1 {
+  min-width: 0;
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+
+.task-detail-title-row .task-type-badge {
+  margin-bottom: 8px;
+}
+
+@container org-card (max-width: 540px) {
+  .workspace-form.invite-form {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(90px, auto) !important;
+    justify-content: stretch !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .workspace-form.invite-form select[name="workspaceId"],
+  .workspace-form.invite-form input[name="email"] {
+    grid-column: 1 / -1;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .workspace-form.invite-form select[name="role"] {
+    grid-column: 1;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .workspace-form.invite-form button {
+    grid-column: 2;
+    width: 100%;
+  }
+}
+
 /* The task detail sidebar remains narrow on desktop; adapt its forms to that card. */
 .task-detail-right-col {
   container: task-sidebar / inline-size;

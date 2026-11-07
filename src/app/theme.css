@@ -116,9 +116,9 @@ html,body{background:var(--app-bg);color:var(--ink)}
 }
 
 [data-color-scheme="dark"] :is(
-  input:focus,
+  input:focus:not(.attachments-search-input):not(.composer-minimal-input),
   select:focus,
-  textarea:focus
+  textarea:focus:not(.composer-minimal-input)
 ) {
   border-color: var(--green) !important;
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;
@@ -460,7 +460,7 @@ html,body{background:var(--app-bg);color:var(--ink)}
   border-color: var(--line) !important;
 }
 
-[data-color-scheme="dark"] :is(
+:is([data-color-scheme="dark"], [data-theme="dark"]) :is(
   .task-table tr:hover td,
   .inbox-task-row:hover,
   .inbox-item.unread,
@@ -472,6 +472,22 @@ html,body{background:var(--app-bg);color:var(--ink)}
   .dashboard-project-links > a:hover
 ) {
   background-color: #202923 !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) :is(
+    .task-table tr:hover td,
+    .inbox-task-row:hover,
+    .inbox-item.unread,
+    .calendar-event-row:hover,
+    .timesheet-entry:hover,
+    .organization-members-table tbody tr:hover,
+    .search-item:hover,
+    .toolbar-dropdown-item:hover,
+    .dashboard-project-links > a:hover
+  ) {
+    background-color: #202923 !important;
+  }
 }
 
 [data-color-scheme="dark"] .calendar-day.is-today {
@@ -852,11 +868,238 @@ select:not([multiple]):not([size]):hover:enabled {
 select:not([multiple]):not([size]):focus-visible,
 select:not([multiple]):not([size]):focus,
 select[multiple]:focus-visible,
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible,
-textarea:focus-visible {
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.attachments-search-input):not(.composer-minimal-input):focus-visible,
+textarea:not(.composer-minimal-input):focus-visible {
   border-color: var(--green) !important;
   outline: none !important;
   box-shadow: 0 0 0 3px var(--focus-ring) !important;
+}
+
+.universal-create-modal .composer-minimal-input:focus,
+.universal-create-modal .composer-minimal-input:focus-visible {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.composer-popover-anchor {
+  position: relative;
+}
+
+.universal-create-modal .composer-pill-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: 600 11.5px 'DM Sans', sans-serif;
+  cursor: pointer;
+}
+
+.universal-create-modal .composer-pill-button:hover:not(:disabled) {
+  border-color: var(--green);
+  background: var(--nav-hover);
+}
+
+.universal-create-modal .composer-pill-button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.composer-pill-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.composer-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 130;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 40px));
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .2);
+}
+
+.composer-task-type-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 250px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.composer-task-type-menu button {
+  min-height: 32px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: 500 11px 'DM Sans', sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.composer-task-type-menu button:hover,
+.composer-task-type-menu button.is-selected {
+  background: var(--nav-hover);
+  color: var(--green);
+}
+
+.composer-tag-menu {
+  width: min(320px, calc(100vw - 40px));
+}
+
+.composer-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 7px;
+}
+
+.composer-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: var(--nav-hover);
+  color: var(--green);
+  font-size: 10px;
+}
+
+.composer-tag-chip button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.composer-tag-entry {
+  display: flex;
+  gap: 6px;
+}
+
+.composer-tag-entry input,
+.composer-field-creator > input,
+.composer-field-creator > select {
+  min-width: 0;
+  width: 100%;
+  height: 36px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--app-bg);
+  color: var(--ink);
+  font: 400 11px 'DM Sans', sans-serif;
+}
+
+.composer-tag-entry input:focus,
+.composer-field-creator > input:focus,
+.composer-field-creator > select:focus {
+  border-color: var(--green);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.universal-create-modal .composer-action-button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--green);
+  border-radius: 7px;
+  background: var(--green);
+  color: #fff;
+  font: 650 10.5px 'DM Sans', sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.universal-create-modal .composer-action-button.secondary {
+  border-color: var(--line);
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.universal-create-modal .composer-action-button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.composer-popover-hint,
+.composer-field-message {
+  margin: 6px 1px 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.composer-field-section {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.composer-section-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+
+.composer-field-creator {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, .8fr);
+  gap: 8px;
+  width: min(100%, 460px);
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-raised);
+}
+
+.composer-required-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.composer-required-toggle input {
+  accent-color: var(--green);
+}
+
+.composer-field-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+@media (max-width: 520px) {
+  .composer-task-type-menu {
+    min-width: 220px;
+  }
+
+  .composer-field-creator {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 option:checked,

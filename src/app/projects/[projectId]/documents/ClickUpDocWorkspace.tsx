@@ -42,10 +42,15 @@ import {
   Type,
   Trash2,
   Maximize2,
+  Paperclip,
 } from "lucide-react";
+import ProjectAttachmentsClient, { ProjectAttachmentItem } from "../attachments/ProjectAttachmentsClient";
+import WhiteboardCanvas from "@/app/canvas/WhiteboardCanvas";
+import FlowchartCanvas from "@/app/canvas/FlowchartCanvas";
 import {
   quickCreateProjectDocument,
   quickSaveProjectDocument,
+  saveCanvasData,
 } from "@/app/actions";
 import { markdownToSafeHtml } from "@/lib/markdown";
 
@@ -76,7 +81,7 @@ const COVER_PRESETS = [
 const EMOJI_PRESETS = ["📄", "📘", "💡", "🚀", "⚙️", "📝", "🎯", "🧪", "📌", "🔬", "📚", "✨"];
 
 const COLOR_PALETTE = [
-  { label: "Default", color: "#e2e8f0" },
+  { label: "Default", color: "var(--ink, #1e293b)" },
   { label: "Dark / Slate", color: "#64748b" },
   { label: "White", color: "#ffffff" },
   { label: "Emerald Green", color: "#10b981" },
@@ -92,14 +97,17 @@ export default function ClickUpDocWorkspace({
   documents,
   currentDocId,
   currentUserName = "Charan Dukka",
+  taskAttachments = [],
 }: {
   projectId: string;
   projectName: string;
   documents: DocItem[];
   currentDocId?: string;
   currentUserName?: string;
+  taskAttachments?: ProjectAttachmentItem[];
 }) {
   const router = useRouter();
+  const [sidebarTab, setSidebarTab] = useState<"pages" | "files">("pages");
 
   // Parse doc metadata from markdown comment <!-- doc-meta: {...} -->
   const parseMeta = (body: string): { meta: DocMeta; cleanBody: string } => {
@@ -133,6 +141,31 @@ export default function ClickUpDocWorkspace({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"edit" | "preview" | "split">("split");
+
+  const canvasInfo = (() => {
+    if (!activeDoc?.body_markdown) return null;
+    try {
+      const obj = JSON.parse(activeDoc.body_markdown);
+      if (obj && (obj.canvasType === "whiteboard" || obj.canvasType === "flowchart")) {
+        return {
+          type: obj.canvasType as "whiteboard" | "flowchart",
+          content: obj.content,
+        };
+      }
+    } catch {
+      // not canvas JSON
+    }
+    return null;
+  })();
+
+  const getDocIcon = (body: string, defaultIcon?: string) => {
+    try {
+      const obj = JSON.parse(body);
+      if (obj?.canvasType === "whiteboard") return "🎨";
+      if (obj?.canvasType === "flowchart") return "🔀";
+    } catch {}
+    return defaultIcon || "📄";
+  };
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [blockMenuOpen, setBlockMenuOpen] = useState(false);
@@ -748,8 +781,55 @@ export default function ClickUpDocWorkspace({
           </div>
         </div>
 
-        <div className="doc-pages-header">
-          <span>Pages</span>
+        <div style={{ display: "flex", alignItems: "center", padding: "6px 10px", borderBottom: "1px solid var(--line)" }}>
+          <div style={{ display: "inline-flex", padding: 2, background: "var(--nav-hover, #f1f5f9)", borderRadius: 6, width: "100%" }}>
+            <button
+              type="button"
+              onClick={() => setSidebarTab("pages")}
+              style={{
+                flex: 1,
+                padding: "4px 6px",
+                border: 0,
+                borderRadius: 5,
+                fontSize: 11,
+                fontWeight: sidebarTab === "pages" ? 700 : 500,
+                background: sidebarTab === "pages" ? "var(--paper, #fff)" : "transparent",
+                color: sidebarTab === "pages" ? "#167c58" : "var(--muted)",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
+                boxShadow: sidebarTab === "pages" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+              }}
+            >
+              <FileText size={11} />
+              <span>Pages ({documents.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSidebarTab("files")}
+              style={{
+                flex: 1,
+                padding: "4px 6px",
+                border: 0,
+                borderRadius: 5,
+                fontSize: 11,
+                fontWeight: sidebarTab === "files" ? 700 : 500,
+                background: sidebarTab === "files" ? "var(--paper, #fff)" : "transparent",
+                color: sidebarTab === "files" ? "#167c58" : "var(--muted)",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
+                boxShadow: sidebarTab === "files" ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+              }}
+            >
+              <Paperclip size={11} />
+              <span>Files ({taskAttachments.length})</span>
+            </button>
+          </div>
         </div>
 
         <nav className="doc-tree-nav">
@@ -785,7 +865,7 @@ export default function ClickUpDocWorkspace({
                       href={`/projects/${projectId}/documents/${root.id}`}
                       className="doc-tree-link"
                     >
-                      <span className="doc-tree-icon">{rMeta.icon || "📄"}</span>
+                      <span className="doc-tree-icon">{getDocIcon(root.body_markdown, rMeta.icon)}</span>
                       <span className="doc-tree-label">{root.title}</span>
                     </Link>
 
@@ -817,7 +897,7 @@ export default function ClickUpDocWorkspace({
                               href={`/projects/${projectId}/documents/${sub.id}`}
                               className="doc-tree-link"
                             >
-                              <span className="doc-tree-icon">{sMeta.icon || "📄"}</span>
+                              <span className="doc-tree-icon">{getDocIcon(sub.body_markdown, sMeta.icon)}</span>
                               <span className="doc-tree-label">{sub.title}</span>
                             </Link>
                           </div>
@@ -843,7 +923,92 @@ export default function ClickUpDocWorkspace({
       </aside>
 
       {/* Main Document Content Area (matching Image 1 & 3) */}
-      <main className="doc-content-workspace">
+      {sidebarTab === "files" ? (
+        <main className="doc-content-workspace" style={{ overflow: "auto" }}>
+          <ProjectAttachmentsClient
+            projectId={projectId}
+            projectName={projectName}
+            attachments={taskAttachments}
+          />
+        </main>
+      ) : canvasInfo ? (
+        <main className="doc-content-workspace" style={{ overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px", borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 20 }}>{canvasInfo.type === "whiteboard" ? "🎨" : "🔀"}</span>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "var(--ink)" }}>{activeDoc?.title}</h2>
+                <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                  Interactive {canvasInfo.type === "whiteboard" ? "Whiteboard" : "Flowchart"} Canvas
+                </span>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Link
+                href={`/projects/${projectId}?view=${canvasInfo.type === "whiteboard" ? "whiteboard" : "flowchart"}`}
+                className="doc-quick-btn"
+                style={{ border: "1px solid var(--line)", padding: "5px 10px", borderRadius: 6, fontSize: 11, display: "inline-flex", alignItems: "center", gap: 5 }}
+              >
+                <ExternalLink size={12} /> Open in Project Tab
+              </Link>
+            </div>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+            {canvasInfo.type === "whiteboard" ? (
+              <WhiteboardCanvas
+                key={activeDoc?.id}
+                initialData={canvasInfo.content}
+                title={activeDoc?.title}
+                onSave={async ({ title: newTitle, data }) => {
+                  if (!activeDoc) return;
+                  const fd = new FormData();
+                  fd.set("projectId", projectId);
+                  fd.set("title", newTitle);
+                  fd.set("type", "whiteboard");
+                  fd.set("data", data);
+                  fd.set("documentId", activeDoc.id);
+                  await saveCanvasData(fd);
+                  setTitle(newTitle);
+                  setDocList((prev) =>
+                    prev.map((d) =>
+                      d.id === activeDoc.id
+                        ? { ...d, title: newTitle, body_markdown: JSON.stringify({ canvasType: "whiteboard", content: data }) }
+                        : d
+                    )
+                  );
+                  showToast("Whiteboard saved successfully");
+                }}
+              />
+            ) : (
+              <FlowchartCanvas
+                key={activeDoc?.id}
+                initialData={canvasInfo.content}
+                title={activeDoc?.title}
+                onSave={async ({ title: newTitle, data }) => {
+                  if (!activeDoc) return;
+                  const fd = new FormData();
+                  fd.set("projectId", projectId);
+                  fd.set("title", newTitle);
+                  fd.set("type", "flowchart");
+                  fd.set("data", data);
+                  fd.set("documentId", activeDoc.id);
+                  await saveCanvasData(fd);
+                  setTitle(newTitle);
+                  setDocList((prev) =>
+                    prev.map((d) =>
+                      d.id === activeDoc.id
+                        ? { ...d, title: newTitle, body_markdown: JSON.stringify({ canvasType: "flowchart", content: data }) }
+                        : d
+                    )
+                  );
+                  showToast("Flowchart saved successfully");
+                }}
+              />
+            )}
+          </div>
+        </main>
+      ) : (
+        <main className="doc-content-workspace">
         {/* Cover Banner (if set) */}
         {meta.cover && (
           <div className="doc-cover-banner" style={{ background: meta.cover }}>
@@ -1059,7 +1224,7 @@ export default function ClickUpDocWorkspace({
                       className="subpage-table-row"
                     >
                       <div className="subpage-row-left">
-                        <span className="subpage-icon">{sMeta.icon || "📄"}</span>
+                        <span className="subpage-icon">{getDocIcon(sub.body_markdown, sMeta.icon)}</span>
                         <span className="subpage-title">{sub.title}</span>
                       </div>
                       <div className="subpage-row-owner">
@@ -1534,6 +1699,7 @@ export default function ClickUpDocWorkspace({
           </div>
         </div>
       </main>
+      )}
     </div>
   );
 }

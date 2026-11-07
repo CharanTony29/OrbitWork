@@ -110,7 +110,8 @@ export async function getDriveFile(accessToken: string, fileId: string) {
   const metadata = await driveRequest<{ name: string; mimeType: string }>(accessToken, `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=name,mimeType`);
   const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, { headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store" });
   if (!response.ok) throw new Error("Could not retrieve the Google Drive file");
-  return { metadata, body: response.body };
+  const arrayBuffer = await response.arrayBuffer();
+  return { metadata, buffer: Buffer.from(arrayBuffer) };
 }
 
 export async function deleteDriveFile(accessToken: string, fileId: string) {

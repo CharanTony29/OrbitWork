@@ -14,7 +14,14 @@ export default function TaskTableTimer({
   projectId: string;
   taskId: string;
   taskTitle: string;
-  runningEntry?: { id: string; started_at: string; billable?: boolean } | null;
+  runningEntry?: {
+    id: string;
+    started_at: string;
+    billable?: boolean;
+    user_id?: string;
+    user_name?: string;
+    is_current_user?: boolean;
+  } | null;
   canEdit?: boolean;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
@@ -36,6 +43,35 @@ export default function TaskTableTimer({
   }, [runningEntry?.started_at]);
 
   if (!canEdit) return null;
+
+  // Active running timer by another team member
+  if (runningEntry && runningEntry.is_current_user === false) {
+    return (
+      <span
+        className="timer-active-by-other"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          fontSize: 10,
+          fontWeight: 700,
+          color: "#16a34a",
+          background: "rgba(22, 163, 74, 0.1)",
+          padding: "2px 7px",
+          borderRadius: 9999,
+          border: "1px solid rgba(22, 163, 74, 0.3)",
+          whiteSpace: "nowrap",
+        }}
+        title={`In progress by ${runningEntry.user_name || "Teammate"} (${elapsed} active)`}
+      >
+        <span
+          className="table-timer-pulse"
+          style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a", display: "inline-block" }}
+        />
+        <span>⏱ {runningEntry.user_name || "Teammate"}</span>
+      </span>
+    );
+  }
 
   // Active running timer: Show Pause / Stop button directly in table row!
   if (runningEntry) {

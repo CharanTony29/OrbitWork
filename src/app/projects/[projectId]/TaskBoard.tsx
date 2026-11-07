@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { updateTaskStatus } from "@/app/actions";
 
-type Task = { id: string; generated_key: string; title: string; priority: string; status_id: string; due_date: string | null; primary_assignee_id: string | null; secondary_assignee_id: string | null };
+type Task = { id: string; generated_key: string; title: string; task_type?: string | null; priority: string; status_id: string; due_date: string | null; primary_assignee_id: string | null; secondary_assignee_id: string | null };
 type Status = { id: string; name: string; color: string };
 
 export default function TaskBoard({
@@ -66,7 +66,10 @@ export default function TaskBoard({
                 }}
                 onDragEnd={() => setDragging(null)}
               >
-                <span className="task-key">{task.generated_key}</span>
+                <div className="kanban-card-heading">
+                  <span className="task-key">{task.generated_key}</span>
+                  <span className="task-type-badge">{(task.task_type ?? "task").replaceAll("_", " ")}</span>
+                </div>
                 <Link href={`/projects/${projectId}/tasks/${task.id}`}>{task.title}</Link>
                 <div className="kanban-card-meta">
                   <span className={`priority priority-${task.priority}`}>{task.priority}</span>

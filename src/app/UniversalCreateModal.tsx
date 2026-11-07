@@ -20,11 +20,27 @@ import {
   Check,
   Sparkles,
 } from "lucide-react";
-import { createTask, quickCreateProjectDocument } from "@/app/actions";
+import { createCustomFieldFromComposer, createTask, quickCreateProjectDocument } from "@/app/actions";
 import DateInput from "@/app/DateInput";
 
 type StatusItem = { id: string; name: string; color: string; category?: string };
 type MemberItem = { id: string; label: string };
+const TASK_TYPES = [
+  ["task", "Task"],
+  ["improvement", "Improvement"],
+  ["enhancement", "Enhancement"],
+  ["bug", "Bug"],
+  ["defect", "Defect"],
+  ["error", "Error"],
+  ["issue", "Issue"],
+  ["milestone", "Milestone"],
+  ["epic", "Epic"],
+  ["story", "Story"],
+  ["subtask", "Subtask"],
+  ["support_request", "Support request"],
+  ["research", "Research"],
+] as const;
+type TaskType = (typeof TASK_TYPES)[number][0];
 
 function formatTime12h(timeStr: string) {
   if (!timeStr) return "9:00 AM";
@@ -66,8 +82,18 @@ export default function UniversalCreateModal({
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("");
   const [priority, setPriority] = useState<"low" | "normal" | "high" | "urgent">("normal");
+  const [taskType, setTaskType] = useState<TaskType>("task");
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  const [showTaskTypeMenu, setShowTaskTypeMenu] = useState(false);
+  const [showTagMenu, setShowTagMenu] = useState(false);
+  const [showFieldCreator, setShowFieldCreator] = useState(false);
+  const [newFieldName, setNewFieldName] = useState("");
+  const [newFieldType, setNewFieldType] = useState("text");
+  const [newFieldOptions, setNewFieldOptions] = useState("");
+  const [newFieldRequired, setNewFieldRequired] = useState(false);
+  const [fieldCreatorPending, setFieldCreatorPending] = useState(false);
+  const [fieldCreatorMessage, setFieldCreatorMessage] = useState("");
 
   // Reminder form state (Screenshot 2)
   const [reminderName, setReminderName] = useState("");
@@ -115,7 +141,9 @@ export default function UniversalCreateModal({
       if (fullTaskDesc) fd.set("description", fullTaskDesc);
       fd.set("statusId", selectedStatusId || statuses[0]?.id || "");
       fd.set("priority", priority);
+      fd.set("taskType", taskType);
       if (dueDate) fd.set("dueDate", dueDate);
+      for (const tag of tags) fd.append("tags", tag);
       for (const uid of selectedAssignees) {
         fd.append("assigneeIds", uid);
       }
@@ -159,6 +187,41 @@ export default function UniversalCreateModal({
     }
   };
 
+  const addTag = () => {
+    const nextTag = tagInput.trim().replace(/[,;]+$/, "").slice(0, 40);
+    if (!nextTag) return;
+    setTags((current) => current.some((tag) => tag.toLowerCase() === nextTag.toLowerCase()) ? current : [...current, nextTag].slice(0, 20));
+    setTagInput("");
+  };
+
+  const handleCreateField = async () => {
+    if (!projectId || !newFieldName.trim() || fieldCreatorPending) return;
+    setFieldCreatorPending(true);
+    setFieldCreatorMessage("");
+    const formData = new FormData();
+    formData.set("projectId", projectId);
+    formData.set("name", newFieldName.trim());
+    formData.set("fieldType", newFieldType);
+    formData.set("options", newFieldOptions);
+    if (newFieldRequired) formData.set("required", "on");
+    try {
+      const result = await createCustomFieldFromComposer(formData);
+      setFieldCreatorMessage(result.message);
+      if (result.ok) {
+        setNewFieldName("");
+        setNewFieldOptions("");
+        setNewFieldRequired(false);
+        setShowFieldCreator(false);
+        router.refresh();
+      }
+    } catch (error) {
+      console.error("Could not create custom field", error);
+      setFieldCreatorMessage("Could not create that field. Try again.");
+    } finally {
+      setFieldCreatorPending(false);
+    }
+  };
+
   return (
     <div
       className="universal-create-backdrop"
@@ -181,10 +244,10 @@ export default function UniversalCreateModal({
           width: 620,
           maxWidth: "100%",
           maxHeight: "92vh",
-          backgroundColor: "#16191f",
-          color: "#f8fafc",
+          backgroundColor: "var(--surface)",
+          color: "var(--ink)",
           borderRadius: 14,
-          border: "1px solid #2d333f",
+          border: "1px solid var(--line)",
           boxShadow: "0 25px 60px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3)",
           display: "flex",
           flexDirection: "column",
@@ -199,7 +262,7 @@ export default function UniversalCreateModal({
             alignItems: "center",
             justifyContent: "space-between",
             padding: "12px 18px 0",
-            borderBottom: "1px solid #262a34",
+            borderBottom: "1px solid var(--line)",
           }}
         >
           <div style={{ display: "flex", gap: 24, fontSize: 13, fontWeight: 600 }}>
@@ -215,10 +278,10 @@ export default function UniversalCreateModal({
                     padding: "0 0 10px",
                     border: 0,
                     background: "transparent",
-                    color: isActive ? "#ffffff" : "#94a3b8",
+                    color: isActive ? "var(--ink)" : "var(--muted)",
                     fontWeight: isActive ? 700 : 500,
                     cursor: "pointer",
-                    borderBottom: isActive ? "2px solid #16a34a" : "2px solid transparent",
+                    borderBottom: isActive ? "2px solid var(--green)" : "2px solid transparent",
                     transition: "all 0.15s ease",
                   }}
                 >
@@ -235,7 +298,7 @@ export default function UniversalCreateModal({
               style={{
                 background: "transparent",
                 border: 0,
-                color: "#94a3b8",
+                color: "var(--muted)",
                 cursor: "pointer",
                 padding: 4,
                 borderRadius: 4,
@@ -260,41 +323,56 @@ export default function UniversalCreateModal({
                     gap: 6,
                     padding: "4px 10px",
                     borderRadius: 6,
-                    border: "1px solid #333a48",
-                    background: "#1c212b",
+                    border: "1px solid var(--line)",
+                    background: "var(--surface-raised)",
                     fontSize: 11.5,
-                    color: "#cbd5e1",
+                    color: "var(--ink)",
                     fontWeight: 600,
                   }}
                 >
-                  <Layers size={13} color="#16a34a" />
+                  <Layers size={13} color="var(--green)" />
                   <span>{projectName}</span>
-                  <ChevronDown size={11} color="#64748b" />
+                  <ChevronDown size={11} color="var(--muted)" />
                 </span>
 
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "4px 10px",
-                    borderRadius: 6,
-                    border: "1px solid #333a48",
-                    background: "#1c212b",
-                    fontSize: 11.5,
-                    color: "#cbd5e1",
-                    fontWeight: 600,
-                  }}
-                >
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#16a34a" }} />
-                  <span>Task</span>
-                  <ChevronDown size={11} color="#64748b" />
-                </span>
+                <div className="composer-popover-anchor">
+                  <button
+                    type="button"
+                    className="composer-pill-button"
+                    aria-haspopup="menu"
+                    aria-expanded={showTaskTypeMenu}
+                    onClick={() => setShowTaskTypeMenu((open) => !open)}
+                  >
+                    <span className="composer-pill-dot" />
+                    <span>{TASK_TYPES.find(([value]) => value === taskType)?.[1] ?? "Task"}</span>
+                    <ChevronDown size={11} />
+                  </button>
+                  {showTaskTypeMenu && (
+                    <div className="composer-popover composer-task-type-menu" role="menu" aria-label="Task type">
+                      {TASK_TYPES.map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={taskType === value}
+                          className={taskType === value ? "is-selected" : ""}
+                          onClick={() => {
+                            setTaskType(value);
+                            setShowTaskTypeMenu(false);
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Task Title Input */}
               <input
                 ref={titleInputRef}
+                className="composer-minimal-input"
                 type="text"
                 placeholder="Task Name"
                 value={taskName}
@@ -305,7 +383,7 @@ export default function UniversalCreateModal({
                   width: "100%",
                   fontSize: 19,
                   fontWeight: 700,
-                  color: "#ffffff",
+                  color: "var(--ink)",
                   background: "transparent",
                   border: 0,
                   outline: "none",
@@ -315,6 +393,7 @@ export default function UniversalCreateModal({
 
               {/* Task Description Input */}
               <textarea
+                className="composer-minimal-input"
                 placeholder="Add description, or write with AI..."
                 value={taskDesc}
                 onChange={(e) => setTaskDesc(e.target.value)}
@@ -322,7 +401,7 @@ export default function UniversalCreateModal({
                 style={{
                   width: "100%",
                   fontSize: 13,
-                  color: "#cbd5e1",
+                  color: "var(--ink)",
                   background: "transparent",
                   border: 0,
                   outline: "none",
@@ -344,9 +423,9 @@ export default function UniversalCreateModal({
                       gap: 6,
                       padding: "5px 11px",
                       borderRadius: 6,
-                      border: "1px solid #333a48",
-                      background: currentStatusObj?.color ? `${currentStatusObj.color}22` : "#252b37",
-                      color: currentStatusObj?.color || "#ffffff",
+                      border: "1px solid var(--line)",
+                      background: currentStatusObj?.color ? `${currentStatusObj.color}22` : "var(--surface-subtle)",
+                      color: currentStatusObj?.color || "var(--ink)",
                       fontSize: 11.5,
                       fontWeight: 700,
                       cursor: "pointer",
@@ -362,8 +441,8 @@ export default function UniversalCreateModal({
                         top: "calc(100% + 4px)",
                         left: 0,
                         zIndex: 100,
-                        background: "#1c212b",
-                        border: "1px solid #333a48",
+                        background: "var(--surface-raised)",
+                        border: "1px solid var(--line)",
                         borderRadius: 8,
                         padding: 4,
                         minWidth: 150,
@@ -387,7 +466,7 @@ export default function UniversalCreateModal({
                             border: 0,
                             borderRadius: 5,
                             background: "transparent",
-                            color: "#cbd5e1",
+                            color: "var(--ink)",
                             fontSize: 11.5,
                             textAlign: "left",
                             cursor: "pointer",
@@ -412,9 +491,9 @@ export default function UniversalCreateModal({
                       gap: 6,
                       padding: "5px 11px",
                       borderRadius: 6,
-                      border: "1px solid #333a48",
-                      background: "#1c212b",
-                      color: selectedAssignees.length ? "#16a34a" : "#94a3b8",
+                      border: "1px solid var(--line)",
+                      background: "var(--surface-raised)",
+                      color: selectedAssignees.length ? "var(--green)" : "var(--muted)",
                       fontSize: 11.5,
                       fontWeight: 600,
                       cursor: "pointer",
@@ -430,8 +509,8 @@ export default function UniversalCreateModal({
                         top: "calc(100% + 4px)",
                         left: 0,
                         zIndex: 100,
-                        background: "#1c212b",
-                        border: "1px solid #333a48",
+                        background: "var(--surface-raised)",
+                        border: "1px solid var(--line)",
                         borderRadius: 8,
                         padding: 6,
                         minWidth: 180,
@@ -458,7 +537,7 @@ export default function UniversalCreateModal({
                               border: 0,
                               borderRadius: 5,
                               background: isAssigned ? "rgba(22, 163, 74, 0.15)" : "transparent",
-                              color: isAssigned ? "#4ade80" : "#cbd5e1",
+                              color: isAssigned ? "var(--green)" : "var(--ink)",
                               fontSize: 11.5,
                               cursor: "pointer",
                               textAlign: "left",
@@ -484,9 +563,9 @@ export default function UniversalCreateModal({
                       gap: 6,
                       padding: "5px 11px",
                       borderRadius: 6,
-                      border: "1px solid #333a48",
-                      background: "#1c212b",
-                      color: dueDate ? "#16a34a" : "#94a3b8",
+                      border: "1px solid var(--line)",
+                      background: "var(--surface-raised)",
+                      color: dueDate ? "var(--green)" : "var(--muted)",
                       fontSize: 11.5,
                       fontWeight: 600,
                       cursor: "pointer",
@@ -506,8 +585,8 @@ export default function UniversalCreateModal({
                         top: "calc(100% + 4px)",
                         left: 0,
                         zIndex: 100,
-                        background: "#1c212b",
-                        border: "1px solid #333a48",
+                        background: "var(--surface-raised)",
+                        border: "1px solid var(--line)",
                         borderRadius: 8,
                         padding: 10,
                         boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
@@ -517,26 +596,25 @@ export default function UniversalCreateModal({
                         gap: 8,
                       }}
                     >
-                      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>Due Date & Time</div>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>Due Date & Time</div>
                       <DateInput
                         value={dueDate}
                         ariaLabel="Due date"
                         onChange={(value) => setDueDate(value)}
                       />
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <Clock size={12} color="#94a3b8" />
+                        <Clock size={12} color="var(--muted)" />
                         <input
                           type="time"
                           value={dueTime}
                           onChange={(e) => setDueTime(e.target.value)}
                           style={{
-                            background: "#12141a",
-                            color: "#fff",
-                            border: "1px solid #333a48",
+                            background: "var(--surface-subtle)",
+                            color: "var(--ink)",
+                            border: "1px solid var(--line)",
                             padding: "4px 8px",
                             borderRadius: 6,
                             fontSize: 11.5,
-                            colorScheme: "dark",
                             flex: 1,
                           }}
                         />
@@ -546,7 +624,7 @@ export default function UniversalCreateModal({
                         onClick={() => setShowDatePicker(false)}
                         style={{
                           alignSelf: "flex-end",
-                          background: "#16a34a",
+                          background: "var(--green)",
                           color: "#fff",
                           border: 0,
                           borderRadius: 4,
@@ -573,9 +651,9 @@ export default function UniversalCreateModal({
                       gap: 6,
                       padding: "5px 11px",
                       borderRadius: 6,
-                      border: "1px solid #333a48",
-                      background: "#1c212b",
-                      color: priority === "urgent" ? "#ef4444" : priority === "high" ? "#f59e0b" : "#94a3b8",
+                      border: "1px solid var(--line)",
+                      background: "var(--surface-raised)",
+                      color: priority === "urgent" ? "#ef4444" : priority === "high" ? "#f59e0b" : "var(--muted)",
                       fontSize: 11.5,
                       fontWeight: 600,
                       cursor: "pointer",
@@ -591,8 +669,8 @@ export default function UniversalCreateModal({
                         top: "calc(100% + 4px)",
                         left: 0,
                         zIndex: 100,
-                        background: "#1c212b",
-                        border: "1px solid #333a48",
+                        background: "var(--surface-raised)",
+                        border: "1px solid var(--line)",
                         borderRadius: 8,
                         padding: 4,
                         minWidth: 120,
@@ -616,13 +694,13 @@ export default function UniversalCreateModal({
                             border: 0,
                             borderRadius: 5,
                             background: "transparent",
-                            color: "#cbd5e1",
+                            color: "var(--ink)",
                             fontSize: 11.5,
                             textAlign: "left",
                             cursor: "pointer",
                           }}
                         >
-                          <Flag size={11} color={pr === "urgent" ? "#ef4444" : pr === "high" ? "#f59e0b" : "#94a3b8"} />
+                          <Flag size={11} color={pr === "urgent" ? "#ef4444" : pr === "high" ? "#f59e0b" : "var(--muted)"} />
                           <span>{pr.charAt(0).toUpperCase() + pr.slice(1)}</span>
                         </button>
                       ))}
@@ -631,49 +709,108 @@ export default function UniversalCreateModal({
                 </div>
 
                 {/* Tags */}
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "5px 11px",
-                    borderRadius: 6,
-                    border: "1px solid #333a48",
-                    background: "#1c212b",
-                    color: "#94a3b8",
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                  }}
-                >
-                  <Tag size={12} />
-                  <span>Tags</span>
-                </span>
+                <div className="composer-popover-anchor">
+                  <button
+                    type="button"
+                    className="composer-pill-button"
+                    aria-haspopup="dialog"
+                    aria-expanded={showTagMenu}
+                    onClick={() => setShowTagMenu((open) => !open)}
+                  >
+                    <Tag size={12} />
+                    <span>Tags{tags.length ? ` · ${tags.length}` : ""}</span>
+                    <ChevronDown size={11} />
+                  </button>
+                  {showTagMenu && (
+                    <div className="composer-popover composer-tag-menu" role="dialog" aria-label="Add task tags">
+                      <div className="composer-tag-list">
+                        {tags.map((tag) => (
+                          <span className="composer-tag-chip" key={tag}>
+                            {tag}
+                            <button type="button" aria-label={`Remove ${tag} tag`} onClick={() => setTags((current) => current.filter((item) => item !== tag))}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="composer-tag-entry">
+                        <input
+                          value={tagInput}
+                          maxLength={40}
+                          placeholder="Type a tag and press Enter"
+                          aria-label="New task tag"
+                          onChange={(event) => setTagInput(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === ",") {
+                              event.preventDefault();
+                              addTag();
+                            }
+                          }}
+                        />
+                        <button type="button" className="composer-action-button" onClick={addTag} disabled={!tagInput.trim()}>Add</button>
+                      </div>
+                      <p className="composer-popover-hint">Up to 20 tags, 40 characters each.</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Fields Section (Screenshot 3) */}
-              <div style={{ marginTop: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
+              <div className="composer-field-section">
+                <div className="composer-section-label">
                   FIELDS
                 </div>
                 <button
                   type="button"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    border: "1px solid #333a48",
-                    background: "#1c212b",
-                    color: "#cbd5e1",
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    cursor: "pointer",
+                  className="composer-pill-button"
+                  onClick={() => {
+                    setShowFieldCreator((open) => !open);
+                    setFieldCreatorMessage("");
                   }}
+                  disabled={!projectId}
+                  title={!projectId ? "Open a project to create project fields" : "Create a project field"}
                 >
                   <Plus size={13} />
                   <span>Create new field</span>
                 </button>
+                {fieldCreatorMessage && <p className="composer-field-message" role="status">{fieldCreatorMessage}</p>}
+                {showFieldCreator && projectId && (
+                  <div className="composer-field-creator">
+                    <input
+                      value={newFieldName}
+                      onChange={(event) => setNewFieldName(event.target.value)}
+                      placeholder="Field name"
+                      maxLength={80}
+                      aria-label="Custom field name"
+                    />
+                    <select value={newFieldType} onChange={(event) => setNewFieldType(event.target.value)} aria-label="Custom field type">
+                      <option value="text">Short text</option>
+                      <option value="long_text">Long text</option>
+                      <option value="number">Number</option>
+                      <option value="date">Date</option>
+                      <option value="dropdown">Dropdown</option>
+                      <option value="multi_select">Multi-select</option>
+                      <option value="checkbox">Checkbox</option>
+                    </select>
+                    {["dropdown", "multi_select"].includes(newFieldType) && (
+                      <input
+                        value={newFieldOptions}
+                        onChange={(event) => setNewFieldOptions(event.target.value)}
+                        placeholder="Options, comma separated"
+                        maxLength={1000}
+                        aria-label="Field options"
+                      />
+                    )}
+                    <label className="composer-required-toggle">
+                      <input type="checkbox" checked={newFieldRequired} onChange={(event) => setNewFieldRequired(event.target.checked)} />
+                      Required
+                    </label>
+                    <div className="composer-field-actions">
+                      <button type="button" className="composer-action-button secondary" onClick={() => setShowFieldCreator(false)}>Cancel</button>
+                      <button type="button" className="composer-action-button" onClick={handleCreateField} disabled={!newFieldName.trim() || fieldCreatorPending}>
+                        {fieldCreatorPending ? "Creating…" : "Add field"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer Bar (Screenshot 3) */}
@@ -684,7 +821,7 @@ export default function UniversalCreateModal({
                   justifyContent: "space-between",
                   marginTop: 18,
                   paddingTop: 14,
-                  borderTop: "1px solid #262a34",
+                  borderTop: "1px solid var(--line)",
                 }}
               >
                 <button
@@ -695,9 +832,9 @@ export default function UniversalCreateModal({
                     gap: 6,
                     padding: "6px 12px",
                     borderRadius: 6,
-                    border: "1px solid #333a48",
-                    background: "#1c212b",
-                    color: "#cbd5e1",
+                    border: "1px solid var(--line)",
+                    background: "var(--surface-raised)",
+                    color: "var(--ink)",
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: "pointer",
@@ -710,7 +847,7 @@ export default function UniversalCreateModal({
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <button
                     type="button"
-                    style={{ background: "transparent", border: 0, color: "#94a3b8", cursor: "pointer" }}
+                    style={{ background: "transparent", border: 0, color: "var(--muted)", cursor: "pointer" }}
                     title="Attach file"
                   >
                     <Paperclip size={15} />
@@ -718,7 +855,7 @@ export default function UniversalCreateModal({
 
                   <button
                     type="button"
-                    style={{ display: "flex", alignItems: "center", gap: 4, background: "transparent", border: 0, color: "#94a3b8", cursor: "pointer", fontSize: 11.5 }}
+                    style={{ display: "flex", alignItems: "center", gap: 4, background: "transparent", border: 0, color: "var(--muted)", cursor: "pointer", fontSize: 11.5 }}
                     title="Watchers / Reminders"
                   >
                     <Bell size={15} />
@@ -735,7 +872,7 @@ export default function UniversalCreateModal({
                       padding: "8px 18px",
                       borderRadius: 8,
                       border: 0,
-                      backgroundColor: "#16a34a",
+                      backgroundColor: "var(--green)",
                       color: "#ffffff",
                       fontSize: 13,
                       fontWeight: 700,
@@ -756,6 +893,7 @@ export default function UniversalCreateModal({
               {/* Reminder Name Input (Screenshot 2) */}
               <input
                 ref={titleInputRef}
+                className="composer-minimal-input"
                 type="text"
                 placeholder="Reminder name or type '/' for commands"
                 value={reminderName}
@@ -765,7 +903,7 @@ export default function UniversalCreateModal({
                   width: "100%",
                   fontSize: 18,
                   fontWeight: 700,
-                  color: "#ffffff",
+                  color: "var(--ink)",
                   background: "transparent",
                   border: 0,
                   outline: "none",
@@ -775,6 +913,7 @@ export default function UniversalCreateModal({
 
               {/* Reminder Description */}
               <textarea
+                className="composer-minimal-input"
                 placeholder="Add description"
                 value={reminderDesc}
                 onChange={(e) => setReminderDesc(e.target.value)}
@@ -782,7 +921,7 @@ export default function UniversalCreateModal({
                 style={{
                   width: "100%",
                   fontSize: 13,
-                  color: "#cbd5e1",
+                  color: "var(--ink)",
                   background: "transparent",
                   border: 0,
                   outline: "none",
@@ -808,15 +947,15 @@ export default function UniversalCreateModal({
                       gap: 6,
                       padding: "5px 12px",
                       borderRadius: 6,
-                      border: "1px solid #333a48",
-                      background: "#1c212b",
-                      color: "#cbd5e1",
+                      border: "1px solid var(--line)",
+                      background: "var(--surface-raised)",
+                      color: "var(--ink)",
                       fontSize: 12,
                       fontWeight: 600,
                       cursor: "pointer",
                     }}
                   >
-                    <Calendar size={13} color="#16a34a" />
+                    <Calendar size={13} color="var(--green)" />
                     <span>{reminderDate === new Date().toISOString().slice(0, 10) ? "Today" : reminderDate}</span>
                   </button>
                   {showDatePicker && (
@@ -826,8 +965,8 @@ export default function UniversalCreateModal({
                         top: "calc(100% + 6px)",
                         left: 0,
                         zIndex: 200,
-                        background: "#1c212b",
-                        border: "1px solid #333a48",
+                        background: "var(--surface-raised)",
+                        border: "1px solid var(--line)",
                         borderRadius: 10,
                         padding: 12,
                         minWidth: 220,
@@ -837,7 +976,7 @@ export default function UniversalCreateModal({
                         gap: 8,
                       }}
                     >
-                      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>Select Date</div>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>Select Date</div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         <button
                           type="button"
@@ -848,9 +987,9 @@ export default function UniversalCreateModal({
                           style={{
                             padding: "3px 8px",
                             borderRadius: 4,
-                            border: "1px solid #333a48",
-                            background: "#12141a",
-                            color: "#cbd5e1",
+                            border: "1px solid var(--line)",
+                            background: "var(--surface-subtle)",
+                            color: "var(--ink)",
                             fontSize: 11,
                             cursor: "pointer",
                           }}
@@ -867,9 +1006,9 @@ export default function UniversalCreateModal({
                           style={{
                             padding: "3px 8px",
                             borderRadius: 4,
-                            border: "1px solid #333a48",
-                            background: "#12141a",
-                            color: "#cbd5e1",
+                            border: "1px solid var(--line)",
+                            background: "var(--surface-subtle)",
+                            color: "var(--ink)",
                             fontSize: 11,
                             cursor: "pointer",
                           }}
@@ -882,9 +1021,46 @@ export default function UniversalCreateModal({
                         ariaLabel="Reminder date"
                         onChange={(value) => {
                           setReminderDate(value);
-                          setShowDatePicker(false);
                         }}
                       />
+                      <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <span style={{ fontSize: 11, color: "var(--muted)", display: "flex", alignItems: "center", gap: 5 }}>
+                          <Clock size={12} color="var(--green)" />
+                          <span>Reminder Time:</span>
+                        </span>
+                        <input
+                          type="time"
+                          value={reminderTime}
+                          onChange={(e) => setReminderTime(e.target.value)}
+                          style={{
+                            background: "var(--surface-subtle)",
+                            color: "var(--ink)",
+                            border: "1px solid var(--line)",
+                            padding: "4px 8px",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            outline: "none",
+                          }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowDatePicker(false)}
+                        style={{
+                          marginTop: 6,
+                          width: "100%",
+                          padding: "5px 0",
+                          background: "var(--green)",
+                          color: "#fff",
+                          border: 0,
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Set Date &amp; Time
+                      </button>
                     </div>
                   )}
                 </div>
@@ -904,18 +1080,18 @@ export default function UniversalCreateModal({
                       gap: 6,
                       padding: "5px 12px",
                       borderRadius: 6,
-                      border: "1px solid #333a48",
-                      background: "#1c212b",
-                      color: "#cbd5e1",
+                      border: "1px solid var(--line)",
+                      background: "var(--surface-raised)",
+                      color: "var(--ink)",
                       fontSize: 12,
                       fontWeight: 600,
                       cursor: "pointer",
                     }}
                     title="Set reminder time"
                   >
-                    <Clock size={13} color="#16a34a" />
+                    <Clock size={13} color="var(--green)" />
                     <span>{formatTime12h(reminderTime)}</span>
-                    <ChevronDown size={11} color="#64748b" />
+                    <ChevronDown size={11} color="var(--muted)" />
                   </button>
                   {showTimePicker && (
                     <div
@@ -924,8 +1100,8 @@ export default function UniversalCreateModal({
                         top: "calc(100% + 6px)",
                         left: 0,
                         zIndex: 200,
-                        background: "#1c212b",
-                        border: "1px solid #333a48",
+                        background: "var(--surface-raised)",
+                        border: "1px solid var(--line)",
                         borderRadius: 10,
                         padding: 12,
                         minWidth: 240,
@@ -935,7 +1111,7 @@ export default function UniversalCreateModal({
                         gap: 10,
                       }}
                     >
-                      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>Select Time</div>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>Select Time</div>
                       {/* Presets Grid */}
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                         {[
@@ -956,9 +1132,9 @@ export default function UniversalCreateModal({
                             style={{
                               padding: "6px 8px",
                               borderRadius: 6,
-                              border: `1px solid ${reminderTime === t.val ? "#16a34a" : "#333a48"}`,
-                              background: reminderTime === t.val ? "rgba(22, 163, 74, 0.2)" : "#12141a",
-                              color: reminderTime === t.val ? "#4ade80" : "#cbd5e1",
+                              border: `1px solid ${reminderTime === t.val ? "var(--green)" : "var(--line)"}`,
+                              background: reminderTime === t.val ? "color-mix(in srgb, var(--green) 20%, transparent)" : "var(--surface-subtle)",
+                              color: reminderTime === t.val ? "var(--green)" : "var(--ink)",
                               fontSize: 11,
                               fontWeight: 600,
                               cursor: "pointer",
@@ -971,21 +1147,20 @@ export default function UniversalCreateModal({
                       </div>
 
                       {/* Custom Exact Time Input */}
-                      <div style={{ borderTop: "1px solid #282f3c", paddingTop: 8, display: "flex", flexDirection: "column", gap: 5 }}>
-                        <span style={{ fontSize: 10.5, color: "#94a3b8" }}>Or pick custom time:</span>
+                      <div style={{ borderTop: "1px solid var(--line)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 5 }}>
+                        <span style={{ fontSize: 10.5, color: "var(--muted)" }}>Or pick custom time:</span>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <input
                             type="time"
                             value={reminderTime}
                             onChange={(e) => setReminderTime(e.target.value)}
                             style={{
-                              background: "#12141a",
-                              color: "#fff",
-                              border: "1px solid #333a48",
+                              background: "var(--surface-subtle)",
+                              color: "var(--ink)",
+                              border: "1px solid var(--line)",
                               padding: "5px 10px",
                               borderRadius: 6,
                               fontSize: 12,
-                              colorScheme: "dark",
                               flex: 1,
                             }}
                           />
@@ -994,7 +1169,7 @@ export default function UniversalCreateModal({
                             onClick={() => setShowTimePicker(false)}
                             style={{
                               padding: "6px 12px",
-                              background: "#16a34a",
+                              background: "var(--green)",
                               color: "#fff",
                               border: 0,
                               borderRadius: 6,
@@ -1019,14 +1194,14 @@ export default function UniversalCreateModal({
                     gap: 6,
                     padding: "5px 12px",
                     borderRadius: 6,
-                    border: "1px solid #333a48",
-                    background: "#1c212b",
-                    color: "#cbd5e1",
+                    border: "1px solid var(--line)",
+                    background: "var(--surface-raised)",
+                    color: "var(--ink)",
                     fontSize: 12,
                     fontWeight: 600,
                   }}
                 >
-                  <User size={13} color="#16a34a" />
+                  <User size={13} color="var(--green)" />
                   <span>For me</span>
                 </span>
 
@@ -1045,17 +1220,17 @@ export default function UniversalCreateModal({
                       gap: 6,
                       padding: "5px 12px",
                       borderRadius: 6,
-                      border: "1px solid #333a48",
-                      background: "#1c212b",
-                      color: "#cbd5e1",
+                      border: "1px solid var(--line)",
+                      background: "var(--surface-raised)",
+                      color: "var(--ink)",
                       fontSize: 12,
                       fontWeight: 600,
                       cursor: "pointer",
                     }}
                   >
-                    <Bell size={13} color="#16a34a" />
+                    <Bell size={13} color="var(--green)" />
                     <span>{reminderNotifyOption}</span>
-                    <ChevronDown size={11} color="#64748b" />
+                    <ChevronDown size={11} color="var(--muted)" />
                   </button>
                   {showNotifyMenu && (
                     <div
@@ -1064,8 +1239,8 @@ export default function UniversalCreateModal({
                         top: "calc(100% + 6px)",
                         left: 0,
                         zIndex: 200,
-                        background: "#1c212b",
-                        border: "1px solid #333a48",
+                        background: "var(--surface-raised)",
+                        border: "1px solid var(--line)",
                         borderRadius: 8,
                         padding: 4,
                         minWidth: 180,
@@ -1088,7 +1263,7 @@ export default function UniversalCreateModal({
                             border: 0,
                             borderRadius: 5,
                             background: "transparent",
-                            color: "#cbd5e1",
+                            color: "var(--ink)",
                             fontSize: 11.5,
                             textAlign: "left",
                             cursor: "pointer",
@@ -1103,13 +1278,13 @@ export default function UniversalCreateModal({
               </div>
 
               {/* Email Reminder Checkbox */}
-              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#94a3b8" }}>
+              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--muted)" }}>
                 <input
                   type="checkbox"
                   id="sendEmailReminder"
                   checked={sendEmailReminder}
                   onChange={(e) => setSendEmailReminder(e.target.checked)}
-                  style={{ accentColor: "#16a34a" }}
+                  style={{ accentColor: "var(--green)" }}
                 />
                 <label htmlFor="sendEmailReminder" style={{ cursor: "pointer" }}>
                   Send email reminder notification at scheduled time
@@ -1124,12 +1299,12 @@ export default function UniversalCreateModal({
                   justifyContent: "space-between",
                   marginTop: 20,
                   paddingTop: 14,
-                  borderTop: "1px solid #262a34",
+                  borderTop: "1px solid var(--line)",
                 }}
               >
                 <button
                   type="button"
-                  style={{ background: "transparent", border: 0, color: "#94a3b8", cursor: "pointer" }}
+                  style={{ background: "transparent", border: 0, color: "var(--muted)", cursor: "pointer" }}
                   title="Attach file"
                 >
                   <Paperclip size={15} />
@@ -1145,7 +1320,7 @@ export default function UniversalCreateModal({
                     padding: "8px 20px",
                     borderRadius: 8,
                     border: 0,
-                    backgroundColor: "#16a34a",
+                    backgroundColor: "var(--green)",
                     color: "#ffffff",
                     fontSize: 13,
                     fontWeight: 700,
@@ -1161,10 +1336,10 @@ export default function UniversalCreateModal({
 
           {/* TAB 3: DOC */}
           {activeTab === "doc" && (
-            <div style={{ padding: "10px 0", textAlign: "center", color: "#cbd5e1" }}>
-              <FileText size={32} color="#16a34a" style={{ margin: "0 auto 10px" }} />
+            <div style={{ padding: "10px 0", textAlign: "center", color: "var(--ink)" }}>
+              <FileText size={32} color="var(--green)" style={{ margin: "0 auto 10px" }} />
               <h4 style={{ margin: "0 0 6px", fontSize: 15 }}>Create a Document</h4>
-              <p style={{ fontSize: 12, color: "#94a3b8", marginBottom: 14 }}>
+              <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>
                 Start a blank document or draft with full rich-text tools.
               </p>
               <button
@@ -1177,7 +1352,7 @@ export default function UniversalCreateModal({
                   padding: "7px 16px",
                   borderRadius: 7,
                   border: 0,
-                  backgroundColor: "#16a34a",
+                  backgroundColor: "var(--green)",
                   color: "#fff",
                   fontWeight: 700,
                   fontSize: 12,
@@ -1191,10 +1366,10 @@ export default function UniversalCreateModal({
 
           {/* TAB 4: WHITEBOARD */}
           {activeTab === "whiteboard" && (
-            <div style={{ padding: "10px 0", textAlign: "center", color: "#cbd5e1" }}>
-              <Layers size={32} color="#16a34a" style={{ margin: "0 auto 10px" }} />
+            <div style={{ padding: "10px 0", textAlign: "center", color: "var(--ink)" }}>
+              <Layers size={32} color="var(--green)" style={{ margin: "0 auto 10px" }} />
               <h4 style={{ margin: "0 0 6px", fontSize: 15 }}>Open Whiteboard</h4>
-              <p style={{ fontSize: 12, color: "#94a3b8", marginBottom: 14 }}>
+              <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>
                 Brainstorm, draw diagrams, and connect workflow ideas.
               </p>
               <button
@@ -1207,7 +1382,7 @@ export default function UniversalCreateModal({
                   padding: "7px 16px",
                   borderRadius: 7,
                   border: 0,
-                  backgroundColor: "#16a34a",
+                  backgroundColor: "var(--green)",
                   color: "#fff",
                   fontWeight: 700,
                   fontSize: 12,
@@ -1221,10 +1396,10 @@ export default function UniversalCreateModal({
 
           {/* TAB 5: DASHBOARD */}
           {activeTab === "dashboard" && (
-            <div style={{ padding: "10px 0", textAlign: "center", color: "#cbd5e1" }}>
-              <Layers size={32} color="#16a34a" style={{ margin: "0 auto 10px" }} />
+            <div style={{ padding: "10px 0", textAlign: "center", color: "var(--ink)" }}>
+              <Layers size={32} color="var(--green)" style={{ margin: "0 auto 10px" }} />
               <h4 style={{ margin: "0 0 6px", fontSize: 15 }}>All Dashboards &amp; Workspaces</h4>
-              <p style={{ fontSize: 12, color: "#94a3b8", marginBottom: 14 }}>
+              <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>
                 Navigate back to overview and your organization workspaces.
               </p>
               <button
@@ -1237,7 +1412,7 @@ export default function UniversalCreateModal({
                   padding: "7px 16px",
                   borderRadius: 7,
                   border: 0,
-                  backgroundColor: "#16a34a",
+                  backgroundColor: "var(--green)",
                   color: "#fff",
                   fontWeight: 700,
                   fontSize: 12,

@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import CurrentUserBadge from "@/app/CurrentUserBadge";
 import Link from "next/link";
-import { ArrowLeft, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createTask, signOut } from "@/app/actions";
 
@@ -18,7 +18,7 @@ import { checkAndSendDueDateReminders } from "@/lib/email";
 
 export default async function ProjectPage({ params, searchParams }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ error?: string; view?: string; q?: string; status?: string; priority?: string; assignee?: string; page?: string; month?: string; sort?: string }>;
+  searchParams: Promise<{ error?: string; view?: string; q?: string; status?: string; priority?: string; assignee?: string; page?: string; month?: string; sort?: string; group?: string }>;
 }) {
   const { projectId } = await params;
   const supabase = await createClient();
@@ -29,7 +29,7 @@ export default async function ProjectPage({ params, searchParams }: {
   const filters = await searchParams;
   const view = ["list", "board", "calendar", "gantt", "workload", "whiteboard", "flowchart"].includes(filters.view ?? "") ? filters.view! : "list";
   const page = Math.max(1, Math.min(10000, Number.parseInt(filters.page ?? "1", 10) || 1));
-  let taskQuery = supabase.from("tasks").select("id, generated_key, title, description, priority, start_date, due_date, estimate_minutes, progress, status_id, parent_task_id, created_at, created_by, primary_assignee_id, secondary_assignee_id", { count: "exact" }).eq("project_id", projectId);
+  let taskQuery = supabase.from("tasks").select("id, generated_key, title, description, task_type, tags, priority, start_date, due_date, estimate_minutes, progress, status_id, parent_task_id, created_at, created_by, primary_assignee_id, secondary_assignee_id", { count: "exact" }).eq("project_id", projectId);
   const query = filters.q?.trim().replace(/[,%()]/g, " ").slice(0, 80);
   const assigneeId = filters.assignee && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(filters.assignee) ? filters.assignee : undefined;
   if (query) taskQuery = taskQuery.or(`title.ilike.%${query}%,generated_key.ilike.%${query}%`);
@@ -91,7 +91,7 @@ export default async function ProjectPage({ params, searchParams }: {
     taskIds.length ? supabase.from("task_attachments").select("id, task_id, file_name, mime_type, external_file_id, external_url").in("task_id", taskIds) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("task_comments").select("task_id").in("task_id", taskIds) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("time_entries").select("task_id, duration_minutes, billable").in("task_id", taskIds).not("ended_at", "is", null) : Promise.resolve({ data: [] }),
-    supabase.from("time_entries").select("id, task_id, started_at, billable").eq("user_id", user.id).is("ended_at", null),
+    taskIds.length ? supabase.from("time_entries").select("id, task_id, user_id, started_at, billable").in("task_id", taskIds).is("ended_at", null) : Promise.resolve({ data: [] }),
   ]);
   const { data: fieldValues } = fieldValuesResult;
   const { data: taskAssigneeRows } = taskAssigneesResult;
@@ -110,18 +110,27 @@ export default async function ProjectPage({ params, searchParams }: {
     }
   }
 
-  const runningTimerMap = new Map<string, { id: string; started_at: string; billable?: boolean }>();
-  for (const rt of runningTimersResult.data ?? []) {
-    if (rt.task_id) {
-      runningTimerMap.set(rt.task_id, { id: rt.id, started_at: rt.started_at, billable: rt.billable ?? true });
-    }
-  }
-
   const attachmentsMap = new Map<string, Array<{ id: string; file_name: string; mime_type: string; external_file_id: string; external_url: string | null }>>();
   for (const att of taskAttachments) {
     const list = attachmentsMap.get(att.task_id) ?? [];
     list.push(att);
     attachmentsMap.set(att.task_id, list);
+  }
+
+  const people = new Map((profiles ?? []).map((profile) => [profile.id, profile.display_name?.trim() || profile.email || "Team member"]));
+
+  const runningTimerMap = new Map<string, { id: string; started_at: string; billable?: boolean; user_id?: string; user_name?: string; is_current_user?: boolean }>();
+  for (const rt of runningTimersResult.data ?? []) {
+    if (rt.task_id) {
+      runningTimerMap.set(rt.task_id, {
+        id: rt.id,
+        started_at: rt.started_at,
+        billable: rt.billable ?? true,
+        user_id: rt.user_id,
+        user_name: people.get(rt.user_id) || "Teammate",
+        is_current_user: rt.user_id === user.id,
+      });
+    }
   }
 
   const commentCounts = new Map<string, number>();
@@ -135,7 +144,6 @@ export default async function ProjectPage({ params, searchParams }: {
     list.push(row.user_id);
     taskAssigneeMap.set(row.task_id, list);
   }
-  const people = new Map((profiles ?? []).map((profile) => [profile.id, profile.display_name?.trim() || profile.email || "Team member"]));
   const createdBy = new Map((tasks ?? []).map((task) => [task.created_by, people.get(task.created_by) ?? "Team member"]));
   const members = (orgMembers ?? []).map((member) => ({ id: member.user_id, label: people.get(member.user_id) ?? "Team member" }));
   const projectMemberIds = new Set((projectMembers ?? []).map((member) => member.user_id));
@@ -149,23 +157,48 @@ export default async function ProjectPage({ params, searchParams }: {
   const viewHref = (nextView: string) => {
     const params = new URLSearchParams();
     params.set("view", nextView);
-    for (const key of ["q", "status", "priority", "assignee", "sort", "month"]) if (filters[key as keyof typeof filters]) params.set(key, filters[key as keyof typeof filters]!);
+    for (const key of ["q", "status", "priority", "assignee", "sort", "month", "group"]) if (filters[key as keyof typeof filters]) params.set(key, filters[key as keyof typeof filters]!);
     return `/projects/${projectId}?${params.toString()}`;
   };
   const pageHref = (nextPage: number) => {
     const params = new URLSearchParams();
-    for (const key of ["view", "q", "status", "priority", "assignee", "sort", "month"]) if (filters[key as keyof typeof filters]) params.set(key, filters[key as keyof typeof filters]!);
+    for (const key of ["view", "q", "status", "priority", "assignee", "sort", "month", "group"]) if (filters[key as keyof typeof filters]) params.set(key, filters[key as keyof typeof filters]!);
     params.set("page", String(nextPage));
     return `/projects/${projectId}?${params.toString()}`;
   };
 
-  return <main className="app-shell">
-    <header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/><form action={signOut}><button className="quiet-button">Sign out</button></form></div></header>
-    <div className="project-page"><Link className="back-link" href={`/workspaces/${project.workspace_id}`}><ArrowLeft size={15}/> {workspace?.name ?? "Workspace"}</Link>
-      <div className="project-heading"><div><p className="eyebrow">PROJECT · {project.status.replace("_", " ").toUpperCase()}</p><h1>{project.name}</h1><p className="muted">{project.description || "Your project's tasks and workflow."}</p></div><div className="project-heading-actions">{!canEdit && <span className="role-pill" style={{ background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1' }}>View-only</span>}<span className="project-priority">{project.priority} priority</span>{canManage && <ProjectSettingsPanel projectId={project.id} statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))} members={members} projectMembers={projectMembers ?? []} customFields={(customFields ?? []).map(({ id, name, field_type, required }) => ({ id, name, field_type, required }))} people={people} availableMembers={availableMembers} currentStatus={project.status}/>}</div></div>
+  return <main className="app-shell project-app-shell">
+    <header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/></div></header>
+    <div className="project-page">
       {error && <p className="error" role="alert">That change could not be saved. Check access and required fields.</p>}
-      <section className="project-metrics" aria-label="Project task summary"><article><span>Total tasks</span><strong>{totalMetric.count ?? 0}</strong></article><article><span>Overdue and active</span><strong>{overdueMetric.count ?? 0}</strong></article>{statusMetrics.map((status) => <article key={status.id}><span><i className="status-color" style={{ backgroundColor: status.color }}/> {status.name}</span><strong>{status.count}</strong></article>)}</section>
-      <section className="task-panel"><div className="task-panel-head"><div><p className="eyebrow">TASKS</p><h2>Project work <span className="count-pill">{taskCount ?? 0}</span></h2></div></div><nav className="view-tabs" aria-label="Task views"><Link className={view === "list" ? "selected" : ""} href={viewHref("list")}>List</Link><Link className={view === "board" ? "selected" : ""} href={viewHref("board")}>Board</Link><Link className={view === "calendar" ? "selected" : ""} href={viewHref("calendar")}>Calendar</Link><Link className={view === "gantt" ? "selected" : ""} href={viewHref("gantt")}>Timeline</Link><Link className={view === "workload" ? "selected" : ""} href={viewHref("workload")}>Workload</Link><Link className={view === "whiteboard" ? "selected" : ""} href={viewHref("whiteboard")}>Whiteboard</Link><Link className={view === "flowchart" ? "selected" : ""} href={viewHref("flowchart")}>Flowchart</Link><a className="export-link" href={`/api/projects/${projectId}/tasks.csv`}>Export CSV</a></nav>
+      <section className="task-panel">
+        <nav className="view-tabs" aria-label="Task views">
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexWrap: "nowrap" }}>
+            <Link className={view === "list" ? "selected" : ""} href={viewHref("list")}>List</Link>
+            <Link className={view === "board" ? "selected" : ""} href={viewHref("board")}>Board</Link>
+            <Link className={view === "calendar" ? "selected" : ""} href={viewHref("calendar")}>Calendar</Link>
+            <Link className={view === "gantt" ? "selected" : ""} href={viewHref("gantt")}>Timeline</Link>
+            <Link className={view === "workload" ? "selected" : ""} href={viewHref("workload")}>Workload</Link>
+            <Link className={view === "whiteboard" ? "selected" : ""} href={viewHref("whiteboard")}>Whiteboard</Link>
+            <Link className={view === "flowchart" ? "selected" : ""} href={viewHref("flowchart")}>Flowchart</Link>
+          </div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+            {!canEdit && <span className="role-pill" style={{ background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1', fontSize: "11px", padding: "2px 8px" }}>View-only</span>}
+            <a className="export-link" href={`/api/projects/${projectId}/tasks.csv`} style={{ fontSize: "12px" }}>Export CSV</a>
+            {canManage && (
+              <ProjectSettingsPanel
+                projectId={project.id}
+                statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
+                members={members}
+                projectMembers={projectMembers ?? []}
+                customFields={(customFields ?? []).map(({ id, name, field_type, required }) => ({ id, name, field_type, required }))}
+                people={people}
+                availableMembers={availableMembers}
+                currentStatus={project.status}
+              />
+            )}
+          </div>
+        </nav>
         <TaskFilterToolbar
           projectId={project.id}
           projectName={project.name}
@@ -178,10 +211,17 @@ export default async function ProjectPage({ params, searchParams }: {
             assignee: filters.assignee,
             sort: filters.sort,
             view,
+            group: filters.group,
           }}
         />
-        {view === "list" ? <TaskTable projectId={project.id} canEdit={canEdit} tasks={(tasks ?? []).map((task) => ({ ...task, assigneeIds: taskAssigneeMap.get(task.id) ?? [], billable_minutes: billableMinutesMap.get(task.id) ?? 0 }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} members={members} createdBy={createdBy} customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))} customValues={customValues} attachmentsMap={attachmentsMap} projectDocuments={(projectDocs ?? []).map(({ id, title, body_markdown }) => ({ id, title, body_markdown }))} commentCounts={commentCounts} runningTimerMap={runningTimerMap} /> : view === "board" ? <TaskBoard projectId={project.id} canEdit={canEdit} tasks={tasks ?? []} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} people={people}/> : view === "calendar" ? <TaskCalendar projectId={project.id} tasks={(tasks ?? []).map((task) => ({ ...task, status_category: statuses?.find((status) => status.id === task.status_id)?.category }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "gantt" ? <TaskGantt projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, start_date, due_date, progress, created_at, status_id }) => ({ id, generated_key, title, start_date, due_date, progress, created_at, status_category: statuses?.find((status) => status.id === status_id)?.category }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "whiteboard" ? <ProjectWhiteboardView projectId={project.id} documents={projectDocs ?? []}/> : view === "flowchart" ? <ProjectFlowchartView projectId={project.id} documents={projectDocs ?? []}/> : <TaskWorkload projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }) => ({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }))} people={people}/>}
-        <div className="task-pagination"><span>Showing {(tasks?.length ?? 0) ? (page - 1) * 100 + 1 : 0}–{(page - 1) * 100 + (tasks?.length ?? 0)} of {taskCount ?? 0}</span>{page > 1 && <Link href={pageHref(page - 1)}>Previous</Link>}{page * 100 < (taskCount ?? 0) && <Link href={pageHref(page + 1)}>Next</Link>}</div>
+        {view === "list" ? <TaskTable projectId={project.id} canEdit={canEdit} tasks={(tasks ?? []).map((task) => ({ ...task, assigneeIds: taskAssigneeMap.get(task.id) ?? [], billable_minutes: billableMinutesMap.get(task.id) ?? 0 }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} members={members} createdBy={createdBy} customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))} customValues={customValues} attachmentsMap={attachmentsMap} projectDocuments={(projectDocs ?? []).map(({ id, title, body_markdown }) => ({ id, title, body_markdown }))} commentCounts={commentCounts} runningTimerMap={runningTimerMap} initialGroupBy={(filters.group as "status" | "priority" | "due_date" | "none") || "status"} /> : view === "board" ? <TaskBoard projectId={project.id} canEdit={canEdit} tasks={tasks ?? []} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} people={people}/> : view === "calendar" ? <TaskCalendar projectId={project.id} tasks={(tasks ?? []).map((task) => ({ ...task, status_category: statuses?.find((status) => status.id === task.status_id)?.category }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "gantt" ? <TaskGantt projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, start_date, due_date, progress, created_at, status_id }) => ({ id, generated_key, title, start_date, due_date, progress, created_at, status_category: statuses?.find((status) => status.id === status_id)?.category }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "whiteboard" ? <ProjectWhiteboardView projectId={project.id} documents={projectDocs ?? []}/> : view === "flowchart" ? <ProjectFlowchartView projectId={project.id} documents={projectDocs ?? []}/> : <TaskWorkload projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }) => ({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }))} people={people}/>}
+        {(taskCount ?? 0) > 100 && (
+          <div className="task-pagination">
+            {page > 1 && <Link href={pageHref(page - 1)}>Previous</Link>}
+            <span>Page {page} of {Math.ceil((taskCount ?? 0) / 100)}</span>
+            {page * 100 < (taskCount ?? 0) && <Link href={pageHref(page + 1)}>Next</Link>}
+          </div>
+        )}
       </section>
     </div>
   </main>;

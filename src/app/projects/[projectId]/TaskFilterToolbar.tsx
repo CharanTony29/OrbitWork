@@ -13,6 +13,9 @@ import {
   ChevronDown,
   ArrowUpDown,
   Plus,
+  Calendar,
+  Flag,
+  List,
 } from "lucide-react";
 import UniversalCreateModal from "@/app/UniversalCreateModal";
 
@@ -37,6 +40,7 @@ export default function TaskFilterToolbar({
     assignee?: string;
     sort?: string;
     view?: string;
+    group?: string;
   };
 }) {
   const router = useRouter();
@@ -139,51 +143,75 @@ export default function TaskFilterToolbar({
     <div className="task-toolbar-container">
       {/* Left side pills */}
       <div className="task-toolbar-left">
-        {/* Group: Status pill (ClickUp style) */}
-        <div className="toolbar-popover-wrap" ref={groupRef}>
-          <button
-            type="button"
-            className="toolbar-pill toolbar-pill-highlighted"
-            onClick={() => setGroupMenuOpen((v) => !v)}
-            aria-expanded={groupMenuOpen}
-          >
-            <Layers size={13} className="pill-icon" />
-            <span>Group: Status</span>
-            <ChevronDown size={11} className="pill-chevron" />
-          </button>
-          {groupMenuOpen && (
-            <div className="toolbar-dropdown">
-              <span className="toolbar-dropdown-title">Grouping</span>
+        {/* Grouping pill (ClickUp style matching Image 1) */}
+        {(() => {
+          const currentGroup = searchParams.get("group") || currentFilters.group || "status";
+          const groupLabels: Record<string, string> = {
+            status: "Status",
+            priority: "Priority",
+            due_date: "Due date",
+            none: "None",
+          };
+          return (
+            <div className="toolbar-popover-wrap" ref={groupRef}>
               <button
                 type="button"
-                className="toolbar-dropdown-item is-active"
-                onClick={() => setGroupMenuOpen(false)}
+                className="toolbar-pill toolbar-pill-highlighted"
+                onClick={() => setGroupMenuOpen((v) => !v)}
+                aria-expanded={groupMenuOpen}
               >
-                <Layers size={13} /> Status
+                <Layers size={13} className="pill-icon" />
+                <span>Group: {groupLabels[currentGroup] || "Status"}</span>
+                <ChevronDown size={11} className="pill-chevron" />
               </button>
-              <button
-                type="button"
-                className="toolbar-dropdown-item"
-                onClick={() => {
-                  updateParam("sort", "due");
-                  setGroupMenuOpen(false);
-                }}
-              >
-                Due date
-              </button>
-              <button
-                type="button"
-                className="toolbar-dropdown-item"
-                onClick={() => {
-                  updateParam("priority", "urgent");
-                  setGroupMenuOpen(false);
-                }}
-              >
-                Priority
-              </button>
+              {groupMenuOpen && (
+                <div className="toolbar-dropdown">
+                  <span className="toolbar-dropdown-title">Grouping</span>
+                  <button
+                    type="button"
+                    className={`toolbar-dropdown-item${currentGroup === "status" ? " is-active" : ""}`}
+                    onClick={() => {
+                      updateParam("group", "status");
+                      setGroupMenuOpen(false);
+                    }}
+                  >
+                    <Layers size={13} /> Status
+                  </button>
+                  <button
+                    type="button"
+                    className={`toolbar-dropdown-item${currentGroup === "due_date" ? " is-active" : ""}`}
+                    onClick={() => {
+                      updateParam("group", "due_date");
+                      setGroupMenuOpen(false);
+                    }}
+                  >
+                    <Calendar size={13} /> Due date
+                  </button>
+                  <button
+                    type="button"
+                    className={`toolbar-dropdown-item${currentGroup === "priority" ? " is-active" : ""}`}
+                    onClick={() => {
+                      updateParam("group", "priority");
+                      setGroupMenuOpen(false);
+                    }}
+                  >
+                    <Flag size={13} /> Priority
+                  </button>
+                  <button
+                    type="button"
+                    className={`toolbar-dropdown-item${currentGroup === "none" ? " is-active" : ""}`}
+                    onClick={() => {
+                      updateParam("group", "none");
+                      setGroupMenuOpen(false);
+                    }}
+                  >
+                    <List size={13} /> None
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })()}
 
         {/* Subtasks pill */}
         <button type="button" className="toolbar-pill" title="Subtasks">
