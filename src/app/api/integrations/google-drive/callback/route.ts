@@ -10,6 +10,7 @@ type OAuthState = {
   userId: string;
   nonce: string;
   issuedAt: number;
+  redirectUri?: string;
 };
 
 function failure(request: Request, organizationId: string, reason: string, workspaceId?: string) {
@@ -76,8 +77,9 @@ export async function GET(request: Request) {
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
-  if (!clientId || !clientSecret || !redirectUri || !process.env.GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY) {
+  const origin = new URL(request.url).origin;
+  const redirectUri = decoded?.redirectUri || process.env.GOOGLE_REDIRECT_URI || `${origin}/api/integrations/google-drive/callback`;
+  if (!clientId || !clientSecret || !process.env.GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY) {
     return failure(request, orgId, "not_configured", wsId);
   }
 

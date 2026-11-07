@@ -41,8 +41,9 @@ export async function GET(request: Request) {
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
-  if (!clientId || !clientSecret || !redirectUri || !process.env.GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY) {
+  const origin = new URL(request.url).origin;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${origin}/api/integrations/google-drive/callback`;
+  if (!clientId || !clientSecret || !process.env.GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY) {
     const errorTarget = targetWsId ? `/workspaces/${targetWsId}?drive=not_configured` : `/organizations/${targetOrgId}/integrations?drive=not_configured`;
     return NextResponse.redirect(new URL(errorTarget, request.url));
   }
@@ -55,6 +56,7 @@ export async function GET(request: Request) {
       userId: user.id,
       nonce,
       issuedAt: Date.now(),
+      redirectUri,
     })
   ).toString("base64url");
 
