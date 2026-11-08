@@ -11,24 +11,36 @@ export default function PrivacyPolicyPage() {
 
       <section style={{ display: "grid", gap: 18, fontSize: 14, color: "var(--ink)" }}>
         <p>
-          Orbitwork respects your privacy. This policy outlines how we handle your data, including Google Drive integrations.
+          Orbitwork respects your privacy. This policy outlines how we handle your data, including our storage integrations: <strong>Local Storage (Built-in)</strong>, <strong>Google Drive</strong>, <strong>Microsoft OneDrive</strong>, and <strong>Microsoft SharePoint</strong>.
         </p>
 
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: "10px 0 4px" }}>1. Information We Access</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: "10px 0 4px" }}>1. Storage Providers &amp; Scopes</h2>
         <p>
-          When you connect Google Drive to an Orbitwork workspace, we request access using the <code>drive.file</code> scope.
-          This grants Orbitwork permission to create, upload, and manage <strong>only the files created by or opened with Orbitwork</strong>.
-          We never inspect, read, or modify your personal files or files created outside Orbitwork.
+          Orbitwork allows each workspace to choose its preferred storage provider:
         </p>
+        <ul style={{ paddingLeft: 20, display: "grid", gap: 8 }}>
+          <li>
+            <strong>Local Storage (Built-in):</strong> Files and attachments are stored directly in encrypted database storage isolated to your workspace. No third-party accounts or cloud APIs are accessed.
+          </li>
+          <li>
+            <strong>Google Drive:</strong> We request access using the <code>drive.file</code> scope. This grants Orbitwork permission to create, upload, and manage <em>only the files created by or opened with Orbitwork</em> in a dedicated workspace folder. We never inspect, read, or modify your personal files outside Orbitwork.
+          </li>
+          <li>
+            <strong>Microsoft OneDrive:</strong> We request scoped file access (<code>Files.ReadWrite</code>) to save and organize attachments into your dedicated <code>OneDrive / Orbitwork / [Workspace]</code> directory.
+          </li>
+          <li>
+            <strong>Microsoft SharePoint:</strong> When connected, files and documents are stored in your team&apos;s specified SharePoint Document Library.
+          </li>
+        </ul>
 
         <h2 style={{ fontSize: 18, fontWeight: 700, margin: "10px 0 4px" }}>2. Storage &amp; Workspace Isolation</h2>
         <p>
-          Each workspace manages its own dedicated storage location. Files uploaded within a workspace are stored directly in the connected Google Drive for that workspace and are accessible only to authorized members of that workspace.
+          Each workspace manages its own dedicated storage location. Files uploaded within a workspace are accessible only to authorized members of that workspace and organization, preventing accidental data sharing across teams.
         </p>
 
         <h2 style={{ fontSize: 18, fontWeight: 700, margin: "10px 0 4px" }}>3. Data Security &amp; Revocation</h2>
         <p>
-          Google OAuth refresh tokens are encrypted using AES-256-GCM. You may disconnect your Google Drive connection at any time from Workspace Settings or directly through your Google Account Security settings.
+          Third-party OAuth tokens and secrets are encrypted at rest using AES-256-GCM. You may disconnect your Google Drive, OneDrive, or SharePoint connections at any time from Workspace Settings or directly through your third-party account security center.
         </p>
 
         <h2 style={{ fontSize: 18, fontWeight: 700, margin: "10px 0 4px" }}>4. Contact</h2>

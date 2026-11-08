@@ -25,6 +25,7 @@ import {
   ChevronRight,
   ZoomIn,
   ZoomOut,
+  Link2,
 } from "lucide-react";
 import { removeTaskAttachment, createAndAttachCanvas } from "@/app/actions";
 
@@ -42,9 +43,9 @@ export type AttachmentItem = {
 };
 
 const attachmentMessages: Record<string, string> = {
-  uploaded: "File uploaded successfully and synced to Google Drive.",
+  uploaded: "Attachment uploaded successfully.",
   too_large: "File exceeds the 15 MB limit. Please select a smaller file.",
-  save_failed: "The Drive upload succeeded, but the app could not save its reference.",
+  save_failed: "The upload succeeded, but the app could not save its reference.",
   forbidden: "You have view-only access (Viewer). Only workspace Members, Managers, and Admins can upload attachments.",
 };
 
@@ -300,7 +301,7 @@ function PdfPreviewViewer({ url, fileName }: { url: string; fileName: string }) 
   );
 }
 
-function getFileMeta(fileName: string, mimeType: string) {
+function getFileMeta(fileName: string, mimeType: string, storageProvider?: string) {
   const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
   const isCanvas =
     mimeType.includes("whiteboard") ||
@@ -313,6 +314,20 @@ function getFileMeta(fileName: string, mimeType: string) {
       return { kind: "whiteboard", label: "Whiteboard", color: "#8b5cf6", bg: "#f5f3ff", border: "#ddd6fe" };
     }
     return { kind: "flowchart", label: "Flowchart", color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe" };
+  }
+
+  if (mimeType === "application/x-external-link" || ext === "link") {
+    const lower = fileName.toLowerCase();
+    if (lower.includes("sharepoint") || storageProvider === "sharepoint") {
+      return { kind: "link", label: "SharePoint Link", color: "#0078d4", bg: "#eff6fc", border: "#c7e0f4" };
+    }
+    if (lower.includes("onedrive") || storageProvider === "onedrive") {
+      return { kind: "link", label: "OneDrive Link", color: "#0284c7", bg: "#eff6fc", border: "#c7e0f4" };
+    }
+    if (storageProvider === "google_drive") {
+      return { kind: "link", label: "Google Drive Link", color: "#167c58", bg: "#eaf7ee", border: "#cbead5" };
+    }
+    return { kind: "link", label: "Cloud Link", color: "#0284c7", bg: "#f0f9ff", border: "#bae6fd" };
   }
 
   if (mimeType.startsWith("image/") || ["png", "jpg", "jpeg", "svg", "webp", "gif"].includes(ext)) {
@@ -374,6 +389,10 @@ export default function TaskAttachmentsSection({
   const [loadingText, setLoadingText] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
   const [showHtmlRendered, setShowHtmlRendered] = useState(false);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkTitle, setLinkTitle] = useState("");
+  const [submittingLink, setSubmittingLink] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasUploadRef = useRef<HTMLInputElement>(null);
@@ -594,6 +613,16 @@ export default function TaskAttachmentsSection({
             <button
               type="button"
               className="quick-canvas-btn"
+              onClick={() => setShowLinkModal((prev) => !prev)}
+              style={{ background: "var(--soft, #f1f5f9)", color: "var(--ink)", borderColor: "var(--line)" }}
+              title="Attach a SharePoint, OneDrive, Google Drive, or web link"
+            >
+              <Link2 size={13} />
+              <span>+ Link / SharePoint</span>
+            </button>
+            <button
+              type="button"
+              className="quick-canvas-btn"
               onClick={() => canvasUploadRef.current?.click()}
               disabled={isCreatingCanvas}
               title="Upload image or JSON into a new canvas"
@@ -612,6 +641,89 @@ export default function TaskAttachmentsSection({
           </div>
         )}
       </div>
+
+      {/* Attach Link / SharePoint Inline Panel */}
+      {showLinkModal && canEdit && (
+        <form
+          action="/api/tasks/attachments"
+          method="post"
+          onSubmit={() => setSubmittingLink(true)}
+          style={{
+            background: "var(--surface, #fff)",
+            border: "1px solid var(--line, #e2e8f0)",
+            borderRadius: 10,
+            padding: "14px 16px",
+            marginBottom: 16,
+            display: "grid",
+            gap: 10,
+          }}
+        >
+          <input type="hidden" name="projectId" value={projectId} />
+          <input type="hidden" name="taskId" value={taskId} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink, #1e293b)", display: "flex", alignItems: "center", gap: 6 }}>
+              <Link2 size={15} color="#167c58" />
+              <span>Attach SharePoint, OneDrive, or Cloud Link</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowLinkModal(false)}
+              style={{ border: 0, background: "transparent", color: "var(--muted)", cursor: "pointer", fontSize: 16 }}
+            >
+              ×
+            </button>
+          </div>
+          <p style={{ margin: 0, fontSize: 11, color: "var(--muted, #64748b)" }}>
+            Paste a document link from SharePoint, OneDrive, Google Drive, Dropbox, or any cloud service.
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              type="text"
+              name="linkTitle"
+              value={linkTitle}
+              onChange={(e) => setLinkTitle(e.target.value)}
+              placeholder="Document Title (e.g., Project Scope.docx)"
+              style={{
+                flex: "1 1 200px",
+                height: 36,
+                padding: "0 10px",
+                borderRadius: 6,
+                border: "1px solid var(--line, #cbd5e1)",
+                fontSize: 12,
+                outline: "none",
+                background: "var(--paper, #fff)",
+              }}
+            />
+            <input
+              type="url"
+              name="linkUrl"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://company.sharepoint.com/... or https://1drv.ms/..."
+              required
+              style={{
+                flex: "2 1 300px",
+                height: 36,
+                padding: "0 10px",
+                borderRadius: 6,
+                border: "1px solid var(--line, #cbd5e1)",
+                fontSize: 12,
+                outline: "none",
+                background: "var(--paper, #fff)",
+              }}
+            />
+            <button
+              type="submit"
+              className="button button-primary"
+              disabled={submittingLink || !linkUrl.trim()}
+              style={{ height: 36, padding: "0 14px", fontSize: 12, minHeight: 36 }}
+            >
+              {submittingLink ? <Loader2 size={13} className="animate-spin" /> : <Plus size={14} />}
+              <span>Attach Link</span>
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Status Notice Banners */}
       {attachmentStatus && (
@@ -670,7 +782,7 @@ export default function TaskAttachmentsSection({
                   <strong>Click to browse</strong> or drag &amp; drop your files here
                 </p>
                 <p className="dropzone-secondary-text">
-                  Supports Images, PDF, Docs, Sheets, ZIP (Max 15 MB) · Stored securely in Google Drive
+                  Supports Images, PDF, Docs, Sheets, ZIP (Max 15 MB) · Saved to workspace storage (Local, Google Drive, OneDrive, or SharePoint)
                 </p>
               </div>
             </div>
@@ -706,7 +818,7 @@ export default function TaskAttachmentsSection({
                 <button type="submit" className="btn-upload-submit" disabled={uploading}>
                   {uploading ? (
                     <>
-                      <Loader2 size={13} className="animate-spin" /> Uploading to Drive…
+                      <Loader2 size={13} className="animate-spin" /> Uploading…
                     </>
                   ) : (
                     <>
@@ -770,7 +882,7 @@ export default function TaskAttachmentsSection({
       {/* Attachments List */}
       <div className="attachments-grid">
         {filteredAttachments.map((item) => {
-          const meta = getFileMeta(item.file_name, item.mime_type);
+          const meta = getFileMeta(item.file_name, item.mime_type, item.storage_provider);
           const isCanvas = meta.kind === "whiteboard" || meta.kind === "flowchart";
           const targetHref =
             meta.kind === "whiteboard"
@@ -791,14 +903,20 @@ export default function TaskAttachmentsSection({
                   cursor: isCanvas ? "default" : "pointer",
                 }}
                 onClick={() => {
-                  if (!isCanvas) setPreviewItem(item);
+                  if (item.external_url) {
+                    window.open(item.external_url, "_blank", "noopener,noreferrer");
+                  } else if (!isCanvas) {
+                    setPreviewItem(item);
+                  }
                 }}
-                title={isCanvas ? undefined : "Click to preview"}
+                title={isCanvas ? undefined : item.external_url ? "Click to open link" : "Click to preview"}
               >
                 {meta.kind === "whiteboard" ? (
                   <Palette size={18} />
                 ) : meta.kind === "flowchart" ? (
                   <GitFork size={18} />
+                ) : meta.kind === "link" ? (
+                  <Link2 size={18} />
                 ) : meta.kind === "image" ? (
                   <ImageIcon size={18} />
                 ) : meta.kind === "pdf" ? (
@@ -818,6 +936,17 @@ export default function TaskAttachmentsSection({
                   <Link href={targetHref} className="attachment-card-title" title={item.file_name}>
                     {item.file_name}
                   </Link>
+                ) : item.external_url ? (
+                  <a
+                    href={item.external_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="attachment-card-title"
+                    title={item.file_name}
+                    style={{ textDecoration: "none" }}
+                  >
+                    {item.file_name}
+                  </a>
                 ) : (
                   <button
                     type="button"
@@ -835,9 +964,47 @@ export default function TaskAttachmentsSection({
                   >
                     {meta.label}
                   </span>
+                  {item.storage_provider && !isCanvas && (
+                    <>
+                      <span className="meta-dot">·</span>
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: 600,
+                          padding: "1px 6px",
+                          borderRadius: "4px",
+                          background:
+                            item.storage_provider === "google_drive"
+                              ? "#eaf7ee"
+                              : item.storage_provider === "onedrive"
+                              ? "#eff6fc"
+                              : item.storage_provider === "sharepoint"
+                              ? "#f0f9ff"
+                              : "#f1f5f9",
+                          color:
+                            item.storage_provider === "google_drive"
+                              ? "#167c58"
+                              : item.storage_provider === "onedrive"
+                              ? "#0284c7"
+                              : item.storage_provider === "sharepoint"
+                              ? "#0369a1"
+                              : "#64748b",
+                          border: "1px solid rgba(0,0,0,0.06)",
+                        }}
+                      >
+                        {item.storage_provider === "google_drive"
+                          ? "📂 Google Drive"
+                          : item.storage_provider === "onedrive"
+                          ? "☁️ OneDrive"
+                          : item.storage_provider === "sharepoint"
+                          ? "🏢 SharePoint"
+                          : "🏠 Local"}
+                      </span>
+                    </>
+                  )}
                   <span className="meta-dot">·</span>
                   <span className="attachment-size">
-                    {isCanvas ? "Interactive Canvas" : formatFileSize(item.file_size_bytes)}
+                    {isCanvas ? "Interactive Canvas" : item.external_url ? "External Link" : formatFileSize(item.file_size_bytes)}
                   </span>
                   <span className="meta-dot">·</span>
                   <span className="attachment-author">{item.uploader_name || "Team member"}</span>
@@ -858,6 +1025,17 @@ export default function TaskAttachmentsSection({
                     <span>Open Canvas</span>
                     <ExternalLink size={12} />
                   </Link>
+                ) : item.external_url ? (
+                  <a
+                    href={item.external_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-attachment-action btn-open-canvas"
+                    title="Open external link in new tab"
+                  >
+                    <span>Open Link</span>
+                    <ExternalLink size={12} />
+                  </a>
                 ) : (
                   <>
                     <button

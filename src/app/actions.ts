@@ -1625,3 +1625,524 @@ export async function removeTaskAttachment(formData: FormData) {
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
   return { ok: true };
 }
+
+/* =========================================================================
+   Storage Integrations: Local Storage, Google Drive, OneDrive, SharePoint
+   ========================================================================= */
+
+export async function setWorkspaceActiveStorageProvider(formData: FormData) {
+  const parsed = z
+    .object({
+      workspaceId: z.string().uuid(),
+      provider: z.enum(["local", "google_drive", "onedrive", "sharepoint"]),
+    })
+    .safeParse({
+      workspaceId: formData.get("workspaceId"),
+      provider: formData.get("provider"),
+    });
+
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const { data: canManage } = await supabase.rpc("can_manage_workspace", {
+    target_workspace: parsed.data.workspaceId,
+  });
+  if (!canManage) return { ok: false, error: "forbidden" };
+
+  const { data: ws } = await supabase
+    .from("workspaces")
+    .select("organization_id")
+    .eq("id", parsed.data.workspaceId)
+    .single();
+  if (!ws) return { ok: false, error: "workspace_not_found" };
+
+  const { error } = await supabase.from("workspace_storage_configs").upsert(
+    {
+      workspace_id: parsed.data.workspaceId,
+      organization_id: ws.organization_id,
+      active_provider: parsed.data.provider,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "workspace_id" }
+  );
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
+  return { ok: true };
+}
+
+export async function saveWorkspaceOneDriveConfig(formData: FormData) {
+  const parsed = z
+    .object({
+      workspaceId: z.string().uuid(),
+      accountEmail: z.string().email().optional().or(z.literal("")),
+      folderName: z.string().max(120).optional().default("Orbitwork"),
+      tenantId: z.string().max(120).optional().or(z.literal("")),
+      clientId: z.string().max(120).optional().or(z.literal("")),
+      setActive: z.string().optional(),
+    })
+    .safeParse({
+      workspaceId: formData.get("workspaceId"),
+      accountEmail: formData.get("accountEmail") || undefined,
+      folderName: formData.get("folderName") || "Orbitwork",
+      tenantId: formData.get("tenantId") || undefined,
+      clientId: formData.get("clientId") || undefined,
+      setActive: formData.get("setActive") || undefined,
+    });
+
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const { data: canManage } = await supabase.rpc("can_manage_workspace", {
+    target_workspace: parsed.data.workspaceId,
+  });
+  if (!canManage) return { ok: false, error: "forbidden" };
+
+  const { data: ws } = await supabase
+    .from("workspaces")
+    .select("organization_id")
+    .eq("id", parsed.data.workspaceId)
+    .single();
+  if (!ws) return { ok: false, error: "workspace_not_found" };
+
+  const updates: Record<string, unknown> = {
+    workspace_id: parsed.data.workspaceId,
+    organization_id: ws.organization_id,
+    onedrive_connected: true,
+    onedrive_account_email: parsed.data.accountEmail || user.email || null,
+    onedrive_folder: parsed.data.folderName,
+    onedrive_tenant_id: parsed.data.tenantId || null,
+    onedrive_client_id: parsed.data.clientId || null,
+    onedrive_connected_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (parsed.data.setActive === "true" || parsed.data.setActive === "on") {
+    updates.active_provider = "onedrive";
+  }
+
+  const { error } = await supabase.from("workspace_storage_configs").upsert(updates, {
+    onConflict: "workspace_id",
+  });
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
+  return { ok: true };
+}
+
+export async function disconnectWorkspaceOneDrive(formData: FormData) {
+  const parsed = z
+    .object({
+      workspaceId: z.string().uuid(),
+    })
+    .safeParse({
+      workspaceId: formData.get("workspaceId"),
+    });
+
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const { data: canManage } = await supabase.rpc("can_manage_workspace", {
+    target_workspace: parsed.data.workspaceId,
+  });
+  if (!canManage) return { ok: false, error: "forbidden" };
+
+  const { data: existing } = await supabase
+    .from("workspace_storage_configs")
+    .select("active_provider")
+    .eq("workspace_id", parsed.data.workspaceId)
+    .maybeSingle();
+
+  const updates: Record<string, unknown> = {
+    onedrive_connected: false,
+    onedrive_account_email: null,
+    onedrive_connected_at: null,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (existing?.active_provider === "onedrive") {
+    updates.active_provider = "local";
+  }
+
+  const { error } = await supabase
+    .from("workspace_storage_configs")
+    .update(updates)
+    .eq("workspace_id", parsed.data.workspaceId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
+  return { ok: true };
+}
+
+export async function saveWorkspaceSharePointConfig(formData: FormData) {
+  const parsed = z
+    .object({
+      workspaceId: z.string().uuid(),
+      siteUrl: z.string().url("Must be a valid URL, e.g. https://company.sharepoint.com/sites/team"),
+      libraryName: z.string().max(100).optional().default("Documents"),
+      folderName: z.string().max(120).optional().default("Orbitwork"),
+      accountEmail: z.string().email().optional().or(z.literal("")),
+      tenantId: z.string().max(120).optional().or(z.literal("")),
+      clientId: z.string().max(120).optional().or(z.literal("")),
+      setActive: z.string().optional(),
+    })
+    .safeParse({
+      workspaceId: formData.get("workspaceId"),
+      siteUrl: formData.get("siteUrl"),
+      libraryName: formData.get("libraryName") || "Documents",
+      folderName: formData.get("folderName") || "Orbitwork",
+      accountEmail: formData.get("accountEmail") || undefined,
+      tenantId: formData.get("tenantId") || undefined,
+      clientId: formData.get("clientId") || undefined,
+      setActive: formData.get("setActive") || undefined,
+    });
+
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const { data: canManage } = await supabase.rpc("can_manage_workspace", {
+    target_workspace: parsed.data.workspaceId,
+  });
+  if (!canManage) return { ok: false, error: "forbidden" };
+
+  const { data: ws } = await supabase
+    .from("workspaces")
+    .select("organization_id")
+    .eq("id", parsed.data.workspaceId)
+    .single();
+  if (!ws) return { ok: false, error: "workspace_not_found" };
+
+  const updates: Record<string, unknown> = {
+    workspace_id: parsed.data.workspaceId,
+    organization_id: ws.organization_id,
+    sharepoint_connected: true,
+    sharepoint_site_url: parsed.data.siteUrl,
+    sharepoint_library_name: parsed.data.libraryName,
+    sharepoint_folder: parsed.data.folderName,
+    sharepoint_account_email: parsed.data.accountEmail || user.email || null,
+    sharepoint_tenant_id: parsed.data.tenantId || null,
+    sharepoint_client_id: parsed.data.clientId || null,
+    sharepoint_connected_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (parsed.data.setActive === "true" || parsed.data.setActive === "on") {
+    updates.active_provider = "sharepoint";
+  }
+
+  const { error } = await supabase.from("workspace_storage_configs").upsert(updates, {
+    onConflict: "workspace_id",
+  });
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
+  return { ok: true };
+}
+
+export async function disconnectWorkspaceSharePoint(formData: FormData) {
+  const parsed = z
+    .object({
+      workspaceId: z.string().uuid(),
+    })
+    .safeParse({
+      workspaceId: formData.get("workspaceId"),
+    });
+
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const { data: canManage } = await supabase.rpc("can_manage_workspace", {
+    target_workspace: parsed.data.workspaceId,
+  });
+  if (!canManage) return { ok: false, error: "forbidden" };
+
+  const { data: existing } = await supabase
+    .from("workspace_storage_configs")
+    .select("active_provider")
+    .eq("workspace_id", parsed.data.workspaceId)
+    .maybeSingle();
+
+  const updates: Record<string, unknown> = {
+    sharepoint_connected: false,
+    sharepoint_site_url: null,
+    sharepoint_library_name: null,
+    sharepoint_connected_at: null,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (existing?.active_provider === "sharepoint") {
+    updates.active_provider = "local";
+  }
+
+  const { error } = await supabase
+    .from("workspace_storage_configs")
+    .update(updates)
+    .eq("workspace_id", parsed.data.workspaceId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
+  return { ok: true };
+}
+
+export async function setOrganizationActiveStorageProvider(formData: FormData) {
+  const parsed = z
+    .object({
+      organizationId: z.string().uuid(),
+      provider: z.enum(["local", "google_drive", "onedrive", "sharepoint"]),
+    })
+    .safeParse({
+      organizationId: formData.get("organizationId"),
+      provider: formData.get("provider"),
+    });
+
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const { data: canManage } = await supabase.rpc("has_org_role", {
+    target_org: parsed.data.organizationId,
+    allowed_roles: ["owner", "admin"],
+  });
+  if (!canManage) return { ok: false, error: "forbidden" };
+
+  const { error } = await supabase.from("organization_storage_configs").upsert(
+    {
+      organization_id: parsed.data.organizationId,
+      active_provider: parsed.data.provider,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "organization_id" }
+  );
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/organizations/${parsed.data.organizationId}/integrations`);
+  return { ok: true };
+}
+
+export async function saveOrganizationOneDriveConfig(formData: FormData) {
+  const parsed = z
+    .object({
+      organizationId: z.string().uuid(),
+      accountEmail: z.string().email().optional().or(z.literal("")),
+      folderName: z.string().max(120).optional().default("Orbitwork"),
+      setActive: z.string().optional(),
+    })
+    .safeParse({
+      organizationId: formData.get("organizationId"),
+      accountEmail: formData.get("accountEmail") || undefined,
+      folderName: formData.get("folderName") || "Orbitwork",
+      setActive: formData.get("setActive") || undefined,
+    });
+
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const { data: canManage } = await supabase.rpc("has_org_role", {
+    target_org: parsed.data.organizationId,
+    allowed_roles: ["owner", "admin"],
+  });
+  if (!canManage) return { ok: false, error: "forbidden" };
+
+  const updates: Record<string, unknown> = {
+    organization_id: parsed.data.organizationId,
+    onedrive_connected: true,
+    onedrive_account_email: parsed.data.accountEmail || user.email || null,
+    onedrive_folder: parsed.data.folderName,
+    onedrive_connected_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (parsed.data.setActive === "true" || parsed.data.setActive === "on") {
+    updates.active_provider = "onedrive";
+  }
+
+  const { error } = await supabase.from("organization_storage_configs").upsert(updates, {
+    onConflict: "organization_id",
+  });
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/organizations/${parsed.data.organizationId}/integrations`);
+  return { ok: true };
+}
+
+export async function disconnectOrganizationOneDrive(formData: FormData) {
+  const parsed = z
+    .object({
+      organizationId: z.string().uuid(),
+    })
+    .safeParse({
+      organizationId: formData.get("organizationId"),
+    });
+
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const { data: canManage } = await supabase.rpc("has_org_role", {
+    target_org: parsed.data.organizationId,
+    allowed_roles: ["owner", "admin"],
+  });
+  if (!canManage) return { ok: false, error: "forbidden" };
+
+  const { data: existing } = await supabase
+    .from("organization_storage_configs")
+    .select("active_provider")
+    .eq("organization_id", parsed.data.organizationId)
+    .maybeSingle();
+
+  const updates: Record<string, unknown> = {
+    onedrive_connected: false,
+    onedrive_account_email: null,
+    onedrive_connected_at: null,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (existing?.active_provider === "onedrive") {
+    updates.active_provider = "local";
+  }
+
+  const { error } = await supabase
+    .from("organization_storage_configs")
+    .update(updates)
+    .eq("organization_id", parsed.data.organizationId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/organizations/${parsed.data.organizationId}/integrations`);
+  return { ok: true };
+}
+
+export async function saveOrganizationSharePointConfig(formData: FormData) {
+  const parsed = z
+    .object({
+      organizationId: z.string().uuid(),
+      siteUrl: z.string().url("Must be a valid URL, e.g. https://company.sharepoint.com/sites/team"),
+      libraryName: z.string().max(100).optional().default("Documents"),
+      folderName: z.string().max(120).optional().default("Orbitwork"),
+      accountEmail: z.string().email().optional().or(z.literal("")),
+      setActive: z.string().optional(),
+    })
+    .safeParse({
+      organizationId: formData.get("organizationId"),
+      siteUrl: formData.get("siteUrl"),
+      libraryName: formData.get("libraryName") || "Documents",
+      folderName: formData.get("folderName") || "Orbitwork",
+      accountEmail: formData.get("accountEmail") || undefined,
+      setActive: formData.get("setActive") || undefined,
+    });
+
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const { data: canManage } = await supabase.rpc("has_org_role", {
+    target_org: parsed.data.organizationId,
+    allowed_roles: ["owner", "admin"],
+  });
+  if (!canManage) return { ok: false, error: "forbidden" };
+
+  const updates: Record<string, unknown> = {
+    organization_id: parsed.data.organizationId,
+    sharepoint_connected: true,
+    sharepoint_site_url: parsed.data.siteUrl,
+    sharepoint_library_name: parsed.data.libraryName,
+    sharepoint_folder: parsed.data.folderName,
+    sharepoint_account_email: parsed.data.accountEmail || user.email || null,
+    sharepoint_connected_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (parsed.data.setActive === "true" || parsed.data.setActive === "on") {
+    updates.active_provider = "sharepoint";
+  }
+
+  const { error } = await supabase.from("organization_storage_configs").upsert(updates, {
+    onConflict: "organization_id",
+  });
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/organizations/${parsed.data.organizationId}/integrations`);
+  return { ok: true };
+}
+
+export async function disconnectOrganizationSharePoint(formData: FormData) {
+  const parsed = z
+    .object({
+      organizationId: z.string().uuid(),
+    })
+    .safeParse({
+      organizationId: formData.get("organizationId"),
+    });
+
+  if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "unauthorized" };
+
+  const { data: canManage } = await supabase.rpc("has_org_role", {
+    target_org: parsed.data.organizationId,
+    allowed_roles: ["owner", "admin"],
+  });
+  if (!canManage) return { ok: false, error: "forbidden" };
+
+  const { data: existing } = await supabase
+    .from("organization_storage_configs")
+    .select("active_provider")
+    .eq("organization_id", parsed.data.organizationId)
+    .maybeSingle();
+
+  const updates: Record<string, unknown> = {
+    sharepoint_connected: false,
+    sharepoint_site_url: null,
+    sharepoint_library_name: null,
+    sharepoint_connected_at: null,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (existing?.active_provider === "sharepoint") {
+    updates.active_provider = "local";
+  }
+
+  const { error } = await supabase
+    .from("organization_storage_configs")
+    .update(updates)
+    .eq("organization_id", parsed.data.organizationId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/organizations/${parsed.data.organizationId}/integrations`);
+  return { ok: true };
+}

@@ -7,6 +7,7 @@ import { removeWorkspaceMember, updateWorkspaceMemberRole } from "@/app/actions"
 import WorkspaceProjectsList from "./WorkspaceProjectsList";
 import WorkspaceInviteSection from "./WorkspaceInviteSection";
 import WorkspaceStorageSection from "./WorkspaceStorageSection";
+import { getWorkspaceStorageConfig } from "@/lib/storage-config";
 
 export default async function WorkspacePage({
   params,
@@ -21,6 +22,7 @@ export default async function WorkspacePage({
     invited?: string;
     status_updated?: string;
     drive?: string;
+    storage?: string;
   }>;
 }) {
   const { workspaceId } = await params;
@@ -49,6 +51,7 @@ export default async function WorkspacePage({
     { data: canManage },
     { data: isOrgAdmin },
     { data: driveConnection },
+    storageInfo,
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -74,6 +77,7 @@ export default async function WorkspacePage({
       .select("id, connected_at, updated_at, connected_by, account_email, folder_name")
       .eq("workspace_id", workspaceId)
       .maybeSingle(),
+    getWorkspaceStorageConfig(supabase, workspaceId, workspace.organization_id),
   ]);
 
   const configured = Boolean(
@@ -81,6 +85,11 @@ export default async function WorkspacePage({
     process.env.GOOGLE_CLIENT_SECRET &&
     process.env.GOOGLE_REDIRECT_URI &&
     process.env.GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY
+  );
+
+  const microsoftConfigured = Boolean(
+    process.env.MICROSOFT_CLIENT_ID &&
+    process.env.MICROSOFT_CLIENT_SECRET
   );
 
   const memberIds = [
@@ -114,7 +123,7 @@ export default async function WorkspacePage({
       name: people.get(member.user_id) ?? "Team member",
     }));
 
-  const { error, member_added, member_removed, member_updated, invited, status_updated, drive } =
+  const { error, member_added, member_removed, member_updated, invited, status_updated, drive, storage } =
     await searchParams;
 
   const memberErrors: Record<string, string> = {
@@ -272,14 +281,17 @@ export default async function WorkspacePage({
           )}
         </section>
 
-        {/* 3. Workspace Google Drive Storage & Privacy */}
+        {/* 3. Workspace Storage & Cloud Integrations (Local, Google Drive, OneDrive, SharePoint) */}
         <WorkspaceStorageSection
           workspaceId={workspaceId}
           workspaceName={workspace.name}
-          connection={driveConnection}
+          storageInfo={storageInfo}
+          driveConnection={driveConnection}
           canManage={Boolean(canManage)}
-          configured={configured}
+          googleConfigured={configured}
+          microsoftConfigured={microsoftConfigured}
           driveStatus={drive}
+          storageStatus={storage}
         />
       </div>
     </main>
