@@ -146,10 +146,13 @@ export async function uploadProjectOneDriveFile(
   contentType: string,
   fileBytes: Uint8Array
 ): Promise<OneDriveUploadedFile> {
-  const cleanParts = folderPath
+  let cleanParts = folderPath
     .split("/")
     .map((p) => p.trim())
     .filter(Boolean);
+  if (cleanParts.length > 0 && /^(one\s*drive|my\s*drive)$/i.test(cleanParts[0])) {
+    cleanParts = cleanParts.slice(1);
+  }
   const folder = cleanParts.length > 0 ? cleanParts.join("/") : "Orbitwork";
   const safeName = fileName.replace(/[\\/:*?"<>|]/g, "_").trim() || "file";
   const itemPath = `${folder}/${safeName}`;

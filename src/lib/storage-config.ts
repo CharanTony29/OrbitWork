@@ -17,6 +17,7 @@ export type WorkspaceStorageInfo = {
   };
   oneDrive: {
     connected: boolean;
+    hasOauth: boolean;
     accountEmail: string | null;
     folderName: string | null;
     tenantId: string | null;
@@ -50,6 +51,7 @@ export type OrganizationStorageInfo = {
   };
   oneDrive: {
     connected: boolean;
+    hasOauth: boolean;
     accountEmail: string | null;
     folderName: string | null;
     tenantId: string | null;
@@ -158,6 +160,7 @@ export async function getWorkspaceStorageConfig(
     },
     oneDrive: {
       connected: Boolean(dbConfig?.onedrive_connected),
+      hasOauth: Boolean((dbConfig as any)?.onedrive_refresh_token_ciphertext),
       accountEmail: dbConfig?.onedrive_account_email ?? null,
       folderName: dbConfig?.onedrive_folder ?? null,
       tenantId: dbConfig?.onedrive_tenant_id ?? null,
@@ -253,6 +256,7 @@ export async function getOrganizationStorageConfig(
     },
     oneDrive: {
       connected: Boolean(dbConfig?.onedrive_connected),
+      hasOauth: Boolean((dbConfig as any)?.onedrive_refresh_token_ciphertext),
       accountEmail: dbConfig?.onedrive_account_email ?? null,
       folderName: dbConfig?.onedrive_folder ?? null,
       tenantId: dbConfig?.onedrive_tenant_id ?? null,

@@ -531,6 +531,15 @@ export default function WorkspaceStorageSection({
                       📅 <strong>Connected:</strong> {new Date(storageInfo.oneDrive.connectedAt).toLocaleDateString()}
                     </div>
                   )}
+                  {storageInfo.oneDrive.hasOauth ? (
+                    <div style={{ color: "#16a34a", fontWeight: 600 }}>
+                      ⚡ Cloud Uploads Enabled: Files upload directly to your OneDrive account.
+                    </div>
+                  ) : microsoftConfigured ? (
+                    <div style={{ color: "#d97706", fontWeight: 500 }}>
+                      ℹ️ To stream files directly to OneDrive cloud, click <strong>Link Cloud Account</strong>.
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <p style={{ margin: 0, fontSize: 11.5, color: "var(--muted, #64748b)" }}>
@@ -551,6 +560,16 @@ export default function WorkspaceStorageSection({
                           Set as Active
                         </button>
                       </form>
+                    )}
+                    {microsoftConfigured && (
+                      <a
+                        href={`/api/integrations/onedrive/connect?workspaceId=${workspaceId}`}
+                        className="button button-primary"
+                        style={{ minHeight: 32, fontSize: 11.5, textDecoration: "none" }}
+                      >
+                        <Cloud size={13} style={{ marginRight: 4 }} />
+                        <span>{storageInfo.oneDrive.hasOauth ? "Reconnect" : "Link Cloud Account"}</span>
+                      </a>
                     )}
                     <button
                       type="button"
