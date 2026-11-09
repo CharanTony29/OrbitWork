@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getDriveFile, googleDriveAccessToken } from "@/lib/google-drive";
+import { getOneDriveAccessToken, getOneDriveFile } from "@/lib/onedrive";
 
 export async function GET(request: Request, { params }: { params: Promise<{ attachmentId: string }> }) {
   const { attachmentId } = await params;
@@ -15,7 +16,42 @@ export async function GET(request: Request, { params }: { params: Promise<{ atta
     .maybeSingle();
   if (error || !attachment) return new Response("Attachment not found", { status: 404 });
 
-  // 1. External Links (SharePoint, OneDrive, Web links)
+  // 1. External Links & Live OneDrive Storage
+  if (attachment.storage_provider === "onedrive" && attachment.external_file_id && attachment.external_file_id !== "onedrive") {
+    if (!isDownload && attachment.external_url) {
+      return Response.redirect(attachment.external_url, 302);
+    }
+    const { data: project } = await supabase
+      .from("projects")
+      .select("workspace_id, workspaces(id, organization_id)")
+      .eq("id", attachment.project_id)
+      .maybeSingle();
+    const wsRel = project?.workspaces;
+    const ws = Array.isArray(wsRel) ? wsRel[0] : wsRel;
+    if (project && ws) {
+      try {
+        const accessToken = await getOneDriveAccessToken(supabase, ws.id || project.workspace_id, ws.organization_id);
+        const { buffer } = await getOneDriveFile(accessToken, attachment.external_file_id);
+        const fileName = attachment.file_name.replace(/[\r\n]/g, "_");
+        const disposition = isDownload ? "attachment" : "inline";
+        return new Response(new Uint8Array(buffer), {
+          status: 200,
+          headers: {
+            "Content-Type": attachment.mime_type || "application/octet-stream",
+            "Content-Disposition": `${disposition}; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+            "Content-Length": buffer.byteLength.toString(),
+            "Cache-Control": "private, max-age=3600",
+          },
+        });
+      } catch (odErr) {
+        console.warn("Failed streaming OneDrive file directly, falling back to external link:", odErr);
+        if (attachment.external_url) {
+          return Response.redirect(attachment.external_url, 302);
+        }
+      }
+    }
+  }
+
   if (attachment.storage_provider === "external_link" || ((attachment.storage_provider === "sharepoint" || attachment.storage_provider === "onedrive") && attachment.external_url)) {
     if (attachment.external_url) {
       return Response.redirect(attachment.external_url, 302);

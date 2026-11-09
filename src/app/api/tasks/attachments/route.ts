@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { deleteDriveFile, GoogleDriveError, googleDriveAccessToken, uploadProjectDriveFile } from "@/lib/google-drive";
+import { deleteOneDriveFile, getOneDriveAccessToken, uploadProjectOneDriveFile } from "@/lib/onedrive";
 import { getWorkspaceStorageConfig } from "@/lib/storage-config";
 
 const maxBytes = 15 * 1024 * 1024;
@@ -146,7 +147,51 @@ export async function POST(request: Request) {
     }
   }
 
-  // 2. Direct Storage (Local Storage, OneDrive, SharePoint, or Fallback)
+  // 2. If OneDrive is active, upload directly to Microsoft OneDrive via Graph API
+  if (targetProvider === "onedrive") {
+    try {
+      const accessToken = await getOneDriveAccessToken(
+        supabase,
+        workspace.id || project.workspace_id,
+        workspace.organization_id
+      );
+      if (accessToken) {
+        const folder = storageConfig.oneDrive.folderName || "Orbitwork";
+        const uploaded = await uploadProjectOneDriveFile(
+          accessToken,
+          folder,
+          safeName,
+          contentType,
+          fileBytes
+        );
+        const { error: odErr } = await supabase.from("task_attachments").insert({
+          project_id: projectId,
+          task_id: taskId,
+          file_name: uploaded.name,
+          mime_type: contentType,
+          file_size_bytes: uploaded.size || file.size,
+          storage_provider: "onedrive",
+          external_file_id: uploaded.id,
+          external_url: uploaded.webUrl || null,
+          uploaded_by: user.id,
+        });
+        if (!odErr) {
+          return NextResponse.redirect(new URL(`/projects/${projectId}/tasks/${taskId}?attachment=uploaded`, request.url), 303);
+        } else {
+          console.error("[Attachment OneDrive DB Error] Failed to save OneDrive reference:", odErr);
+          await deleteOneDriveFile(accessToken, uploaded.id).catch(() => undefined);
+          const redirectUrl = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
+          redirectUrl.searchParams.set("attachment", "save_failed");
+          if (odErr.message) redirectUrl.searchParams.set("attachment_error", odErr.message);
+          return NextResponse.redirect(redirectUrl, 303);
+        }
+      }
+    } catch (odErr) {
+      console.warn("Microsoft OneDrive live upload failed or tokens not present, falling back to direct storage:", odErr);
+    }
+  }
+
+  // 3. Direct Storage (Local Storage, SharePoint, or Fallback)
   // Store file securely in attachment_files table with the appropriate provider tag
   const saveProvider = targetProvider === "onedrive" ? "onedrive" : targetProvider === "sharepoint" ? "sharepoint" : "built_in";
   try {

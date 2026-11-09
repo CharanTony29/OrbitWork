@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { encryptOneDriveToken } from "@/lib/onedrive";
 
 type OAuthState = {
   workspaceId?: string;
@@ -118,35 +119,60 @@ export async function GET(request: Request) {
       } catch {}
     }
 
-    if (wsId) {
-      await supabase.from("workspace_storage_configs").upsert(
-        {
-          workspace_id: wsId,
-          organization_id: orgId,
-          onedrive_connected: true,
-          onedrive_account_email: accountEmail || user.email,
-          onedrive_folder: "Orbitwork",
-          onedrive_connected_at: new Date().toISOString(),
-          active_provider: "onedrive",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "workspace_id" }
-      );
-      return NextResponse.redirect(new URL(`/workspaces/${wsId}?storage=onedrive_connected`, request.url));
+    let refreshTokenCiphertext: string | null = null;
+    if (tokenPayload.refresh_token) {
+      try {
+        refreshTokenCiphertext = encryptOneDriveToken(tokenPayload.refresh_token);
+      } catch (encErr) {
+        console.error("Failed encrypting OneDrive refresh token:", encErr);
+      }
     }
 
-    await supabase.from("organization_storage_configs").upsert(
-      {
+    if (wsId) {
+      const { data: existing } = await supabase
+        .from("workspace_storage_configs")
+        .select("onedrive_folder")
+        .eq("workspace_id", wsId)
+        .maybeSingle();
+
+      const upsertData: Record<string, unknown> = {
+        workspace_id: wsId,
         organization_id: orgId,
         onedrive_connected: true,
         onedrive_account_email: accountEmail || user.email,
-        onedrive_folder: "Orbitwork",
+        onedrive_folder: existing?.onedrive_folder || "Orbitwork",
         onedrive_connected_at: new Date().toISOString(),
         active_provider: "onedrive",
         updated_at: new Date().toISOString(),
-      },
-      { onConflict: "organization_id" }
-    );
+      };
+      if (refreshTokenCiphertext) {
+        upsertData.onedrive_refresh_token_ciphertext = refreshTokenCiphertext;
+      }
+
+      await supabase.from("workspace_storage_configs").upsert(upsertData, { onConflict: "workspace_id" });
+      return NextResponse.redirect(new URL(`/workspaces/${wsId}?storage=onedrive_connected`, request.url));
+    }
+
+    const { data: existingOrg } = await supabase
+      .from("organization_storage_configs")
+      .select("onedrive_folder")
+      .eq("organization_id", orgId)
+      .maybeSingle();
+
+    const orgUpsertData: Record<string, unknown> = {
+      organization_id: orgId,
+      onedrive_connected: true,
+      onedrive_account_email: accountEmail || user.email,
+      onedrive_folder: existingOrg?.onedrive_folder || "Orbitwork",
+      onedrive_connected_at: new Date().toISOString(),
+      active_provider: "onedrive",
+      updated_at: new Date().toISOString(),
+    };
+    if (refreshTokenCiphertext) {
+      orgUpsertData.onedrive_refresh_token_ciphertext = refreshTokenCiphertext;
+    }
+
+    await supabase.from("organization_storage_configs").upsert(orgUpsertData, { onConflict: "organization_id" });
     return NextResponse.redirect(
       new URL(`/organizations/${orgId}/integrations?storage=onedrive_connected`, request.url)
     );
