@@ -13,17 +13,18 @@ type OAuthState = {
   redirectUri?: string;
 };
 
-function failure(request: Request, organizationId: string, reason: string, workspaceId?: string) {
+function failure(request: Request, organizationId: string, reason: string, workspaceId?: string, detail?: string) {
+  const param = `storage=${encodeURIComponent(reason)}${detail ? `&storage_error=${encodeURIComponent(detail)}` : ""}`;
   if (workspaceId && /^[0-9a-f-]{36}$/i.test(workspaceId)) {
     return NextResponse.redirect(
-      new URL(`/workspaces/${workspaceId}?storage=${encodeURIComponent(reason)}`, request.url)
+      new URL(`/workspaces/${workspaceId}?${param}`, request.url)
     );
   }
   const target =
     organizationId && /^[0-9a-f-]{36}$/i.test(organizationId)
       ? `/organizations/${organizationId}/integrations`
       : "/dashboard";
-  return NextResponse.redirect(new URL(`${target}?storage=${encodeURIComponent(reason)}`, request.url));
+  return NextResponse.redirect(new URL(`${target}?${param}`, request.url));
 }
 
 export async function GET(request: Request) {
@@ -131,12 +132,11 @@ export async function GET(request: Request) {
     if (wsId) {
       const { data: existing } = await supabase
         .from("workspace_storage_configs")
-        .select("onedrive_folder")
+        .select("workspace_id, onedrive_folder")
         .eq("workspace_id", wsId)
         .maybeSingle();
 
-      const upsertData: Record<string, unknown> = {
-        workspace_id: wsId,
+      const wsData: Record<string, unknown> = {
         organization_id: orgId,
         onedrive_connected: true,
         onedrive_account_email: accountEmail || user.email,
@@ -146,21 +146,49 @@ export async function GET(request: Request) {
         updated_at: new Date().toISOString(),
       };
       if (refreshTokenCiphertext) {
-        upsertData.onedrive_refresh_token_ciphertext = refreshTokenCiphertext;
+        wsData.onedrive_refresh_token_ciphertext = refreshTokenCiphertext;
       }
 
-      await supabase.from("workspace_storage_configs").upsert(upsertData, { onConflict: "workspace_id" });
+      let saveErr: any = null;
+      if (existing) {
+        let { error } = await supabase
+          .from("workspace_storage_configs")
+          .update(wsData)
+          .eq("workspace_id", wsId);
+        if (error && (error.message?.includes("onedrive_refresh_token_ciphertext") || error.code === "PGRST204")) {
+          delete wsData.onedrive_refresh_token_ciphertext;
+          const retry = await supabase
+            .from("workspace_storage_configs")
+            .update(wsData)
+            .eq("workspace_id", wsId);
+          error = retry.error;
+        }
+        saveErr = error;
+      } else {
+        wsData.workspace_id = wsId;
+        let { error } = await supabase.from("workspace_storage_configs").insert(wsData);
+        if (error && (error.message?.includes("onedrive_refresh_token_ciphertext") || error.code === "PGRST204")) {
+          delete wsData.onedrive_refresh_token_ciphertext;
+          const retry = await supabase.from("workspace_storage_configs").insert(wsData);
+          error = retry.error;
+        }
+        saveErr = error;
+      }
+
+      if (saveErr) {
+        console.error("[OneDrive Callback] Workspace save failed:", saveErr);
+        return failure(request, orgId, "save_failed", wsId, saveErr.message);
+      }
       return NextResponse.redirect(new URL(`/workspaces/${wsId}?storage=onedrive_connected`, request.url));
     }
 
     const { data: existingOrg } = await supabase
       .from("organization_storage_configs")
-      .select("onedrive_folder")
+      .select("organization_id, onedrive_folder")
       .eq("organization_id", orgId)
       .maybeSingle();
 
-    const orgUpsertData: Record<string, unknown> = {
-      organization_id: orgId,
+    const orgData: Record<string, unknown> = {
       onedrive_connected: true,
       onedrive_account_email: accountEmail || user.email,
       onedrive_folder: existingOrg?.onedrive_folder || "Orbitwork",
@@ -169,10 +197,40 @@ export async function GET(request: Request) {
       updated_at: new Date().toISOString(),
     };
     if (refreshTokenCiphertext) {
-      orgUpsertData.onedrive_refresh_token_ciphertext = refreshTokenCiphertext;
+      orgData.onedrive_refresh_token_ciphertext = refreshTokenCiphertext;
     }
 
-    await supabase.from("organization_storage_configs").upsert(orgUpsertData, { onConflict: "organization_id" });
+    let saveErr: any = null;
+    if (existingOrg) {
+      let { error } = await supabase
+        .from("organization_storage_configs")
+        .update(orgData)
+        .eq("organization_id", orgId);
+      if (error && (error.message?.includes("onedrive_refresh_token_ciphertext") || error.code === "PGRST204")) {
+        delete orgData.onedrive_refresh_token_ciphertext;
+        const retry = await supabase
+          .from("organization_storage_configs")
+          .update(orgData)
+          .eq("organization_id", orgId);
+        error = retry.error;
+      }
+      saveErr = error;
+    } else {
+      orgData.organization_id = orgId;
+      let { error } = await supabase.from("organization_storage_configs").insert(orgData);
+      if (error && (error.message?.includes("onedrive_refresh_token_ciphertext") || error.code === "PGRST204")) {
+        delete orgData.onedrive_refresh_token_ciphertext;
+        const retry = await supabase.from("organization_storage_configs").insert(orgData);
+        error = retry.error;
+      }
+      saveErr = error;
+    }
+
+    if (saveErr) {
+      console.error("[OneDrive Callback] Organization save failed:", saveErr);
+      return failure(request, orgId, "save_failed", undefined, saveErr.message);
+    }
+
     return NextResponse.redirect(
       new URL(`/organizations/${orgId}/integrations?storage=onedrive_connected`, request.url)
     );

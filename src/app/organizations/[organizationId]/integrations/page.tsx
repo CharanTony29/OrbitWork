@@ -26,7 +26,7 @@ export default async function OrganizationIntegrationsPage({
   searchParams,
 }: {
   params: Promise<{ organizationId: string }>;
-  searchParams: Promise<{ drive?: string; drive_error?: string; storage?: string }>;
+  searchParams: Promise<{ drive?: string; drive_error?: string; storage?: string; storage_error?: string }>;
 }) {
   const { organizationId } = await params;
   const filters = await searchParams;
@@ -78,12 +78,16 @@ export default async function OrganizationIntegrationsPage({
     token_exchange_failed: "Authorization did not complete. Check your OAuth client configuration.",
     missing_refresh_token: "Google returned no refresh token. Reconnect with offline access enabled.",
     cancelled: "Connection was cancelled.",
-    save_failed: driveErrorDetail
+    save_failed: filters.storage_error
+      ? `Failed to save storage connection: ${filters.storage_error}`
+      : driveErrorDetail
       ? `Failed to save Google Drive connection: ${driveErrorDetail}`
-      : "Database error: Could not save the Google Drive connection token to Supabase.",
-    connection_failed: driveErrorDetail
+      : "Database error: Could not save connection to Supabase.",
+    connection_failed: filters.storage_error
+      ? `Connection error: ${filters.storage_error}`
+      : driveErrorDetail
       ? `Google Drive connection error: ${driveErrorDetail}`
-      : "Google Drive connection encountered an unexpected error.",
+      : "Storage connection encountered an unexpected error.",
     onedrive_connected: "Microsoft OneDrive default storage connected successfully.",
     onedrive_disconnected: "Microsoft OneDrive default storage disconnected.",
     sharepoint_connected: "Microsoft SharePoint Document Library connected successfully.",
@@ -92,7 +96,7 @@ export default async function OrganizationIntegrationsPage({
   };
 
   const currentStatusMsg = filters.drive ? statusText[filters.drive] : filters.storage ? statusText[filters.storage] : null;
-  const isSuccess = filters.drive === "connected" || filters.storage?.includes("connected");
+  const isSuccess = (filters.drive === "connected" || filters.storage?.includes("connected")) && filters.storage !== "save_failed";
 
   return (
     <main className="app-shell">
