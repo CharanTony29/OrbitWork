@@ -367,6 +367,7 @@ export default function TaskAttachmentsSection({
   taskTitle,
   attachments,
   attachmentStatus,
+  attachmentError,
   driveError,
   canEdit = true,
 }: {
@@ -375,6 +376,7 @@ export default function TaskAttachmentsSection({
   taskTitle: string;
   attachments: AttachmentItem[];
   attachmentStatus?: string;
+  attachmentError?: string;
   driveError?: string;
   canEdit?: boolean;
 }) {
@@ -739,6 +741,8 @@ export default function TaskAttachmentsSection({
           <span>
             {attachmentStatus === "drive_failed"
               ? driveErrorMessages[driveError ?? ""] ?? driveErrorMessages.request_failed
+              : attachmentError
+              ? `${attachmentMessages[attachmentStatus] ?? "Attachment action did not complete."} (${attachmentError})`
               : attachmentMessages[attachmentStatus] ?? "Attachment action did not complete."}
           </span>
         </div>

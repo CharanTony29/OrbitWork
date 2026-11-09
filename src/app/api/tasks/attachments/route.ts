@@ -72,7 +72,11 @@ export async function POST(request: Request) {
     });
 
     if (linkErr) {
-      return NextResponse.redirect(new URL(`/projects/${projectId}/tasks/${taskId}?attachment=save_failed`, request.url), 303);
+      console.error("[Attachment Link Error] Failed to insert link attachment:", linkErr);
+      const redirectUrl = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
+      redirectUrl.searchParams.set("attachment", "save_failed");
+      redirectUrl.searchParams.set("attachment_error", linkErr.message || "Failed to save link reference");
+      return NextResponse.redirect(redirectUrl, 303);
     }
     return NextResponse.redirect(new URL(`/projects/${projectId}/tasks/${taskId}?attachment=uploaded`, request.url), 303);
   }
@@ -129,7 +133,12 @@ export async function POST(request: Request) {
         if (!error) {
           return NextResponse.redirect(new URL(`/projects/${projectId}/tasks/${taskId}?attachment=uploaded`, request.url), 303);
         } else {
+          console.error("[Attachment Drive Error] Failed to save Google Drive reference:", error);
           await deleteDriveFile(accessToken, uploaded.id).catch(() => undefined);
+          const redirectUrl = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
+          redirectUrl.searchParams.set("attachment", "save_failed");
+          if (error.message) redirectUrl.searchParams.set("attachment_error", error.message);
+          return NextResponse.redirect(redirectUrl, 303);
         }
       }
     } catch (driveErr) {
@@ -159,7 +168,11 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (insertErr || !inserted?.id) {
-      return NextResponse.redirect(new URL(`/projects/${projectId}/tasks/${taskId}?attachment=save_failed`, request.url), 303);
+      console.error("[Attachment Upload Error] Failed to insert into task_attachments:", insertErr);
+      const redirectUrl = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
+      redirectUrl.searchParams.set("attachment", "save_failed");
+      if (insertErr?.message) redirectUrl.searchParams.set("attachment_error", insertErr.message);
+      return NextResponse.redirect(redirectUrl, 303);
     }
 
     const { error: fileErr } = await supabase.from("attachment_files").insert({
@@ -168,13 +181,21 @@ export async function POST(request: Request) {
     });
 
     if (fileErr) {
+      console.error("[Attachment Upload Error] Failed to insert into attachment_files:", fileErr);
       await supabase.from("task_attachments").delete().eq("id", inserted.id);
-      return NextResponse.redirect(new URL(`/projects/${projectId}/tasks/${taskId}?attachment=save_failed`, request.url), 303);
+      const redirectUrl = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
+      redirectUrl.searchParams.set("attachment", "save_failed");
+      if (fileErr?.message) redirectUrl.searchParams.set("attachment_error", fileErr.message);
+      return NextResponse.redirect(redirectUrl, 303);
     }
 
     return NextResponse.redirect(new URL(`/projects/${projectId}/tasks/${taskId}?attachment=uploaded`, request.url), 303);
   } catch (fallbackErr) {
     console.error("Direct attachment storage failed", fallbackErr);
-    return NextResponse.redirect(new URL(`/projects/${projectId}/tasks/${taskId}?attachment=save_failed`, request.url), 303);
+    const msg = fallbackErr instanceof Error ? fallbackErr.message : "Unexpected upload error";
+    const redirectUrl = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
+    redirectUrl.searchParams.set("attachment", "save_failed");
+    redirectUrl.searchParams.set("attachment_error", msg);
+    return NextResponse.redirect(redirectUrl, 303);
   }
 }

@@ -31,7 +31,7 @@ const driveErrorMessages: Record<string, string> = {
 
 export default async function TaskDetailPage({ params, searchParams }: {
   params: Promise<{ projectId: string; taskId: string }>;
-  searchParams: Promise<{ error?: string; saved?: string; attachment?: string; driveError?: string; tab?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; attachment?: string; attachment_error?: string; driveError?: string; tab?: string }>;
 }) {
   const { projectId, taskId } = await params;
   const supabase = await createClient();
@@ -105,7 +105,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
     .filter((e) => e.billable && e.duration_minutes)
     .reduce((acc, e) => acc + (e.duration_minutes || 0), 0);
   const remainingInfo = formatRemaining(task.estimate_minutes, billableMinutes);
-  const { error, saved, attachment, driveError, tab: queryTab } = await searchParams;
+  const { error, saved, attachment, attachment_error, driveError, tab: queryTab } = await searchParams;
   const tab = ["details", "whiteboard", "flowchart"].includes(queryTab ?? "") ? queryTab! : "details";
 
   return <main className="app-shell">
@@ -294,6 +294,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
                   uploader_name: profileLabel(item.uploaded_by),
                 }))}
                 attachmentStatus={attachment}
+                attachmentError={attachment_error}
                 driveError={driveError}
                 canEdit={canEdit}
               />
