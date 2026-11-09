@@ -13,12 +13,13 @@ type OAuthState = {
   redirectUri?: string;
 };
 
-function failure(request: Request, organizationId: string, reason: string, workspaceId?: string) {
+function failure(request: Request, organizationId: string, reason: string, workspaceId?: string, errorDetail?: string) {
+  const detailParam = errorDetail ? `&drive_error=${encodeURIComponent(errorDetail)}` : "";
   if (workspaceId && /^[0-9a-f-]{36}$/i.test(workspaceId)) {
-    return NextResponse.redirect(new URL(`/workspaces/${workspaceId}?drive=${encodeURIComponent(reason)}`, request.url));
+    return NextResponse.redirect(new URL(`/workspaces/${workspaceId}?drive=${encodeURIComponent(reason)}${detailParam}`, request.url));
   }
   const target = organizationId && /^[0-9a-f-]{36}$/i.test(organizationId) ? `/organizations/${organizationId}/integrations` : "/dashboard";
-  return NextResponse.redirect(new URL(`${target}?drive=${encodeURIComponent(reason)}`, request.url));
+  return NextResponse.redirect(new URL(`${target}?drive=${encodeURIComponent(reason)}${detailParam}`, request.url));
 }
 
 export async function GET(request: Request) {
@@ -119,13 +120,17 @@ export async function GET(request: Request) {
 
     // Handle Workspace-Level Storage Connection
     if (wsId) {
+      const { data: existing } = await supabase
+        .from("google_drive_connections")
+        .select("id, refresh_token_ciphertext")
+        .eq("workspace_id", wsId)
+        .maybeSingle();
+
       if (!refreshToken) {
-        const { data: existing } = await supabase
-          .from("google_drive_connections")
-          .select("refresh_token_ciphertext")
-          .eq("workspace_id", wsId)
-          .maybeSingle();
-        if (!existing) return failure(request, orgId, "missing_refresh_token", wsId);
+        if (!existing) {
+          console.error("[Google Drive Callback] Missing refresh token and no existing workspace connection found:", wsId);
+          return failure(request, orgId, "missing_refresh_token", wsId);
+        }
         const { error } = await supabase
           .from("google_drive_connections")
           .update({
@@ -133,63 +138,155 @@ export async function GET(request: Request) {
             account_email: accountEmail || undefined,
             updated_at: new Date().toISOString(),
           })
-          .eq("workspace_id", wsId);
-        if (error) return failure(request, orgId, "save_failed", wsId);
+          .eq("id", existing.id);
+        if (error) {
+          console.error("[Google Drive Callback] Workspace connection update failed:", error);
+          return failure(request, orgId, "save_failed", wsId, error.message);
+        }
       } else {
         const encrypted = encryptRefreshToken(refreshToken);
-        const { error } = await supabase.from("google_drive_connections").upsert(
-          {
-            workspace_id: wsId,
-            organization_id: orgId,
-            connected_by: user.id,
-            refresh_token_ciphertext: encrypted,
-            account_email: accountEmail || null,
-            token_key_version: 1,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "workspace_id" }
-        );
-        if (error) return failure(request, orgId, "save_failed", wsId);
+        let saveError: any = null;
+
+        if (existing) {
+          const { error } = await supabase
+            .from("google_drive_connections")
+            .update({
+              connected_by: user.id,
+              refresh_token_ciphertext: encrypted,
+              account_email: accountEmail || null,
+              token_key_version: 1,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existing.id);
+          saveError = error;
+        } else {
+          const { error } = await supabase
+            .from("google_drive_connections")
+            .insert({
+              workspace_id: wsId,
+              organization_id: orgId,
+              connected_by: user.id,
+              refresh_token_ciphertext: encrypted,
+              account_email: accountEmail || null,
+              token_key_version: 1,
+              updated_at: new Date().toISOString(),
+            });
+          saveError = error;
+        }
+
+        if (saveError) {
+          console.error("[Google Drive Callback] Workspace connection save failed:", saveError);
+          return failure(request, orgId, "save_failed", wsId, saveError.message);
+        }
       }
       return NextResponse.redirect(new URL(`/workspaces/${wsId}?drive=connected`, request.url));
     }
 
     // Handle Organization-Level Fallback Connection
+    const { data: existing } = await supabase
+      .from("google_drive_connections")
+      .select("id, refresh_token_ciphertext")
+      .eq("organization_id", orgId)
+      .is("workspace_id", null)
+      .maybeSingle();
+
     if (!refreshToken) {
-      const { data: existing } = await supabase
-        .from("google_drive_connections")
-        .select("refresh_token_ciphertext")
-        .eq("organization_id", orgId)
-        .is("workspace_id", null)
-        .maybeSingle();
-      if (!existing) return failure(request, orgId, "missing_refresh_token");
-      const { error } = await supabase
+      if (!existing) {
+        console.error("[Google Drive Callback] Missing refresh token and no existing org connection found:", orgId);
+        return failure(request, orgId, "missing_refresh_token");
+      }
+      let { error } = await supabase
         .from("google_drive_connections")
         .update({
           connected_by: user.id,
           account_email: accountEmail || undefined,
           updated_at: new Date().toISOString(),
         })
-        .eq("organization_id", orgId)
-        .is("workspace_id", null);
-      if (error) return failure(request, orgId, "save_failed");
+        .eq("id", existing.id);
+
+      if (error && (error.message?.includes("account_email") || error.code === "PGRST204")) {
+        const { error: retryErr } = await supabase
+          .from("google_drive_connections")
+          .update({
+            connected_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+        error = retryErr;
+      }
+
+      if (error) {
+        console.error("[Google Drive Callback] Org connection update failed:", error);
+        return failure(request, orgId, "save_failed", undefined, error.message);
+      }
     } else {
       const encrypted = encryptRefreshToken(refreshToken);
-      const { error } = await supabase.from("google_drive_connections").upsert(
-        {
-          organization_id: orgId,
-          connected_by: user.id,
-          refresh_token_ciphertext: encrypted,
-          account_email: accountEmail || null,
-          token_key_version: 1,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "organization_id" }
-      );
-      if (error) return failure(request, orgId, "save_failed");
+      let saveError: any = null;
+
+      if (existing) {
+        const { error } = await supabase
+          .from("google_drive_connections")
+          .update({
+            connected_by: user.id,
+            refresh_token_ciphertext: encrypted,
+            account_email: accountEmail || null,
+            token_key_version: 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+        saveError = error;
+      } else {
+        const { error } = await supabase
+          .from("google_drive_connections")
+          .insert({
+            organization_id: orgId,
+            workspace_id: null,
+            connected_by: user.id,
+            refresh_token_ciphertext: encrypted,
+            account_email: accountEmail || null,
+            token_key_version: 1,
+            updated_at: new Date().toISOString(),
+          });
+        saveError = error;
+      }
+
+      // If the error was due to missing new columns on unmigrated Supabase instance, fallback to base columns
+      if (saveError && (saveError.message?.includes("account_email") || saveError.message?.includes("workspace_id") || saveError.code === "PGRST204")) {
+        console.warn("[Google Drive Callback] Retrying save with base schema (without account_email / workspace_id)...");
+        if (existing) {
+          const { error: retryErr } = await supabase
+            .from("google_drive_connections")
+            .update({
+              connected_by: user.id,
+              refresh_token_ciphertext: encrypted,
+              token_key_version: 1,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existing.id);
+          saveError = retryErr;
+        } else {
+          const { error: retryErr } = await supabase
+            .from("google_drive_connections")
+            .insert({
+              organization_id: orgId,
+              connected_by: user.id,
+              refresh_token_ciphertext: encrypted,
+              token_key_version: 1,
+              updated_at: new Date().toISOString(),
+            });
+          saveError = retryErr;
+        }
+      }
+
+      if (saveError) {
+        console.error("[Google Drive Callback] Org connection save failed:", saveError);
+        return failure(request, orgId, "save_failed", undefined, saveError.message);
+      }
     }
     return NextResponse.redirect(new URL(`/organizations/${orgId}/integrations?drive=connected`, request.url));
-  } catch {
-    return failure(request, orgId, "connection_failed", wsId);
+  } catch (err) {
+    console.error("[Google Drive Callback] Unexpected exception:", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    return failure(request, orgId, "connection_failed", wsId, msg);
   }
 }

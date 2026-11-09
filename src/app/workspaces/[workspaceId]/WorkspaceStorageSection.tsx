@@ -87,6 +87,14 @@ export default function WorkspaceStorageSection({
       type: "error",
       text: "Google did not return an offline refresh token. Please reconnect and grant offline access.",
     },
+    save_failed: {
+      type: "error",
+      text: "Database error: Could not save the Google Drive connection token to the database.",
+    },
+    connection_failed: {
+      type: "error",
+      text: "Google Drive connection encountered an unexpected error. Please try again.",
+    },
     // General / Storage statuses
     onedrive_connected: {
       type: "notice",

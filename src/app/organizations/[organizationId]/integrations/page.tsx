@@ -26,7 +26,7 @@ export default async function OrganizationIntegrationsPage({
   searchParams,
 }: {
   params: Promise<{ organizationId: string }>;
-  searchParams: Promise<{ drive?: string; storage?: string }>;
+  searchParams: Promise<{ drive?: string; drive_error?: string; storage?: string }>;
 }) {
   const { organizationId } = await params;
   const filters = await searchParams;
@@ -68,6 +68,7 @@ export default async function OrganizationIntegrationsPage({
     process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET
   );
 
+  const driveErrorDetail = filters.drive_error;
   const statusText: Record<string, string> = {
     connected: "Google Drive default organization storage connected.",
     disconnected: "Google Drive default organization storage was disconnected.",
@@ -77,6 +78,12 @@ export default async function OrganizationIntegrationsPage({
     token_exchange_failed: "Authorization did not complete. Check your OAuth client configuration.",
     missing_refresh_token: "Google returned no refresh token. Reconnect with offline access enabled.",
     cancelled: "Connection was cancelled.",
+    save_failed: driveErrorDetail
+      ? `Failed to save Google Drive connection: ${driveErrorDetail}`
+      : "Database error: Could not save the Google Drive connection token to Supabase.",
+    connection_failed: driveErrorDetail
+      ? `Google Drive connection error: ${driveErrorDetail}`
+      : "Google Drive connection encountered an unexpected error.",
     onedrive_connected: "Microsoft OneDrive default storage connected successfully.",
     onedrive_disconnected: "Microsoft OneDrive default storage disconnected.",
     sharepoint_connected: "Microsoft SharePoint Document Library connected successfully.",
