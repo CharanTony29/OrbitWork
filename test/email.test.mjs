@@ -6,6 +6,7 @@ import {
   sendTaskDueReminderEmail,
   sendUserMentionedEmail,
   sendTaskHoursExhaustingEmail,
+  sendOrganizationInvitationEmail,
 } from "../src/lib/email.ts";
 
 test("sendEmail returns ok in simulated/development mode", async () => {
@@ -109,4 +110,14 @@ test("sendTaskHoursExhaustingEmail sends warning when less than 1 hour remains a
     remainingMinutes: -60, // 1h over
   });
   assert.equal(resExceeded.ok, true);
+});
+
+test("sendOrganizationInvitationEmail sends dedicated invite to recipient", async () => {
+  const res = await sendOrganizationInvitationEmail({
+    recipientEmail: "newteammate@example.com",
+    inviterName: "Charan",
+    organizationName: "LEELA",
+    acceptUrl: "http://localhost:3000/invite/accept?token=sample-token",
+  });
+  assert.equal(res.ok, true);
 });

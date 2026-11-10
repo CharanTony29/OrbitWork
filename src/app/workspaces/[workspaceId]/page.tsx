@@ -170,7 +170,7 @@ export default async function WorkspacePage({
           </div>
         </div>
 
-        {invited && <p className="notice" role="status">Invitation email sent.</p>}
+        {invited && <p className="notice" role="status">{Number(invited) > 1 ? `Invitation emails sent to ${invited} people.` : "Invitation email sent."}</p>}
         {member_added && <p className="notice" role="status">Workspace access added.</p>}
         {member_removed && <p className="notice" role="status">Workspace access removed.</p>}
         {member_updated && <p className="notice" role="status">Workspace member role updated.</p>}

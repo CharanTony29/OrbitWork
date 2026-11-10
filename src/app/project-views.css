@@ -520,22 +520,32 @@ body:has(.project-app-shell) {
   overflow: visible !important;
 }
 
-/* DO NOT make colSpan cells sticky (prevents table from warping or moving on scroll) */
+/* Status group row and cell must have overflow visible so the inner header can stick horizontally */
+.task-table tbody tr.status-group-tr,
+.task-table tbody tr.status-group-tr td.status-group-td,
+.task-table td.status-group-td {
+  position: static !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
 .task-table td[colspan],
-.task-table td.status-group-td,
 .task-table td.inline-add-task-empty {
   position: static !important;
   box-shadow: none !important;
 }
 
-/* Make inner group header sticky so pill stays visible on horizontal scroll */
+/* Make inner group header sticky so pill stays static / pinned on horizontal scroll */
 .status-group-header {
-  position: sticky;
-  left: 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  z-index: 3;
+  position: sticky !important;
+  left: 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  z-index: 6 !important;
+  width: fit-content !important;
+  cursor: pointer !important;
+  user-select: none !important;
 }
 
 .task-table tr:hover td.task-title-cell {

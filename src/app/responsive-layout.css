@@ -58,31 +58,53 @@
   margin-bottom: 8px;
 }
 
-@container org-card (max-width: 540px) {
+@container org-card (max-width: 420px) {
   .workspace-form.invite-form {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) minmax(90px, auto) !important;
-    justify-content: stretch !important;
-    align-items: stretch !important;
-    gap: 8px !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
   }
 
   .workspace-form.invite-form select[name="workspaceId"],
   .workspace-form.invite-form input[name="email"] {
-    grid-column: 1 / -1;
+    grid-column: 1 / -1 !important;
     width: 100% !important;
     min-width: 0 !important;
   }
 
   .workspace-form.invite-form select[name="role"] {
-    grid-column: 1;
+    grid-column: 1 !important;
     width: 100% !important;
     min-width: 0 !important;
   }
 
   .workspace-form.invite-form button {
-    grid-column: 2;
-    width: 100%;
+    grid-column: 2 !important;
+    width: auto !important;
+    min-width: 80px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .workspace-form.invite-form {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+
+  .workspace-form.invite-form select[name="workspaceId"],
+  .workspace-form.invite-form input[name="email"] {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .workspace-form.invite-form select[name="role"] {
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .workspace-form.invite-form button {
+    grid-column: 2 !important;
+    width: auto !important;
+    min-width: 80px !important;
   }
 }
 

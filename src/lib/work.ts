@@ -152,3 +152,14 @@ export function formatRemaining(
   }
   return { status: "ok", diff, label: `${formatEstimate(diff) || `${diff}m`} left` };
 }
+
+export function parseInviteEmails(rawInput: string | null | undefined): string[] {
+  if (!rawInput) return [];
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const items = String(rawInput)
+    .split(/[\s,;]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const unique = Array.from(new Set(items));
+  return unique.filter((e) => emailRegex.test(e) && e.length <= 254);
+}

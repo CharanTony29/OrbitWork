@@ -46,18 +46,20 @@ export function decryptOneDriveToken(encrypted: string) {
 export async function getOneDriveAccessToken(
   supabase: SupabaseClient,
   workspaceId: string,
-  organizationId?: string
+  organizationId?: string,
+  adminClient?: SupabaseClient | null
 ): Promise<string> {
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new OneDriveError("configuration");
 
+  const queryClient = adminClient || supabase;
   let refreshTokenCiphertext: string | null = null;
   let isWorkspaceLevel = false;
 
   // 1. Check workspace config
   if (workspaceId) {
-    const { data: wsCfg } = await supabase
+    const { data: wsCfg } = await queryClient
       .from("workspace_storage_configs")
       .select("onedrive_refresh_token_ciphertext")
       .eq("workspace_id", workspaceId)
@@ -70,7 +72,7 @@ export async function getOneDriveAccessToken(
 
   // 2. Check organization config fallback
   if (!refreshTokenCiphertext && organizationId) {
-    const { data: orgCfg } = await supabase
+    const { data: orgCfg } = await queryClient
       .from("organization_storage_configs")
       .select("onedrive_refresh_token_ciphertext")
       .eq("organization_id", organizationId)
@@ -115,16 +117,61 @@ export async function getOneDriveAccessToken(
   // If Microsoft rotated the refresh token, store the new one
   if (payload.refresh_token && payload.refresh_token !== refreshToken) {
     const newEncrypted = encryptOneDriveToken(payload.refresh_token);
-    if (isWorkspaceLevel && workspaceId) {
-      await supabase
-        .from("workspace_storage_configs")
-        .update({ onedrive_refresh_token_ciphertext: newEncrypted, updated_at: new Date().toISOString() })
-        .eq("workspace_id", workspaceId);
-    } else if (organizationId) {
-      await supabase
-        .from("organization_storage_configs")
-        .update({ onedrive_refresh_token_ciphertext: newEncrypted, updated_at: new Date().toISOString() })
-        .eq("organization_id", organizationId);
+    let updated = false;
+
+    // 1. Try adminClient if available
+    if (adminClient) {
+      try {
+        if (isWorkspaceLevel && workspaceId) {
+          const { error } = await adminClient
+            .from("workspace_storage_configs")
+            .update({ onedrive_refresh_token_ciphertext: newEncrypted, updated_at: new Date().toISOString() })
+            .eq("workspace_id", workspaceId);
+          if (!error) updated = true;
+        } else if (organizationId) {
+          const { error } = await adminClient
+            .from("organization_storage_configs")
+            .update({ onedrive_refresh_token_ciphertext: newEncrypted, updated_at: new Date().toISOString() })
+            .eq("organization_id", organizationId);
+          if (!error) updated = true;
+        }
+      } catch {}
+    }
+
+    // 2. Try security-definer RPC (allows workspace/project members to refresh during live uploads)
+    if (!updated) {
+      try {
+        if (isWorkspaceLevel && workspaceId) {
+          const { error: rpcErr } = await supabase.rpc("update_workspace_storage_refresh_token", {
+            target_workspace: workspaceId,
+            new_token_ciphertext: newEncrypted,
+          });
+          if (!rpcErr) updated = true;
+        } else if (organizationId) {
+          const { error: rpcErr } = await supabase.rpc("update_organization_storage_refresh_token", {
+            target_org: organizationId,
+            new_token_ciphertext: newEncrypted,
+          });
+          if (!rpcErr) updated = true;
+        }
+      } catch {}
+    }
+
+    // 3. Fallback to direct client update (works if user is owner/admin)
+    if (!updated) {
+      try {
+        if (isWorkspaceLevel && workspaceId) {
+          await supabase
+            .from("workspace_storage_configs")
+            .update({ onedrive_refresh_token_ciphertext: newEncrypted, updated_at: new Date().toISOString() })
+            .eq("workspace_id", workspaceId);
+        } else if (organizationId) {
+          await supabase
+            .from("organization_storage_configs")
+            .update({ onedrive_refresh_token_ciphertext: newEncrypted, updated_at: new Date().toISOString() })
+            .eq("organization_id", organizationId);
+        }
+      } catch {}
     }
   }
 

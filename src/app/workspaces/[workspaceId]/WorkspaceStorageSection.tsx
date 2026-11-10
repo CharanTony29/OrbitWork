@@ -160,9 +160,33 @@ export default function WorkspaceStorageSection({
             </div>
 
             {canManage && (
-              <form action={async (formData) => { await setWorkspaceActiveStorageProvider(formData); }} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <form
+                action={async (formData) => {
+                  await setWorkspaceActiveStorageProvider(formData);
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  margin: 0,
+                  alignSelf: "center",
+                }}
+              >
                 <input type="hidden" name="workspaceId" value={workspaceId} />
-                <label htmlFor="active-storage-select" style={{ fontSize: 11.5, color: "var(--muted, #64748b)", fontWeight: 600 }}>
+                <label
+                  htmlFor="active-storage-select"
+                  style={{
+                    fontSize: 12,
+                    color: "var(--muted, #64748b)",
+                    fontWeight: 600,
+                    margin: 0,
+                    lineHeight: 1,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   Active Provider:
                 </label>
                 <select
@@ -171,14 +195,25 @@ export default function WorkspaceStorageSection({
                   defaultValue={currentProvider}
                   onChange={(e) => e.target.form?.requestSubmit()}
                   style={{
-                    height: 32,
+                    height: 34,
+                    minHeight: 34,
                     fontSize: 12,
-                    borderRadius: 6,
-                    border: "1px solid var(--line, #cbd5e1)",
-                    padding: "0 8px",
+                    borderRadius: 18,
+                    border: "1.5px solid var(--green, #167c58)",
+                    padding: "0 14px",
                     background: "var(--paper, #fff)",
+                    color: "var(--ink, #0f172a)",
                     fontWeight: 600,
                     cursor: "pointer",
+                    textAlign: "center",
+                    textAlignLast: "center",
+                    verticalAlign: "middle",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    lineHeight: "32px",
+                    boxSizing: "border-box",
+                    outline: "none",
                   }}
                 >
                   <option value="local">🏠 Local Storage (Built-in)</option>

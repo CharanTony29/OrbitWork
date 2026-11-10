@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { csvCell, distinctAssigneeIds, elapsedMinutes, parseEstimateToMinutes, formatEstimate, formatMinutes, formatRemaining } from "../src/lib/work.ts";
+import { csvCell, distinctAssigneeIds, elapsedMinutes, parseEstimateToMinutes, formatEstimate, formatMinutes, formatRemaining, parseInviteEmails } from "../src/lib/work.ts";
 import { markdownToSafeHtml } from "../src/lib/markdown.ts";
 
 test("assignee slots omit blanks and never duplicate a teammate", () => {
@@ -88,4 +88,29 @@ test("formatRemaining calculates status and balance accurately", () => {
   // Exceeded (negative diff / over budget)
   assert.deepEqual(formatRemaining(60, 90), { status: "exceeded", diff: -30, label: "+30m over" });
   assert.deepEqual(formatRemaining(60, 180), { status: "exceeded", diff: -120, label: "+2h over" });
+});
+
+test("parseInviteEmails extracts, deduplicates, and validates multiple emails with varied separators", () => {
+  assert.deepEqual(parseInviteEmails(null), []);
+  assert.deepEqual(parseInviteEmails(""), []);
+  assert.deepEqual(parseInviteEmails("   "), []);
+  assert.deepEqual(parseInviteEmails("alice@example.com"), ["alice@example.com"]);
+  assert.deepEqual(
+    parseInviteEmails("alice@example.com, bob@example.com, charlie@example.com"),
+    ["alice@example.com", "bob@example.com", "charlie@example.com"]
+  );
+  assert.deepEqual(
+    parseInviteEmails("alice@example.com bob@example.com; charlie@example.com\ndavid@example.com"),
+    ["alice@example.com", "bob@example.com", "charlie@example.com", "david@example.com"]
+  );
+  // Deduplication and case normalization
+  assert.deepEqual(
+    parseInviteEmails("Alice@Example.com, alice@example.com; ALICE@EXAMPLE.COM"),
+    ["alice@example.com"]
+  );
+  // Filters out invalid tokens
+  assert.deepEqual(
+    parseInviteEmails("alice@example.com, not-an-email, bob@example.com, foo@bar"),
+    ["alice@example.com", "bob@example.com"]
+  );
 });

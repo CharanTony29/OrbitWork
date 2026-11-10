@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { createHash, randomBytes } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
-import { distinctAssigneeIds, elapsedMinutes, parseEstimateToMinutes } from "@/lib/work";
+import { distinctAssigneeIds, elapsedMinutes, parseEstimateToMinutes, parseInviteEmails } from "@/lib/work";
 import {
   notifyAssigneesOnTask,
   notifyMentionedUsers,
@@ -187,49 +187,115 @@ export async function createWorkspace(formData: FormData) {
 }
 
 export async function inviteOrganizationMember(formData: FormData) {
-  const parsed = z.object({ organizationId: z.string().uuid(), workspaceId: z.string().uuid().optional(), email: z.string().trim().email().max(254), role: z.enum(["admin", "manager", "member", "viewer"]) }).safeParse({ organizationId: formData.get("organizationId"), workspaceId: formData.get("workspaceId") || undefined, email: formData.get("email"), role: formData.get("role") });
-  if (!parsed.success) redirect("/dashboard?error=invalid_invitation");
+  const rawEmails = formData.getAll("email").map((v) => String(v).trim()).filter(Boolean).join(", ");
+  const emailValue = rawEmails || String(formData.get("email") || "");
+
+  const parsed = z.object({
+    organizationId: z.string().uuid(),
+    workspaceId: z.string().uuid().optional(),
+    email: z.string().trim().min(1),
+    role: z.enum(["admin", "manager", "member", "viewer"]),
+  }).safeParse({
+    organizationId: formData.get("organizationId"),
+    workspaceId: formData.get("workspaceId") || undefined,
+    email: emailValue,
+    role: formData.get("role"),
+  });
+
+  const rawWorkspaceId = formData.get("workspaceId");
+  const fallbackRedirect = rawWorkspaceId
+    ? `/workspaces/${rawWorkspaceId}?error=invalid_invitation`
+    : `/dashboard?error=invalid_invitation`;
+
+  if (!parsed.success) redirect(fallbackRedirect);
+
+  const emails = parseInviteEmails(parsed.data.email);
+  if (!emails.length) redirect(fallbackRedirect);
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: canInvite } = await supabase.rpc("has_org_role", { target_org: parsed.data.organizationId, allowed_roles: ["owner", "admin"] });
-  if (!canInvite) redirect(`/dashboard?error=invitation_forbidden`);
-  const token = randomBytes(32).toString("base64url");
-  const tokenHash = createHash("sha256").update(token).digest("hex");
-  const { error } = await supabase.from("invitations").insert({ organization_id: parsed.data.organizationId, workspace_id: parsed.data.workspaceId ?? null, email: parsed.data.email.toLowerCase(), role: parsed.data.role, token_hash: tokenHash, invited_by: user.id });
-  if (error) redirect(`/dashboard?error=invitation_failed`);
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
-  const acceptUrl = `${appUrl}/invite/accept?token=${encodeURIComponent(token)}`;
 
-  // Send invitation email directly via application SMTP (reliable and bypasses Supabase rate limits)
+  const { data: canInvite } = await supabase.rpc("has_org_role", {
+    target_org: parsed.data.organizationId,
+    allowed_roles: ["owner", "admin"],
+  });
+  if (!canInvite) {
+    const forbiddenRedirect = parsed.data.workspaceId
+      ? `/workspaces/${parsed.data.workspaceId}?error=invitation_forbidden`
+      : `/dashboard?error=invitation_forbidden`;
+    redirect(forbiddenRedirect);
+  }
+
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+
+  // Fetch organization and inviter profile once for all invitations
   const [{ data: org }, { data: inviterProfile }] = await Promise.all([
     supabase.from("organizations").select("name").eq("id", parsed.data.organizationId).maybeSingle(),
     supabase.from("profiles").select("display_name, email").eq("id", user.id).maybeSingle(),
   ]);
   const inviterName = inviterProfile?.display_name?.trim() || inviterProfile?.email || "An administrator";
+  const organizationName = org?.name || "the organization";
 
-  const emailRes = await sendOrganizationInvitationEmail({
-    recipientEmail: parsed.data.email,
-    inviterName,
-    organizationName: org?.name || "the organization",
-    acceptUrl,
-  });
+  let successCount = 0;
+  for (const recipientEmail of emails) {
+    const token = randomBytes(32).toString("base64url");
+    const tokenHash = createHash("sha256").update(token).digest("hex");
 
-  if (!emailRes.ok) {
-    // Optional fallback via supabase auth if direct smtp failed
-    const emailRedirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(acceptUrl.replace(appUrl, ""))}`;
-    const { error: mailError } = await supabase.auth.signInWithOtp({ email: parsed.data.email, options: { shouldCreateUser: true, emailRedirectTo } });
-    if (mailError) {
-      await supabase.from("invitations").update({ status: "revoked" }).eq("token_hash", tokenHash);
-      redirect("/dashboard?error=invitation_email_failed");
+    const { error } = await supabase.from("invitations").insert({
+      organization_id: parsed.data.organizationId,
+      workspace_id: parsed.data.workspaceId ?? null,
+      email: recipientEmail,
+      role: parsed.data.role,
+      token_hash: tokenHash,
+      invited_by: user.id,
+    });
+
+    if (error) {
+      console.error(`Failed to record invitation for ${recipientEmail}:`, error);
+      continue;
     }
+
+    const acceptUrl = `${appUrl}/invite/accept?token=${encodeURIComponent(token)}`;
+
+    // Send invitation email separately to each recipient
+    const emailRes = await sendOrganizationInvitationEmail({
+      recipientEmail,
+      inviterName,
+      organizationName,
+      acceptUrl,
+    });
+
+    if (!emailRes.ok) {
+      // Optional fallback via supabase auth OTP if direct SMTP failed
+      const emailRedirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(acceptUrl.replace(appUrl, ""))}`;
+      const { error: mailError } = await supabase.auth.signInWithOtp({
+        email: recipientEmail,
+        options: { shouldCreateUser: true, emailRedirectTo },
+      });
+      if (mailError) {
+        console.error(`Failed to send invitation email to ${recipientEmail}:`, mailError);
+        await supabase.from("invitations").update({ status: "revoked" }).eq("token_hash", tokenHash);
+        continue;
+      }
+    }
+
+    successCount++;
   }
+
+  if (successCount === 0) {
+    const failedRedirect = parsed.data.workspaceId
+      ? `/workspaces/${parsed.data.workspaceId}?error=invitation_failed`
+      : `/dashboard?error=invitation_failed`;
+    redirect(failedRedirect);
+  }
+
   revalidatePath("/dashboard");
   if (parsed.data.workspaceId) {
     revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
-    redirect(`/workspaces/${parsed.data.workspaceId}?invited=1`);
+    redirect(`/workspaces/${parsed.data.workspaceId}?invited=${successCount}`);
   }
-  redirect(`/dashboard?invited=1`);
+  redirect(`/dashboard?invited=${successCount}`);
 }
 
 export async function addWorkspaceMember(formData: FormData) {

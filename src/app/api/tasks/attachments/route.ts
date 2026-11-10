@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { deleteDriveFile, GoogleDriveError, googleDriveAccessToken, uploadProjectDriveFile } from "@/lib/google-drive";
 import { deleteOneDriveFile, getOneDriveAccessToken, uploadProjectOneDriveFile } from "@/lib/onedrive";
 import { getWorkspaceStorageConfig } from "@/lib/storage-config";
@@ -103,8 +103,11 @@ export async function POST(request: Request) {
   const contentType = (file.type || "application/octet-stream").slice(0, 150);
   const fileBytes = new Uint8Array(await file.arrayBuffer());
 
+  const adminClient = createAdminClient();
+  const dbClient = adminClient || supabase;
+
   // Determine active storage provider configured for this workspace
-  const storageConfig = await getWorkspaceStorageConfig(supabase, workspace.id || project.workspace_id, workspace.organization_id);
+  const storageConfig = await getWorkspaceStorageConfig(dbClient, workspace.id || project.workspace_id, workspace.organization_id);
   const targetProvider = storageConfig.activeProvider;
 
   // 1. If Google Drive is active, upload to Google Drive
@@ -153,7 +156,8 @@ export async function POST(request: Request) {
       const accessToken = await getOneDriveAccessToken(
         supabase,
         workspace.id || project.workspace_id,
-        workspace.organization_id
+        workspace.organization_id,
+        adminClient
       );
       if (accessToken) {
         const folder = storageConfig.oneDrive.folderName || "Orbitwork";

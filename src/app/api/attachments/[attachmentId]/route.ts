@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getDriveFile, googleDriveAccessToken } from "@/lib/google-drive";
 import { getOneDriveAccessToken, getOneDriveFile } from "@/lib/onedrive";
 
@@ -30,7 +30,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ atta
     const ws = Array.isArray(wsRel) ? wsRel[0] : wsRel;
     if (project && ws) {
       try {
-        const accessToken = await getOneDriveAccessToken(supabase, ws.id || project.workspace_id, ws.organization_id);
+        const adminClient = createAdminClient();
+        const accessToken = await getOneDriveAccessToken(supabase, ws.id || project.workspace_id, ws.organization_id, adminClient);
         const { buffer } = await getOneDriveFile(accessToken, attachment.external_file_id);
         const fileName = attachment.file_name.replace(/[\r\n]/g, "_");
         const disposition = isDownload ? "attachment" : "inline";

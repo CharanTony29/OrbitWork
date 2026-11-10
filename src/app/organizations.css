@@ -23,13 +23,45 @@
 .workspace-row{border-radius:7px}
 .workspace-form{margin-top:6px}
 .workspace-form input{min-width:0;height:36px}
-.workspace-form.invite-form{display:flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;padding-top:12px!important;margin-top:6px!important;width:100%!important;flex-wrap:nowrap}
-.workspace-form.invite-form input,.workspace-form.invite-form select{height:38px!important;min-height:38px!important;max-height:38px!important;box-sizing:border-box!important;line-height:36px!important;border:1px solid var(--line,#dfe5e0)!important;border-radius:8px!important;padding:0 10px!important;font-size:11px!important;background:var(--paper,#fff)!important;color:var(--ink,#46544b)!important;vertical-align:middle!important;margin:0!important}
-.workspace-form.invite-form select{text-align:left!important;text-align-last:left!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
-.workspace-form.invite-form select[name=workspaceId]{flex:0 0 155px!important;width:155px!important;min-width:0}
-.workspace-form.invite-form input[name=email]{flex:1 1 auto!important;text-align:center!important;min-width:110px}
-.workspace-form.invite-form select[name=role]{flex:0 0 95px!important;width:95px!important}
-.workspace-form.invite-form button{height:38px!important;min-height:38px!important;max-height:38px!important;line-height:36px!important;padding:0 16px!important;font-size:11px!important;font-weight:600!important;border-radius:8px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important;flex:none!important;margin:0!important}
+.multi-email-invite-card input:not([type=hidden]),
+.multi-email-invite-card select {
+  height: 36px !important;
+  min-height: 36px !important;
+  box-sizing: border-box !important;
+  border: 1px solid var(--line, #dfe5e0) !important;
+  border-radius: 8px !important;
+  padding: 0 10px !important;
+  font-size: 11.5px !important;
+  background: var(--paper, #fff);
+  color: var(--ink, #46544b);
+  margin: 0 !important;
+}
+
+[data-color-scheme="dark"] .multi-email-invite-card input:not([type=hidden]),
+[data-color-scheme="dark"] .multi-email-invite-card select {
+  background: #202522 !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+  color-scheme: dark;
+}
+
+[data-color-scheme="dark"] .multi-email-invite-card .invite-email-chips > div {
+  background: #202522 !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+
+.workspace-form.invite-form{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto!important;gap:8px!important;align-items:center!important;justify-content:stretch!important;padding-top:12px!important;margin-top:8px!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important;border-top:1px solid var(--line,#eef1ee)!important}
+.workspace-form.invite-form input[type=hidden]{display:none!important}
+.workspace-form.invite-form input:not([type=hidden]),.workspace-form.invite-form select{height:36px!important;min-height:36px!important;max-height:36px!important;box-sizing:border-box!important;line-height:34px!important;border:1px solid var(--line,#dfe5e0)!important;border-radius:8px!important;padding:0 10px!important;font-size:11px!important;background:var(--paper,#fff);color:var(--ink,#46544b);vertical-align:middle!important;margin:0!important}
+.workspace-form.invite-form select{text-align:left!important;text-align-last:left!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;cursor:pointer!important}
+.workspace-form.invite-form select[name=workspaceId]{grid-column:1/-1!important;width:100%!important;min-width:0!important}
+.workspace-form.invite-form input[name=email]{grid-column:1!important;width:100%!important;min-width:0!important;text-align:left!important}
+.workspace-form.invite-form select[name=role]{grid-column:2!important;width:auto!important;min-width:88px!important}
+.workspace-form.invite-form button{grid-column:3!important;height:36px!important;min-height:36px!important;max-height:36px!important;line-height:34px!important;padding:0 16px!important;font-size:11px!important;font-weight:600!important;border-radius:8px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important;flex:none!important;width:auto!important;margin:0!important;cursor:pointer!important;white-space:nowrap!important}
+[data-color-scheme="dark"] .workspace-form.invite-form input:not([type=hidden]),[data-color-scheme="dark"] .workspace-form.invite-form select{background:#202522!important;color:var(--ink)!important;border-color:var(--line)!important;color-scheme:dark}
+[data-color-scheme="dark"] .workspace-form.invite-form button{background:#242b26!important;color:#d7dfd9!important;border:1px solid var(--line)!important}
+[data-color-scheme="dark"] .workspace-form.invite-form button:hover{background:#2d3630!important;color:#f1f5f9!important}
 .organization-empty{padding:34px;border:1px dashed #dce6de;border-radius:12px;background:#fbfdfb;text-align:center}
 .organization-empty .empty-icon{margin:0 auto}
 .organization-empty h3{font:700 15px Manrope,sans-serif;margin:13px 0 5px}

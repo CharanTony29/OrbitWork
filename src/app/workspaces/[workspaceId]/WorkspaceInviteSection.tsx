@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { UserPlus, Mail, Send, Check } from "lucide-react";
 import { addWorkspaceMember, inviteOrganizationMember } from "@/app/actions";
+import MultiEmailInviteForm from "@/app/MultiEmailInviteForm";
 
 type MemberOption = {
   user_id: string;
@@ -177,85 +178,13 @@ export default function WorkspaceInviteSection({
 
       {/* Tab 2: Invite by email */}
       {activeTab === "email" && isOrgAdmin && (
-        <form action={inviteOrganizationMember} style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap", marginTop: 14 }}>
-          <input type="hidden" name="organizationId" value={organizationId} />
-          <input type="hidden" name="workspaceId" value={workspaceId} />
-
-          <div style={{ flex: "2 1 240px", display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-              Email Address
-            </label>
-            <input
-              name="email"
-              type="email"
-              placeholder="colleague@company.com"
-              required
-              style={{
-                boxSizing: "border-box",
-                height: 40,
-                minHeight: 40,
-                padding: "0 12px",
-                borderRadius: 8,
-                border: "1px solid var(--line, #cbd5e1)",
-                background: "var(--paper, #fff)",
-                color: "var(--ink)",
-                fontSize: 13,
-                outline: "none",
-              }}
-            />
-          </div>
-
-          <div style={{ flex: "1 1 200px", display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-              Workspace Role
-            </label>
-            <select
-              name="role"
-              defaultValue="member"
-              style={{
-                boxSizing: "border-box",
-                height: 40,
-                minHeight: 40,
-                lineHeight: "38px",
-                padding: "0 12px",
-                borderRadius: 8,
-                border: "1px solid var(--line, #cbd5e1)",
-                background: "var(--paper, #fff)",
-                color: "var(--ink)",
-                fontSize: 13,
-                outline: "none",
-                verticalAlign: "middle",
-              }}
-            >
-              <option value="member">Member (Can edit &amp; upload)</option>
-              <option value="viewer">Viewer (Read-only)</option>
-              <option value="manager">Manager</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-
-          <button
-            type="submit"
-            className="button button-primary"
-            style={{
-              boxSizing: "border-box",
-              height: 40,
-              minHeight: 40,
-              padding: "0 20px",
-              fontSize: 13,
-              fontWeight: 700,
-              whiteSpace: "nowrap",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 8,
-              gap: 6,
-            }}
-          >
-            <Send size={13} />
-            <span>Send Invitation</span>
-          </button>
-        </form>
+        <div style={{ marginTop: 14 }}>
+          <MultiEmailInviteForm
+            organizationId={organizationId}
+            defaultWorkspaceId={workspaceId}
+            hideWorkspaceSelect={true}
+          />
+        </div>
       )}
     </div>
   );
