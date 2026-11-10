@@ -29,6 +29,7 @@ import "./homepage.css";
 import ThemePicker from "./ThemePicker";
 import ChatNotificationListener from "./ChatNotificationListener";
 import AuthRecoveryListener from "./AuthRecoveryListener";
+import TopProgressBar from "./TopProgressBar";
 
 export const metadata: Metadata = {
   title: "Orbitwork — Project and Work Management",
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" data-theme="system">
       <body>
+        <TopProgressBar />
         {children}
         <ThemePicker />
         <ChatNotificationListener />
