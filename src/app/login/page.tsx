@@ -44,7 +44,19 @@ export default async function LoginPage({
         <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>Choose password login or get a magic link sent to your email.</p>
 
         {params.message && <p className="notice" role="status" style={{ margin: "10px 0" }}>{messages[params.message] ?? params.message}</p>}
-        {params.error && <p className="error" role="alert" style={{ margin: "10px 0" }}>{messages[params.error] ?? params.error}</p>}
+        {params.error && (
+          <div className="error" role="alert" style={{ margin: "10px 0" }}>
+            <p style={{ margin: 0 }}>{messages[params.error] ?? params.error}</p>
+            {params.error === "verification_failed" && (
+              <p style={{ margin: "6px 0 0", fontSize: 12 }}>
+                Need to reset your password?{" "}
+                <Link href="/reset-password" style={{ color: "inherit", fontWeight: 700, textDecoration: "underline" }}>
+                  Request a new reset link &rarr;
+                </Link>
+              </p>
+            )}
+          </div>
+        )}
 
         <LoginForm
           returnUrl={returnUrl}

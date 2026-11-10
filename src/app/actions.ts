@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { createHash, randomBytes } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
@@ -51,9 +52,10 @@ export async function signUp(formData: FormData) {
 
   if (!parsed.success) redirect(`/signup?error=invalid_input${returnQuery}`);
   const supabase = await createClient();
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const { data, error } = await supabase.auth.signUp({
     ...parsed.data,
-    options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}` },
+    options: { emailRedirectTo: `${appUrl}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}` },
   });
   if (error) redirect(`/signup?error=sign_up_failed${returnQuery}`);
 
@@ -78,7 +80,7 @@ export async function signInWithMagicLink(formData: FormData) {
 
   if (!email.success) redirect(`${fromSource}?error=invalid_input${returnQuery}`);
   const supabase = await createClient();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
   const emailRedirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}`;
 
   const { error } = await supabase.auth.signInWithOtp({
@@ -196,7 +198,8 @@ export async function inviteOrganizationMember(formData: FormData) {
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const { error } = await supabase.from("invitations").insert({ organization_id: parsed.data.organizationId, workspace_id: parsed.data.workspaceId ?? null, email: parsed.data.email.toLowerCase(), role: parsed.data.role, token_hash: tokenHash, invited_by: user.id });
   if (error) redirect(`/dashboard?error=invitation_failed`);
-  const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/invite/accept?token=${encodeURIComponent(token)}`;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  const acceptUrl = `${appUrl}/invite/accept?token=${encodeURIComponent(token)}`;
 
   // Send invitation email directly via application SMTP (reliable and bypasses Supabase rate limits)
   const [{ data: org }, { data: inviterProfile }] = await Promise.all([
@@ -214,7 +217,7 @@ export async function inviteOrganizationMember(formData: FormData) {
 
   if (!emailRes.ok) {
     // Optional fallback via supabase auth if direct smtp failed
-    const emailRedirectTo = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/callback?next=${encodeURIComponent(acceptUrl.replace(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000", ""))}`;
+    const emailRedirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(acceptUrl.replace(appUrl, ""))}`;
     const { error: mailError } = await supabase.auth.signInWithOtp({ email: parsed.data.email, options: { shouldCreateUser: true, emailRedirectTo } });
     if (mailError) {
       await supabase.from("invitations").update({ status: "revoked" }).eq("token_hash", tokenHash);
@@ -1370,10 +1373,27 @@ export async function createOrganizationHoliday(formData: FormData) {
 export async function requestPasswordReset(formData: FormData) {
   const email = z.string().trim().email().safeParse(formData.get("email"));
   if (!email.success) redirect("/reset-password?error=invalid_input");
+
+  let appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  try {
+    const headerList = await headers();
+    const host = headerList.get("x-forwarded-host") || headerList.get("host");
+    if (host) {
+      const proto = headerList.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
+      appUrl = `${proto}://${host}`;
+    }
+  } catch {}
+
   const supabase = await createClient();
-  await supabase.auth.resetPasswordForEmail(email.data, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/callback?type=recovery`,
+  const { error } = await supabase.auth.resetPasswordForEmail(email.data, {
+    redirectTo: `${appUrl}/auth/callback?next=/auth/reset-password&type=recovery`,
   });
+
+  if (error) {
+    console.error("[ResetPassword] Supabase reset error:", error);
+    redirect("/reset-password?error=reset_send_failed");
+  }
+
   redirect("/reset-password?message=reset_sent");
 }
 
