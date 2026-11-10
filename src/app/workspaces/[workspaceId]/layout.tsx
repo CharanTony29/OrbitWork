@@ -6,7 +6,7 @@ export default async function WorkspaceLayout({ children, params }: { children: 
   const { workspaceId } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
   const { data: workspace } = await supabase.from("workspaces").select("id, name, organization_id").eq("id", workspaceId).maybeSingle();
   if (!workspace) notFound();
   const { data: organization } = await supabase.from("organizations").select("name").eq("id", workspace.organization_id).maybeSingle();

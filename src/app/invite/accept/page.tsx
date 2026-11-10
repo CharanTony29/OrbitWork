@@ -3,11 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function AcceptInvitation({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
   const { token } = await searchParams;
-  if (!token || token.length > 100) redirect("/?error=invalid_invitation");
+  if (!token || token.length > 100) redirect("/login?error=invalid_invitation");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    redirect(`/?returnUrl=${encodeURIComponent(`/invite/accept?token=${token}`)}&message=sign_in_to_accept`);
+    redirect(`/login?returnUrl=${encodeURIComponent(`/invite/accept?token=${token}`)}&message=sign_in_to_accept`);
   }
 
   // 1. Accept specific invitation with token

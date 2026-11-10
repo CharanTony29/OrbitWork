@@ -6,7 +6,7 @@ export default async function ProjectLayout({ children, params }: { children: Re
   const { projectId } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
   const { data: project } = await supabase.from("projects").select("id, workspace_id").eq("id", projectId).maybeSingle();
   if (!project) notFound();
   const { data: workspace } = await supabase.from("workspaces").select("id, organization_id").eq("id", project.workspace_id).maybeSingle();

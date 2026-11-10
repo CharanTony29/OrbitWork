@@ -11,7 +11,7 @@ export default async function ChatPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
 
   // Fetch current user's profile
   const { data: ownProfile } = await supabase

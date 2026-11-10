@@ -17,7 +17,7 @@ export default async function InboxPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
 
   // 1. Parallel fetch notifications, task_assignees rows, and direct assignee tasks
   const [notifResult, multiAssigneeResult, directAssigneeResult] =

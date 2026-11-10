@@ -21,7 +21,7 @@ const dashboardErrorMessages: Record<string, string> = {
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ error?: string; invited?: string; invitation_accepted?: string; organization_deleted?: string; organization_created?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
 
   // Automatically process any pending invitations for this user
   try {

@@ -25,6 +25,7 @@ import "./theme.css";
 import "./profile/profile.css";
 import "./workspace-access.css";
 import "./responsive-layout.css";
+import "./homepage.css";
 import ThemePicker from "./ThemePicker";
 import ChatNotificationListener from "./ChatNotificationListener";
 
