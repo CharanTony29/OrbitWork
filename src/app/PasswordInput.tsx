@@ -12,6 +12,8 @@ export default function PasswordInput({
   placeholder,
   id,
   defaultValue,
+  value,
+  onChange,
 }: {
   name?: string;
   autoComplete?: string;
@@ -21,6 +23,8 @@ export default function PasswordInput({
   placeholder?: string;
   id?: string;
   defaultValue?: string;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -36,6 +40,8 @@ export default function PasswordInput({
         maxLength={maxLength}
         placeholder={placeholder}
         defaultValue={defaultValue}
+        value={value}
+        onChange={onChange}
         style={{ width: "100%", paddingRight: "42px" }}
       />
       <button

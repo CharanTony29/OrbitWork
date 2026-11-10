@@ -1,17 +1,5 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import UpdatePasswordForm from "./UpdatePasswordForm";
-
-async function updatePassword(formData: FormData) {
-  "use server";
-  const password = String(formData.get("password") ?? "");
-  if (password.length < 8 || password.length > 128) redirect("/auth/reset-password?error=invalid_password");
-  const supabase = await createClient();
-  const { error } = await supabase.auth.updateUser({ password });
-  if (error) redirect("/auth/reset-password?error=reset_failed");
-  redirect("/login?message=password_updated");
-}
 
 export default async function ResetPasswordPage({
   searchParams,
@@ -23,6 +11,7 @@ export default async function ResetPasswordPage({
   const messages: Record<string, string> = {
     invalid_password: "Your new password must be at least 8 characters long.",
     reset_failed: "Failed to update your password. The recovery link may be expired or already used. Request a new reset link.",
+    link_expired: "That reset link is invalid or has expired. Request a new one below.",
   };
 
   return (
@@ -37,7 +26,7 @@ export default async function ResetPasswordPage({
 
         {params.error && <p className="error" role="alert">{messages[params.error] ?? params.error}</p>}
 
-        <UpdatePasswordForm serverAction={updatePassword} />
+        <UpdatePasswordForm />
 
         <div style={{ marginTop: 32, paddingTop: 20, borderTop: "1px solid var(--line)", textAlign: "center", fontSize: 13, color: "var(--muted)" }}>
           <Link href="/login" style={{ color: "var(--green)", fontWeight: 700 }}>
