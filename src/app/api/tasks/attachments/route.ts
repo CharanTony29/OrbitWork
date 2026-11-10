@@ -176,7 +176,7 @@ export async function POST(request: Request) {
           file_size_bytes: uploaded.size || file.size,
           storage_provider: "onedrive",
           external_file_id: uploaded.id,
-          external_url: uploaded.webUrl || null,
+          external_url: null,
           uploaded_by: user.id,
         });
         if (!odErr) {

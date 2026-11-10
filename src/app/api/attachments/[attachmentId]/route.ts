@@ -5,7 +5,8 @@ import { getOneDriveAccessToken, getOneDriveFile } from "@/lib/onedrive";
 export async function GET(request: Request, { params }: { params: Promise<{ attachmentId: string }> }) {
   const { attachmentId } = await params;
   const url = new URL(request.url);
-  const isDownload = url.searchParams.get("download") === "1";
+  const downloadParam = url.searchParams.get("download");
+  const isDownload = downloadParam === "1" || downloadParam === "true";
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
@@ -16,11 +17,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ atta
     .maybeSingle();
   if (error || !attachment) return new Response("Attachment not found", { status: 404 });
 
-  // 1. External Links & Live OneDrive Storage
-  if (attachment.storage_provider === "onedrive" && attachment.external_file_id && attachment.external_file_id !== "onedrive") {
-    if (!isDownload && attachment.external_url) {
-      return Response.redirect(attachment.external_url, 302);
-    }
+  // 1. Live OneDrive Storage
+  const isOneDriveItem =
+    attachment.storage_provider === "onedrive" &&
+    attachment.external_file_id &&
+    attachment.external_file_id !== "onedrive" &&
+    !attachment.external_file_id.startsWith("http://") &&
+    !attachment.external_file_id.startsWith("https://") &&
+    attachment.mime_type !== "application/x-external-link";
+
+  if (isOneDriveItem) {
     const { data: project } = await supabase
       .from("projects")
       .select("workspace_id, workspaces(id, organization_id)")
@@ -31,16 +37,65 @@ export async function GET(request: Request, { params }: { params: Promise<{ atta
     if (project && ws) {
       try {
         const adminClient = createAdminClient();
-        const accessToken = await getOneDriveAccessToken(supabase, ws.id || project.workspace_id, ws.organization_id, adminClient);
+        const accessToken = await getOneDriveAccessToken(
+          supabase,
+          ws.id || project.workspace_id,
+          ws.organization_id,
+          adminClient
+        );
         const { buffer } = await getOneDriveFile(accessToken, attachment.external_file_id);
+        if (!buffer || buffer.length === 0) return new Response("File is empty", { status: 502 });
+
         const fileName = attachment.file_name.replace(/[\r\n]/g, "_");
+        const lowerName = fileName.toLowerCase();
+
+        let contentType = attachment.mime_type;
+        if (lowerName.endsWith(".pdf")) contentType = "application/pdf";
+        else if (lowerName.endsWith(".xml") || lowerName.endsWith(".xml.log")) contentType = "application/xml; charset=utf-8";
+        else if (lowerName.endsWith(".html") || lowerName.endsWith(".htm")) contentType = "text/html; charset=utf-8";
+        else if (lowerName.endsWith(".txt") || lowerName.endsWith(".log") || lowerName.endsWith(".ini") || lowerName.endsWith(".env") || lowerName.endsWith(".ps1")) contentType = "text/plain; charset=utf-8";
+        else if (lowerName.endsWith(".json")) contentType = "application/json; charset=utf-8";
+        else if (lowerName.endsWith(".csv")) contentType = "text/csv; charset=utf-8";
+        else if (lowerName.endsWith(".md")) contentType = "text/markdown; charset=utf-8";
+        else if (lowerName.endsWith(".svg")) contentType = "image/svg+xml";
+        else if (lowerName.endsWith(".png")) contentType = "image/png";
+        else if (lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg")) contentType = "image/jpeg";
+        else if (lowerName.endsWith(".webp")) contentType = "image/webp";
+        else if (lowerName.endsWith(".gif")) contentType = "image/gif";
+        else if (lowerName.endsWith(".pptx")) contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+        else if (lowerName.endsWith(".docx")) contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        else if (lowerName.endsWith(".xlsx")) contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+        const totalBytes = buffer.byteLength;
         const disposition = isDownload ? "attachment" : "inline";
+        const rangeHeader = request.headers.get("range");
+
+        if (rangeHeader && rangeHeader.startsWith("bytes=")) {
+          const parts = rangeHeader.replace("bytes=", "").split("-");
+          const start = parseInt(parts[0], 10) || 0;
+          const end = parts[1] ? parseInt(parts[1], 10) : totalBytes - 1;
+          const chunk = buffer.subarray(start, end + 1);
+
+          return new Response(new Uint8Array(chunk), {
+            status: 206,
+            headers: {
+              "Content-Type": contentType || "application/octet-stream",
+              "Content-Range": `bytes ${start}-${end}/${totalBytes}`,
+              "Accept-Ranges": "bytes",
+              "Content-Length": chunk.byteLength.toString(),
+              "Content-Disposition": `${disposition}; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+              "Cache-Control": "private, max-age=3600",
+            },
+          });
+        }
+
         return new Response(new Uint8Array(buffer), {
           status: 200,
           headers: {
-            "Content-Type": attachment.mime_type || "application/octet-stream",
+            "Content-Type": contentType || "application/octet-stream",
+            "Accept-Ranges": "bytes",
+            "Content-Length": totalBytes.toString(),
             "Content-Disposition": `${disposition}; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
-            "Content-Length": buffer.byteLength.toString(),
             "Cache-Control": "private, max-age=3600",
           },
         });
@@ -49,11 +104,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ atta
         if (attachment.external_url) {
           return Response.redirect(attachment.external_url, 302);
         }
+        return new Response("OneDrive file unavailable", { status: 502 });
       }
     }
   }
 
-  if (attachment.storage_provider === "external_link" || ((attachment.storage_provider === "sharepoint" || attachment.storage_provider === "onedrive") && attachment.external_url)) {
+  // 2. External Links (pasted link or SharePoint web link)
+  if (
+    attachment.storage_provider === "external_link" ||
+    attachment.mime_type === "application/x-external-link" ||
+    (attachment.external_file_id && (attachment.external_file_id.startsWith("http://") || attachment.external_file_id.startsWith("https://"))) ||
+    ((attachment.storage_provider === "sharepoint" || attachment.storage_provider === "onedrive") && attachment.external_url && !attachment.external_file_id)
+  ) {
     if (attachment.external_url) {
       return Response.redirect(attachment.external_url, 302);
     }

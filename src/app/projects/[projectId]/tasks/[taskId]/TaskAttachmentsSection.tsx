@@ -888,6 +888,13 @@ export default function TaskAttachmentsSection({
         {filteredAttachments.map((item) => {
           const meta = getFileMeta(item.file_name, item.mime_type, item.storage_provider);
           const isCanvas = meta.kind === "whiteboard" || meta.kind === "flowchart";
+          const isExternalLink =
+            Boolean(item.external_url) &&
+            (meta.kind === "link" ||
+              item.mime_type === "application/x-external-link" ||
+              item.storage_provider === "external_link" ||
+              !item.external_file_id ||
+              item.external_file_id.startsWith("http"));
           const targetHref =
             meta.kind === "whiteboard"
               ? `/projects/${projectId}/tasks/${taskId}?tab=whiteboard`
@@ -907,13 +914,13 @@ export default function TaskAttachmentsSection({
                   cursor: isCanvas ? "default" : "pointer",
                 }}
                 onClick={() => {
-                  if (item.external_url) {
+                  if (isExternalLink && item.external_url) {
                     window.open(item.external_url, "_blank", "noopener,noreferrer");
                   } else if (!isCanvas) {
                     setPreviewItem(item);
                   }
                 }}
-                title={isCanvas ? undefined : item.external_url ? "Click to open link" : "Click to preview"}
+                title={isCanvas ? undefined : isExternalLink ? "Click to open link" : "Click to preview"}
               >
                 {meta.kind === "whiteboard" ? (
                   <Palette size={18} />
@@ -940,7 +947,7 @@ export default function TaskAttachmentsSection({
                   <Link href={targetHref} className="attachment-card-title" title={item.file_name}>
                     {item.file_name}
                   </Link>
-                ) : item.external_url ? (
+                ) : isExternalLink && item.external_url ? (
                   <a
                     href={item.external_url}
                     target="_blank"
@@ -1008,7 +1015,7 @@ export default function TaskAttachmentsSection({
                   )}
                   <span className="meta-dot">·</span>
                   <span className="attachment-size">
-                    {isCanvas ? "Interactive Canvas" : item.external_url ? "External Link" : formatFileSize(item.file_size_bytes)}
+                    {isCanvas ? "Interactive Canvas" : isExternalLink ? "External Link" : formatFileSize(item.file_size_bytes)}
                   </span>
                   <span className="meta-dot">·</span>
                   <span className="attachment-author">{item.uploader_name || "Team member"}</span>
@@ -1029,7 +1036,7 @@ export default function TaskAttachmentsSection({
                     <span>Open Canvas</span>
                     <ExternalLink size={12} />
                   </Link>
-                ) : item.external_url ? (
+                ) : isExternalLink && item.external_url ? (
                   <a
                     href={item.external_url}
                     target="_blank"
