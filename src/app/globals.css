@@ -78,3 +78,10 @@
   color: var(--muted);
 }
 
+.auth-social-btn:hover:not(:disabled) {
+  background: #f8faf9 !important;
+  border-color: #c7d2cb !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+
+

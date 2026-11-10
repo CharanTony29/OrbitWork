@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import PasswordInput from "@/app/PasswordInput";
+import SocialAuthButtons from "@/app/auth/SocialAuthButtons";
 import { UserPlus, Sparkles } from "lucide-react";
 
 export default function SignupForm({
@@ -19,6 +20,8 @@ export default function SignupForm({
 
   return (
     <div className="auth-form-wrapper">
+      <SocialAuthButtons returnUrl={returnUrl} mode="signup" />
+
       <div className="auth-tab-group" role="tablist" aria-label="Sign up method">
         <button
           type="button"

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import PasswordInput from "@/app/PasswordInput";
+import SocialAuthButtons from "@/app/auth/SocialAuthButtons";
 import { KeyRound, Sparkles } from "lucide-react";
 
 export default function LoginForm({
@@ -22,6 +23,8 @@ export default function LoginForm({
 
   return (
     <div className="auth-form-wrapper">
+      <SocialAuthButtons returnUrl={returnUrl} mode="signin" />
+
       {/* Segmented Auth Mode Switcher */}
       <div className="auth-tab-group" role="tablist" aria-label="Sign in method">
         <button
