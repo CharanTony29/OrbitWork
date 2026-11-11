@@ -52,7 +52,6 @@ export default function SocialAuthButtons({
         provider,
         options: {
           redirectTo,
-          queryParams: provider === "google" ? { access_type: "offline", prompt: "consent" } : undefined,
           scopes: provider === "azure" ? "email openid profile" : undefined,
         },
       });

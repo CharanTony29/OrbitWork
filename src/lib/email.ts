@@ -190,6 +190,48 @@ export async function sendTaskAssignedEmail(params: TaskAssignedEmailParams) {
   });
 }
 
+export interface TaskUnassignedEmailParams {
+  recipientEmail: string;
+  recipientName: string;
+  actorName: string;
+  taskTitle: string;
+  taskKey: string;
+  taskId: string;
+  projectName: string;
+  projectId: string;
+  priority: string;
+  dueDate?: string | null;
+}
+
+/**
+ * Send email when a user is removed / unassigned from a task.
+ */
+export async function sendTaskUnassignedEmail(params: TaskUnassignedEmailParams) {
+  const taskUrl = `${getAppUrl()}/projects/${params.projectId}/tasks/${params.taskId}`;
+  const subject = `[Task Unassigned] ${params.taskKey}: ${params.taskTitle}`;
+
+  const html = emailWrapper(`
+    <p>Hi <strong>${params.recipientName}</strong>,</p>
+    <p><strong>${params.actorName}</strong> removed you from a task in <strong>${params.projectName}</strong>:</p>
+
+    <div class="card">
+      <div style="font-size:12px;color:#64748b;font-weight:700;margin-bottom:4px;">${params.taskKey}</div>
+      <div style="font-size:16px;font-weight:700;color:#0f172a;margin-bottom:8px;">${params.taskTitle}</div>
+      <div style="margin-bottom:8px;">
+        <span style="font-size:12px;color:#64748b;margin-right:6px;">Priority:</span> ${getPriorityBadge(params.priority)}
+        ${params.dueDate ? `<span style="font-size:12px;color:#64748b;margin-left:14px;margin-right:4px;">Due:</span> <strong style="font-size:12px;color:#0f172a;">${params.dueDate}</strong>` : ""}
+      </div>
+      <p style="font-size:13px;color:#475569;margin-top:8px;border-top:1px solid #e2e8f0;padding-top:8px;">You are no longer assigned to this task.</p>
+      <a href="${taskUrl}" class="btn">View Task</a>
+    </div>
+  `, subject);
+
+  return sendEmail({
+    to: params.recipientEmail,
+    subject,
+    html,
+  });
+}
 export interface DueReminderEmailParams {
   recipientEmail: string;
   recipientName: string;
@@ -419,6 +461,80 @@ export async function notifyAssigneesOnTask({
     }
   } catch (err) {
     console.error("Error sending task assignment notifications:", err);
+  }
+}
+
+/**
+ * Notify users who were unassigned / removed from a task.
+ */
+export async function notifyRemovedAssigneesOnTask({
+  projectId,
+  taskId,
+  removedAssigneeIds,
+  actorId,
+}: {
+  projectId: string;
+  taskId: string;
+  removedAssigneeIds: string[];
+  actorId: string;
+}) {
+  if (!removedAssigneeIds || removedAssigneeIds.length === 0) return;
+
+  try {
+    const { createClient } = await import("./supabase/server");
+    const supabase = await createClient();
+
+    const { data: task } = await supabase
+      .from("tasks")
+      .select("id, generated_key, title, priority, due_date")
+      .eq("id", taskId)
+      .maybeSingle();
+
+    if (!task) return;
+
+    const { data: project } = await supabase
+      .from("projects")
+      .select("name")
+      .eq("id", projectId)
+      .maybeSingle();
+
+    const { data: actorProfile } = await supabase
+      .from("profiles")
+      .select("display_name, email")
+      .eq("id", actorId)
+      .maybeSingle();
+
+    const actorName = actorProfile?.display_name?.trim() || actorProfile?.email || "A teammate";
+
+    const targetUserIds = removedAssigneeIds.filter((id) => id && id !== actorId);
+    if (targetUserIds.length === 0) return;
+
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, display_name, email")
+      .in("id", targetUserIds);
+
+    if (!profiles || profiles.length === 0) return;
+
+    for (const profile of profiles) {
+      if (!profile.email) continue;
+      const recipientName = profile.display_name?.trim() || profile.email;
+
+      await sendTaskUnassignedEmail({
+        recipientEmail: profile.email,
+        recipientName,
+        actorName,
+        taskTitle: task.title,
+        taskKey: task.generated_key,
+        taskId: task.id,
+        projectName: project?.name || "Project",
+        projectId,
+        priority: task.priority || "normal",
+        dueDate: task.due_date,
+      });
+    }
+  } catch (err) {
+    console.error("Error sending task unassignment notifications:", err);
   }
 }
 

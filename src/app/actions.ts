@@ -5,10 +5,11 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createHash, randomBytes } from "node:crypto";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { distinctAssigneeIds, elapsedMinutes, parseEstimateToMinutes, parseInviteEmails } from "@/lib/work";
 import {
   notifyAssigneesOnTask,
+  notifyRemovedAssigneesOnTask,
   notifyMentionedUsers,
   checkAndSendDueDateReminders,
   checkAndNotifyHoursExhausting,
@@ -98,6 +99,68 @@ export async function signInWithMagicLink(formData: FormData) {
   redirect(`${fromSource}?message=magic_link_sent${returnQuery}`);
 }
 
+export async function toggleFavorite(formData: FormData): Promise<{ ok: boolean; favorited: boolean; error?: string }> {
+  const parsed = z.object({
+    entityType: z.enum(["document", "project", "task"]),
+    entityId: z.string().uuid(),
+    projectId: z.union([z.literal(""), z.string().uuid()]).optional(),
+    title: z.string().trim().min(1).max(240),
+    subtitle: z.string().trim().max(240).optional(),
+  }).safeParse({
+    entityType: formData.get("entityType"),
+    entityId: formData.get("entityId"),
+    projectId: formData.get("projectId") ?? "",
+    title: formData.get("title") || "Untitled",
+    subtitle: formData.get("subtitle") ?? "",
+  });
+  if (!parsed.success) {
+    return { ok: false, favorited: false, error: "Invalid favorite item." };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, favorited: false, error: "Not signed in." };
+
+  try {
+    const { data: existing, error: selErr } = await supabase
+      .from("user_favorites")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("entity_type", parsed.data.entityType)
+      .eq("entity_id", parsed.data.entityId)
+      .maybeSingle();
+
+    if (selErr) {
+      return { ok: false, favorited: false, error: selErr.message };
+    }
+
+    if (existing?.id) {
+      const { error: delErr } = await supabase
+        .from("user_favorites")
+        .delete()
+        .eq("id", existing.id)
+        .eq("user_id", user.id);
+      if (delErr) return { ok: false, favorited: true, error: delErr.message };
+      revalidatePath("/dashboard");
+      return { ok: true, favorited: false };
+    }
+
+    const { error: insErr } = await supabase.from("user_favorites").insert({
+      user_id: user.id,
+      entity_type: parsed.data.entityType,
+      entity_id: parsed.data.entityId,
+      project_id: parsed.data.projectId || null,
+      title: parsed.data.title,
+      subtitle: parsed.data.subtitle ?? "",
+    });
+    if (insErr) return { ok: false, favorited: false, error: insErr.message };
+    revalidatePath("/dashboard");
+    return { ok: true, favorited: true };
+  } catch (err) {
+    return { ok: false, favorited: false, error: err instanceof Error ? err.message : "Could not toggle favorite." };
+  }
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
@@ -131,6 +194,228 @@ export async function updateMyProfile(formData: FormData) {
   await supabase.auth.updateUser({ data: { full_name: parsed.data.displayName } });
   revalidatePath("/", "layout");
   redirect("/profile?saved=1");
+}
+
+export async function updateMyAvatar(formData: FormData): Promise<{ ok: boolean; error?: string; avatarUrl?: string | null }> {
+  const rawAvatar = String(formData.get("avatarDataUrl") ?? "").trim();
+  if (rawAvatar) {
+    const validPrefix = /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$/i.test(rawAvatar);
+    if (!validPrefix || rawAvatar.length > 260_000) {
+      return { ok: false, error: "Invalid image format or size too large (max ~180 KB after compression)." };
+    }
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Please sign in first." };
+
+  const nextUrl = rawAvatar || null;
+  const { error } = await supabase
+    .from("profiles")
+    .update({ avatar_url: nextUrl })
+    .eq("id", user.id);
+
+  if (error) {
+    return { ok: false, error: "Could not update profile picture." };
+  }
+
+  revalidatePath("/", "layout");
+  revalidatePath("/profile");
+  revalidatePath("/dashboard");
+  return { ok: true, avatarUrl: nextUrl };
+}
+
+export async function changeMyPassword(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const currentPassword = String(formData.get("currentPassword") ?? "");
+  const newPassword = String(formData.get("newPassword") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (newPassword.length < 8 || newPassword.length > 128) {
+    return { ok: false, error: "New password must be between 8 and 128 characters." };
+  }
+  if (newPassword !== confirmPassword) {
+    return { ok: false, error: "New password and confirmation do not match." };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  if (currentPassword && user.email) {
+    const { error: verifyErr } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+    if (verifyErr) {
+      return { ok: false, error: "Current password is incorrect." };
+    }
+  }
+
+  const { error: updateErr } = await supabase.auth.updateUser({
+    password: newPassword,
+  });
+
+  if (updateErr) {
+    return { ok: false, error: updateErr.message || "Could not update password." };
+  }
+
+  return { ok: true };
+}
+
+export async function deleteMyAccount(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const confirmText = String(formData.get("confirmText") ?? "").trim();
+  if (confirmText !== "DELETE") {
+    return { ok: false, error: 'Please type "DELETE" in the confirmation box.' };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  const adminClient = createAdminClient();
+  if (!adminClient) {
+    return {
+      ok: false,
+      error: "Account erasure requires SUPABASE_SERVICE_ROLE_KEY to be configured on the server.",
+    };
+  }
+
+  const userId = user.id;
+  const userEmail = (user.email ?? "").trim().toLowerCase();
+
+  // Attempt atomic DB erasure RPC first (from 202611110001 migration)
+  const { error: rpcErr } = await adminClient.rpc("erase_user_account_data", {
+    target_user_id: userId,
+    target_email: userEmail,
+  });
+
+  if (rpcErr) {
+    // Fallback explicit multi-table cleanup if migration RPC is not yet installed
+    console.warn("erase_user_account_data RPC unavailable, running TypeScript erasure fallback:", rpcErr.message);
+    try {
+      await adminClient.from("user_favorites").delete().eq("user_id", userId);
+    } catch {}
+    await adminClient.from("workspace_chat_messages").delete().or(`sender_id.eq.${userId},recipient_id.eq.${userId}`);
+    await adminClient.from("notifications").delete().eq("recipient_id", userId);
+    await adminClient.from("notifications").update({ actor_id: null }).eq("actor_id", userId);
+    await adminClient.from("email_logs").delete().eq("recipient_id", userId);
+    if (userEmail) {
+      await adminClient.from("email_logs").delete().ilike("recipient_email", userEmail);
+      await adminClient.from("invitations").delete().ilike("email", userEmail);
+    }
+    await adminClient.from("leave_requests").delete().eq("user_id", userId);
+    await adminClient.from("leave_requests").update({ reviewed_by: null }).eq("reviewed_by", userId);
+    await adminClient.from("timesheets").delete().eq("user_id", userId);
+    await adminClient.from("timesheets").update({ reviewed_by: null }).eq("reviewed_by", userId);
+    await adminClient.from("time_entries").delete().eq("user_id", userId);
+    await adminClient.from("task_comments").delete().eq("author_id", userId);
+    await adminClient.from("task_assignees").delete().eq("user_id", userId);
+    await adminClient.from("tasks").update({ primary_assignee_id: null }).eq("primary_assignee_id", userId);
+    await adminClient.from("tasks").update({ secondary_assignee_id: null }).eq("secondary_assignee_id", userId);
+    await adminClient.from("checklist_items").update({ completed_by: null }).eq("completed_by", userId);
+
+    // Handle organizations where user is member or creator
+    const [{ data: memberOrgs }, { data: createdOrgs }] = await Promise.all([
+      adminClient.from("organization_members").select("organization_id").eq("user_id", userId),
+      adminClient.from("organizations").select("id").eq("created_by", userId),
+    ]);
+    const orgIds = [...new Set([
+      ...(memberOrgs ?? []).map((m) => m.organization_id),
+      ...(createdOrgs ?? []).map((o) => o.id),
+    ])];
+
+    for (const orgId of orgIds) {
+      const { data: remainingMembers } = await adminClient
+        .from("organization_members")
+        .select("user_id, role, joined_at")
+        .eq("organization_id", orgId)
+        .eq("status", "active")
+        .neq("user_id", userId)
+        .order("joined_at", { ascending: true });
+
+      const priorityOrder: Record<string, number> = { owner: 1, admin: 2, manager: 3, member: 4, viewer: 5 };
+      const sorted = (remainingMembers ?? []).sort(
+        (a, b) => (priorityOrder[a.role] ?? 9) - (priorityOrder[b.role] ?? 9)
+      );
+      const successor = sorted[0]?.user_id;
+
+      const { data: orgWorkspaces } = await adminClient.from("workspaces").select("id").eq("organization_id", orgId);
+      const wsIds = (orgWorkspaces ?? []).map((w) => w.id);
+      const { data: orgProjects } = wsIds.length
+        ? await adminClient.from("projects").select("id").in("workspace_id", wsIds)
+        : { data: [] as Array<{ id: string }> };
+      const projIds = (orgProjects ?? []).map((p) => p.id);
+
+      if (!successor) {
+        if (projIds.length > 0) {
+          const { data: checklists } = await adminClient.from("task_checklists").select("id").in("project_id", projIds);
+          const clIds = (checklists ?? []).map((c) => c.id);
+          if (clIds.length) await adminClient.from("checklist_items").delete().in("checklist_id", clIds);
+          await adminClient.from("task_comments").delete().in("project_id", projIds);
+          await adminClient.from("task_attachments").delete().in("project_id", projIds);
+          await adminClient.from("task_dependencies").delete().in("project_id", projIds);
+          await adminClient.from("task_checklists").delete().in("project_id", projIds);
+          await adminClient.from("task_custom_field_values").delete().in("project_id", projIds);
+          await adminClient.from("custom_field_definitions").delete().in("project_id", projIds);
+          await adminClient.from("task_assignees").delete().in("project_id", projIds);
+          await adminClient.from("project_document_versions").delete().in("project_id", projIds);
+          await adminClient.from("project_documents").delete().in("project_id", projIds);
+          await adminClient.from("tasks").delete().in("project_id", projIds);
+          await adminClient.from("projects").delete().in("id", projIds);
+        }
+        if (wsIds.length > 0) await adminClient.from("workspaces").delete().in("id", wsIds);
+        await adminClient.from("organization_holidays").delete().eq("organization_id", orgId);
+        await adminClient.from("google_drive_connections").delete().eq("organization_id", orgId);
+        await adminClient.from("invitations").delete().eq("organization_id", orgId);
+        await adminClient.from("organization_roles").delete().eq("organization_id", orgId);
+        await adminClient.from("organizations").delete().eq("id", orgId);
+      } else {
+        await adminClient.from("organizations").update({ created_by: successor }).eq("id", orgId).eq("created_by", userId);
+        await adminClient.from("organization_roles").update({ created_by: successor }).eq("organization_id", orgId).eq("created_by", userId);
+        await adminClient.from("workspaces").update({ created_by: successor }).eq("organization_id", orgId).eq("created_by", userId);
+        await adminClient.from("invitations").update({ invited_by: successor }).eq("organization_id", orgId).eq("invited_by", userId);
+        await adminClient.from("organization_holidays").update({ created_by: successor }).eq("organization_id", orgId).eq("created_by", userId);
+        await adminClient.from("google_drive_connections").update({ connected_by: successor }).eq("organization_id", orgId).eq("connected_by", userId);
+        if (wsIds.length) {
+          await adminClient.from("projects").update({ created_by: successor }).in("workspace_id", wsIds).eq("created_by", userId);
+        }
+        if (projIds.length) {
+          await adminClient.from("tasks").update({ created_by: successor }).in("project_id", projIds).eq("created_by", userId);
+          await adminClient.from("task_assignees").update({ assigned_by: successor }).in("project_id", projIds).eq("assigned_by", userId);
+          await adminClient.from("custom_field_definitions").update({ created_by: successor }).in("project_id", projIds).eq("created_by", userId);
+          await adminClient.from("task_custom_field_values").update({ updated_by: successor }).in("project_id", projIds).eq("updated_by", userId);
+          await adminClient.from("task_dependencies").update({ created_by: successor }).in("project_id", projIds).eq("created_by", userId);
+          await adminClient.from("task_checklists").update({ created_by: successor }).in("project_id", projIds).eq("created_by", userId);
+          const { data: checklists } = await adminClient.from("task_checklists").select("id").in("project_id", projIds);
+          const clIds = (checklists ?? []).map((c) => c.id);
+          if (clIds.length) {
+            await adminClient.from("checklist_items").update({ created_by: successor }).in("checklist_id", clIds).eq("created_by", userId);
+          }
+          await adminClient.from("task_attachments").update({ uploaded_by: successor }).in("project_id", projIds).eq("uploaded_by", userId);
+          await adminClient.from("project_documents").update({ created_by: successor }).in("project_id", projIds).eq("created_by", userId);
+          await adminClient.from("project_documents").update({ updated_by: successor }).in("project_id", projIds).eq("updated_by", userId);
+        }
+      }
+    }
+
+    await adminClient.from("project_members").delete().eq("user_id", userId);
+    await adminClient.from("workspace_members").delete().eq("user_id", userId);
+    await adminClient.from("organization_members").delete().eq("user_id", userId);
+    await adminClient.from("project_document_versions").update({ changed_by: null }).eq("changed_by", userId);
+    await adminClient.from("project_activity_events").update({ actor_id: null }).eq("actor_id", userId);
+    await adminClient.from("audit_events").update({ actor_id: null, changes: {} }).eq("actor_id", userId);
+    await adminClient.from("profiles").delete().eq("id", userId);
+  }
+
+  const { error: deleteAuthErr } = await adminClient.auth.admin.deleteUser(userId);
+  if (deleteAuthErr) {
+    console.error("auth.admin.deleteUser failed:", deleteAuthErr);
+    return { ok: false, error: `Could not erase auth account: ${deleteAuthErr.message}` };
+  }
+
+  await supabase.auth.signOut();
+  revalidatePath("/", "layout");
+  redirect("/login?message=account_deleted");
 }
 
 export async function createOrganization(formData: FormData) {
@@ -629,6 +914,28 @@ export async function updateTaskAssignees(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
+
+  const [{ data: existingTask }, { data: existingRows }] = await Promise.all([
+    supabase
+      .from("tasks")
+      .select("primary_assignee_id, secondary_assignee_id")
+      .eq("id", parsed.data.taskId)
+      .eq("project_id", parsed.data.projectId)
+      .maybeSingle(),
+    supabase
+      .from("task_assignees")
+      .select("user_id")
+      .eq("task_id", parsed.data.taskId)
+      .eq("project_id", parsed.data.projectId),
+  ]);
+
+  const previousSet = new Set<string>();
+  if (existingTask?.primary_assignee_id) previousSet.add(existingTask.primary_assignee_id);
+  if (existingTask?.secondary_assignee_id) previousSet.add(existingTask.secondary_assignee_id);
+  for (const row of existingRows ?? []) {
+    if (row.user_id) previousSet.add(row.user_id);
+  }
+
   const { error } = await supabase.from("tasks").update({
     primary_assignee_id: parsed.data.primaryAssigneeId || null,
     secondary_assignee_id: parsed.data.secondaryAssigneeId || null,
@@ -636,17 +943,52 @@ export async function updateTaskAssignees(formData: FormData) {
   if (error) return { ok: false };
 
   const assignees = [parsed.data.primaryAssigneeId, parsed.data.secondaryAssigneeId].filter(Boolean) as string[];
-  if (assignees.length > 0) {
+  const nextSet = new Set(assignees);
+
+  try {
+    await supabase
+      .from("task_assignees")
+      .delete()
+      .eq("project_id", parsed.data.projectId)
+      .eq("task_id", parsed.data.taskId);
+    if (assignees.length > 0) {
+      await supabase.from("task_assignees").insert(
+        assignees.map((uid) => ({
+          project_id: parsed.data.projectId,
+          task_id: parsed.data.taskId,
+          user_id: uid,
+          assigned_by: user.id,
+        }))
+      );
+    }
+  } catch (syncErr) {
+    console.warn("task_assignees sync in updateTaskAssignees warning:", syncErr);
+  }
+
+  const addedIds = assignees.filter((id) => !previousSet.has(id));
+  const removedIds = [...previousSet].filter((id) => !nextSet.has(id));
+
+  if (addedIds.length > 0) {
     notifyAssigneesOnTask({
       projectId: parsed.data.projectId,
       taskId: parsed.data.taskId,
-      assigneeIds: assignees,
+      assigneeIds: addedIds,
+      actorId: user.id,
+    }).catch(console.error);
+  }
+
+  if (removedIds.length > 0) {
+    notifyRemovedAssigneesOnTask({
+      projectId: parsed.data.projectId,
+      taskId: parsed.data.taskId,
+      removedAssigneeIds: removedIds,
       actorId: user.id,
     }).catch(console.error);
   }
 
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 
@@ -665,6 +1007,27 @@ export async function setTaskAssignees(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false };
+
+  const [{ data: existingTask }, { data: existingRows }] = await Promise.all([
+    supabase
+      .from("tasks")
+      .select("primary_assignee_id, secondary_assignee_id")
+      .eq("id", taskId.data)
+      .eq("project_id", projectId.data)
+      .maybeSingle(),
+    supabase
+      .from("task_assignees")
+      .select("user_id")
+      .eq("task_id", taskId.data)
+      .eq("project_id", projectId.data),
+  ]);
+
+  const previousSet = new Set<string>();
+  if (existingTask?.primary_assignee_id) previousSet.add(existingTask.primary_assignee_id);
+  if (existingTask?.secondary_assignee_id) previousSet.add(existingTask.secondary_assignee_id);
+  for (const row of existingRows ?? []) {
+    if (row.user_id) previousSet.add(row.user_id);
+  }
 
   // Directly update primary and secondary assignee on the tasks table
   const { error: taskError } = await supabase
@@ -703,11 +1066,24 @@ export async function setTaskAssignees(formData: FormData) {
     console.warn("task_assignees table sync warning:", syncErr);
   }
 
-  if (uniqueIds.length > 0) {
+  const nextSet = new Set(uniqueIds);
+  const addedIds = uniqueIds.filter((id) => !previousSet.has(id));
+  const removedIds = [...previousSet].filter((id) => !nextSet.has(id));
+
+  if (addedIds.length > 0) {
     notifyAssigneesOnTask({
       projectId: projectId.data,
       taskId: taskId.data,
-      assigneeIds: uniqueIds,
+      assigneeIds: addedIds,
+      actorId: user.id,
+    }).catch(console.error);
+  }
+
+  if (removedIds.length > 0) {
+    notifyRemovedAssigneesOnTask({
+      projectId: projectId.data,
+      taskId: taskId.data,
+      removedAssigneeIds: removedIds,
       actorId: user.id,
     }).catch(console.error);
   }
@@ -768,14 +1144,94 @@ export async function updateTaskField(formData: FormData) {
   revalidatePath(`/projects/${base.data.projectId}`);
 }
 
+export async function autoSaveTaskProperty(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const base = z.object({
+    taskId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    field: z.enum(["status_id", "priority", "start_date", "due_date", "estimate_minutes"]),
+  }).safeParse({
+    taskId: formData.get("taskId"),
+    projectId: formData.get("projectId"),
+    field: formData.get("field"),
+  });
+  if (!base.success) return { ok: false, error: "Invalid property request." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  const rawValue = formData.get("value");
+  const strVal = rawValue == null ? "" : String(rawValue).trim();
+
+  const update: {
+    status_id?: string;
+    priority?: "low" | "normal" | "high" | "urgent";
+    start_date?: string | null;
+    due_date?: string | null;
+    estimate_minutes?: number | null;
+  } = {};
+
+  if (base.data.field === "status_id") {
+    const val = z.string().uuid().safeParse(strVal);
+    if (!val.success) return { ok: false, error: "Invalid status." };
+    update.status_id = val.data;
+  } else if (base.data.field === "priority") {
+    const val = z.enum(["low", "normal", "high", "urgent"]).safeParse(strVal);
+    if (!val.success) return { ok: false, error: "Invalid priority." };
+    update.priority = val.data;
+  } else if (base.data.field === "start_date") {
+    if (strVal !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(strVal)) {
+      return { ok: false, error: "Invalid start date." };
+    }
+    update.start_date = strVal || null;
+  } else if (base.data.field === "due_date") {
+    if (strVal !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(strVal)) {
+      return { ok: false, error: "Invalid due date." };
+    }
+    update.due_date = strVal || null;
+  } else {
+    let est: number | null = null;
+    if (strVal !== "") {
+      est = parseEstimateToMinutes(strVal);
+      if (est == null) return { ok: false, error: "Invalid estimate format (use e.g. 2h, 1d, 30m)." };
+    }
+    update.estimate_minutes = est;
+  }
+
+  const { error } = await supabase
+    .from("tasks")
+    .update(update)
+    .eq("id", base.data.taskId)
+    .eq("project_id", base.data.projectId);
+
+  if (error) {
+    return {
+      ok: false,
+      error: "Could not save property. Check that due date is not before start date.",
+    };
+  }
+
+  if (base.data.field === "estimate_minutes") {
+    checkAndNotifyHoursExhausting({
+      projectId: base.data.projectId,
+      taskId: base.data.taskId,
+    }).catch(console.error);
+  }
+
+  revalidatePath(`/projects/${base.data.projectId}`);
+  revalidatePath(`/projects/${base.data.projectId}/tasks/${base.data.taskId}`);
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
 export async function updateTask(formData: FormData) {
   const parsed = z.object({
     projectId: z.string().uuid(),
     taskId: z.string().uuid(),
     title: z.string().trim().min(1).max(240),
     description: z.string().trim().max(10000),
-    statusId: z.string().uuid(),
-    priority: z.enum(["low", "normal", "high", "urgent"]),
+    statusId: z.string().uuid().optional(),
+    priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
     startDate: z.string().optional(),
     dueDate: z.string().optional(),
     estimateMinutes: z.union([z.string(), z.number()]).optional(),
@@ -784,30 +1240,32 @@ export async function updateTask(formData: FormData) {
     taskId: formData.get("taskId"),
     title: formData.get("title"),
     description: formData.get("description") ?? "",
-    statusId: formData.get("statusId"),
-    priority: formData.get("priority"),
+    statusId: formData.get("statusId") || undefined,
+    priority: formData.get("priority") || undefined,
     startDate: formData.get("startDate") || undefined,
     dueDate: formData.get("dueDate") || undefined,
-    estimateMinutes: formData.get("estimateMinutes") ?? "",
+    estimateMinutes: formData.get("estimateMinutes") ?? undefined,
   });
   if (!parsed.success) redirect("/dashboard?error=invalid_task");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  const rawEst = parsed.data.estimateMinutes;
-  const estString = rawEst == null ? "" : String(rawEst).trim();
-  const parsedEstimate = estString !== "" ? parseEstimateToMinutes(estString) : null;
-
-  const { error } = await supabase.from("tasks").update({
+  const updatePayload: Record<string, unknown> = {
     title: parsed.data.title,
     description: parsed.data.description,
-    status_id: parsed.data.statusId,
-    priority: parsed.data.priority,
-    start_date: parsed.data.startDate ?? null,
-    due_date: parsed.data.dueDate ?? null,
-    estimate_minutes: parsedEstimate,
-  }).eq("id", parsed.data.taskId).eq("project_id", parsed.data.projectId);
+  };
+  if (parsed.data.statusId) updatePayload.status_id = parsed.data.statusId;
+  if (parsed.data.priority) updatePayload.priority = parsed.data.priority;
+  if (formData.has("startDate")) updatePayload.start_date = parsed.data.startDate ?? null;
+  if (formData.has("dueDate")) updatePayload.due_date = parsed.data.dueDate ?? null;
+  if (formData.has("estimateMinutes")) {
+    const rawEst = parsed.data.estimateMinutes;
+    const estString = rawEst == null ? "" : String(rawEst).trim();
+    updatePayload.estimate_minutes = estString !== "" ? parseEstimateToMinutes(estString) : null;
+  }
+
+  const { error } = await supabase.from("tasks").update(updatePayload).eq("id", parsed.data.taskId).eq("project_id", parsed.data.projectId);
   if (error) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=save_failed`);
   checkAndNotifyHoursExhausting({
     projectId: parsed.data.projectId,
@@ -815,6 +1273,7 @@ export async function updateTask(formData: FormData) {
   }).catch(console.error);
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+  revalidatePath("/dashboard");
   redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?saved=1`);
 }
 
@@ -1085,17 +1544,54 @@ export async function createTaskSubtask(formData: FormData) {
     projectId: formData.get("projectId"), parentTaskId: formData.get("parentTaskId"), title: formData.get("title"),
   });
   if (!parsed.success) redirect("/dashboard?error=invalid_subtask");
+  const rawAssigneeIds = formData.getAll("assigneeIds");
+  const assigneeIds = rawAssigneeIds
+    .map((id) => z.string().uuid().safeParse(id))
+    .filter((r) => r.success)
+    .map((r) => (r as { success: true; data: string }).data);
+  const uniqueAssigneeIds = [...new Set(assigneeIds)].slice(0, 50);
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
   const { data: parent } = await supabase.from("tasks").select("status_id").eq("id", parsed.data.parentTaskId).eq("project_id", parsed.data.projectId).maybeSingle();
   if (!parent) redirect(`/projects/${parsed.data.projectId}?error=task_not_found`);
-  const { error } = await supabase.from("tasks").insert({
-    project_id: parsed.data.projectId, parent_task_id: parsed.data.parentTaskId, status_id: parent.status_id,
-    title: parsed.data.title, created_by: user.id,
-  });
-  if (error) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.parentTaskId}?error=subtask_failed`);
+  const { data: newSubtask, error } = await supabase.from("tasks").insert({
+    project_id: parsed.data.projectId,
+    parent_task_id: parsed.data.parentTaskId,
+    status_id: parent.status_id,
+    title: parsed.data.title,
+    created_by: user.id,
+    primary_assignee_id: uniqueAssigneeIds[0] ?? null,
+    secondary_assignee_id: uniqueAssigneeIds[1] ?? null,
+  }).select("id").single();
+  if (error || !newSubtask) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.parentTaskId}?error=subtask_failed`);
+
+  if (uniqueAssigneeIds.length > 0) {
+    try {
+      await supabase.from("task_assignees").insert(
+        uniqueAssigneeIds.map((uid) => ({
+          project_id: parsed.data.projectId,
+          task_id: newSubtask.id,
+          user_id: uid,
+          assigned_by: user.id,
+        }))
+      );
+    } catch (syncErr) {
+      console.warn("task_assignees sync in createTaskSubtask:", syncErr);
+    }
+
+    notifyAssigneesOnTask({
+      projectId: parsed.data.projectId,
+      taskId: newSubtask.id,
+      assigneeIds: uniqueAssigneeIds,
+      actorId: user.id,
+    }).catch(console.error);
+  }
+
+  revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.parentTaskId}`);
+  revalidatePath("/dashboard");
 }
 
 export async function createTaskDependency(formData: FormData) {
@@ -1477,6 +1973,13 @@ export async function quickCreateSubtask(formData: FormData) {
     });
 
   if (!parsed.success) return { ok: false, error: "invalid_input" };
+  const rawAssigneeIds = formData.getAll("assigneeIds");
+  const assigneeIds = rawAssigneeIds
+    .map((id) => z.string().uuid().safeParse(id))
+    .filter((r) => r.success)
+    .map((r) => (r as { success: true; data: string }).data);
+  const uniqueAssigneeIds = [...new Set(assigneeIds)].slice(0, 50);
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -1500,12 +2003,39 @@ export async function quickCreateSubtask(formData: FormData) {
       status_id: parent.status_id,
       title: parsed.data.title,
       created_by: user.id,
+      primary_assignee_id: uniqueAssigneeIds[0] ?? null,
+      secondary_assignee_id: uniqueAssigneeIds[1] ?? null,
     })
     .select("id, title, generated_key")
     .single();
 
   if (error || !subtask) return { ok: false, error: "subtask_failed" };
+
+  if (uniqueAssigneeIds.length > 0) {
+    try {
+      await supabase.from("task_assignees").insert(
+        uniqueAssigneeIds.map((uid) => ({
+          project_id: parsed.data.projectId,
+          task_id: subtask.id,
+          user_id: uid,
+          assigned_by: user.id,
+        }))
+      );
+    } catch (syncErr) {
+      console.warn("task_assignees sync in quickCreateSubtask:", syncErr);
+    }
+
+    notifyAssigneesOnTask({
+      projectId: parsed.data.projectId,
+      taskId: subtask.id,
+      assigneeIds: uniqueAssigneeIds,
+      actorId: user.id,
+    }).catch(console.error);
+  }
+
   revalidatePath(`/projects/${parsed.data.projectId}`);
+  revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.parentTaskId}`);
+  revalidatePath("/dashboard");
   return { ok: true, subtask };
 }
 

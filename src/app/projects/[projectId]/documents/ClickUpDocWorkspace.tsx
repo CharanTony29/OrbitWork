@@ -45,6 +45,7 @@ import {
   Paperclip,
 } from "lucide-react";
 import ProjectAttachmentsClient, { ProjectAttachmentItem } from "../attachments/ProjectAttachmentsClient";
+import FavoriteButton from "@/app/FavoriteButton";
 import WhiteboardCanvas from "@/app/canvas/WhiteboardCanvas";
 import FlowchartCanvas from "@/app/canvas/FlowchartCanvas";
 import {
@@ -98,6 +99,7 @@ export default function ClickUpDocWorkspace({
   currentDocId,
   currentUserName = "Charan Dukka",
   taskAttachments = [],
+  favoriteDocIds = [],
 }: {
   projectId: string;
   projectName: string;
@@ -105,6 +107,7 @@ export default function ClickUpDocWorkspace({
   currentDocId?: string;
   currentUserName?: string;
   taskAttachments?: ProjectAttachmentItem[];
+  favoriteDocIds?: string[];
 }) {
   const router = useRouter();
   const [sidebarTab, setSidebarTab] = useState<"pages" | "files">("pages");
@@ -1053,6 +1056,20 @@ export default function ClickUpDocWorkspace({
                 <Check size={12} />
                 <span>{meta.isWiki ? "Wiki Verified" : "Mark Wiki"}</span>
               </button>
+
+              {activeDoc && (
+                <FavoriteButton
+                  key={activeDoc.id}
+                  entityType="document"
+                  entityId={activeDoc.id}
+                  projectId={projectId}
+                  title={title || activeDoc.title}
+                  subtitle={`${projectName} · Document`}
+                  initialFavorited={favoriteDocIds.includes(activeDoc.id)}
+                  label="Favorite"
+                  compact
+                />
+              )}
 
               <button
                 type="button"

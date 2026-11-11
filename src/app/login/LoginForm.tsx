@@ -45,7 +45,7 @@ export default function LoginForm({
           onClick={() => setTab("magic")}
         >
           <Sparkles size={13} />
-          <span>Magic Link</span>
+          <span>Password-less</span>
         </button>
       </div>
 
@@ -96,7 +96,7 @@ export default function LoginForm({
             We’ll send a secure one-click sign-in link to your inbox. No password needed.
           </p>
           <button className="button button-secondary" type="submit" style={{ marginTop: 4 }}>
-            Send Magic Link
+            Password-less sign in
           </button>
         </form>
       )}

@@ -8,9 +8,9 @@ function escapeHtml(value: string) {
 }
 
 function inline(value: string) {
-  // Support image markdown: data:image (base64) or https?:// URLs, and relative /path links
+  // Support image markdown: data:image (base64), https?:// URLs, or internal /api/attachments/ URLs
   const pattern =
-    /(!\[([^\]]*)\]\((data:image\/[a-zA-Z0-9+.-]+;base64,[A-Za-z0-9+/=\s]+|https?:\/\/[^\s)]+)\)|\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\s)]+)\)|\*\*([^*]+)\*\*|`([^`]+)`|\*([^*]+)\*|_([^_]+)_|~~([^~]+)~~)/g;
+    /(!\[([^\]]*)\]\((data:image\/[a-zA-Z0-9+.-]+;base64,[A-Za-z0-9+/=\s]+|(?:https?:\/\/|\/api\/attachments\/)[^\s)]+)\)|\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\s)]+)\)|\*\*([^*]+)\*\*|`([^`]+)`|\*([^*]+)\*|_([^_]+)_|~~([^~]+)~~)/g;
   let output = "";
   let cursor = 0;
   for (const match of value.matchAll(pattern)) {
@@ -18,7 +18,7 @@ function inline(value: string) {
     output += escapeHtml(value.slice(cursor, index));
     if (match[1]?.startsWith("![") && match[3]) {
       const cleanSrc = match[3].replace(/\s+/g, "");
-      output += `<img src="${cleanSrc}" alt="${escapeHtml(
+      output += `<img src="${escapeHtml(cleanSrc)}" alt="${escapeHtml(
         match[2] ?? "Pasted image"
       )}" class="doc-embedded-img" loading="lazy">`;
     } else if (match[4] && match[5]) {

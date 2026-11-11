@@ -35,7 +35,7 @@ export default async function OrganizationMembersPage({ params }: { params: Prom
     const name = profile?.display_name?.trim() || profile?.email || "Team member";
     const workspaceRoles = workspaceRoleByUser.get(membership.user_id) ?? [];
     const profileDetails = [profile?.designation, profile?.department, profile?.contact_information].filter(Boolean).join(" · ");
-    return <tr key={membership.user_id}><td><div className="organization-member-person"><span className="organization-member-avatar">{name[0]?.toUpperCase() ?? "U"}</span><span><strong>{name}</strong>{profile?.email && profile.display_name?.trim() && <small>{profile.email}</small>}{profileDetails && <small>{profileDetails}</small>}</span></div></td><td>{canManageOrg && membership.role !== "owner" ? (
+    return <tr key={membership.user_id}><td><div className="organization-member-person"><span className="organization-member-avatar">{profile?.avatar_url ? <img src={profile.avatar_url} alt={name} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /> : (name[0]?.toUpperCase() ?? "U")}</span><span><strong>{name}</strong>{profile?.email && profile.display_name?.trim() && <small>{profile.email}</small>}{profileDetails && <small>{profileDetails}</small>}</span></div></td><td>{canManageOrg && membership.role !== "owner" ? (
       <form action={updateOrganizationMemberRole} style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center" }}>
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="userId" value={membership.user_id} />

@@ -38,12 +38,17 @@ export default function PrivacyPolicyPage() {
           Each workspace manages its own dedicated storage location. Files uploaded within a workspace are accessible only to authorized members of that workspace and organization, preventing accidental data sharing across teams.
         </p>
 
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: "10px 0 4px" }}>3. Data Security &amp; Revocation</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: "10px 0 4px" }}>3. Data Security, Minimization &amp; Revocation</h2>
         <p>
-          Third-party OAuth tokens and secrets are encrypted at rest using AES-256-GCM. You may disconnect your Google Drive, OneDrive, or SharePoint connections at any time from Workspace Settings or directly through your third-party account security center.
+          Orbitwork collects only the information necessary to provide workspace collaboration features (such as your name and email address). Third-party OAuth tokens and secrets are encrypted at rest using AES-256-GCM. You may disconnect your Google Drive, OneDrive, or SharePoint connections at any time from Workspace Settings or directly through your third-party account security center.
         </p>
 
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: "10px 0 4px" }}>4. Contact</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: "10px 0 4px" }}>4. Account Deletion &amp; Right to Erasure (India DPDP Act Compliance)</h2>
+        <p>
+          In accordance with India&apos;s Digital Personal Data Protection (DPDP) Act and strict privacy standards, you can permanently delete your account at any time from <strong>Account Settings &rarr; Profile &rarr; Delete Account</strong>. Upon deletion, your profile, credentials, profile picture, personal messages, notifications, timesheets, leave records, and personal data are completely and irreversibly erased from our system.
+        </p>
+
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: "10px 0 4px" }}>5. Contact</h2>
         <p>
           For privacy inquiries, contact the team at <code>orbitwork.admin@gmail.com</code>.
         </p>

@@ -3,3 +3,19 @@
 [data-color-scheme="dark"] .profile-form label{color:#cbd5ce}
 [data-color-scheme="dark"] .profile-form input{background:#202522;border-color:var(--line);color:var(--ink);color-scheme:dark}
 [data-color-scheme="dark"] .profile-form input:disabled{background:#292f2b;color:#9ba59e}
+.profile-settings-stack{display:grid;gap:20px}
+.profile-avatar-row{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.profile-avatar-preview{position:relative;width:76px;height:76px;border-radius:50%;background:linear-gradient(135deg,#167c58,#0c6243);color:#fff;display:grid;place-items:center;font-size:26px;font-weight:750;flex:none;box-shadow:0 4px 14px rgba(12,98,67,.2)}
+.profile-avatar-preview img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.profile-avatar-cam-badge{position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;border:2px solid var(--paper,#fff);background:var(--green);color:#fff;display:grid;place-items:center;cursor:pointer}
+.profile-avatar-controls{display:grid;gap:8px;flex:1;min-width:200px}
+.profile-danger-outline-btn{border:1px solid #fecaca !important;background:#fff5f5 !important;color:#dc2626 !important}
+.profile-danger-outline-btn:hover{background:#fee2e2 !important}
+.profile-danger-card{border-color:#fecaca !important}
+.profile-danger-checkbox{display:flex !important;flex-direction:row !important;align-items:center;gap:10px;cursor:pointer;font-weight:500 !important}
+.profile-danger-checkbox input{width:16px !important;min-height:16px !important;height:16px !important;flex:none;accent-color:#dc2626}
+.profile-danger-submit-btn{background:#dc2626 !important;color:#fff !important}
+.profile-danger-submit-btn:hover:not(:disabled){background:#b91c1c !important}
+.profile-danger-submit-btn:disabled{opacity:.5;cursor:not-allowed}
+[data-color-scheme="dark"] .profile-danger-card{border-color:rgba(220,38,38,.45) !important}
+[data-color-scheme="dark"] .profile-danger-outline-btn{background:rgba(220,38,38,.12) !important;border-color:rgba(220,38,38,.4) !important;color:#f87171 !important}

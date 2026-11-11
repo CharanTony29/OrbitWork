@@ -14,6 +14,7 @@ import ProjectSettingsPanel from "./ProjectSettingsPanel";
 import TaskFilterToolbar from "./TaskFilterToolbar";
 import ProjectWhiteboardView from "./ProjectWhiteboardView";
 import ProjectFlowchartView from "./ProjectFlowchartView";
+import FavoriteButton from "@/app/FavoriteButton";
 import { checkAndSendDueDateReminders } from "@/lib/email";
 
 export default async function ProjectPage({ params, searchParams }: {
@@ -52,6 +53,17 @@ export default async function ProjectPage({ params, searchParams }: {
   const { data: customFields } = fieldResult;
   const canEdit = Boolean(canEditResult.data);
   const canManage = Boolean(canManageResult.data);
+  let isProjectFavorited = false;
+  const { data: projectFav, error: projectFavError } = await supabase
+    .from("user_favorites")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("entity_type", "project")
+    .eq("entity_id", projectId)
+    .maybeSingle();
+  if (!projectFavError && projectFav) {
+    isProjectFavorited = true;
+  }
   const today = new Date().toISOString().slice(0, 10);
 
   // Check and dispatch due date email reminders for this project
@@ -184,6 +196,16 @@ export default async function ProjectPage({ params, searchParams }: {
           </div>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
             {!canEdit && <span className="role-pill" style={{ background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1', fontSize: "11px", padding: "2px 8px" }}>View-only</span>}
+            <FavoriteButton
+              entityType="project"
+              entityId={projectId}
+              projectId={projectId}
+              title={project.name}
+              subtitle={workspace?.name ? `${workspace.name} · Project` : "Project"}
+              initialFavorited={isProjectFavorited}
+              label="Favorite"
+              compact
+            />
             <a className="export-link" href={`/api/projects/${projectId}/tasks.csv`} style={{ fontSize: "12px" }}>Export CSV</a>
             {canManage && (
               <ProjectSettingsPanel

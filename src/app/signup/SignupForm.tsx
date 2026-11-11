@@ -41,7 +41,7 @@ export default function SignupForm({
           onClick={() => setTab("magic")}
         >
           <Sparkles size={13} />
-          <span>Magic Link</span>
+          <span>Password-less</span>
         </button>
       </div>
 
@@ -87,7 +87,7 @@ export default function SignupForm({
             No password required. We’ll email you a secure direct-access link to instantly start.
           </p>
           <button className="button button-secondary" type="submit" style={{ marginTop: 4 }}>
-            Sign up with Magic Link
+            Password-less sign up
           </button>
         </form>
       )}

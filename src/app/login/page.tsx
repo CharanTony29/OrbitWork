@@ -22,8 +22,9 @@ export default async function LoginPage({
   const messages: Record<string, string> = {
     invalid_input: "Enter a valid email and password.",
     sign_in_failed: "Invalid credentials. Please verify your email and password, then try again.",
-    magic_link_sent: "A magic sign-in link has been sent to your email! Click the link in your inbox to sign in instantly.",
-    magic_link_failed: "Could not send magic link. Please check your email or custom SMTP settings.",
+    magic_link_sent: "A password-less sign-in link has been sent to your email! Click the link in your inbox to sign in instantly.",
+    magic_link_failed: "Could not send password-less sign-in link. Please check your email or custom SMTP settings.",
+    account_deleted: "Your account and all personal information have been permanently erased from Orbitwork.",
     sign_in_to_accept: "Sign in or create an account to accept your workspace invitation.",
     verification_failed: "That verification link is invalid or has expired. Please request a new one.",
     oauth_cookie_blocked:
@@ -51,7 +52,7 @@ export default async function LoginPage({
         </Link>
         <p className="eyebrow" style={{ marginTop: 18, marginBottom: 6 }}>WELCOME BACK</p>
         <h1 style={{ fontSize: 26, marginBottom: 4 }}>Sign in to Orbitwork</h1>
-        <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>Choose password login or get a magic link sent to your email.</p>
+        <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>Choose password login or get a password-less sign-in link sent to your email.</p>
 
         {params.message && <p className="notice" role="status" style={{ margin: "10px 0" }}>{messages[params.message] ?? params.message}</p>}
         {params.error && (

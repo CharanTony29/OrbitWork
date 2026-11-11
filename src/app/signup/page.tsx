@@ -23,8 +23,8 @@ export default async function SignupPage({
     invalid_input: "Enter a valid email and a password with at least 8 characters.",
     sign_up_failed: "Could not create your account. Please try again or check your credentials.",
     check_email: "Account created! Check your email to verify your address, then sign in.",
-    magic_link_sent: "Magic link sent! Check your inbox and click the link to finish setting up your account.",
-    magic_link_failed: "Could not send magic link. Check your email address or SMTP settings.",
+    magic_link_sent: "Password-less sign-in link sent! Check your inbox and click the link to finish setting up your account.",
+    magic_link_failed: "Could not send password-less sign-in link. Check your email address or SMTP settings.",
     sign_in_to_accept: "Create your account to accept your workspace invitation.",
   };
 

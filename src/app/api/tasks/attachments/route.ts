@@ -35,19 +35,36 @@ export async function POST(request: Request) {
   const file = form.get("file");
   const linkUrl = String(form.get("linkUrl") ?? "").trim();
   const linkTitle = String(form.get("linkTitle") ?? "").trim();
+  const wantsJson =
+    String(form.get("responseMode") ?? "") === "json" ||
+    (request.headers.get("accept") ?? "").includes("application/json");
+
+  const failResponse = (message: string, status = 400, queryCode = "save_failed") => {
+    if (wantsJson) {
+      return NextResponse.json({ ok: false, error: message }, { status });
+    }
+    const redirectUrl = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
+    redirectUrl.searchParams.set("attachment", queryCode);
+    if (message) redirectUrl.searchParams.set("attachment_error", message);
+    return NextResponse.redirect(redirectUrl, 303);
+  };
 
   if (!/^[0-9a-f-]{36}$/i.test(taskId) || !/^[0-9a-f-]{36}$/i.test(projectId)) {
-    return new Response("Valid task and project IDs are required", { status: 400 });
+    return wantsJson
+      ? NextResponse.json({ ok: false, error: "Valid task and project IDs are required" }, { status: 400 })
+      : new Response("Valid task and project IDs are required", { status: 400 });
   }
 
   const { data: task } = await supabase.from("tasks").select("id, project_id").eq("id", taskId).eq("project_id", projectId).maybeSingle();
-  if (!task) return new Response("Task not found", { status: 404 });
+  if (!task) {
+    return wantsJson
+      ? NextResponse.json({ ok: false, error: "Task not found" }, { status: 404 })
+      : new Response("Task not found", { status: 404 });
+  }
 
   const { data: canEdit } = await supabase.rpc("can_edit_project_tasks", { target_project: projectId });
   if (!canEdit) {
-    const target = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
-    target.searchParams.set("attachment", "forbidden");
-    return NextResponse.redirect(target, 303);
+    return failResponse("You do not have permission to edit this task.", 403, "forbidden");
   }
 
   // 1. Handle Link Attachment (SharePoint, OneDrive, Google Drive link, Web link)
@@ -84,10 +101,12 @@ export async function POST(request: Request) {
 
   // 2. Handle File Upload (Direct file upload)
   if (!(file instanceof File)) {
-    return new Response("A file or valid link is required", { status: 400 });
+    return wantsJson
+      ? NextResponse.json({ ok: false, error: "A file or valid link is required" }, { status: 400 })
+      : new Response("A file or valid link is required", { status: 400 });
   }
   if (!file.size || file.size > maxBytes) {
-    return NextResponse.redirect(new URL(`/projects/${projectId}/tasks/${taskId}?attachment=too_large`, request.url), 303);
+    return failResponse("Files must be between 1 byte and 15 MB.", 413, "too_large");
   }
 
   const { data: project } = await supabase
@@ -123,7 +142,7 @@ export async function POST(request: Request) {
           fileBytes,
           { workspaceName: workspace.name, projectName: project.name }
         );
-        const { error } = await supabase.from("task_attachments").insert({
+        const { data: insertedDrive, error } = await supabase.from("task_attachments").insert({
           project_id: projectId,
           task_id: taskId,
           file_name: uploaded.name,
@@ -133,16 +152,21 @@ export async function POST(request: Request) {
           external_file_id: uploaded.id,
           external_url: null,
           uploaded_by: user.id,
-        });
-        if (!error) {
+        }).select("id").maybeSingle();
+        if (!error && insertedDrive?.id) {
+          if (wantsJson) {
+            return NextResponse.json({
+              ok: true,
+              id: insertedDrive.id,
+              url: `/api/attachments/${insertedDrive.id}`,
+              fileName: uploaded.name,
+            });
+          }
           return NextResponse.redirect(new URL(`/projects/${projectId}/tasks/${taskId}?attachment=uploaded`, request.url), 303);
         } else {
           console.error("[Attachment Drive Error] Failed to save Google Drive reference:", error);
           await deleteDriveFile(accessToken, uploaded.id).catch(() => undefined);
-          const redirectUrl = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
-          redirectUrl.searchParams.set("attachment", "save_failed");
-          if (error.message) redirectUrl.searchParams.set("attachment_error", error.message);
-          return NextResponse.redirect(redirectUrl, 303);
+          return failResponse(error?.message || "Failed to save Google Drive reference", 500, "save_failed");
         }
       }
     } catch (driveErr) {
@@ -168,7 +192,7 @@ export async function POST(request: Request) {
           contentType,
           fileBytes
         );
-        const { error: odErr } = await supabase.from("task_attachments").insert({
+        const { data: insertedOd, error: odErr } = await supabase.from("task_attachments").insert({
           project_id: projectId,
           task_id: taskId,
           file_name: uploaded.name,
@@ -178,16 +202,21 @@ export async function POST(request: Request) {
           external_file_id: uploaded.id,
           external_url: null,
           uploaded_by: user.id,
-        });
-        if (!odErr) {
+        }).select("id").maybeSingle();
+        if (!odErr && insertedOd?.id) {
+          if (wantsJson) {
+            return NextResponse.json({
+              ok: true,
+              id: insertedOd.id,
+              url: `/api/attachments/${insertedOd.id}`,
+              fileName: uploaded.name,
+            });
+          }
           return NextResponse.redirect(new URL(`/projects/${projectId}/tasks/${taskId}?attachment=uploaded`, request.url), 303);
         } else {
           console.error("[Attachment OneDrive DB Error] Failed to save OneDrive reference:", odErr);
           await deleteOneDriveFile(accessToken, uploaded.id).catch(() => undefined);
-          const redirectUrl = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
-          redirectUrl.searchParams.set("attachment", "save_failed");
-          if (odErr.message) redirectUrl.searchParams.set("attachment_error", odErr.message);
-          return NextResponse.redirect(redirectUrl, 303);
+          return failResponse(odErr?.message || "Failed to save OneDrive reference", 500, "save_failed");
         }
       }
     } catch (odErr) {
@@ -218,10 +247,7 @@ export async function POST(request: Request) {
 
     if (insertErr || !inserted?.id) {
       console.error("[Attachment Upload Error] Failed to insert into task_attachments:", insertErr);
-      const redirectUrl = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
-      redirectUrl.searchParams.set("attachment", "save_failed");
-      if (insertErr?.message) redirectUrl.searchParams.set("attachment_error", insertErr.message);
-      return NextResponse.redirect(redirectUrl, 303);
+      return failResponse(insertErr?.message || "Failed to save attachment", 500, "save_failed");
     }
 
     const { error: fileErr } = await supabase.from("attachment_files").insert({
@@ -232,19 +258,21 @@ export async function POST(request: Request) {
     if (fileErr) {
       console.error("[Attachment Upload Error] Failed to insert into attachment_files:", fileErr);
       await supabase.from("task_attachments").delete().eq("id", inserted.id);
-      const redirectUrl = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
-      redirectUrl.searchParams.set("attachment", "save_failed");
-      if (fileErr?.message) redirectUrl.searchParams.set("attachment_error", fileErr.message);
-      return NextResponse.redirect(redirectUrl, 303);
+      return failResponse(fileErr?.message || "Failed to save attachment bytes", 500, "save_failed");
     }
 
+    if (wantsJson) {
+      return NextResponse.json({
+        ok: true,
+        id: inserted.id,
+        url: `/api/attachments/${inserted.id}`,
+        fileName: safeName,
+      });
+    }
     return NextResponse.redirect(new URL(`/projects/${projectId}/tasks/${taskId}?attachment=uploaded`, request.url), 303);
   } catch (fallbackErr) {
     console.error("Direct attachment storage failed", fallbackErr);
     const msg = fallbackErr instanceof Error ? fallbackErr.message : "Unexpected upload error";
-    const redirectUrl = new URL(`/projects/${projectId}/tasks/${taskId}`, request.url);
-    redirectUrl.searchParams.set("attachment", "save_failed");
-    redirectUrl.searchParams.set("attachment_error", msg);
-    return NextResponse.redirect(redirectUrl, 303);
+    return failResponse(msg, 500, "save_failed");
   }
 }

@@ -140,6 +140,11 @@ export default function MultiEmailInviteForm({
               padding: "0 10px",
               boxSizing: "border-box",
               cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              textAlignLast: "center",
             }}
           >
             <option value="">Organization only</option>

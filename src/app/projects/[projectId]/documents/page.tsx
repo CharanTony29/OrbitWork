@@ -70,6 +70,16 @@ export default async function ProjectDocumentsPage({
       created_at: a.created_at,
     }));
 
+  let favoriteDocIds: string[] = [];
+  const { data: favRows, error: favErr } = await supabase
+    .from("user_favorites")
+    .select("entity_id")
+    .eq("user_id", user.id)
+    .eq("entity_type", "document");
+  if (!favErr && favRows) {
+    favoriteDocIds = favRows.map((f) => f.entity_id);
+  }
+
   return (
     <main className="app-shell clickup-doc-page-shell">
       <header className="topbar">
@@ -93,6 +103,7 @@ export default async function ProjectDocumentsPage({
         documents={[]}
         currentUserName={currentUserName}
         taskAttachments={taskAttachments}
+        favoriteDocIds={favoriteDocIds}
       />
     </main>
   );

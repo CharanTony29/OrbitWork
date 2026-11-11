@@ -207,7 +207,16 @@ export default function UserProfileDropdown({
                   flexShrink: 0,
                 }}
               >
-                {initial}
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={avatarUrl}
+                    alt={name}
+                    style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
+                  />
+                ) : (
+                  initial
+                )}
                 <span
                   style={{
                     position: "absolute",
