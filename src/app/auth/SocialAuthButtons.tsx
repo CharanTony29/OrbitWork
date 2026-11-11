@@ -4,6 +4,25 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2 } from "lucide-react";
 
+function resolveCanonicalOrigin(): string {
+  if (typeof window === "undefined") return "";
+  const currentOrigin = window.location.origin;
+  const envAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "");
+  if (!envAppUrl) return currentOrigin;
+
+  try {
+    const current = new URL(currentOrigin);
+    const configured = new URL(envAppUrl);
+    const currentApex = current.hostname.replace(/^www\./i, "").toLowerCase();
+    const configuredApex = configured.hostname.replace(/^www\./i, "").toLowerCase();
+    if (currentApex === configuredApex) {
+      return configured.origin;
+    }
+  } catch {}
+
+  return currentOrigin;
+}
+
 export default function SocialAuthButtons({
   returnUrl = "",
   mode = "signin",
@@ -18,10 +37,16 @@ export default function SocialAuthButtons({
     try {
       setLoadingProvider(provider);
       setErrorMsg(null);
+
+      const canonicalOrigin = resolveCanonicalOrigin();
+      if (canonicalOrigin && canonicalOrigin !== window.location.origin) {
+        window.location.replace(`${canonicalOrigin}${window.location.pathname}${window.location.search}`);
+        return;
+      }
+
       const supabase = createClient();
-      const origin = window.location.origin;
       const safeNext = returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//") ? returnUrl : "/dashboard";
-      const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
+      const redirectTo = `${canonicalOrigin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -60,24 +85,7 @@ export default function SocialAuthButtons({
           type="button"
           onClick={() => handleOAuth("google")}
           disabled={loadingProvider !== null}
-          className="button button-secondary auth-social-btn"
-          style={{
-            width: "100%",
-            height: 42,
-            border: "1px solid var(--line, #dfe5e0)",
-            background: "#ffffff",
-            color: "var(--ink, #17231f)",
-            fontSize: 13,
-            fontWeight: 600,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-            borderRadius: 8,
-            cursor: loadingProvider ? "not-allowed" : "pointer",
-            transition: "all 0.15s ease",
-            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-          }}
+          className="auth-social-btn"
         >
           {loadingProvider === "google" ? (
             <Loader2 size={16} className="animate-spin" />
@@ -109,24 +117,7 @@ export default function SocialAuthButtons({
           type="button"
           onClick={() => handleOAuth("azure")}
           disabled={loadingProvider !== null}
-          className="button button-secondary auth-social-btn"
-          style={{
-            width: "100%",
-            height: 42,
-            border: "1px solid var(--line, #dfe5e0)",
-            background: "#ffffff",
-            color: "var(--ink, #17231f)",
-            fontSize: 13,
-            fontWeight: 600,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-            borderRadius: 8,
-            cursor: loadingProvider ? "not-allowed" : "pointer",
-            transition: "all 0.15s ease",
-            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-          }}
+          className="auth-social-btn"
         >
           {loadingProvider === "azure" ? (
             <Loader2 size={16} className="animate-spin" />

@@ -78,10 +78,33 @@
   color: var(--muted);
 }
 
+.auth-social-btn {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--line, #dfe5e0);
+  background: var(--surface-raised, #ffffff);
+  color: var(--ink, #17231f);
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.auth-social-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .auth-social-btn:hover:not(:disabled) {
-  background: #f8faf9 !important;
-  border-color: #c7d2cb !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+  background: var(--surface-subtle, #f5f8f5);
+  border-color: var(--muted, #77827c);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 

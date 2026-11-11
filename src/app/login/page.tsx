@@ -7,7 +7,7 @@ import LoginForm from "./LoginForm";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; message?: string; returnUrl?: string; email?: string }>;
+  searchParams: Promise<{ error?: string; error_detail?: string; message?: string; returnUrl?: string; email?: string }>;
 }) {
   const params = await searchParams;
 
@@ -26,8 +26,18 @@ export default async function LoginPage({
     magic_link_failed: "Could not send magic link. Please check your email or custom SMTP settings.",
     sign_in_to_accept: "Sign in or create an account to accept your workspace invitation.",
     verification_failed: "That verification link is invalid or has expired. Please request a new one.",
+    oauth_cookie_blocked:
+      "Sign-in session expired or browser cookies were blocked during redirect. Please allow cookies and try signing in again.",
+    oauth_failed: "Could not complete social sign-in. Please try again.",
+    oauth_missing_code:
+      "Sign-in could not be completed because the authorization session expired or was interrupted. Please try again.",
     password_updated: "Your password has been reset successfully. Please sign in with your new password.",
   };
+
+  const isOAuthError =
+    params.error === "oauth_cookie_blocked" ||
+    params.error === "oauth_failed" ||
+    params.error === "oauth_missing_code";
 
   const returnUrl = params.returnUrl && params.returnUrl.startsWith("/") && !params.returnUrl.startsWith("//") ? params.returnUrl : "";
   const signupLink = returnUrl ? `/signup?returnUrl=${encodeURIComponent(returnUrl)}` : "/signup";
@@ -47,6 +57,16 @@ export default async function LoginPage({
         {params.error && (
           <div className="error" role="alert" style={{ margin: "10px 0" }}>
             <p style={{ margin: 0 }}>{messages[params.error] ?? params.error}</p>
+            {params.error_detail && (
+              <p style={{ margin: "5px 0 0", fontSize: 11.5, opacity: 0.9 }}>
+                Details: {params.error_detail}
+              </p>
+            )}
+            {isOAuthError && (
+              <p style={{ margin: "6px 0 0", fontSize: 11.5, opacity: 0.9 }}>
+                Tip: Please ensure cookies are enabled, avoid double-clicking, and use a standard browser tab.
+              </p>
+            )}
             {params.error === "verification_failed" && (
               <p style={{ margin: "6px 0 0", fontSize: 12 }}>
                 Need to reset your password?{" "}
