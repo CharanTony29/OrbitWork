@@ -1,5 +1,5 @@
 import Link from "next/link";
-import CurrentUserBadge from "@/app/CurrentUserBadge";
+import AppTopBar from "@/app/AppTopBar";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { signOut } from "@/app/actions";
@@ -82,14 +82,7 @@ export default async function ProjectDocumentsPage({
 
   return (
     <main className="app-shell clickup-doc-page-shell">
-      <header className="topbar">
-        <Link className="brand" href="/dashboard">
-          <span className="brand-mark">O</span>Orbit<span>work</span>
-        </Link>
-        <div className="topbar-right">
-          <CurrentUserBadge email={user.email ?? ""} />
-        </div>
-      </header>
+      <AppTopBar email={user.email ?? ""} projectId={projectId} />
 
       <div className="doc-page-subbar">
         <Link className="back-link" href={`/projects/${projectId}`}>

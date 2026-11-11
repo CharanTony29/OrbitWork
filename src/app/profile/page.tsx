@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, UserRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { updateMyProfile } from "../actions";
-import CurrentUserBadge from "../CurrentUserBadge";
+import AppTopBar from "../AppTopBar";
 import {
   ChangePasswordSection,
   DeleteAccountSection,
@@ -23,7 +23,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
     user.app_metadata?.provider === "email";
 
   return <main className="app-shell">
-    <header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/></div></header>
+    <AppTopBar email={user.email ?? ""} />
     <section className="profile-page">
       <Link className="back-link" href="/dashboard"><ArrowLeft size={15}/> Dashboard</Link>
       <header className="profile-heading"><span className="profile-icon"><UserRound size={21}/></span><div><p className="eyebrow">ACCOUNT SETTINGS</p><h1>Personal details</h1><p className="muted">Manage your avatar, profile information, password, and privacy settings.</p></div></header>

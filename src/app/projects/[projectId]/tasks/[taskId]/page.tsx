@@ -1,9 +1,9 @@
 import { notFound, redirect } from "next/navigation";
-import CurrentUserBadge from "@/app/CurrentUserBadge";
+import AppTopBar from "@/app/AppTopBar";
 import BackButton from "@/app/BackButton";
 import Link from "next/link";
 import { ArrowLeft, CheckSquare, GitBranch, MessageSquareText, Save, Eye, ExternalLink } from "lucide-react";
-import { addManualTimeEntry, createChecklistItem, createTaskChecklist, createTaskComment, createTaskDependency, removeTaskDependency, signOut, startTaskTimer, stopTaskTimer, toggleChecklistItem, updateTask } from "@/app/actions";
+import { addManualTimeEntry, createChecklistItem, createTaskChecklist, createTaskDependency, removeTaskDependency, startTaskTimer, stopTaskTimer, toggleChecklistItem, updateTask } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
 import { saveTaskCustomField } from "@/app/actions";
 import { formatEstimate, formatEstimateDetailed, formatMinutes, formatRemaining } from "@/lib/work";
@@ -14,6 +14,8 @@ import TaskHeaderTimer from "./TaskHeaderTimer";
 import TaskDescriptionEditor from "./TaskDescriptionEditor";
 import TaskPropertiesPanel from "./TaskPropertiesPanel";
 import SubtaskCreateForm from "./SubtaskCreateForm";
+import AssigneePicker from "../../AssigneePicker";
+import TaskCommentForm from "./TaskCommentForm";
 import FavoriteButton from "@/app/FavoriteButton";
 import DateInput from "@/app/DateInput";
 
@@ -42,7 +44,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
   if (!user) redirect("/");
   const { data: project } = await supabase.from("projects").select("id, name, workspace_id, workspaces(name, organization_id)").eq("id", projectId).maybeSingle();
   if (!project) notFound();
-  const { data: task } = await supabase.from("tasks").select("id, project_id, generated_key, title, task_type, tags, description, status_id, priority, start_date, due_date, estimate_minutes, progress, created_by, primary_assignee_id, secondary_assignee_id, created_at, updated_at").eq("id", taskId).eq("project_id", projectId).maybeSingle();
+  const { data: task } = await supabase.from("tasks").select("id, project_id, parent_task_id, generated_key, title, task_type, tags, description, status_id, priority, start_date, due_date, estimate_minutes, progress, created_by, primary_assignee_id, secondary_assignee_id, created_at, updated_at").eq("id", taskId).eq("project_id", projectId).maybeSingle();
   if (!task) notFound();
   const { data: statuses } = await supabase.from("project_statuses").select("id, name, color, category").eq("project_id", projectId).order("position");
   const { data: comments } = await supabase.from("task_comments").select("id, author_id, body, created_at").eq("task_id", taskId).order("created_at");
@@ -51,6 +53,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
   const { data: subtasks } = await supabase.from("tasks").select("id, generated_key, title, status_id, due_date, primary_assignee_id, secondary_assignee_id").eq("project_id", projectId).eq("parent_task_id", taskId).order("created_at");
   const subtaskIds = (subtasks ?? []).map((s) => s.id);
   const { data: subtaskAssigneesRaw } = subtaskIds.length ? await supabase.from("task_assignees").select("task_id, user_id").in("task_id", subtaskIds) : { data: [] };
+  const { data: currentTaskAssigneesRaw } = await supabase.from("task_assignees").select("user_id").eq("task_id", taskId);
   const { data: projectTasks } = await supabase.from("tasks").select("id, generated_key, title").eq("project_id", projectId).order("created_at", { ascending: false });
   const { data: dependencies } = await supabase.from("task_dependencies").select("linked_task_id, relation").eq("project_id", projectId).eq("task_id", taskId);
   const linkedIds = [...new Set((dependencies ?? []).map((dependency) => dependency.linked_task_id))];
@@ -61,7 +64,22 @@ export default async function TaskDetailPage({ params, searchParams }: {
   const { data: checklistItems } = checklistIds.length ? await supabase.from("checklist_items").select("id, checklist_id, title, is_complete, position").in("checklist_id", checklistIds).order("position") : { data: [] };
   const { data: timeEntries } = await supabase.from("time_entries").select("id, user_id, started_at, ended_at, duration_minutes, description, billable").eq("project_id", projectId).eq("task_id", taskId).order("started_at", { ascending: false }).limit(100);
   const { data: attachments } = await supabase.from("task_attachments").select("id, file_name, mime_type, file_size_bytes, storage_provider, external_file_id, external_url, uploaded_by, created_at").eq("project_id", projectId).eq("task_id", taskId).order("created_at", { ascending: false });
-  const { data: activityEvents } = await supabase.from("project_activity_events").select("id, actor_id, event_type, details, created_at").eq("project_id", projectId).eq("task_id", taskId).order("created_at", { ascending: false }).limit(100);
+  const activityTaskIds = [taskId, ...subtaskIds];
+  const { data: activityEventsRaw } = await supabase.from("project_activity_events").select("id, task_id, actor_id, event_type, details, created_at").eq("project_id", projectId).in("task_id", activityTaskIds).order("created_at", { ascending: false }).limit(100);
+  const loggedSubtaskIds = new Set(
+    (activityEventsRaw ?? [])
+      .filter((event) => event.task_id === taskId && event.event_type === "subtask_added")
+      .map((event) => {
+        const d = event.details && typeof event.details === "object" ? (event.details as Record<string, unknown>) : null;
+        return typeof d?.subtask_id === "string" ? d.subtask_id : null;
+      })
+      .filter((id): id is string => Boolean(id))
+  );
+  const activityEvents = (activityEventsRaw ?? []).filter(
+    (event) =>
+      event.task_id === taskId ||
+      (event.event_type === "task_created" && !loggedSubtaskIds.has(event.task_id))
+  );
   const { data: anyRunningTimer } = await supabase.from("time_entries").select("id, user_id, started_at, billable").eq("task_id", taskId).is("ended_at", null).maybeSingle();
   let isTaskFavorited = false;
   const { data: taskFav, error: taskFavError } = await supabase
@@ -117,6 +135,13 @@ export default async function TaskDetailPage({ params, searchParams }: {
     subtaskAssigneesMap.set(s.id, [...ids]);
   }
   const members = (orgMembers ?? []).map((member) => ({ id: member.user_id, label: profileLabel(member.user_id) }));
+  const taskInitialAssignees = [
+    ...new Set([
+      ...(task.primary_assignee_id ? [task.primary_assignee_id] : []),
+      ...(task.secondary_assignee_id ? [task.secondary_assignee_id] : []),
+      ...(currentTaskAssigneesRaw ?? []).map((row) => row.user_id).filter(Boolean),
+    ]),
+  ];
   const customValueMap = new Map((customFieldValues ?? []).map((item) => [item.field_id, item.value]));
 
   const runningTimer = anyRunningTimer ? {
@@ -135,7 +160,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
   const tab = ["details", "whiteboard", "flowchart"].includes(queryTab ?? "") ? queryTab! : "details";
 
   return <main className="app-shell">
-    <header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/></div></header>
+    <AppTopBar email={user.email ?? ""} />
     <div className="task-detail-page">
       <div className="task-detail-nav"><BackButton fallbackHref={`/projects/${projectId}`} label={project.name}/><span className="task-key">{task.generated_key}</span></div>
       <div className="task-detail-heading">
@@ -269,28 +294,40 @@ export default async function TaskDetailPage({ params, searchParams }: {
                 <div className="subtask-list">
                   {subtasks?.map((subtask) => {
                     const statusObj = statuses?.find((status) => status.id === subtask.status_id);
-                    const assigneeNames = (subtaskAssigneesMap.get(subtask.id) ?? []).map((uid) => profileLabel(uid));
+                    const subtaskAssignees = subtaskAssigneesMap.get(subtask.id) ?? [];
+                    const assigneeNames = subtaskAssignees.map((uid) => profileLabel(uid));
                     return (
-                      <Link className="subtask-row" href={`/projects/${projectId}/tasks/${subtask.id}`} key={subtask.id}>
-                        <span className="task-key">{subtask.generated_key}</span>
-                        <strong className="subtask-title">{subtask.title}</strong>
-                        {assigneeNames.length > 0 && (
-                          <span className="subtask-assignees-pill" title={assigneeNames.join(", ")}>
-                            {assigneeNames.length === 1
-                              ? assigneeNames[0]
-                              : `${assigneeNames[0]} +${assigneeNames.length - 1}`}
+                      <div className="subtask-row-wrap" key={subtask.id}>
+                        <Link className="subtask-row" href={`/projects/${projectId}/tasks/${subtask.id}`}>
+                          <strong className="subtask-title">{subtask.title}</strong>
+                          {!canEdit && assigneeNames.length > 0 && (
+                            <span className="subtask-assignees-pill" title={assigneeNames.join(", ")}>
+                              {assigneeNames.length === 1
+                                ? assigneeNames[0]
+                                : `${assigneeNames[0]} +${assigneeNames.length - 1}`}
+                            </span>
+                          )}
+                          <span
+                            className="subtask-status-pill"
+                            style={{
+                              borderColor: statusObj?.color ?? "#cbd5cd",
+                              color: statusObj?.color ?? "#526057",
+                            }}
+                          >
+                            {statusObj?.name ?? "New"}
                           </span>
+                        </Link>
+                        {canEdit && (
+                          <div className="subtask-row-assignee">
+                            <AssigneePicker
+                              projectId={projectId}
+                              taskId={subtask.id}
+                              members={members}
+                              initialAssignees={subtaskAssignees}
+                            />
+                          </div>
                         )}
-                        <span
-                          className="subtask-status-pill"
-                          style={{
-                            borderColor: statusObj?.color ?? "#cbd5cd",
-                            color: statusObj?.color ?? "#526057",
-                          }}
-                        >
-                          {statusObj?.name ?? "New"}
-                        </span>
-                      </Link>
+                      </div>
                     );
                   })}
                   {(!subtasks || subtasks.length === 0) && (
@@ -336,7 +373,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
                 <div className="comments-heading"><div className="comments-icon"><MessageSquareText size={17}/></div><div><h2>Comments</h2><p>{comments?.length ?? 0} messages on this task</p></div></div>
                 <div className="comments-feed">{comments?.length ? comments.map((comment) => { const authorProfile = profileById.get(comment.author_id); return <article className="comment-card" key={comment.id}><div className="comment-avatar">{authorProfile?.avatar_url ? <img src={authorProfile.avatar_url} alt={profileLabel(comment.author_id)} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /> : profileLabel(comment.author_id)[0].toUpperCase()}</div><div className="comment-content"><div className="comment-author"><strong>{profileLabel(comment.author_id)}</strong><time>{new Date(comment.created_at).toLocaleString()}</time></div><p>{comment.body}</p></div></article>; }) : <div className="no-comments">No comments yet. Add a note or question for your team.</div>}</div>
                 {canEdit ? (
-                  <form action={createTaskComment} className="task-comment-form"><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><label htmlFor="task-comment">Add a comment</label><textarea id="task-comment" name="body" placeholder="Share an update, ask a question, or leave context…" maxLength={10000} required/><div className="comment-submit-row"><span>Comments are visible to people with project access.</span><button className="button button-primary">Post comment</button></div></form>
+                  <TaskCommentForm projectId={projectId} taskId={taskId} members={members} />
                 ) : (
                   <div style={{ padding: '14px 16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '13px', textAlign: 'center', marginTop: '12px' }}>
                     Comments are read-only for Viewers.
@@ -345,7 +382,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
               </section>
 
               {/* Activity Section */}
-              <section className="task-activity-section"><div className="relationship-heading"><div><p className="eyebrow">HISTORY</p><h2>Activity</h2></div></div>{activityEvents?.length ? <ol className="activity-list">{activityEvents.map((event) => { const details = event.details && typeof event.details === "object" ? event.details as Record<string, unknown> : {}; const actor = event.actor_id ? profileLabel(event.actor_id) : "System"; const label = event.event_type.replaceAll("_", " "); const change = typeof details.from === "string" || typeof details.to === "string" ? ` · ${String(details.from ?? "—")} → ${String(details.to ?? "—")}` : ""; return <li key={event.id}><span className="activity-dot"/><div><p><strong>{actor}</strong> {label}{change}</p><time>{new Date(event.created_at).toLocaleString()}</time></div></li>; })}</ol> : <p className="muted small">Task changes and comments will appear here.</p>}</section>
+              <section className="task-activity-section"><div className="relationship-heading"><div><p className="eyebrow">HISTORY</p><h2>Activity</h2></div></div>{activityEvents?.length ? <ol className="activity-list">{activityEvents.map((event) => { const details = event.details && typeof event.details === "object" ? event.details as Record<string, unknown> : {}; const actor = event.actor_id ? profileLabel(event.actor_id) : "System"; const isSubtaskAdd = event.event_type === "subtask_added" || (event.task_id !== taskId && event.event_type === "task_created"); const label = isSubtaskAdd ? "added subtask" : event.event_type.replaceAll("_", " "); const titleSuffix = (isSubtaskAdd || event.event_type === "task_created") && typeof details.title === "string" && details.title.trim() ? ` · ${details.title.trim()}` : ""; const change = typeof details.from === "string" || typeof details.to === "string" ? ` · ${String(details.from ?? "—")} → ${String(details.to ?? "—")}` : titleSuffix; return <li key={event.id}><span className="activity-dot"/><div><p><strong>{actor}</strong> {label}{change}</p><time>{new Date(event.created_at).toLocaleString()}</time></div></li>; })}</ol> : <p className="muted small">Task changes and comments will appear here.</p>}</section>
             </div>
 
             {/* Right Column (Sidebar): Properties, Time tracking, Dependencies, Custom fields */}
@@ -354,6 +391,9 @@ export default async function TaskDetailPage({ params, searchParams }: {
                 projectId={projectId}
                 taskId={taskId}
                 canEdit={canEdit}
+                isSubtask={Boolean(task.parent_task_id)}
+                members={members}
+                initialAssignees={taskInitialAssignees}
                 statuses={(statuses ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color }))}
                 initialStatusId={task.status_id}
                 initialPriority={task.priority as "low" | "normal" | "high" | "urgent"}

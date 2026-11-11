@@ -1,9 +1,10 @@
 import { notFound, redirect } from "next/navigation";
-import CurrentUserBadge from "@/app/CurrentUserBadge";
+import { cookies } from "next/headers";
+import AppTopBar from "@/app/AppTopBar";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { createTask, signOut } from "@/app/actions";
+import { createTask } from "@/app/actions";
 
 import TaskTable from "./TaskTable";
 import TaskBoard from "./TaskBoard";
@@ -14,8 +15,18 @@ import ProjectSettingsPanel from "./ProjectSettingsPanel";
 import TaskFilterToolbar from "./TaskFilterToolbar";
 import ProjectWhiteboardView from "./ProjectWhiteboardView";
 import ProjectFlowchartView from "./ProjectFlowchartView";
+import ProjectViewTabsClient from "./ProjectViewTabsClient";
+import ProjectChannelView from "./ProjectChannelView";
 import FavoriteButton from "@/app/FavoriteButton";
 import { checkAndSendDueDateReminders } from "@/lib/email";
+import {
+  DEFAULT_PROJECT_TAB_ORDER,
+  normalizeTabOrder,
+  parsePreferenceArrayCookie,
+  PROJECT_TAB_COOKIE,
+  ProjectTabKey,
+  TABLE_COL_COOKIE,
+} from "@/lib/project-preferences";
 
 export default async function ProjectPage({ params, searchParams }: {
   params: Promise<{ projectId: string }>;
@@ -28,7 +39,40 @@ export default async function ProjectPage({ params, searchParams }: {
   const { data: project } = await supabase.from("projects").select("id, workspace_id, name, description, status, priority, due_date, created_at, workspaces(name, organization_id)").eq("id", projectId).maybeSingle();
   if (!project) notFound();
   const filters = await searchParams;
-  const view = ["list", "board", "calendar", "gantt", "workload", "whiteboard", "flowchart"].includes(filters.view ?? "") ? filters.view! : "list";
+
+  const cookieStore = await cookies();
+  let dbPrefs: { project_tab_order?: unknown; list_column_order?: unknown } | null = null;
+  try {
+    const { data: prefRow } = await supabase
+      .from("user_preferences")
+      .select("project_tab_order, list_column_order")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    dbPrefs = prefRow;
+  } catch {
+    dbPrefs = null;
+  }
+
+  const cookieTabOrder = parsePreferenceArrayCookie(
+    cookieStore.get(PROJECT_TAB_COOKIE)?.value
+  );
+  const rawTabOrder = Array.isArray(dbPrefs?.project_tab_order)
+    ? dbPrefs.project_tab_order
+    : cookieTabOrder;
+  const userTabOrder = normalizeTabOrder(rawTabOrder);
+  const defaultUserView: ProjectTabKey = userTabOrder[0] ?? "list";
+
+  const cookieColOrder = parsePreferenceArrayCookie(
+    cookieStore.get(TABLE_COL_COOKIE)?.value
+  );
+  const userColumnOrder = Array.isArray(dbPrefs?.list_column_order)
+    ? dbPrefs.list_column_order.filter((c): c is string => typeof c === "string")
+    : cookieColOrder;
+
+  const validViews = new Set<string>(DEFAULT_PROJECT_TAB_ORDER);
+  const view = (
+    filters.view && validViews.has(filters.view) ? filters.view : defaultUserView
+  ) as ProjectTabKey;
   const page = Math.max(1, Math.min(10000, Number.parseInt(filters.page ?? "1", 10) || 1));
   let taskQuery = supabase.from("tasks").select("id, generated_key, title, description, task_type, tags, priority, start_date, due_date, estimate_minutes, progress, status_id, parent_task_id, created_at, created_by, primary_assignee_id, secondary_assignee_id", { count: "exact" }).eq("project_id", projectId);
   const query = filters.q?.trim().replace(/[,%()]/g, " ").slice(0, 80);
@@ -166,12 +210,6 @@ export default async function ProjectPage({ params, searchParams }: {
     customValues.set(row.task_id, new Map(customValues.get(row.task_id) ?? []).set(row.field_id, value));
   }
   const error = filters.error;
-  const viewHref = (nextView: string) => {
-    const params = new URLSearchParams();
-    params.set("view", nextView);
-    for (const key of ["q", "status", "priority", "assignee", "sort", "month", "group"]) if (filters[key as keyof typeof filters]) params.set(key, filters[key as keyof typeof filters]!);
-    return `/projects/${projectId}?${params.toString()}`;
-  };
   const pageHref = (nextPage: number) => {
     const params = new URLSearchParams();
     for (const key of ["view", "q", "status", "priority", "assignee", "sort", "month", "group"]) if (filters[key as keyof typeof filters]) params.set(key, filters[key as keyof typeof filters]!);
@@ -180,21 +218,26 @@ export default async function ProjectPage({ params, searchParams }: {
   };
 
   return <main className="app-shell project-app-shell">
-    <header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/></div></header>
+    <AppTopBar email={user.email ?? ""} />
     <div className="project-page">
       {error && <p className="error" role="alert">That change could not be saved. Check access and required fields.</p>}
       <section className="task-panel">
         <nav className="view-tabs" aria-label="Task views">
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexWrap: "nowrap" }}>
-            <Link className={view === "list" ? "selected" : ""} href={viewHref("list")}>List</Link>
-            <Link className={view === "board" ? "selected" : ""} href={viewHref("board")}>Board</Link>
-            <Link className={view === "calendar" ? "selected" : ""} href={viewHref("calendar")}>Calendar</Link>
-            <Link className={view === "gantt" ? "selected" : ""} href={viewHref("gantt")}>Timeline</Link>
-            <Link className={view === "workload" ? "selected" : ""} href={viewHref("workload")}>Workload</Link>
-            <Link className={view === "whiteboard" ? "selected" : ""} href={viewHref("whiteboard")}>Whiteboard</Link>
-            <Link className={view === "flowchart" ? "selected" : ""} href={viewHref("flowchart")}>Flowchart</Link>
-          </div>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+          <ProjectViewTabsClient
+            projectId={project.id}
+            activeView={view}
+            initialTabOrder={userTabOrder}
+            preservedFilters={{
+              q: filters.q,
+              status: filters.status,
+              priority: filters.priority,
+              assignee: filters.assignee,
+              sort: filters.sort,
+              month: filters.month,
+              group: filters.group,
+            }}
+          />
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
             {!canEdit && <span className="role-pill" style={{ background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1', fontSize: "11px", padding: "2px 8px" }}>View-only</span>}
             <FavoriteButton
               entityType="project"
@@ -221,23 +264,25 @@ export default async function ProjectPage({ params, searchParams }: {
             )}
           </div>
         </nav>
-        <TaskFilterToolbar
-          projectId={project.id}
-          projectName={project.name}
-          statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
-          members={members}
-          currentFilters={{
-            q: filters.q,
-            status: filters.status,
-            priority: filters.priority,
-            assignee: filters.assignee,
-            sort: filters.sort,
-            view,
-            group: filters.group,
-          }}
-        />
-        {view === "list" ? <TaskTable projectId={project.id} canEdit={canEdit} tasks={(tasks ?? []).map((task) => ({ ...task, assigneeIds: taskAssigneeMap.get(task.id) ?? [], billable_minutes: billableMinutesMap.get(task.id) ?? 0 }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} members={members} createdBy={createdBy} customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))} customValues={customValues} attachmentsMap={attachmentsMap} projectDocuments={(projectDocs ?? []).map(({ id, title, body_markdown }) => ({ id, title, body_markdown }))} commentCounts={commentCounts} runningTimerMap={runningTimerMap} initialGroupBy={(filters.group as "status" | "priority" | "due_date" | "none") || "status"} /> : view === "board" ? <TaskBoard projectId={project.id} canEdit={canEdit} tasks={tasks ?? []} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} people={people}/> : view === "calendar" ? <TaskCalendar projectId={project.id} tasks={(tasks ?? []).map((task) => ({ ...task, status_category: statuses?.find((status) => status.id === task.status_id)?.category }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "gantt" ? <TaskGantt projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, start_date, due_date, progress, created_at, status_id }) => ({ id, generated_key, title, start_date, due_date, progress, created_at, status_category: statuses?.find((status) => status.id === status_id)?.category }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "whiteboard" ? <ProjectWhiteboardView projectId={project.id} documents={projectDocs ?? []}/> : view === "flowchart" ? <ProjectFlowchartView projectId={project.id} documents={projectDocs ?? []}/> : <TaskWorkload projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }) => ({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }))} people={people}/>}
-        {(taskCount ?? 0) > 100 && (
+        {view !== "channel" && (
+          <TaskFilterToolbar
+            projectId={project.id}
+            projectName={project.name}
+            statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
+            members={members}
+            currentFilters={{
+              q: filters.q,
+              status: filters.status,
+              priority: filters.priority,
+              assignee: filters.assignee,
+              sort: filters.sort,
+              view,
+              group: filters.group,
+            }}
+          />
+        )}
+        {view === "list" ? <TaskTable projectId={project.id} canEdit={canEdit} initialColumnOrder={userColumnOrder} tasks={(tasks ?? []).map((task) => ({ ...task, assigneeIds: taskAssigneeMap.get(task.id) ?? [], billable_minutes: billableMinutesMap.get(task.id) ?? 0 }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} members={members} createdBy={createdBy} customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))} customValues={customValues} attachmentsMap={attachmentsMap} projectDocuments={(projectDocs ?? []).map(({ id, title, body_markdown }) => ({ id, title, body_markdown }))} commentCounts={commentCounts} runningTimerMap={runningTimerMap} initialGroupBy={(filters.group as "status" | "priority" | "due_date" | "none") || "status"} /> : view === "board" ? <TaskBoard projectId={project.id} canEdit={canEdit} tasks={tasks ?? []} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} people={people}/> : view === "calendar" ? <TaskCalendar projectId={project.id} tasks={(tasks ?? []).map((task) => ({ ...task, status_category: statuses?.find((status) => status.id === task.status_id)?.category }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "gantt" ? <TaskGantt projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, start_date, due_date, progress, created_at, status_id }) => ({ id, generated_key, title, start_date, due_date, progress, created_at, status_category: statuses?.find((status) => status.id === status_id)?.category }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "whiteboard" ? <ProjectWhiteboardView projectId={project.id} documents={projectDocs ?? []}/> : view === "flowchart" ? <ProjectFlowchartView projectId={project.id} documents={projectDocs ?? []}/> : view === "channel" ? <ProjectChannelView projectId={project.id} projectName={project.name}/> : <TaskWorkload projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }) => ({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }))} people={people}/>}
+        {view !== "channel" && (taskCount ?? 0) > 100 && (
           <div className="task-pagination">
             {page > 1 && <Link href={pageHref(page - 1)}>Previous</Link>}
             <span>Page {page} of {Math.ceil((taskCount ?? 0) / 100)}</span>

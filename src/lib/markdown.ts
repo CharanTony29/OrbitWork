@@ -7,6 +7,23 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
+export function parseMarkdownImageAltAndWidth(rawAlt: string | undefined): {
+  alt: string;
+  widthPx: number | null;
+} {
+  const text = rawAlt ?? "Pasted image";
+  const widthMatch = /^(.*?)(?:\|w=(\d{2,4}))$/i.exec(text);
+  if (!widthMatch) {
+    return { alt: text || "Pasted image", widthPx: null };
+  }
+  const px = Number.parseInt(widthMatch[2], 10);
+  const clamped = Number.isFinite(px) ? Math.min(1200, Math.max(48, px)) : null;
+  return {
+    alt: widthMatch[1] || "Pasted image",
+    widthPx: clamped,
+  };
+}
+
 function inline(value: string) {
   // Support image markdown: data:image (base64), https?:// URLs, or internal /api/attachments/ URLs
   const pattern =
@@ -18,9 +35,13 @@ function inline(value: string) {
     output += escapeHtml(value.slice(cursor, index));
     if (match[1]?.startsWith("![") && match[3]) {
       const cleanSrc = match[3].replace(/\s+/g, "");
+      const { alt, widthPx } = parseMarkdownImageAltAndWidth(match[2]);
+      const sizeAttrs = widthPx
+        ? ` data-width="${widthPx}" style="width:${widthPx}px;max-width:100%;height:auto"`
+        : "";
       output += `<img src="${escapeHtml(cleanSrc)}" alt="${escapeHtml(
-        match[2] ?? "Pasted image"
-      )}" class="doc-embedded-img" loading="lazy">`;
+        alt
+      )}"${sizeAttrs} class="doc-embedded-img" loading="lazy">`;
     } else if (match[4] && match[5]) {
       // Relative links (starting with /) don't need URL validation
       if (match[5].startsWith("/")) {

@@ -8,13 +8,46 @@ import { createHash, randomBytes } from "node:crypto";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { distinctAssigneeIds, elapsedMinutes, parseEstimateToMinutes, parseInviteEmails } from "@/lib/work";
 import {
+  fetchOrGenerateCountryPublicHolidays,
+  getCountryNameByCode,
+} from "@/lib/publicHolidays";
+import {
   notifyAssigneesOnTask,
   notifyRemovedAssigneesOnTask,
+  notifyTaskCompletedToCreator,
   notifyMentionedUsers,
   checkAndSendDueDateReminders,
   checkAndNotifyHoursExhausting,
   sendOrganizationInvitationEmail,
 } from "@/lib/email";
+
+async function recordSubtaskAddedActivity({
+  projectId,
+  parentTaskId,
+  subtaskId,
+  actorId,
+  title,
+}: {
+  projectId: string;
+  parentTaskId: string;
+  subtaskId: string;
+  actorId: string;
+  title: string;
+}) {
+  try {
+    const adminClient = createAdminClient();
+    if (!adminClient) return;
+    await adminClient.from("project_activity_events").insert({
+      project_id: projectId,
+      task_id: parentTaskId,
+      actor_id: actorId,
+      event_type: "subtask_added",
+      details: { subtask_id: subtaskId, title },
+    });
+  } catch (err) {
+    console.warn("Failed to record subtask activity:", err);
+  }
+}
 
 const credentialsSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -142,6 +175,7 @@ export async function toggleFavorite(formData: FormData): Promise<{ ok: boolean;
         .eq("user_id", user.id);
       if (delErr) return { ok: false, favorited: true, error: delErr.message };
       revalidatePath("/dashboard");
+      revalidatePath("/my-dashboard");
       return { ok: true, favorited: false };
     }
 
@@ -155,6 +189,7 @@ export async function toggleFavorite(formData: FormData): Promise<{ ok: boolean;
     });
     if (insErr) return { ok: false, favorited: false, error: insErr.message };
     revalidatePath("/dashboard");
+    revalidatePath("/my-dashboard");
     return { ok: true, favorited: true };
   } catch (err) {
     return { ok: false, favorited: false, error: err instanceof Error ? err.message : "Could not toggle favorite." };
@@ -294,6 +329,9 @@ export async function deleteMyAccount(formData: FormData): Promise<{ ok: boolean
     console.warn("erase_user_account_data RPC unavailable, running TypeScript erasure fallback:", rpcErr.message);
     try {
       await adminClient.from("user_favorites").delete().eq("user_id", userId);
+      await adminClient.from("user_preferences").delete().eq("user_id", userId);
+      await adminClient.from("project_channel_files").delete().eq("uploaded_by", userId);
+      await adminClient.from("project_channel_posts").delete().eq("author_id", userId);
     } catch {}
     await adminClient.from("workspace_chat_messages").delete().or(`sender_id.eq.${userId},recipient_id.eq.${userId}`);
     await adminClient.from("notifications").delete().eq("recipient_id", userId);
@@ -799,12 +837,12 @@ export async function createTask(formData: FormData) {
       console.warn("task_assignees sync in createTask:", err);
     }
     // Send email notification to assignees
-    notifyAssigneesOnTask({
+    await notifyAssigneesOnTask({
       projectId: parsed.data.projectId,
       taskId: newTask.id,
       assigneeIds: uniqueAssigneeIds,
       actorId: user.id,
-    }).catch(console.error);
+    });
   }
   revalidatePath(`/projects/${parsed.data.projectId}`);
   redirect(`/projects/${parsed.data.projectId}`);
@@ -873,12 +911,12 @@ export async function quickCreateTask(formData: FormData) {
       console.warn("task_assignees sync in quickCreateTask:", err);
     }
     // Send email notification to assignees
-    notifyAssigneesOnTask({
+    await notifyAssigneesOnTask({
       projectId: parsed.data.projectId,
       taskId: newTask.id,
       assigneeIds: uniqueAssigneeIds,
       actorId: user.id,
-    }).catch(console.error);
+    });
   }
 
   revalidatePath(`/projects/${parsed.data.projectId}`);
@@ -893,9 +931,23 @@ export async function updateTaskStatus(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
+  const { data: prevTask } = await supabase
+    .from("tasks")
+    .select("status_id")
+    .eq("id", parsed.data.taskId)
+    .eq("project_id", parsed.data.projectId)
+    .maybeSingle();
   const { error } = await supabase.from("tasks").update({ status_id: parsed.data.statusId }).eq("id", parsed.data.taskId).eq("project_id", parsed.data.projectId);
   if (error) redirect(`/projects/${parsed.data.projectId}?error=status_failed`);
+  await notifyTaskCompletedToCreator({
+    projectId: parsed.data.projectId,
+    taskId: parsed.data.taskId,
+    newStatusId: parsed.data.statusId,
+    previousStatusId: prevTask?.status_id ?? null,
+    actorId: user.id,
+  });
   revalidatePath(`/projects/${parsed.data.projectId}`);
+  revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
 }
 
 export async function updateTaskAssignees(formData: FormData) {
@@ -969,26 +1021,27 @@ export async function updateTaskAssignees(formData: FormData) {
   const removedIds = [...previousSet].filter((id) => !nextSet.has(id));
 
   if (addedIds.length > 0) {
-    notifyAssigneesOnTask({
+    await notifyAssigneesOnTask({
       projectId: parsed.data.projectId,
       taskId: parsed.data.taskId,
       assigneeIds: addedIds,
       actorId: user.id,
-    }).catch(console.error);
+    });
   }
 
   if (removedIds.length > 0) {
-    notifyRemovedAssigneesOnTask({
+    await notifyRemovedAssigneesOnTask({
       projectId: parsed.data.projectId,
       taskId: parsed.data.taskId,
       removedAssigneeIds: removedIds,
       actorId: user.id,
-    }).catch(console.error);
+    });
   }
 
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/my-dashboard");
   return { ok: true };
 }
 
@@ -1071,21 +1124,21 @@ export async function setTaskAssignees(formData: FormData) {
   const removedIds = [...previousSet].filter((id) => !nextSet.has(id));
 
   if (addedIds.length > 0) {
-    notifyAssigneesOnTask({
+    await notifyAssigneesOnTask({
       projectId: projectId.data,
       taskId: taskId.data,
       assigneeIds: addedIds,
       actorId: user.id,
-    }).catch(console.error);
+    });
   }
 
   if (removedIds.length > 0) {
-    notifyRemovedAssigneesOnTask({
+    await notifyRemovedAssigneesOnTask({
       projectId: projectId.data,
       taskId: taskId.data,
       removedAssigneeIds: removedIds,
       actorId: user.id,
-    }).catch(console.error);
+    });
   }
 
   revalidatePath(`/projects/${projectId.data}`);
@@ -1135,10 +1188,10 @@ export async function updateTaskField(formData: FormData) {
     const { error } = await supabase.from("tasks").update(update).eq("id", base.data.taskId).eq("project_id", base.data.projectId);
     if (error) redirect(`/projects/${base.data.projectId}?error=task_update_failed`);
     if (base.data.field === "estimate_minutes") {
-      checkAndNotifyHoursExhausting({
+      await checkAndNotifyHoursExhausting({
         projectId: base.data.projectId,
         taskId: base.data.taskId,
-      }).catch(console.error);
+      });
     }
   }
   revalidatePath(`/projects/${base.data.projectId}`);
@@ -1198,6 +1251,18 @@ export async function autoSaveTaskProperty(formData: FormData): Promise<{ ok: bo
     update.estimate_minutes = est;
   }
 
+  const previousStatusId =
+    base.data.field === "status_id"
+      ? (
+          await supabase
+            .from("tasks")
+            .select("status_id")
+            .eq("id", base.data.taskId)
+            .eq("project_id", base.data.projectId)
+            .maybeSingle()
+        ).data?.status_id ?? null
+      : null;
+
   const { error } = await supabase
     .from("tasks")
     .update(update)
@@ -1211,16 +1276,27 @@ export async function autoSaveTaskProperty(formData: FormData): Promise<{ ok: bo
     };
   }
 
-  if (base.data.field === "estimate_minutes") {
-    checkAndNotifyHoursExhausting({
+  if (base.data.field === "status_id" && update.status_id) {
+    await notifyTaskCompletedToCreator({
       projectId: base.data.projectId,
       taskId: base.data.taskId,
-    }).catch(console.error);
+      newStatusId: update.status_id,
+      previousStatusId,
+      actorId: user.id,
+    });
+  }
+
+  if (base.data.field === "estimate_minutes") {
+    await checkAndNotifyHoursExhausting({
+      projectId: base.data.projectId,
+      taskId: base.data.taskId,
+    });
   }
 
   revalidatePath(`/projects/${base.data.projectId}`);
   revalidatePath(`/projects/${base.data.projectId}/tasks/${base.data.taskId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/my-dashboard");
   return { ok: true };
 }
 
@@ -1265,15 +1341,36 @@ export async function updateTask(formData: FormData) {
     updatePayload.estimate_minutes = estString !== "" ? parseEstimateToMinutes(estString) : null;
   }
 
+  const prevStatusId = parsed.data.statusId
+    ? (
+        await supabase
+          .from("tasks")
+          .select("status_id")
+          .eq("id", parsed.data.taskId)
+          .eq("project_id", parsed.data.projectId)
+          .maybeSingle()
+      ).data?.status_id ?? null
+    : null;
+
   const { error } = await supabase.from("tasks").update(updatePayload).eq("id", parsed.data.taskId).eq("project_id", parsed.data.projectId);
   if (error) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=save_failed`);
-  checkAndNotifyHoursExhausting({
+  if (parsed.data.statusId) {
+    await notifyTaskCompletedToCreator({
+      projectId: parsed.data.projectId,
+      taskId: parsed.data.taskId,
+      newStatusId: parsed.data.statusId,
+      previousStatusId: prevStatusId,
+      actorId: user.id,
+    });
+  }
+  await checkAndNotifyHoursExhausting({
     projectId: parsed.data.projectId,
     taskId: parsed.data.taskId,
-  }).catch(console.error);
+  });
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/my-dashboard");
   redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?saved=1`);
 }
 
@@ -1294,12 +1391,12 @@ export async function createTaskComment(formData: FormData) {
   if (error) redirect(`/projects/${parsed.data.projectId}?error=comment_failed`);
 
   // Notify mentioned users via email
-  notifyMentionedUsers({
+  await notifyMentionedUsers({
     projectId: parsed.data.projectId,
     taskId: parsed.data.taskId,
     commentBody: parsed.data.body,
     authorId: user.id,
-  }).catch(console.error);
+  });
 
   revalidatePath(`/projects/${parsed.data.projectId}`);
 }
@@ -1581,17 +1678,26 @@ export async function createTaskSubtask(formData: FormData) {
       console.warn("task_assignees sync in createTaskSubtask:", syncErr);
     }
 
-    notifyAssigneesOnTask({
+    await notifyAssigneesOnTask({
       projectId: parsed.data.projectId,
       taskId: newSubtask.id,
       assigneeIds: uniqueAssigneeIds,
       actorId: user.id,
-    }).catch(console.error);
+    });
   }
+
+  await recordSubtaskAddedActivity({
+    projectId: parsed.data.projectId,
+    parentTaskId: parsed.data.parentTaskId,
+    subtaskId: newSubtask.id,
+    actorId: user.id,
+    title: parsed.data.title,
+  });
 
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.parentTaskId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/my-dashboard");
 }
 
 export async function createTaskDependency(formData: FormData) {
@@ -1708,10 +1814,10 @@ export async function stopTaskTimer(formData: FormData) {
   const minutes = elapsedMinutes(entry.started_at, endedAt);
   const { error } = await supabase.from("time_entries").update({ ended_at: endedAt.toISOString(), duration_minutes: minutes }).eq("id", parsed.data.entryId).eq("user_id", user.id);
   if (error) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=timer_failed`);
-  checkAndNotifyHoursExhausting({
+  await checkAndNotifyHoursExhausting({
     projectId: parsed.data.projectId,
     taskId: parsed.data.taskId,
-  }).catch(console.error);
+  });
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/time`);
   revalidatePath(`/projects/${parsed.data.projectId}`);
@@ -1750,10 +1856,10 @@ export async function addManualTimeEntry(formData: FormData) {
   const started = new Date(ended.getTime() - parsed.data.minutes * 60000);
   const { error } = await supabase.from("time_entries").insert({ project_id: parsed.data.projectId, task_id: parsed.data.taskId, user_id: user.id, started_at: started.toISOString(), ended_at: ended.toISOString(), duration_minutes: parsed.data.minutes, description: parsed.data.description ?? "", billable: parsed.data.billable === "true" });
   if (error) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=time_entry_failed`);
-  checkAndNotifyHoursExhausting({
+  await checkAndNotifyHoursExhausting({
     projectId: parsed.data.projectId,
     taskId: parsed.data.taskId,
-  }).catch(console.error);
+  });
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/time`);
   revalidatePath(`/projects/${parsed.data.projectId}`);
@@ -1932,6 +2038,161 @@ export async function createOrganizationHoliday(formData: FormData) {
   revalidatePath(`/organizations/${parsed.data.organizationId}/calendar`);
 }
 
+export async function autoImportCountryHolidays(formData: FormData): Promise<{
+  ok: boolean;
+  addedCount: number;
+  countryName: string;
+  error?: string;
+}> {
+  const parsed = z
+    .object({
+      organizationId: z.string().uuid(),
+      countryCode: z.string().trim().min(2).max(4),
+      year: z.coerce.number().int().min(2020).max(2035),
+    })
+    .safeParse({
+      organizationId: formData.get("organizationId"),
+      countryCode: formData.get("countryCode"),
+      year: formData.get("year"),
+    });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      addedCount: 0,
+      countryName: "",
+      error: "Select a valid country and year.",
+    };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return {
+      ok: false,
+      addedCount: 0,
+      countryName: "",
+      error: "You must be signed in.",
+    };
+  }
+
+  const { data: canAdmin } = await supabase.rpc("has_org_role", {
+    target_org: parsed.data.organizationId,
+    allowed_roles: ["owner", "admin"],
+  });
+  if (canAdmin !== true) {
+    return {
+      ok: false,
+      addedCount: 0,
+      countryName: "",
+      error: "Only organization owners or admins can import holidays.",
+    };
+  }
+
+  const code = parsed.data.countryCode.toUpperCase();
+  const countryName = getCountryNameByCode(code);
+
+  try {
+    await supabase
+      .from("organizations")
+      .update({ country_code: code })
+      .eq("id", parsed.data.organizationId);
+  } catch {
+    // Graceful if migration adding organizations.country_code is pending.
+  }
+
+  const holidays = await fetchOrGenerateCountryPublicHolidays(
+    code,
+    parsed.data.year
+  );
+  if (holidays.length === 0) {
+    return {
+      ok: false,
+      addedCount: 0,
+      countryName,
+      error: `No public holidays found for ${countryName} (${parsed.data.year}).`,
+    };
+  }
+
+  const startDate = `${parsed.data.year}-01-01`;
+  const endDate = `${parsed.data.year}-12-31`;
+  const { data: existingRows } = await supabase
+    .from("organization_holidays")
+    .select("name, holiday_date")
+    .eq("organization_id", parsed.data.organizationId)
+    .gte("holiday_date", startDate)
+    .lte("holiday_date", endDate);
+
+  const existingKeys = new Set(
+    (existingRows ?? []).map(
+      (r) => `${r.holiday_date}::${r.name.trim().toLowerCase()}`
+    )
+  );
+
+  const toInsert = holidays
+    .filter((h) => !existingKeys.has(`${h.date}::${h.name.trim().toLowerCase()}`))
+    .map((h) => ({
+      organization_id: parsed.data.organizationId,
+      name: h.name,
+      holiday_date: h.date,
+      location: h.location || countryName,
+      created_by: user.id,
+    }));
+
+  if (toInsert.length > 0) {
+    const { error } = await supabase
+      .from("organization_holidays")
+      .insert(toInsert);
+    if (error) {
+      return {
+        ok: false,
+        addedCount: 0,
+        countryName,
+        error: error.message,
+      };
+    }
+  }
+
+  revalidatePath(`/organizations/${parsed.data.organizationId}/calendar`);
+  return {
+    ok: true,
+    addedCount: toInsert.length,
+    countryName,
+  };
+}
+
+export async function deleteOrganizationHoliday(formData: FormData) {
+  const parsed = z
+    .object({
+      organizationId: z.string().uuid(),
+      holidayId: z.string().uuid(),
+    })
+    .safeParse({
+      organizationId: formData.get("organizationId"),
+      holidayId: formData.get("holidayId"),
+    });
+  if (!parsed.success) redirect("/dashboard?error=invalid_holiday");
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+
+  const { error } = await supabase
+    .from("organization_holidays")
+    .delete()
+    .eq("id", parsed.data.holidayId)
+    .eq("organization_id", parsed.data.organizationId);
+
+  if (error) {
+    redirect(`/organizations/${parsed.data.organizationId}/calendar?error=holiday_delete_failed`);
+  }
+  revalidatePath(`/organizations/${parsed.data.organizationId}/calendar`);
+}
+
 export async function requestPasswordReset(formData: FormData) {
   const email = z.string().trim().email().safeParse(formData.get("email"));
   if (!email.success) redirect("/reset-password?error=invalid_input");
@@ -2025,17 +2286,26 @@ export async function quickCreateSubtask(formData: FormData) {
       console.warn("task_assignees sync in quickCreateSubtask:", syncErr);
     }
 
-    notifyAssigneesOnTask({
+    await notifyAssigneesOnTask({
       projectId: parsed.data.projectId,
       taskId: subtask.id,
       assigneeIds: uniqueAssigneeIds,
       actorId: user.id,
-    }).catch(console.error);
+    });
   }
+
+  await recordSubtaskAddedActivity({
+    projectId: parsed.data.projectId,
+    parentTaskId: parsed.data.parentTaskId,
+    subtaskId: subtask.id,
+    actorId: user.id,
+    title: parsed.data.title,
+  });
 
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.parentTaskId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/my-dashboard");
   return { ok: true, subtask };
 }
 

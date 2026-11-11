@@ -1,5 +1,5 @@
 import Link from "next/link";
-import CurrentUserBadge from "@/app/CurrentUserBadge";
+import AppTopBar from "@/app/AppTopBar";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, UsersRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -30,7 +30,7 @@ export default async function OrganizationMembersPage({ params }: { params: Prom
     if (membership.status !== "active") continue;
     workspaceRoleByUser.set(membership.user_id, [...(workspaceRoleByUser.get(membership.user_id) ?? []), { name: workspaceById.get(membership.workspace_id) ?? "Workspace", role: membership.role }]);
   }
-  return <main className="app-shell"><header className="topbar"><Link className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></Link><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/></div></header><section className="organization-members-page"><Link className="back-link" href="/dashboard"><ArrowLeft size={15}/>{organization.name}</Link><header className="organization-members-heading"><div><p className="eyebrow">ORGANIZATION DIRECTORY</p><h1>Members and roles</h1><p className="muted">People with access to {organization.name} and their workspace roles.</p></div><span className="organization-members-count"><UsersRound size={16}/>{memberships?.length ?? 0} members</span></header><div className="organization-members-table-wrap"><table className="organization-members-table"><thead><tr><th>Member</th><th>Organization role</th><th>Workspace access and role</th><th>Status</th><th>Joined</th></tr></thead><tbody>{(memberships ?? []).map((membership) => {
+  return <main className="app-shell"><AppTopBar email={user.email ?? ""} organizationId={organizationId}/><section className="organization-members-page"><Link className="back-link" href="/dashboard"><ArrowLeft size={15}/>{organization.name}</Link><header className="organization-members-heading"><div><p className="eyebrow">ORGANIZATION DIRECTORY</p><h1>Members and roles</h1><p className="muted">People with access to {organization.name} and their workspace roles.</p></div><span className="organization-members-count"><UsersRound size={16}/>{memberships?.length ?? 0} members</span></header><div className="organization-members-table-wrap"><table className="organization-members-table"><thead><tr><th>Member</th><th>Organization role</th><th>Workspace access and role</th><th>Status</th><th>Joined</th></tr></thead><tbody>{(memberships ?? []).map((membership) => {
     const profile = profileById.get(membership.user_id);
     const name = profile?.display_name?.trim() || profile?.email || "Team member";
     const workspaceRoles = workspaceRoleByUser.get(membership.user_id) ?? [];

@@ -12,6 +12,8 @@ type ToastMessage = {
   message: string;
   createdAt: string;
   isDirect: boolean;
+  href?: string;
+  notificationId?: string;
 };
 
 export default function ChatNotificationListener() {
@@ -22,6 +24,8 @@ export default function ChatNotificationListener() {
   const [showPermPrompt, setShowPermPrompt] = useState(false);
   const lastKnownIdRef = useRef<string | null>(null);
   const isFirstPollRef = useRef(true);
+  const seenNotifIdsRef = useRef<Set<string>>(new Set());
+  const isFirstNotifPollRef = useRef(true);
 
   // Check desktop notification permission on mount
   useEffect(() => {
@@ -101,8 +105,101 @@ export default function ChatNotificationListener() {
             }
           }
         }
-      } catch (err) {
+      } catch {
         // Silently catch background poll errors
+      }
+
+      // Also poll project/mention/task notifications
+      try {
+        const nRes = await fetch("/api/notifications/latest");
+        if (!nRes.ok) return;
+        const nData = await nRes.json();
+        const notifs: Array<{
+          id: string;
+          event_type: string;
+          project_id: string;
+          task_id: string | null;
+          message: string;
+          read_at: string | null;
+          created_at: string;
+        }> = nData.notifications ?? [];
+        if (ignore || notifs.length === 0) return;
+
+        if (isFirstNotifPollRef.current) {
+          for (const n of notifs) seenNotifIdsRef.current.add(n.id);
+          isFirstNotifPollRef.current = false;
+          // Show any brand-new unread mention created within the last 12 seconds
+          const nowMs = Date.now();
+          const fresh = notifs.find(
+            (n) =>
+              !n.read_at &&
+              n.event_type === "channel_mentioned" &&
+              nowMs - new Date(n.created_at).getTime() < 12000
+          );
+          if (!fresh) return;
+          const targetHref = `/projects/${fresh.project_id}?view=channel`;
+          setActiveToast({
+            id: `notif-${fresh.id}`,
+            notificationId: fresh.id,
+            senderName: "Project Channel Mention",
+            senderId: "",
+            channel: "Channel Alert",
+            message: fresh.message,
+            createdAt: fresh.created_at,
+            isDirect: false,
+            href: targetHref,
+          });
+          return;
+        }
+
+        const unseen = notifs.find(
+          (n) => !n.read_at && !seenNotifIdsRef.current.has(n.id)
+        );
+        for (const n of notifs) seenNotifIdsRef.current.add(n.id);
+        if (!unseen) return;
+
+        const href =
+          unseen.event_type === "channel_mentioned" || !unseen.task_id
+            ? `/projects/${unseen.project_id}?view=channel`
+            : `/projects/${unseen.project_id}/tasks/${unseen.task_id}`;
+
+        const label =
+          unseen.event_type === "channel_mentioned"
+            ? "Mentioned in Channel"
+            : unseen.event_type === "task_completed"
+              ? "Task Completed"
+              : unseen.event_type === "task_mentioned"
+                ? "Mentioned in Task"
+                : "Project Alert";
+
+        setActiveToast({
+          id: `notif-${unseen.id}`,
+          notificationId: unseen.id,
+          senderName: label,
+          senderId: "",
+          channel: "Notification",
+          message: unseen.message,
+          createdAt: unseen.created_at,
+          isDirect: true,
+          href,
+        });
+
+        if (
+          typeof window !== "undefined" &&
+          "Notification" in window &&
+          Notification.permission === "granted"
+        ) {
+          const osNotif = new Notification(label, {
+            body: unseen.message,
+            icon: "/favicon.ico",
+          });
+          osNotif.onclick = () => {
+            window.focus();
+            router.push(href);
+          };
+        }
+      } catch {
+        // Silently catch background notification poll errors
       }
     }
 
@@ -185,10 +282,18 @@ export default function ChatNotificationListener() {
       {activeToast && (
         <aside
           role="region"
-          aria-label="New chat notification"
+          aria-label="New notification alert"
           onClick={() => {
+            const targetHref = activeToast.href || "/chat";
+            if (activeToast.notificationId) {
+              void fetch("/api/notifications/latest", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: activeToast.notificationId }),
+              }).catch(() => {});
+            }
             setActiveToast(null);
-            router.push("/chat");
+            router.push(targetHref);
           }}
           style={{
             position: "fixed",

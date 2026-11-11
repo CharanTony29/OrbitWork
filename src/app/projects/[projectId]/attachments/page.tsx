@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import CurrentUserBadge from "@/app/CurrentUserBadge";
+import AppTopBar from "@/app/AppTopBar";
 import { createClient } from "@/lib/supabase/server";
 import ProjectAttachmentsClient, { ProjectAttachmentItem } from "./ProjectAttachmentsClient";
 
@@ -52,14 +51,7 @@ export default async function ProjectAttachmentsPage({
 
   return (
     <main className="app-shell project-app-shell">
-      <header className="topbar">
-        <Link className="brand" href="/dashboard">
-          <span className="brand-mark">O</span>Orbit<span>work</span>
-        </Link>
-        <div className="topbar-right">
-          <CurrentUserBadge email={user.email ?? ""} />
-        </div>
-      </header>
+      <AppTopBar email={user.email ?? ""} projectId={projectId} />
 
       <div
         className="project-page"

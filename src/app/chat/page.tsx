@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import CurrentUserBadge from "@/app/CurrentUserBadge";
+import AppTopBar from "@/app/AppTopBar";
 import BackButton from "@/app/BackButton";
 import ChatWorkspace from "./ChatWorkspace";
 
@@ -63,17 +62,10 @@ export default async function ChatPage() {
 
   return (
     <main className="app-shell" style={{ height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <header className="topbar">
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <BackButton fallbackHref="/dashboard" label="Dashboard" />
-          <Link className="brand" href="/dashboard">
-            <span className="brand-mark">O</span>Orbit<span>work</span>
-          </Link>
-        </div>
-        <div className="topbar-right">
-          <CurrentUserBadge email={user.email ?? ""} />
-        </div>
-      </header>
+      <AppTopBar
+        email={user.email ?? ""}
+        leftSlot={<BackButton fallbackHref="/dashboard" label="Dashboard" />}
+      />
 
       <ChatWorkspace
         currentUserId={user.id}

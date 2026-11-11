@@ -1,5 +1,5 @@
 import Link from "next/link";
-import CurrentUserBadge from "@/app/CurrentUserBadge";
+import AppTopBar from "@/app/AppTopBar";
 import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft,
@@ -100,14 +100,7 @@ export default async function OrganizationIntegrationsPage({
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <Link className="brand" href="/dashboard">
-          <span className="brand-mark">O</span>Orbit<span>work</span>
-        </Link>
-        <div className="topbar-right">
-          <CurrentUserBadge email={user.email ?? ""} />
-        </div>
-      </header>
+      <AppTopBar email={user.email ?? ""} organizationId={organizationId} />
 
       <section className="integrations-page">
         <Link className="back-link" href="/dashboard">

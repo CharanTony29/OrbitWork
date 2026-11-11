@@ -205,19 +205,20 @@
 
   .task-subtasks .subtask-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 7px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
   }
 
   .task-subtasks .subtask-title {
-    grid-column: 2;
+    grid-column: 1;
     white-space: normal;
     overflow-wrap: anywhere;
   }
 
   .task-subtasks .subtask-status-pill {
     grid-column: 2;
-    justify-self: start;
+    justify-self: end;
   }
 
   .task-checklists .checklist-item button > span:last-child {

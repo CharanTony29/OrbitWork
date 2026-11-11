@@ -52,3 +52,29 @@
 [data-color-scheme="dark"] .task-desc-tool:hover:not(:disabled){background:#1d221e;border-color:#2b352e}
 [data-color-scheme="dark"] .task-description-preview,[data-color-scheme="dark"] .task-desc-live-preview-box{background:#141715;border-color:#2b352e;color:#e6edf3}
 @media(max-width:900px){.task-detail-grid{grid-template-columns:minmax(0,1fr) 270px}.task-detail-main{padding:17px}.task-properties{padding:17px}}@media(max-width:700px){.task-detail-page{padding:25px 16px 55px}.task-detail-heading{align-items:flex-start}.task-detail-heading h1{font-size:26px}.task-detail-progress{width:95px;grid-template-columns:auto}.task-detail-progress>div,.task-detail-progress small{grid-column:1}.task-detail-grid{grid-template-columns:1fr}.task-properties{order:-1}.task-detail-main .detail-field textarea{min-height:175px}.task-detail-main{padding:15px}.task-properties{padding:15px}.task-comments-section{padding:16px}.detail-save-row,.comment-submit-row{align-items:flex-start;flex-direction:column}.detail-save-row .button,.comment-submit-row .button{align-self:flex-end}}
+
+.task-desc-wysiwyg-wrap{position:relative}
+.task-desc-wysiwyg{min-height:200px;padding:14px 16px;border:1px solid var(--line,#dfe5e0);border-radius:10px;background:#fff;color:var(--ink,#17231f);font-size:14px;line-height:1.65;outline:none;transition:border-color .15s ease,box-shadow .15s ease}
+.task-desc-wysiwyg:focus{border-color:#167c58;box-shadow:0 0 0 3px rgba(22,124,88,.11)}
+.task-desc-wysiwyg:empty::before{content:attr(data-placeholder);color:var(--muted,#738179);pointer-events:none}
+.task-desc-wysiwyg .doc-embedded-img{cursor:pointer;border-radius:8px;max-width:100%;height:auto;border:1px solid var(--line,#dfe5e0);margin:6px 0;transition:outline-color .12s ease}
+.img-resize-frame{position:absolute;border:2px solid #167c58;border-radius:8px;pointer-events:none;box-shadow:0 0 0 2px rgba(22,124,88,.14);z-index:12}
+.img-resize-toolbar{position:absolute;top:-34px;right:0;display:inline-flex;align-items:center;gap:4px;padding:3px 6px;border-radius:8px;background:#17231f;color:#fff;font-size:11px;box-shadow:0 6px 18px rgba(0,0,0,.22);pointer-events:auto;white-space:nowrap}
+.img-resize-toolbar button{border:none;background:rgba(255,255,255,.1);color:#f3f7f5;font-size:11px;font-weight:600;padding:2px 6px;border-radius:5px;cursor:pointer;display:inline-flex;align-items:center}
+.img-resize-toolbar button:hover{background:rgba(255,255,255,.22)}
+.img-resize-toolbar button.is-danger:hover{background:#dc2626}
+.img-resize-px{font-family:var(--font-mono,monospace);font-size:10.5px;color:#a7f3d0;padding:0 4px}
+.img-resize-handle{position:absolute;right:-6px;bottom:-6px;width:14px;height:14px;border-radius:4px;background:#167c58;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:nwse-resize;pointer-events:auto;padding:0}
+.subtask-row-wrap{display:flex;align-items:center;gap:10px;padding:2px 4px;border-radius:8px}
+.subtask-row-wrap .subtask-row{flex:1;min-width:0}
+.subtask-row-assignee{flex-shrink:0;display:inline-flex;align-items:center}
+.task-comment-input-wrap{position:relative}
+.task-mention-popover{position:absolute;left:0;right:0;bottom:calc(100% + 6px);background:#fff;border:1px solid var(--line,#dfe5e0);border-radius:10px;box-shadow:0 10px 26px rgba(17,27,23,.14);padding:4px;display:grid;gap:2px;z-index:25;max-height:220px;overflow-y:auto}
+.task-mention-option{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:7px 10px;border:none;background:transparent;border-radius:7px;font-size:13px;color:var(--ink,#17231f);cursor:pointer}
+.task-mention-option:hover,.task-mention-option.is-selected{background:rgba(22,124,88,.1);color:#0f5f42}
+.task-mention-avatar{width:22px;height:22px;border-radius:999px;background:#167c58;color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.property-line-assignees{align-items:center}
+[data-color-scheme="dark"] .task-desc-wysiwyg{background:#141715;border-color:#2b352e;color:#e6edf3}
+[data-color-scheme="dark"] .task-mention-popover{background:#181d1a;border-color:#2b352e}
+[data-color-scheme="dark"] .task-mention-option{color:#e6edf3}
+[data-color-scheme="dark"] .task-mention-option:hover,[data-color-scheme="dark"] .task-mention-option.is-selected{background:rgba(46,160,115,.22);color:#9ef0c8}

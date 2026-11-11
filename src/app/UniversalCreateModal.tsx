@@ -124,6 +124,18 @@ export default function UniversalCreateModal({
     }
   }, [isOpen, activeTab]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const currentStatusObj = statuses.find((s) => s.id === selectedStatusId) || statuses[0];

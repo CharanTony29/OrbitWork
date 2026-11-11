@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { Bell, Building2, CalendarDays, ChevronDown, Clock3, FileText, FolderKanban, House, Layers3, UsersRound, MessageSquare } from "lucide-react";
+import { Bell, Building2, CalendarDays, ChevronDown, Clock3, FileText, FolderKanban, House, Layers3, LayoutDashboard, UsersRound, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import ProjectSublinks from "./ProjectSublinks";
-import GlobalSearchModal from "./GlobalSearchModal";
 
 export default async function HierarchyNavigation({ organizationId, organizationName, currentWorkspaceId, currentProjectId }: { organizationId: string; organizationName: string; currentWorkspaceId: string; currentProjectId?: string }) {
   const supabase = await createClient();
@@ -13,7 +12,8 @@ export default async function HierarchyNavigation({ organizationId, organization
   return <>
     <nav className="work-icon-rail" aria-label="Main navigation">
       <Link className="work-rail-logo" href="/dashboard" aria-label="Orbitwork home"><span>O</span></Link>
-      <Link href="/dashboard" title="Home"><House size={18}/><span>Home</span></Link>
+      <Link href="/dashboard" title="Overview"><House size={18}/><span>Home</span></Link>
+      <Link href="/my-dashboard" title="Dashboard"><LayoutDashboard size={17}/><span>Dashboard</span></Link>
       <Link href="/inbox" title="Inbox"><Bell size={17}/><span>Inbox</span></Link>
       <Link href={currentProjectId ? `/projects/${currentProjectId}?view=calendar` : `/workspaces/${currentWorkspaceId}`} title="Planner"><CalendarDays size={17}/><span>Planner</span></Link>
       <Link href={currentProjectId ? `/projects/${currentProjectId}/documents` : `/organizations/${organizationId}/docs`} title="Docs & Attachments"><FileText size={17}/><span>Docs</span></Link>
@@ -25,22 +25,20 @@ export default async function HierarchyNavigation({ organizationId, organization
     <aside className="hierarchy-sidebar" aria-label="Workspace navigation">
     <div className="hierarchy-sidebar-heading"><span>WORKSPACE</span><strong>{organizationName}</strong></div>
     <Link className="hierarchy-dashboard" href="/dashboard"><Layers3 size={15}/> All organizations</Link>
+    <Link className="hierarchy-dashboard" href="/my-dashboard"><LayoutDashboard size={15}/> Dashboard</Link>
     <Link className="hierarchy-dashboard" href="/inbox"><Bell size={15}/> Inbox</Link>
     <Link className="hierarchy-dashboard" href={`/organizations/${organizationId}/docs`}><FileText size={15}/> Docs &amp; Attachments</Link>
     <div className="hierarchy-org-label"><Building2 size={14}/><span>ORGANIZATION</span></div>
     <div className="hierarchy-org-name" title={organizationName}>{organizationName}</div>
-    <div className="hierarchy-search-box">
-      <GlobalSearchModal workspaceId={currentWorkspaceId} workspaceName={(workspaces ?? []).find(w => w.id === currentWorkspaceId)?.name} />
-    </div>
     <p className="hierarchy-section-label">WORKSPACES &amp; PROJECTS</p>
     <nav className="hierarchy-tree" aria-label="Organization workspaces and projects">
       {(workspaces ?? []).map((workspace) => <details key={workspace.id} open={workspace.id === currentWorkspaceId}>
-        <summary className={workspace.id === currentWorkspaceId && !currentProjectId ? "is-current" : ""}><ChevronDown size={13}/><FolderKanban size={15}/><Link className="hierarchy-workspace-title-link" href={`/workspaces/${workspace.id}`}>{workspace.name}</Link></summary>
+        <summary className={workspace.id === currentWorkspaceId && !currentProjectId ? "is-current" : ""}><ChevronDown size={13}/><FolderKanban size={14}/><Link className="hierarchy-workspace-title-link" href={`/workspaces/${workspace.id}`}>{workspace.name}</Link></summary>
         <div className="hierarchy-projects">
           <Link className={`hierarchy-workspace-link${workspace.id === currentWorkspaceId && !currentProjectId ? " is-current" : ""}`} href={`/workspaces/${workspace.id}`}>Workspace overview</Link>
           {(projects ?? []).filter((project) => project.workspace_id === workspace.id).map((project) => (
             <div className="hierarchy-project-group" key={project.id}>
-              <Link className={`hierarchy-project-link${project.id === currentProjectId ? " is-current" : ""}`} href={`/projects/${project.id}`}><span className="hierarchy-project-dot"/>{project.name}</Link>
+              <Link className={`hierarchy-project-link${project.id === currentProjectId ? " is-current" : ""}`} href={`/projects/${project.id}`} title={project.name}><span className="hierarchy-project-dot"/><span className="hierarchy-link-label">{project.name}</span></Link>
               {project.id === currentProjectId && <ProjectSublinks projectId={project.id} />}
             </div>
           ))}

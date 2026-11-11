@@ -117,7 +117,7 @@ export function ProfileAvatarSection({
       </div>
 
       <div className="profile-avatar-row">
-        <div className="profile-avatar-preview">
+        <div className={`profile-avatar-preview${avatarUrl ? " has-avatar" : ""}`}>
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={avatarUrl} alt={displayName} />

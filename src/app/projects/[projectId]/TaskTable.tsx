@@ -1,9 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquare, ExternalLink, ChevronDown, ChevronRight, Flag, Calendar, Layers, List, Check } from "lucide-react";
-import { useTransition, useRef, useState, useCallback, useEffect, Fragment } from "react";
+import { MessageSquare, ExternalLink, ChevronDown, ChevronRight, Flag, Calendar, Layers, List, Check, GripVertical, Columns3, RotateCcw, ChevronLeft } from "lucide-react";
+import { useTransition, useRef, useState, useCallback, useEffect, useMemo, Fragment } from "react";
 import { updateTaskField, updateTaskStatus } from "@/app/actions";
+import {
+  BASE_TABLE_COLUMN_LABELS,
+  BaseTableColumnKey,
+  buildDefaultColumnOrder,
+  normalizeColumnOrder,
+  TABLE_COL_COOKIE,
+} from "@/lib/project-preferences";
 import AssigneePicker from "./AssigneePicker";
 import AddColumnButton from "./AddColumnButton";
 import InlineTaskRow from "./InlineTaskRow";
@@ -833,6 +840,7 @@ export default function TaskTable({
   commentCounts,
   runningTimerMap,
   initialGroupBy = "status",
+  initialColumnOrder,
 }: {
   projectId: string;
   canEdit?: boolean;
@@ -847,6 +855,7 @@ export default function TaskTable({
   commentCounts?: Map<string, number>;
   runningTimerMap?: Map<string, { id: string; started_at: string; billable?: boolean }>;
   initialGroupBy?: "status" | "priority" | "due_date" | "none";
+  initialColumnOrder?: string[];
 }) {
   const [groupBy, setGroupBy] = useState<"status" | "priority" | "due_date" | "none">(initialGroupBy);
   const [activeCommentsTask, setActiveCommentsTask] = useState<{
@@ -855,7 +864,126 @@ export default function TaskTable({
     title: string;
   } | null>(null);
 
+  const customFieldIds = useMemo(
+    () => customFields.map((f) => f.id),
+    [customFields]
+  );
+  const customFieldMap = useMemo(
+    () => new Map(customFields.map((f) => [f.id, f])),
+    [customFields]
+  );
+
+  const [savedColumnOrder, setSavedColumnOrder] = useState<string[] | undefined>(
+    initialColumnOrder
+  );
+  const [dragColId, setDragColId] = useState<string | null>(null);
+  const [dragOverColId, setDragOverColId] = useState<string | null>(null);
+  const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
+
   const tableWrapRef = useRef<HTMLDivElement>(null);
+  const columnsMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (initialColumnOrder && initialColumnOrder.length > 0) {
+      setSavedColumnOrder(initialColumnOrder);
+      return;
+    }
+    try {
+      const cached = localStorage.getItem("orbitwork_table_col_order_v1");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          setSavedColumnOrder(parsed.filter((x): x is string => typeof x === "string"));
+        }
+      }
+    } catch {
+      // Ignore storage access errors
+    }
+  }, [initialColumnOrder]);
+
+  useEffect(() => {
+    if (!columnsMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (columnsMenuRef.current && !columnsMenuRef.current.contains(e.target as Node)) {
+        setColumnsMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setColumnsMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [columnsMenuOpen]);
+
+  const orderedColumnIds = useMemo(
+    () => normalizeColumnOrder(savedColumnOrder, customFieldIds),
+    [savedColumnOrder, customFieldIds]
+  );
+
+  const persistColumnOrder = useCallback(
+    async (nextOrder: string[]) => {
+      const normalized = normalizeColumnOrder(nextOrder, customFieldIds);
+      setSavedColumnOrder(normalized);
+      try {
+        localStorage.setItem("orbitwork_table_col_order_v1", JSON.stringify(normalized));
+        document.cookie = `${TABLE_COL_COOKIE}=${encodeURIComponent(
+          JSON.stringify(normalized)
+        )}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+      } catch {
+        // Ignore storage quota issues
+      }
+      try {
+        await fetch("/api/preferences", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ listColumnOrder: normalized }),
+        });
+      } catch {
+        // Cookie + localStorage already saved locally for this user
+      }
+    },
+    [customFieldIds]
+  );
+
+  const reorderColumns = useCallback(
+    (fromId: string, toId: string) => {
+      if (!fromId || !toId || fromId === toId) return;
+      const next = [...orderedColumnIds];
+      const fromIdx = next.indexOf(fromId);
+      const toIdx = next.indexOf(toId);
+      if (fromIdx < 0 || toIdx < 0) return;
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      void persistColumnOrder(next);
+    },
+    [orderedColumnIds, persistColumnOrder]
+  );
+
+  const moveColumnStep = useCallback(
+    (colId: string, delta: -1 | 1) => {
+      const idx = orderedColumnIds.indexOf(colId);
+      const nextIdx = idx + delta;
+      if (idx < 0 || nextIdx < 0 || nextIdx >= orderedColumnIds.length) return;
+      const next = [...orderedColumnIds];
+      const [moved] = next.splice(idx, 1);
+      next.splice(nextIdx, 0, moved);
+      void persistColumnOrder(next);
+    },
+    [orderedColumnIds, persistColumnOrder]
+  );
+
+  const getColumnLabel = (colId: string): string => {
+    if (colId.startsWith("cf:")) {
+      return customFieldMap.get(colId.slice(3))?.name ?? "Custom field";
+    }
+    return BASE_TABLE_COLUMN_LABELS[colId as BaseTableColumnKey] ?? colId;
+  };
+
+  const nameColIndex = Math.max(0, orderedColumnIds.indexOf("name"));
 
   useEffect(() => {
     if (initialGroupBy) {
@@ -937,7 +1065,7 @@ export default function TaskTable({
         s.name.toLowerCase().includes("open")
     ) || statuses[0];
 
-  const colSpanCount = 13 + customFields.length;
+  const colSpanCount = orderedColumnIds.length + 1;
 
   const renderTaskRow = (task: TaskRow, isSubtask = false, subtasks: TaskRow[] = []) => {
     const currentStatus = statusMap.get(task.status_id);
@@ -949,220 +1077,259 @@ export default function TaskTable({
     );
     const hasAttachments = Boolean((attachmentsMap?.get(task.id)?.length ?? 0) > 0);
 
-    return (
-      <tr key={task.id} className={`task-data-tr${isSubtask ? " is-subtask-row" : ""}`}>
-        {/* Task Name — clean text, indented subtask without L-shape, meta icons */}
-        <td className={`task-title-cell${isSubtask ? " is-subtask-title-cell" : ""}`}>
-          <TaskNameCell
-            projectId={projectId}
-            taskId={task.id}
-            taskKey={task.generated_key}
-            title={task.title}
-            taskType={task.task_type ?? "task"}
-            tags={task.tags ?? []}
-            description={task.description}
-            statusColor={getStatusColor(currentStatus)}
-            hasSubtasks={subtasks.length > 0}
-            isExpanded={expandedTaskIds.has(task.id)}
-            onToggleExpand={() => toggleExpand(task.id)}
-            subtaskCount={subtasks.length}
-            hasAttachments={hasAttachments}
-            isSubtask={isSubtask}
-            canEdit={canEdit}
-            isCompleted={isCompleted}
-            completedStatusId={completedStatus?.id}
-            initialStatusId={initialStatus?.id}
-          />
-        </td>
-
-        {/* Assignees — compact circular avatar badges (ClickUp style) */}
-        <td>
-          {canEdit ? (
-            <AssigneePicker
-              key={`${task.id}-${task.assigneeIds.join(",")}`}
+    const renderCell = (colId: string) => {
+      if (colId === "name") {
+        return (
+          <td
+            key={colId}
+            className={`task-title-cell${isSubtask ? " is-subtask-title-cell" : ""}`}
+          >
+            <TaskNameCell
               projectId={projectId}
               taskId={task.id}
-              members={members}
-              initialAssignees={task.assigneeIds}
+              taskKey={task.generated_key}
+              title={task.title}
+              taskType={task.task_type ?? "task"}
+              tags={task.tags ?? []}
+              description={task.description}
+              statusColor={getStatusColor(currentStatus)}
+              hasSubtasks={subtasks.length > 0}
+              isExpanded={expandedTaskIds.has(task.id)}
+              onToggleExpand={() => toggleExpand(task.id)}
+              subtaskCount={subtasks.length}
+              hasAttachments={hasAttachments}
+              isSubtask={isSubtask}
+              canEdit={canEdit}
+              isCompleted={isCompleted}
+              completedStatusId={completedStatus?.id}
+              initialStatusId={initialStatus?.id}
             />
-          ) : (
-            <div style={{ display: "inline-flex", alignItems: "center" }}>
-              {task.assigneeIds.length ? (
-                task.assigneeIds.slice(0, 3).map((id, idx) => {
-                  const m = members.find((x) => x.id === id);
-                  return (
-                    <span
-                      key={id}
-                      style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: "50%",
-                        backgroundColor: getAvatarColor(id),
-                        color: "#ffffff",
-                        fontSize: 10,
-                        fontWeight: 700,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginLeft: idx > 0 ? -6 : 0,
-                        border: "1.5px solid var(--paper, #ffffff)",
-                      }}
-                      title={m?.label ?? "Team member"}
-                    >
-                      {(m?.label ?? "T").charAt(0).toUpperCase()}
-                    </span>
-                  );
-                })
-              ) : (
-                <span style={{ color: "var(--muted, #94a3b8)", fontSize: "11px" }}>—</span>
-              )}
-            </div>
-          )}
-        </td>
+          </td>
+        );
+      }
 
-        {/* Due date */}
-        <td>
-          {canEdit ? (
-            <form className="sheet-edit">
-              <input type="hidden" name="projectId" value={projectId} />
-              <input type="hidden" name="taskId" value={task.id} />
-              <input type="hidden" name="field" value="due_date" />
-              <AutosaveInput
-                action={updateTaskField}
-                name="value"
-                value={task.due_date ?? ""}
-                type="date"
-                ariaLabel={`Due date for ${task.title}`}
+      if (colId === "assignee") {
+        return (
+          <td key={colId}>
+            {canEdit ? (
+              <AssigneePicker
+                key={`${task.id}-${task.assigneeIds.join(",")}`}
+                projectId={projectId}
+                taskId={task.id}
+                members={members}
+                initialAssignees={task.assigneeIds}
               />
-            </form>
-          ) : (
-            <span style={{ fontSize: "12px", color: "#475569" }}>
-              {task.due_date ? new Date(`${task.due_date}T00:00:00`).toLocaleDateString() : "—"}
-            </span>
-          )}
-        </td>
+            ) : (
+              <div style={{ display: "inline-flex", alignItems: "center" }}>
+                {task.assigneeIds.length ? (
+                  task.assigneeIds.slice(0, 3).map((id, idx) => {
+                    const m = members.find((x) => x.id === id);
+                    return (
+                      <span
+                        key={id}
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: "50%",
+                          backgroundColor: getAvatarColor(id),
+                          color: "#ffffff",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginLeft: idx > 0 ? -6 : 0,
+                          border: "1.5px solid var(--paper, #ffffff)",
+                        }}
+                        title={m?.label ?? "Team member"}
+                      >
+                        {(m?.label ?? "T").charAt(0).toUpperCase()}
+                      </span>
+                    );
+                  })
+                ) : (
+                  <span style={{ color: "var(--muted, #94a3b8)", fontSize: "11px" }}>—</span>
+                )}
+              </div>
+            )}
+          </td>
+        );
+      }
 
-        {/* Priority — colored flag pill */}
-        <td className="priority-td">
-          <PriorityPickerCell
-            projectId={projectId}
-            taskId={task.id}
-            priority={task.priority}
-            canEdit={canEdit}
-          />
-        </td>
+      if (colId === "due_date") {
+        return (
+          <td key={colId}>
+            {canEdit ? (
+              <form className="sheet-edit">
+                <input type="hidden" name="projectId" value={projectId} />
+                <input type="hidden" name="taskId" value={task.id} />
+                <input type="hidden" name="field" value="due_date" />
+                <AutosaveInput
+                  action={updateTaskField}
+                  name="value"
+                  value={task.due_date ?? ""}
+                  type="date"
+                  ariaLabel={`Due date for ${task.title}`}
+                />
+              </form>
+            ) : (
+              <span style={{ fontSize: "12px", color: "#475569" }}>
+                {task.due_date ? new Date(`${task.due_date}T00:00:00`).toLocaleDateString() : "—"}
+              </span>
+            )}
+          </td>
+        );
+      }
 
-        {/* Status — colored pill & popup */}
-        <td className="status-td">
-          <StatusPickerCell
-            projectId={projectId}
-            taskId={task.id}
-            statusId={task.status_id}
-            statuses={statuses}
-            canEdit={canEdit}
-          />
-        </td>
+      if (colId === "priority") {
+        return (
+          <td className="priority-td" key={colId}>
+            <PriorityPickerCell
+              projectId={projectId}
+              taskId={task.id}
+              priority={task.priority}
+              canEdit={canEdit}
+            />
+          </td>
+        );
+      }
 
-        {/* Created by */}
-        <td>{createdBy.get(task.created_by) ?? "Team member"}</td>
+      if (colId === "status") {
+        return (
+          <td className="status-td" key={colId}>
+            <StatusPickerCell
+              projectId={projectId}
+              taskId={task.id}
+              statusId={task.status_id}
+              statuses={statuses}
+              canEdit={canEdit}
+            />
+          </td>
+        );
+      }
 
-        {/* Estimate */}
-        <td>
-          <TaskEstimateCell
-            projectId={projectId}
-            taskId={task.id}
-            taskTitle={task.title}
-            initialMinutes={task.estimate_minutes}
-            canEdit={canEdit}
-          />
-        </td>
+      if (colId === "created_by") {
+        return <td key={colId}>{createdBy.get(task.created_by) ?? "Team member"}</td>;
+      }
 
-        {/* Worked (Billable) */}
-        <td>
-          <div className="table-worked-cell" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
-            <TaskTableTimer
+      if (colId === "estimate") {
+        return (
+          <td key={colId}>
+            <TaskEstimateCell
               projectId={projectId}
               taskId={task.id}
               taskTitle={task.title}
-              runningEntry={runningTimerMap?.get(task.id) ?? null}
+              initialMinutes={task.estimate_minutes}
               canEdit={canEdit}
             />
-            <span
-              className="billable-time-badge"
-              title="Total billable hours worked on this task"
-            >
-              {formatMinutes(task.billable_minutes)}
-            </span>
-          </div>
-        </td>
+          </td>
+        );
+      }
 
-        {/* Hours Left / Added */}
-        {(() => {
-          const rem = formatRemaining(task.estimate_minutes, task.billable_minutes);
-          let badgeClass = "remaining-badge is-none";
-          let title = "No estimate set";
-          if (rem.status === "ok") {
-            badgeClass = "remaining-badge is-ok";
-            title = `${rem.label} of budget remaining`;
-          } else if (rem.status === "exhausting") {
-            badgeClass = "remaining-badge is-warning";
-            title = `Warning: ${rem.label} remaining (budget exhausting)`;
-          } else if (rem.status === "exceeded") {
-            badgeClass = "remaining-badge is-exceeded";
-            title = `Over budget by ${rem.label}`;
-          }
-          return (
-            <td>
-              <span className={badgeClass} title={title}>
-                {rem.status === "exhausting" && <span className="warning-dot">⚠️ </span>}
-                {rem.status === "exceeded" && <span className="warning-dot">🚨 </span>}
-                {rem.label}
+      if (colId === "worked") {
+        return (
+          <td key={colId}>
+            <div className="table-worked-cell" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+              <TaskTableTimer
+                projectId={projectId}
+                taskId={task.id}
+                taskTitle={task.title}
+                runningEntry={runningTimerMap?.get(task.id) ?? null}
+                canEdit={canEdit}
+              />
+              <span
+                className="billable-time-badge"
+                title="Total billable hours worked on this task"
+              >
+                {formatMinutes(task.billable_minutes)}
               </span>
-            </td>
-          );
-        })()}
+            </div>
+          </td>
+        );
+      }
 
-        {/* Linked Docs */}
-        <td>
-          <TaskLinkedDocsCell
-            projectId={projectId}
-            taskId={task.id}
-            taskTitle={task.title}
-            attachments={attachmentsMap?.get(task.id) ?? []}
-            availableDocs={projectDocuments}
-            canEdit={canEdit}
-          />
-        </td>
+      if (colId === "remaining") {
+        const rem = formatRemaining(task.estimate_minutes, task.billable_minutes);
+        let badgeClass = "remaining-badge is-none";
+        let title = "No estimate set";
+        if (rem.status === "ok") {
+          badgeClass = "remaining-badge is-ok";
+          title = `${rem.label} of budget remaining`;
+        } else if (rem.status === "exhausting") {
+          badgeClass = "remaining-badge is-warning";
+          title = `Warning: ${rem.label} remaining (budget exhausting)`;
+        } else if (rem.status === "exceeded") {
+          badgeClass = "remaining-badge is-exceeded";
+          title = `Over budget by ${rem.label}`;
+        }
+        return (
+          <td key={colId}>
+            <span className={badgeClass} title={title}>
+              {rem.status === "exhausting" && <span className="warning-dot">⚠️ </span>}
+              {rem.status === "exceeded" && <span className="warning-dot">🚨 </span>}
+              {rem.label}
+            </span>
+          </td>
+        );
+      }
 
-        {/* Custom fields */}
-        {customFields.map((field) => (
-          <td className="custom-value-cell" key={field.id}>
+      if (colId === "docs") {
+        return (
+          <td key={colId}>
+            <TaskLinkedDocsCell
+              projectId={projectId}
+              taskId={task.id}
+              taskTitle={task.title}
+              attachments={attachmentsMap?.get(task.id) ?? []}
+              availableDocs={projectDocuments}
+              canEdit={canEdit}
+            />
+          </td>
+        );
+      }
+
+      if (colId.startsWith("cf:")) {
+        const fieldId = colId.slice(3);
+        const field = customFieldMap.get(fieldId);
+        if (!field) return null;
+        return (
+          <td className="custom-value-cell" key={colId}>
             <CustomFieldCell
               fieldType={field.field_type}
               val={customValues.get(task.id)?.get(field.id)}
             />
           </td>
-        ))}
+        );
+      }
 
-        {/* Comments */}
-        <td>
-          <button
-            type="button"
-            className="table-comment-btn"
-            onClick={() =>
-              setActiveCommentsTask({
-                id: task.id,
-                key: task.generated_key,
-                title: task.title,
-              })
-            }
-            title="Open discussion"
-          >
-            <MessageSquare size={13} />
-            <span>{count > 0 ? count : "Discuss"}</span>
-          </button>
-        </td>
+      if (colId === "comments") {
+        return (
+          <td key={colId}>
+            <button
+              type="button"
+              className="table-comment-btn"
+              onClick={() =>
+                setActiveCommentsTask({
+                  id: task.id,
+                  key: task.generated_key,
+                  title: task.title,
+                })
+              }
+              title="Open discussion"
+            >
+              <MessageSquare size={13} />
+              <span>{count > 0 ? count : "Discuss"}</span>
+            </button>
+          </td>
+        );
+      }
 
+      return null;
+    };
+
+    return (
+      <tr key={task.id} className={`task-data-tr${isSubtask ? " is-subtask-row" : ""}`}>
+        {orderedColumnIds.map((colId) => renderCell(colId))}
         <td className="add-col-empty-cell" />
       </tr>
     );
@@ -1242,6 +1409,7 @@ export default function TaskTable({
               defaultPriority={grp.key !== "none" ? grp.key : "normal"}
               members={members}
               colSpan={colSpanCount}
+              nameColIndex={nameColIndex}
             />
           )}
         </Fragment>
@@ -1315,6 +1483,7 @@ export default function TaskTable({
                   defaultStatusId={status.id}
                   members={members}
                   colSpan={colSpanCount}
+                  nameColIndex={nameColIndex}
                 />
               )}
             </Fragment>
@@ -1430,6 +1599,7 @@ export default function TaskTable({
               statuses={statuses}
               members={members}
               colSpan={colSpanCount}
+              nameColIndex={nameColIndex}
             />
           )}
         </Fragment>
@@ -1459,6 +1629,7 @@ export default function TaskTable({
             statuses={statuses}
             members={members}
             colSpan={colSpanCount}
+            nameColIndex={nameColIndex}
           />
         )}
       </>
@@ -1479,24 +1650,129 @@ export default function TaskTable({
         overflow: "hidden",
       }}
     >
+      <div className="table-columns-toolbar" ref={columnsMenuRef}>
+        <span className="table-columns-hint">
+          Drag column headers to arrange your own view
+        </span>
+        <button
+          type="button"
+          className={`table-columns-btn${columnsMenuOpen ? " is-open" : ""}`}
+          onClick={() => setColumnsMenuOpen((o) => !o)}
+          aria-expanded={columnsMenuOpen}
+        >
+          <Columns3 size={13} />
+          <span>Arrange columns</span>
+        </button>
+
+        {columnsMenuOpen && (
+          <div className="table-columns-popover" role="dialog" aria-label="Customize your column order">
+            <div className="view-tabs-popover-head">
+              <div>
+                <strong>Your Columns</strong>
+                <small>Only changes your personal view.</small>
+              </div>
+              <button
+                type="button"
+                className="view-tabs-reset-btn"
+                onClick={() => void persistColumnOrder(buildDefaultColumnOrder(customFieldIds))}
+              >
+                <RotateCcw size={12} /> Reset
+              </button>
+            </div>
+            <div className="view-tabs-popover-list">
+              {orderedColumnIds.map((colId, idx) => (
+                <div
+                  key={colId}
+                  className={`view-tabs-popover-item${dragOverColId === colId ? " is-drop-hover" : ""}`}
+                  draggable
+                  onDragStart={() => setDragColId(colId)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (dragOverColId !== colId) setDragOverColId(colId);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragColId) reorderColumns(dragColId, colId);
+                    setDragColId(null);
+                    setDragOverColId(null);
+                  }}
+                  onDragEnd={() => {
+                    setDragColId(null);
+                    setDragOverColId(null);
+                  }}
+                >
+                  <span className="view-tabs-grip">
+                    <GripVertical size={13} />
+                  </span>
+                  <span className="view-tabs-item-name">{getColumnLabel(colId)}</span>
+                  <div className="view-tabs-step-btns">
+                    <button
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={() => moveColumnStep(colId, -1)}
+                      aria-label={`Move ${getColumnLabel(colId)} left`}
+                    >
+                      <ChevronLeft size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={idx === orderedColumnIds.length - 1}
+                      onClick={() => moveColumnStep(colId, 1)}
+                      aria-label={`Move ${getColumnLabel(colId)} right`}
+                    >
+                      <ChevronRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="task-table-wrap" ref={tableWrapRef}>
-        <table className="task-table">
+        <table className={`task-table${nameColIndex !== 0 ? " has-moved-name-col" : ""}`}>
           <thead>
             <tr>
-              <th>Task</th>
-              <th>Assignees</th>
-              <th>Due date</th>
-              <th>Priority</th>
-              <th>Status</th>
-              <th>Created by</th>
-              <th>Estimate</th>
-              <th>Worked (Billable)</th>
-              <th>Remaining</th>
-              <th>Linked Docs</th>
-              {customFields.map((field) => (
-                <th key={field.id}>{field.name}</th>
-              ))}
-              <th>Comments</th>
+              {orderedColumnIds.map((colId) => {
+                const label = getColumnLabel(colId);
+                const isDropTarget = dragOverColId === colId && dragColId !== colId;
+                return (
+                  <th
+                    key={colId}
+                    draggable
+                    onDragStart={(e) => {
+                      setDragColId(colId);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", colId);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragOverColId !== colId) setDragOverColId(colId);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const source = e.dataTransfer.getData("text/plain") || dragColId;
+                      setDragColId(null);
+                      setDragOverColId(null);
+                      if (source) reorderColumns(source, colId);
+                    }}
+                    onDragEnd={() => {
+                      setDragColId(null);
+                      setDragOverColId(null);
+                    }}
+                    className={`task-th-draggable${
+                      colId === "name" ? " task-title-th" : ""
+                    }${isDropTarget ? " is-col-drop-target" : ""}`}
+                    title="Drag header to reorder column"
+                  >
+                    <span className="task-th-inner">
+                      <GripVertical size={11} className="task-th-grip" />
+                      <span>{label}</span>
+                    </span>
+                  </th>
+                );
+              })}
               {canEdit ? <AddColumnButton projectId={projectId} /> : <th className="add-col-empty-cell" />}
             </tr>
           </thead>

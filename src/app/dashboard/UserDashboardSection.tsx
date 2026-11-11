@@ -1,12 +1,10 @@
 import Link from "next/link";
 import {
   AlertTriangle,
-  ArrowUpRight,
   CheckSquare,
   Clock,
   FolderKanban,
   PlayCircle,
-  Sparkles,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { formatMinutes } from "@/lib/work";
@@ -14,7 +12,19 @@ import FavoritesCardClient, {
   FavoriteRecord,
   QuickPinCandidate,
 } from "./FavoritesCardClient";
-import FavoriteButton from "@/app/FavoriteButton";
+import AssignedTasksCardClient, {
+  DashboardAssignedTaskItem,
+} from "./AssignedTasksCardClient";
+
+function isStatusInProgress(cat?: string, name?: string) {
+  const nameLower = (name ?? "").toLowerCase();
+  return (
+    cat === "active" ||
+    nameLower.includes("progress") ||
+    nameLower.includes("review") ||
+    nameLower.includes("working")
+  );
+}
 
 type ProjectSummary = {
   id: string;
@@ -158,17 +168,11 @@ export default async function UserDashboardSection({
   for (const t of myTasks) {
     const st = statusMap.get(t.status_id);
     const cat = st?.category;
-    const nameLower = (st?.name ?? "").toLowerCase();
 
     const isClosed = cat === "completed" || cat === "cancelled";
     if (isClosed) {
       completedCount++;
-    } else if (
-      cat === "active" ||
-      nameLower.includes("progress") ||
-      nameLower.includes("review") ||
-      nameLower.includes("working")
-    ) {
+    } else if (isStatusInProgress(cat, st?.name)) {
       inProgressCount++;
     } else {
       newCount++;
@@ -205,7 +209,28 @@ export default async function UserDashboardSection({
       if (b.due_date) return 1;
       return b.updated_at.localeCompare(a.updated_at);
     })
-    .slice(0, 8);
+    .slice(0, 24);
+
+  const assignedTaskItems: DashboardAssignedTaskItem[] = openAssignedTasks.map((task) => {
+    const st = statusMap.get(task.status_id);
+    const proj = projectMap.get(task.project_id);
+    const inProgress = isStatusInProgress(st?.category, st?.name);
+    return {
+      id: task.id,
+      projectId: task.project_id,
+      projectName: proj?.name ?? "Project",
+      title: task.title,
+      priority: task.priority,
+      statusName: st?.name ?? null,
+      statusColor: st?.color ?? null,
+      statusCategory: st?.category ?? null,
+      dueDate: task.due_date,
+      isUrgent: task.priority === "urgent",
+      isInProgress: inProgress,
+      isNew: !inProgress,
+      isFavorited: favoritedSet.has(`task:${task.id}`),
+    };
+  });
 
   const activeProjectsCount = projects.filter(
     (p) => !p.status || p.status === "active"
@@ -235,7 +260,7 @@ export default async function UserDashboardSection({
       entity_type: "task" as const,
       entity_id: t.id,
       project_id: t.project_id,
-      title: `${t.generated_key} · ${t.title}`,
+      title: t.title,
       subtitle: projectMap.get(t.project_id)?.name ?? "Task",
     })),
   ];
@@ -304,77 +329,10 @@ export default async function UserDashboardSection({
       </div>
 
       <div className="user-dash-split">
-        <article className="user-dash-panel">
-          <header className="user-dash-panel-head">
-            <div>
-              <p className="eyebrow">MY WORK</p>
-              <h3>
-                <Sparkles size={15} style={{ color: "var(--green)" }} />
-                <span>Assigned Tasks</span>
-                <span className="count-pill">{openAssignedTasks.length}</span>
-              </h3>
-            </div>
-            <Link href="/inbox" className="user-dash-all-link">
-              View Inbox <ArrowUpRight size={13} />
-            </Link>
-          </header>
-
-          <div className="user-task-list">
-            {openAssignedTasks.length > 0 ? (
-              openAssignedTasks.map((task) => {
-                const st = statusMap.get(task.status_id);
-                const proj = projectMap.get(task.project_id);
-                return (
-                  <div className="user-task-row" key={task.id}>
-                    <Link
-                      href={`/projects/${task.project_id}/tasks/${task.id}`}
-                      className="user-task-row-link"
-                    >
-                      <span className="task-key">{task.generated_key}</span>
-                      <span className="user-task-row-main">
-                        <strong>{task.title}</strong>
-                        <small>
-                          {proj?.name ?? "Project"}
-                          {task.due_date ? ` · Due ${task.due_date}` : ""}
-                        </small>
-                      </span>
-                      <span className={`priority-pill priority-${task.priority}`}>
-                        {task.priority}
-                      </span>
-                      {st && (
-                        <span
-                          className="user-task-status-pill"
-                          style={{
-                            borderColor: st.color,
-                            color: st.color,
-                          }}
-                        >
-                          {st.name}
-                        </span>
-                      )}
-                    </Link>
-                    {tableAvailable && (
-                      <FavoriteButton
-                        entityType="task"
-                        entityId={task.id}
-                        projectId={task.project_id}
-                        title={`${task.generated_key} · ${task.title}`}
-                        subtitle={proj?.name ?? "Task"}
-                        initialFavorited={favoritedSet.has(`task:${task.id}`)}
-                        compact
-                      />
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="user-dash-empty">
-                <p>You have no open assigned tasks right now.</p>
-                <small>Tasks assigned to you across your projects will show up here.</small>
-              </div>
-            )}
-          </div>
-        </article>
+        <AssignedTasksCardClient
+          tasks={assignedTaskItems}
+          tableAvailable={tableAvailable}
+        />
 
         <FavoritesCardClient
           initialFavorites={favorites}

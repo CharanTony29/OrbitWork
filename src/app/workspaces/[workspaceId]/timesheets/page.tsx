@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AppTopBar from "@/app/AppTopBar";
 import BackButton from "@/app/BackButton";
 import { notFound, redirect } from "next/navigation";
 import { Calendar, ListFilter, Settings, FolderKanban } from "lucide-react";
@@ -155,7 +156,14 @@ export default async function WorkspaceTimesheetsPage({
   }
 
   return (
-    <div className="timesheets-page" style={{ padding: "20px 28px 60px" }}>
+    <main className="app-shell">
+      <AppTopBar
+        email={user.email ?? ""}
+        workspaceId={workspaceId}
+        workspaceName={workspace.name}
+        organizationId={workspace.organization_id}
+      />
+      <div className="timesheets-page" style={{ padding: "20px 28px 60px" }}>
       <BackButton fallbackHref={`/workspaces/${workspaceId}`} label={workspace.name} />
 
       <div className="timesheets-heading">
@@ -447,6 +455,7 @@ export default async function WorkspaceTimesheetsPage({
           )}
         </div>
       )}
-    </div>
+      </div>
+    </main>
   );
 }

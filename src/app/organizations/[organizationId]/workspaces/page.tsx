@@ -1,5 +1,5 @@
 import Link from "next/link";
-import CurrentUserBadge from "@/app/CurrentUserBadge";
+import AppTopBar from "@/app/AppTopBar";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, FolderKanban, Layers3 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -63,14 +63,7 @@ export default async function OrganizationWorkspacesPage({
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <Link className="brand" href="/dashboard">
-          <span className="brand-mark">O</span>Orbit<span>work</span>
-        </Link>
-        <div className="topbar-right">
-          <CurrentUserBadge email={user.email ?? ""} />
-        </div>
-      </header>
+      <AppTopBar email={user.email ?? ""} organizationId={organizationId} />
       <section className="organization-members-page">
         <Link className="back-link" href="/dashboard">
           <ArrowLeft size={15} />

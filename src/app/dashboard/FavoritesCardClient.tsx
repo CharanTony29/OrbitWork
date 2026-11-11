@@ -48,6 +48,10 @@ function FavoriteIcon({ type }: { type: FavoriteRecord["entity_type"] }) {
   return <CheckSquare size={14} />;
 }
 
+function formatFavoriteTitle(title: string) {
+  return title.replace(/^[A-Z][A-Z0-9]{1,9}-\d+\s+·\s+/, "");
+}
+
 export default function FavoritesCardClient({
   initialFavorites,
   candidates,
@@ -190,7 +194,7 @@ export default function FavoritesCardClient({
                   <FavoriteIcon type={item.entity_type} />
                 </span>
                 <span className="user-fav-meta">
-                  <strong>{item.title}</strong>
+                  <strong>{formatFavoriteTitle(item.title)}</strong>
                   <small>
                     {item.entity_type === "document"
                       ? "Document"
@@ -206,7 +210,7 @@ export default function FavoritesCardClient({
                 className="user-fav-remove"
                 disabled={pending}
                 title="Remove from favorites"
-                aria-label={`Remove ${item.title} from favorites`}
+                aria-label={`Remove ${formatFavoriteTitle(item.title)} from favorites`}
                 onClick={() => handleUnfavorite(item)}
               >
                 <X size={13} />
@@ -240,7 +244,7 @@ export default function FavoritesCardClient({
                 key={`${c.entity_type}:${c.entity_id}`}
                 value={`${c.entity_type}:${c.entity_id}`}
               >
-                [{c.entity_type === "document" ? "Doc" : c.entity_type === "project" ? "Project" : "Task"}] {c.title}
+                [{c.entity_type === "document" ? "Doc" : c.entity_type === "project" ? "Project" : "Task"}] {formatFavoriteTitle(c.title)}
                 {c.subtitle ? ` (${c.subtitle})` : ""}
               </option>
             ))}

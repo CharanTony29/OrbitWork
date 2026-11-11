@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { autoSaveTaskProperty } from "@/app/actions";
 import DateInput from "@/app/DateInput";
+import AssigneePicker from "../../AssigneePicker";
 
 type StatusOption = {
   id: string;
@@ -10,10 +11,18 @@ type StatusOption = {
   color: string;
 };
 
+type MemberOption = {
+  id: string;
+  label: string;
+};
+
 type Props = {
   projectId: string;
   taskId: string;
   canEdit: boolean;
+  isSubtask?: boolean;
+  members?: MemberOption[];
+  initialAssignees?: string[];
   statuses: StatusOption[];
   initialStatusId: string;
   initialPriority: "low" | "normal" | "high" | "urgent";
@@ -31,6 +40,9 @@ export default function TaskPropertiesPanel({
   projectId,
   taskId,
   canEdit,
+  isSubtask = false,
+  members = [],
+  initialAssignees = [],
   statuses,
   initialStatusId,
   initialPriority,
@@ -260,6 +272,30 @@ export default function TaskPropertiesPanel({
           {remainingLabel}
         </strong>
       </div>
+      {isSubtask && (
+        <div className="property-line property-line-assignees">
+          <span>Assignees</span>
+          <div>
+            {canEdit ? (
+              <AssigneePicker
+                projectId={projectId}
+                taskId={taskId}
+                members={members}
+                initialAssignees={initialAssignees}
+              />
+            ) : (
+              <strong>
+                {initialAssignees.length > 0
+                  ? members
+                      .filter((m) => initialAssignees.includes(m.id))
+                      .map((m) => m.label)
+                      .join(", ") || "Unassigned"
+                  : "Unassigned"}
+              </strong>
+            )}
+          </div>
+        </div>
+      )}
       <div className="property-line">
         <span>Created by</span>
         <strong>{createdByLabel}</strong>

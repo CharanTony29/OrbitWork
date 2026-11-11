@@ -475,7 +475,7 @@ html,body{background:var(--app-bg);color:var(--ink)}
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-color-scheme="light"]) :is(
+  :root[data-theme="system"]:not([data-color-scheme="light"]) :is(
     .task-table tr:hover td,
     .inbox-task-row:hover,
     .inbox-item.unread,
@@ -1405,11 +1405,135 @@ progress {
   color: #f4fff7;
 }
 
+/* Topbar search bar (replaces Orbitwork brand in authenticated views) */
+.app-topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 460px) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  justify-self: start;
+}
+
+.topbar-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  justify-self: center;
+}
+
+.app-topbar .topbar-right {
+  justify-self: end;
+}
+
+@media (max-width: 780px) {
+  .app-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    height: auto;
+    min-height: 60px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    row-gap: 10px;
+  }
+
+  .topbar-center {
+    grid-column: 1 / -1;
+    order: 3;
+    max-width: 100%;
+  }
+
+  .topbar-search-trigger {
+    max-width: 100%;
+  }
+}
+
+.topbar-search-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 440px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line, #e2e8e0);
+  background: var(--soft, #f6f8f6);
+  color: var(--muted, #64748b);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  text-align: left;
+}
+
+.topbar-search-trigger:hover {
+  border-color: #6cad8d;
+  background: var(--paper, #fff);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+
+.topbar-search-icon {
+  flex: none;
+  color: var(--green, #167c58);
+}
+
+.topbar-search-placeholder {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-search-kbd {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--line, #dce3dc);
+  background: var(--paper, #fff);
+  color: var(--muted, #64748b);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+[data-color-scheme="dark"] .topbar-search-trigger {
+  background: #1b211d;
+  border-color: var(--line);
+  color: #9ba59e;
+}
+
+[data-color-scheme="dark"] .topbar-search-trigger:hover {
+  background: #222925;
+  border-color: #3a7d5c;
+  color: #e2ebe4;
+}
+
+[data-color-scheme="dark"] .topbar-search-kbd {
+  background: #272f2a;
+  border-color: #36413a;
+  color: #c7d1ca;
+}
+
 /* Use the browser's customizable select picker where supported. */
 @supports (appearance: base-select) {
   select:not([multiple]):not([size]),
   select:not([multiple]):not([size])::picker(select) {
     appearance: base-select !important;
+  }
+
+  select:not([multiple]):not([size]) {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1.35;
+    vertical-align: middle;
   }
 
   select:not([multiple]):not([size])::picker(select) {

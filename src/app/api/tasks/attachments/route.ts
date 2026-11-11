@@ -116,17 +116,21 @@ export async function POST(request: Request) {
     .maybeSingle();
   const workspaceRelation = project?.workspaces;
   const workspace = Array.isArray(workspaceRelation) ? workspaceRelation[0] : workspaceRelation;
-  if (!project || !workspace?.organization_id) return new Response("Project not found", { status: 404 });
+  if (!project || !workspace?.organization_id) return failResponse("Project not found", 404, "not_found");
 
   const safeName = file.name.replace(/[\\/\u0000-\u001f\u007f]/g, "_").trim().slice(0, 255) || "attachment";
   const contentType = (file.type || "application/octet-stream").slice(0, 150);
-  const fileBytes = new Uint8Array(await file.arrayBuffer());
-
+  let fileBytes: Uint8Array;
+  let storageConfig: Awaited<ReturnType<typeof getWorkspaceStorageConfig>>;
   const adminClient = createAdminClient();
   const dbClient = adminClient || supabase;
-
-  // Determine active storage provider configured for this workspace
-  const storageConfig = await getWorkspaceStorageConfig(dbClient, workspace.id || project.workspace_id, workspace.organization_id);
+  try {
+    fileBytes = new Uint8Array(await file.arrayBuffer());
+    storageConfig = await getWorkspaceStorageConfig(dbClient, workspace.id || project.workspace_id, workspace.organization_id);
+  } catch (prepErr) {
+    console.error("Attachment upload preparation failed:", prepErr);
+    return failResponse(prepErr instanceof Error ? prepErr.message : "Failed to process upload", 500, "save_failed");
+  }
   const targetProvider = storageConfig.activeProvider;
 
   // 1. If Google Drive is active, upload to Google Drive

@@ -21,6 +21,7 @@ export default function InlineTaskRow({
   defaultPriority = "normal",
   members,
   colSpan,
+  nameColIndex = 0,
 }: {
   projectId: string;
   statuses: WorkflowStatus[];
@@ -28,7 +29,10 @@ export default function InlineTaskRow({
   defaultPriority?: "low" | "normal" | "high" | "urgent";
   members: Member[];
   colSpan: number;
+  nameColIndex?: number;
 }) {
+  const leadingEmptySpan = Math.min(Math.max(0, nameColIndex), Math.max(0, colSpan - 1));
+  const trailingEmptySpan = Math.max(0, colSpan - 1 - leadingEmptySpan);
   const initialStatus = defaultStatusId || statuses[0]?.id || "";
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
@@ -137,6 +141,9 @@ export default function InlineTaskRow({
   if (!isAdding) {
     return (
       <tr className="task-data-tr inline-add-task-idle-tr">
+        {leadingEmptySpan > 0 && (
+          <td colSpan={leadingEmptySpan} className="inline-add-task-empty" />
+        )}
         <td className="task-title-cell inline-add-task-idle-td">
           <button
             type="button"
@@ -159,7 +166,9 @@ export default function InlineTaskRow({
             <span>Add Task</span>
           </button>
         </td>
-        <td colSpan={colSpan - 1} className="inline-add-task-empty" />
+        {trailingEmptySpan > 0 && (
+          <td colSpan={trailingEmptySpan} className="inline-add-task-empty" />
+        )}
       </tr>
     );
   }
@@ -167,6 +176,9 @@ export default function InlineTaskRow({
   // Active state: Input and controls inside the frozen first column (matching screenshot under HOLD)
   return (
     <tr className="task-data-tr inline-task-tr is-active-adding" id="inline-add-task-row">
+      {leadingEmptySpan > 0 && (
+        <td colSpan={leadingEmptySpan} className="inline-add-task-empty" />
+      )}
       <td className="task-title-cell inline-task-active-td">
         <div ref={rowRef} className="inline-add-row-content">
           <div className="inline-add-left">
@@ -403,7 +415,9 @@ export default function InlineTaskRow({
           </div>
         </div>
       </td>
-      <td colSpan={colSpan - 1} className="inline-add-task-empty" />
+      {trailingEmptySpan > 0 && (
+        <td colSpan={trailingEmptySpan} className="inline-add-task-empty" />
+      )}
     </tr>
   );
 }

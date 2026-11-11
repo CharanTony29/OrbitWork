@@ -45,6 +45,9 @@ export function getTransporter(): Transporter | null {
       host: config.host,
       port: config.port,
       secure: config.secure,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
       auth: {
         user: config.user,
         pass: config.pass,
@@ -232,6 +235,112 @@ export async function sendTaskUnassignedEmail(params: TaskUnassignedEmailParams)
     html,
   });
 }
+
+function escapeEmailHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export function isCompletedStatusNameOrCategory(category?: string | null, name?: string | null): boolean {
+  if (category === "completed") return true;
+  if (category === "cancelled") return false;
+  if (!name) return false;
+  return /\b(complete|completed|done|finished)\b/i.test(name);
+}
+
+export interface TaskCompletedEmailParams {
+  recipientEmail: string;
+  recipientName: string;
+  completedByName: string;
+  completedBySelf?: boolean;
+  taskTitle: string;
+  taskKey: string;
+  taskId: string;
+  projectName: string;
+  projectId: string;
+  statusName?: string | null;
+  priority?: string | null;
+}
+
+/**
+ * Send email to task creator when a task moves to a Completed status.
+ */
+export async function sendTaskCompletedEmail(params: TaskCompletedEmailParams) {
+  const taskUrl = `${getAppUrl()}/projects/${params.projectId}/tasks/${params.taskId}`;
+  const safeKey = escapeEmailHtml(params.taskKey || "TASK");
+  const safeTitle = escapeEmailHtml(params.taskTitle);
+  const safeProject = escapeEmailHtml(params.projectName || "Project");
+  const safeRecipient = escapeEmailHtml(params.recipientName);
+  const safeActor = escapeEmailHtml(params.completedByName);
+  const statusLabel = escapeEmailHtml(params.statusName || "Completed");
+  const subject = `[Task Completed] ${params.taskKey}: ${params.taskTitle}`;
+
+  const actionLine = params.completedBySelf
+    ? `You marked a task you created in <strong>${safeProject}</strong> as <strong>${statusLabel}</strong>:`
+    : `<strong>${safeActor}</strong> marked a task you created in <strong>${safeProject}</strong> as <strong>${statusLabel}</strong>:`;
+
+  const html = emailWrapper(`
+    <p>Hi <strong>${safeRecipient}</strong>,</p>
+    <p>${actionLine}</p>
+
+    <div class="card" style="border-left:4px solid #059669;background:#f0fdf4;border:1px solid #bbf7d0;">
+      <div style="font-size:12px;color:#047857;font-weight:700;margin-bottom:4px;">${safeKey} · ${statusLabel}</div>
+      <div style="font-size:16px;font-weight:700;color:#0f172a;margin-bottom:8px;">${safeTitle}</div>
+      ${params.priority ? `<div style="margin-bottom:8px;"><span style="font-size:12px;color:#64748b;margin-right:6px;">Priority:</span> ${getPriorityBadge(params.priority)}</div>` : ""}
+      <a href="${taskUrl}" class="btn">View Completed Task</a>
+    </div>
+  `, subject);
+
+  return sendEmail({
+    to: params.recipientEmail,
+    subject,
+    html,
+  });
+}
+
+export interface ChannelMentionEmailParams {
+  recipientEmail: string;
+  recipientName: string;
+  authorName: string;
+  projectName: string;
+  projectId: string;
+  postBody: string;
+}
+
+/**
+ * Send email when a team member is mentioned in a project channel post.
+ */
+export async function sendChannelMentionEmail(params: ChannelMentionEmailParams) {
+  const channelUrl = `${getAppUrl()}/projects/${params.projectId}?view=channel`;
+  const safeProject = escapeEmailHtml(params.projectName || "Project");
+  const safeRecipient = escapeEmailHtml(params.recipientName);
+  const safeAuthor = escapeEmailHtml(params.authorName);
+  const snippet = escapeEmailHtml((params.postBody || "").slice(0, 500)).replace(/\n/g, "<br>");
+  const subject = `[Channel Mention] ${params.authorName} mentioned you in ${params.projectName}`;
+
+  const html = emailWrapper(`
+    <p>Hi <strong>${safeRecipient}</strong>,</p>
+    <p><strong>${safeAuthor}</strong> mentioned you in the <strong>${safeProject}</strong> team channel:</p>
+
+    <div class="quote-box">
+      ${snippet || "<em>Shared attachments/documents in the channel.</em>"}
+    </div>
+
+    <div style="margin-top:16px;">
+      <a href="${channelUrl}" class="btn">Open Team Channel</a>
+    </div>
+  `, subject);
+
+  return sendEmail({
+    to: params.recipientEmail,
+    subject,
+    html,
+  });
+}
+
 export interface DueReminderEmailParams {
   recipientEmail: string;
   recipientName: string;
@@ -384,6 +493,152 @@ export async function sendTaskHoursExhaustingEmail(params: HoursExhaustingEmailP
 // High-Level Handlers for Actions & API
 // -------------------------------------------------------------
 
+interface RecipientContact {
+  id: string;
+  email: string;
+  display_name: string | null;
+}
+
+type AnySupabaseClient = Awaited<ReturnType<typeof import("./supabase/server")["createClient"]>>;
+
+async function resolveRecipientContacts(
+  supabase: AnySupabaseClient,
+  adminClient: ReturnType<typeof import("./supabase/server")["createAdminClient"]>,
+  userIds: string[]
+): Promise<RecipientContact[]> {
+  const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return [];
+
+  const reader = adminClient ?? supabase;
+  const { data: profiles } = await reader
+    .from("profiles")
+    .select("id, display_name, email")
+    .in("id", uniqueIds);
+
+  const byId = new Map<string, RecipientContact>();
+  for (const p of profiles ?? []) {
+    byId.set(p.id, {
+      id: p.id,
+      email: (p.email ?? "").trim(),
+      display_name: p.display_name ?? null,
+    });
+  }
+
+  // Fallback to Supabase Auth admin user record whenever profile.email is blank or missing
+  if (adminClient) {
+    const missingOrBlank = uniqueIds.filter((uid) => !byId.get(uid)?.email);
+    await Promise.allSettled(
+      missingOrBlank.map(async (uid) => {
+        const { data } = await adminClient.auth.admin.getUserById(uid);
+        const authEmail = data?.user?.email?.trim();
+        if (authEmail) {
+          const existing = byId.get(uid);
+          const metaName =
+            typeof data.user?.user_metadata?.full_name === "string"
+              ? data.user.user_metadata.full_name
+              : typeof data.user?.user_metadata?.name === "string"
+              ? data.user.user_metadata.name
+              : null;
+          byId.set(uid, {
+            id: uid,
+            email: authEmail,
+            display_name: existing?.display_name || metaName || null,
+          });
+        }
+      })
+    );
+  }
+
+  return Array.from(byId.values());
+}
+
+async function resolveProjectCandidateUserIds(
+  reader: AnySupabaseClient,
+  projectId: string,
+  excludeUserId?: string
+): Promise<{ candidateUserIds: string[]; projectName: string }> {
+  const { data: project } = await reader
+    .from("projects")
+    .select("id, name, workspace_id, workspaces(organization_id)")
+    .eq("id", projectId)
+    .maybeSingle();
+
+  const workspace = Array.isArray(project?.workspaces) ? project?.workspaces[0] : project?.workspaces;
+  const orgId = workspace?.organization_id;
+
+  const [orgRes, wsRes, projRes] = await Promise.all([
+    orgId
+      ? reader
+          .from("organization_members")
+          .select("user_id")
+          .eq("organization_id", orgId)
+          .eq("status", "active")
+      : Promise.resolve({ data: [] as { user_id: string }[] }),
+    project?.workspace_id
+      ? reader
+          .from("workspace_members")
+          .select("user_id")
+          .eq("workspace_id", project.workspace_id)
+      : Promise.resolve({ data: [] as { user_id: string }[] }),
+    reader.from("project_members").select("user_id").eq("project_id", projectId),
+  ]);
+
+  const ids = new Set<string>();
+  for (const m of orgRes.data ?? []) if (m.user_id) ids.add(m.user_id);
+  for (const m of wsRes.data ?? []) if (m.user_id) ids.add(m.user_id);
+  for (const m of projRes.data ?? []) if (m.user_id) ids.add(m.user_id);
+  if (excludeUserId) ids.delete(excludeUserId);
+
+  return {
+    candidateUserIds: Array.from(ids),
+    projectName: project?.name || "Project",
+  };
+}
+
+function findMentionedContacts(
+  body: string,
+  contacts: RecipientContact[],
+  explicitMentionIds?: string[]
+): RecipientContact[] {
+  const explicitSet = new Set(explicitMentionIds ?? []);
+  const lowerBody = (body || "").toLowerCase();
+  const matched: RecipientContact[] = [];
+
+  for (const c of contacts) {
+    if (explicitSet.has(c.id)) {
+      matched.push(c);
+      continue;
+    }
+    if (!lowerBody.includes("@")) continue;
+
+    const email = c.email.toLowerCase();
+    const displayName = c.display_name?.trim().toLowerCase() || "";
+    const username = email ? email.split("@")[0] : "";
+    const firstName = displayName ? displayName.split(/\s+/)[0] : "";
+
+    let isMentioned = false;
+    if (email && lowerBody.includes(`@${email}`)) {
+      isMentioned = true;
+    } else if (displayName && lowerBody.includes(`@${displayName}`)) {
+      isMentioned = true;
+    } else if (username && username.length >= 3 && lowerBody.includes(`@${username}`)) {
+      isMentioned = true;
+    } else if (firstName && firstName.length >= 3) {
+      const escaped = firstName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`@${escaped}\\b`, "i");
+      if (regex.test(lowerBody)) {
+        isMentioned = true;
+      }
+    }
+
+    if (isMentioned) {
+      matched.push(c);
+    }
+  }
+
+  return matched;
+}
+
 /**
  * Notify all assigned users when a task is created or its assignees are updated.
  */
@@ -401,64 +656,52 @@ export async function notifyAssigneesOnTask({
   if (!assigneeIds || assigneeIds.length === 0) return;
 
   try {
-    const { createClient } = await import("./supabase/server");
+    const { createClient, createAdminClient } = await import("./supabase/server");
     const supabase = await createClient();
+    const adminClient = createAdminClient();
+    const reader = adminClient ?? supabase;
 
-    // 1. Get task details
-    const { data: task } = await supabase
-      .from("tasks")
-      .select("id, generated_key, title, description, priority, due_date")
-      .eq("id", taskId)
-      .maybeSingle();
+    const [{ data: task }, { data: project }] = await Promise.all([
+      reader
+        .from("tasks")
+        .select("id, generated_key, title, description, priority, due_date")
+        .eq("id", taskId)
+        .maybeSingle(),
+      reader.from("projects").select("name").eq("id", projectId).maybeSingle(),
+    ]);
 
     if (!task) return;
 
-    // 2. Get project details
-    const { data: project } = await supabase
-      .from("projects")
-      .select("name")
-      .eq("id", projectId)
-      .maybeSingle();
-
-    // 3. Get actor/assigner name
-    const { data: actorProfile } = await supabase
-      .from("profiles")
-      .select("display_name, email")
-      .eq("id", actorId)
-      .maybeSingle();
-
-    const assignerName = actorProfile?.display_name?.trim() || actorProfile?.email || "A teammate";
-
-    // 4. Filter out the assigner from recipients
     const targetUserIds = assigneeIds.filter((id) => id && id !== actorId);
     if (targetUserIds.length === 0) return;
 
-    // 5. Fetch profiles for target users
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, display_name, email")
-      .in("id", targetUserIds);
+    const [actorContacts, recipientContacts] = await Promise.all([
+      resolveRecipientContacts(supabase, adminClient, [actorId]),
+      resolveRecipientContacts(supabase, adminClient, targetUserIds),
+    ]);
 
-    if (!profiles || profiles.length === 0) return;
+    const actor = actorContacts[0];
+    const assignerName = actor?.display_name?.trim() || actor?.email || "A teammate";
 
-    for (const profile of profiles) {
-      if (!profile.email) continue;
-      const recipientName = profile.display_name?.trim() || profile.email;
-
-      await sendTaskAssignedEmail({
-        recipientEmail: profile.email,
-        recipientName,
-        assignerName,
-        taskTitle: task.title,
-        taskKey: task.generated_key,
-        taskId: task.id,
-        projectName: project?.name || "Project",
-        projectId,
-        priority: task.priority || "normal",
-        dueDate: task.due_date,
-        description: task.description,
-      });
-    }
+    await Promise.allSettled(
+      recipientContacts
+        .filter((r) => r.email)
+        .map((recipient) =>
+          sendTaskAssignedEmail({
+            recipientEmail: recipient.email,
+            recipientName: recipient.display_name?.trim() || recipient.email,
+            assignerName,
+            taskTitle: task.title,
+            taskKey: task.generated_key,
+            taskId: task.id,
+            projectName: project?.name || "Project",
+            projectId,
+            priority: task.priority || "normal",
+            dueDate: task.due_date,
+            description: task.description,
+          })
+        )
+    );
   } catch (err) {
     console.error("Error sending task assignment notifications:", err);
   }
@@ -481,60 +724,143 @@ export async function notifyRemovedAssigneesOnTask({
   if (!removedAssigneeIds || removedAssigneeIds.length === 0) return;
 
   try {
-    const { createClient } = await import("./supabase/server");
+    const { createClient, createAdminClient } = await import("./supabase/server");
     const supabase = await createClient();
+    const adminClient = createAdminClient();
+    const reader = adminClient ?? supabase;
 
-    const { data: task } = await supabase
-      .from("tasks")
-      .select("id, generated_key, title, priority, due_date")
-      .eq("id", taskId)
-      .maybeSingle();
+    const [{ data: task }, { data: project }] = await Promise.all([
+      reader
+        .from("tasks")
+        .select("id, generated_key, title, priority, due_date")
+        .eq("id", taskId)
+        .maybeSingle(),
+      reader.from("projects").select("name").eq("id", projectId).maybeSingle(),
+    ]);
 
     if (!task) return;
-
-    const { data: project } = await supabase
-      .from("projects")
-      .select("name")
-      .eq("id", projectId)
-      .maybeSingle();
-
-    const { data: actorProfile } = await supabase
-      .from("profiles")
-      .select("display_name, email")
-      .eq("id", actorId)
-      .maybeSingle();
-
-    const actorName = actorProfile?.display_name?.trim() || actorProfile?.email || "A teammate";
 
     const targetUserIds = removedAssigneeIds.filter((id) => id && id !== actorId);
     if (targetUserIds.length === 0) return;
 
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, display_name, email")
-      .in("id", targetUserIds);
+    const [actorContacts, recipientContacts] = await Promise.all([
+      resolveRecipientContacts(supabase, adminClient, [actorId]),
+      resolveRecipientContacts(supabase, adminClient, targetUserIds),
+    ]);
 
-    if (!profiles || profiles.length === 0) return;
+    const actor = actorContacts[0];
+    const actorName = actor?.display_name?.trim() || actor?.email || "A teammate";
 
-    for (const profile of profiles) {
-      if (!profile.email) continue;
-      const recipientName = profile.display_name?.trim() || profile.email;
+    await Promise.allSettled(
+      recipientContacts
+        .filter((r) => r.email)
+        .map((recipient) =>
+          sendTaskUnassignedEmail({
+            recipientEmail: recipient.email,
+            recipientName: recipient.display_name?.trim() || recipient.email,
+            actorName,
+            taskTitle: task.title,
+            taskKey: task.generated_key,
+            taskId: task.id,
+            projectName: project?.name || "Project",
+            projectId,
+            priority: task.priority || "normal",
+            dueDate: task.due_date,
+          })
+        )
+    );
+  } catch (err) {
+    console.error("Error sending task unassignment notifications:", err);
+  }
+}
 
-      await sendTaskUnassignedEmail({
-        recipientEmail: profile.email,
-        recipientName,
-        actorName,
+/**
+ * Notify the task creator once a task transitions to a Completed status.
+ */
+export async function notifyTaskCompletedToCreator({
+  projectId,
+  taskId,
+  newStatusId,
+  previousStatusId,
+  actorId,
+}: {
+  projectId: string;
+  taskId: string;
+  newStatusId: string;
+  previousStatusId?: string | null;
+  actorId: string;
+}) {
+  if (!newStatusId || previousStatusId === newStatusId) return;
+
+  try {
+    const { createClient, createAdminClient } = await import("./supabase/server");
+    const supabase = await createClient();
+    const adminClient = createAdminClient();
+    const reader = adminClient ?? supabase;
+
+    const statusIds = previousStatusId ? [newStatusId, previousStatusId] : [newStatusId];
+    const [{ data: statuses }, { data: task }, { data: project }] = await Promise.all([
+      reader.from("project_statuses").select("id, name, category").in("id", statusIds),
+      reader
+        .from("tasks")
+        .select("id, generated_key, title, priority, created_by")
+        .eq("id", taskId)
+        .maybeSingle(),
+      reader.from("projects").select("name").eq("id", projectId).maybeSingle(),
+    ]);
+
+    const newStatus = (statuses ?? []).find((s) => s.id === newStatusId);
+    const prevStatus = previousStatusId ? (statuses ?? []).find((s) => s.id === previousStatusId) : null;
+
+    if (!newStatus || !isCompletedStatusNameOrCategory(newStatus.category, newStatus.name)) {
+      return;
+    }
+    if (prevStatus && isCompletedStatusNameOrCategory(prevStatus.category, prevStatus.name)) {
+      return;
+    }
+    if (!task?.created_by) return;
+
+    const contacts = await resolveRecipientContacts(
+      supabase,
+      adminClient,
+      [task.created_by, actorId]
+    );
+    const creator = contacts.find((c) => c.id === task.created_by);
+    const actor = contacts.find((c) => c.id === actorId);
+    const actorName = actor?.display_name?.trim() || actor?.email || "A teammate";
+
+    if (creator?.email) {
+      await sendTaskCompletedEmail({
+        recipientEmail: creator.email,
+        recipientName: creator.display_name?.trim() || creator.email,
+        completedByName: actorName,
+        completedBySelf: task.created_by === actorId,
         taskTitle: task.title,
-        taskKey: task.generated_key,
+        taskKey: task.generated_key || "TASK",
         taskId: task.id,
         projectName: project?.name || "Project",
         projectId,
+        statusName: newStatus.name,
         priority: task.priority || "normal",
-        dueDate: task.due_date,
       });
     }
+
+    if (task.created_by !== actorId) {
+      try {
+        await reader.from("notifications").insert({
+          recipient_id: task.created_by,
+          actor_id: actorId,
+          project_id: projectId,
+          task_id: task.id,
+          event_type: "task_completed",
+          message: `${actorName} completed "${task.title}" (${newStatus.name})`,
+        });
+      } catch (notifErr) {
+        console.warn("Could not insert completion notification:", notifErr);
+      }
+    }
   } catch (err) {
-    console.error("Error sending task unassignment notifications:", err);
+    console.error("Error sending task completion notification:", err);
   }
 }
 
@@ -555,11 +881,12 @@ export async function notifyMentionedUsers({
   if (!commentBody || !commentBody.includes("@")) return;
 
   try {
-    const { createClient } = await import("./supabase/server");
+    const { createClient, createAdminClient } = await import("./supabase/server");
     const supabase = await createClient();
+    const adminClient = createAdminClient();
+    const reader = adminClient ?? supabase;
 
-    // 1. Get task & project details
-    const { data: task } = await supabase
+    const { data: task } = await reader
       .from("tasks")
       .select("id, generated_key, title, project_id")
       .eq("id", taskId)
@@ -567,108 +894,115 @@ export async function notifyMentionedUsers({
 
     if (!task) return;
 
-    const { data: project } = await supabase
-      .from("projects")
-      .select("id, name, workspace_id, workspaces(organization_id)")
-      .eq("id", projectId)
-      .maybeSingle();
-
-    // 2. Get author name
-    const { data: authorProfile } = await supabase
-      .from("profiles")
-      .select("display_name, email")
-      .eq("id", authorId)
-      .maybeSingle();
-
-    const authorName = authorProfile?.display_name?.trim() || authorProfile?.email || "A teammate";
-
-    // 3. Find organization members to match mentions against
-    const workspace = Array.isArray(project?.workspaces) ? project?.workspaces[0] : project?.workspaces;
-    const orgId = workspace?.organization_id;
-
-    let orgUserIds: string[] = [];
-    if (orgId) {
-      const { data: members } = await supabase
-        .from("organization_members")
-        .select("user_id")
-        .eq("organization_id", orgId)
-        .eq("status", "active");
-      orgUserIds = (members ?? []).map((m) => m.user_id);
-    }
-
-    // Also get project members
-    const { data: projectMembers } = await supabase
-      .from("project_members")
-      .select("user_id")
-      .eq("project_id", projectId);
-
-    const candidateUserIds = [...new Set([...orgUserIds, ...(projectMembers ?? []).map((p) => p.user_id)])].filter(
-      (id) => id !== authorId
+    const { candidateUserIds, projectName } = await resolveProjectCandidateUserIds(
+      reader,
+      projectId,
+      authorId
     );
-
     if (candidateUserIds.length === 0) return;
 
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, display_name, email")
-      .in("id", candidateUserIds);
+    const [authorContacts, memberContacts] = await Promise.all([
+      resolveRecipientContacts(supabase, adminClient, [authorId]),
+      resolveRecipientContacts(supabase, adminClient, candidateUserIds),
+    ]);
 
-    if (!profiles || profiles.length === 0) return;
+    const author = authorContacts[0];
+    const authorName = author?.display_name?.trim() || author?.email || "A teammate";
+    const mentioned = findMentionedContacts(commentBody, memberContacts);
 
-    // 4. Resolve which users were mentioned in the commentBody
-    // Supports @email, @username, @Display Name (e.g. "@Charan Admin", "@charantony88", "@john")
-    const lowerBody = commentBody.toLowerCase();
-    const mentionedProfiles: typeof profiles = [];
-
-    for (const p of profiles) {
-      const email = p.email?.toLowerCase();
-      const displayName = p.display_name?.trim().toLowerCase();
-      const username = email ? email.split("@")[0] : "";
-      const firstName = displayName ? displayName.split(" ")[0] : "";
-
-      let isMentioned = false;
-
-      // Check full email mention: @user@domain.com
-      if (email && lowerBody.includes(`@${email}`)) {
-        isMentioned = true;
-      }
-      // Check full display name mention: @charan admin
-      else if (displayName && lowerBody.includes(`@${displayName}`)) {
-        isMentioned = true;
-      }
-      // Check username prefix: @charantony88
-      else if (username && username.length >= 3 && lowerBody.includes(`@${username}`)) {
-        isMentioned = true;
-      }
-      // Check first name if unique/clear: e.g. @charan
-      else if (firstName && firstName.length >= 3) {
-        const regex = new RegExp(`@${firstName}\\b`, "i");
-        if (regex.test(lowerBody)) {
-          isMentioned = true;
-        }
-      }
-
-      if (isMentioned && p.email) {
-        mentionedProfiles.push(p);
-      }
-    }
-
-    // 5. Send mention email to each matched member
-    for (const recipient of mentionedProfiles) {
-      await sendUserMentionedEmail({
-        recipientEmail: recipient.email,
-        recipientName: recipient.display_name?.trim() || recipient.email,
-        authorName,
-        taskTitle: task.title,
-        taskKey: task.generated_key,
-        taskId: task.id,
-        projectName: project?.name || "Project",
-        projectId,
-        commentBody,
-      });
-    }
+    await Promise.allSettled(
+      mentioned
+        .filter((r) => r.email)
+        .map((recipient) =>
+          sendUserMentionedEmail({
+            recipientEmail: recipient.email,
+            recipientName: recipient.display_name?.trim() || recipient.email,
+            authorName,
+            taskTitle: task.title,
+            taskKey: task.generated_key,
+            taskId: task.id,
+            projectName,
+            projectId,
+            commentBody,
+          })
+        )
+    );
   } catch (err) {
     console.error("Error notifying mentioned users:", err);
+  }
+}
+
+/**
+ * Alert & email team members mentioned in a Project Team Channel post.
+ */
+export async function notifyChannelMentionedUsers({
+  projectId,
+  postBody,
+  explicitMentionIds,
+  authorId,
+}: {
+  projectId: string;
+  postBody: string;
+  explicitMentionIds?: string[];
+  authorId: string;
+}): Promise<string[]> {
+  try {
+    const { createClient, createAdminClient } = await import("./supabase/server");
+    const supabase = await createClient();
+    const adminClient = createAdminClient();
+    const reader = adminClient ?? supabase;
+
+    const { candidateUserIds, projectName } = await resolveProjectCandidateUserIds(
+      reader,
+      projectId,
+      authorId
+    );
+    if (candidateUserIds.length === 0) return [];
+
+    const [authorContacts, memberContacts] = await Promise.all([
+      resolveRecipientContacts(supabase, adminClient, [authorId]),
+      resolveRecipientContacts(supabase, adminClient, candidateUserIds),
+    ]);
+
+    const author = authorContacts[0];
+    const authorName = author?.display_name?.trim() || author?.email || "A teammate";
+    const mentioned = findMentionedContacts(postBody, memberContacts, explicitMentionIds);
+    if (mentioned.length === 0) return [];
+
+    const notifRows = mentioned.map((recipient) => ({
+      recipient_id: recipient.id,
+      actor_id: authorId,
+      project_id: projectId,
+      task_id: null,
+      event_type: "channel_mentioned",
+      message: `${authorName} mentioned you in ${projectName} channel: "${(postBody || "Shared an update").replace(/\s+/g, " ").slice(0, 110)}"`,
+    }));
+
+    try {
+      await reader.from("notifications").insert(notifRows);
+    } catch (notifErr) {
+      console.warn("Channel mention in-app notification warning:", notifErr);
+    }
+
+    await Promise.allSettled(
+      mentioned
+        .filter((r) => r.email)
+        .map((recipient) =>
+          sendChannelMentionEmail({
+            recipientEmail: recipient.email,
+            recipientName: recipient.display_name?.trim() || recipient.email,
+            authorName,
+            projectName,
+            projectId,
+            postBody,
+          })
+        )
+    );
+
+    return mentioned.map((m) => m.id);
+  } catch (err) {
+    console.error("Error notifying channel mentioned users:", err);
+    return [];
   }
 }
 

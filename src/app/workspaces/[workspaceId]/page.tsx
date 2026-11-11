@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import CurrentUserBadge from "@/app/CurrentUserBadge";
+import AppTopBar from "@/app/AppTopBar";
 import Link from "next/link";
 import { ArrowLeft, FolderKanban } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -139,18 +139,12 @@ export default async function WorkspacePage({
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <Link className="brand" href="/dashboard">
-          <span className="brand-mark">O</span>Orbit<span>work</span>
-        </Link>
-        <div className="topbar-right">
-          <CurrentUserBadge
-            email={user.email ?? ""}
-            workspaceId={workspaceId}
-            organizationId={workspace.organization_id}
-          />
-        </div>
-      </header>
+      <AppTopBar
+        email={user.email ?? ""}
+        workspaceId={workspaceId}
+        workspaceName={workspace.name}
+        organizationId={workspace.organization_id}
+      />
 
       <div className="workspace-page">
         <Link className="back-link" href="/dashboard">

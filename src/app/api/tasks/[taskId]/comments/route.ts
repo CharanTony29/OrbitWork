@@ -105,13 +105,13 @@ export async function POST(
     return NextResponse.json({ error: error?.message || "Failed to post comment" }, { status: 500 });
   }
 
-  // Send mention notification emails asynchronously
-  notifyMentionedUsers({
+  // Send mention notification emails before returning response
+  await notifyMentionedUsers({
     projectId: targetProjectId,
     taskId,
     commentBody: body,
     authorId: user.id,
-  }).catch(console.error);
+  });
 
   // Get user profile
   const { data: profile } = await supabase

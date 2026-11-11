@@ -77,6 +77,26 @@ export default function UserProfileDropdown({
     } catch {}
   };
 
+  // Close dropdown / modals on Escape
+  useEffect(() => {
+    if (!isOpen && !showShortcuts && !showNotepad) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        if (showShortcuts) {
+          setShowShortcuts(false);
+        } else if (showNotepad) {
+          setShowNotepad(false);
+        } else if (isOpen) {
+          setIsOpen(false);
+          setShowStatusEdit(false);
+          setThemeSubmenu(false);
+        }
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, showShortcuts, showNotepad]);
+
   // Close on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -126,28 +146,40 @@ export default function UserProfileDropdown({
         style={{
           width: 36,
           height: 36,
+          padding: 0,
           borderRadius: "50%",
-          backgroundColor: "#167c58",
+          backgroundColor: avatarUrl ? "transparent" : "#167c58",
           color: "#ffffff",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           fontWeight: 700,
           fontSize: 14,
-          border: "2px solid rgba(255,255,255,0.8)",
+          border: avatarUrl ? "1.5px solid var(--line, #dfe5e0)" : "2px solid rgba(255,255,255,0.8)",
           boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
           cursor: "pointer",
           position: "relative",
           outline: "none",
+          boxSizing: "border-box",
         }}
       >
         {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={avatarUrl}
-            alt={name}
-            style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
-          />
+          <span
+            style={{
+              width: "100%",
+              height: "100%",
+              borderRadius: "50%",
+              overflow: "hidden",
+              display: "block",
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={avatarUrl}
+              alt={name}
+              style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", display: "block" }}
+            />
+          </span>
         ) : (
           initial
         )}
@@ -196,7 +228,7 @@ export default function UserProfileDropdown({
                   width: 38,
                   height: 38,
                   borderRadius: "50%",
-                  backgroundColor: "#167c58",
+                  backgroundColor: avatarUrl ? "transparent" : "#167c58",
                   color: "#ffffff",
                   display: "flex",
                   alignItems: "center",
@@ -205,15 +237,26 @@ export default function UserProfileDropdown({
                   fontSize: 16,
                   position: "relative",
                   flexShrink: 0,
+                  border: avatarUrl ? "1px solid var(--line, #dfe5e0)" : "none",
                 }}
               >
                 {avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={avatarUrl}
-                    alt={name}
-                    style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
-                  />
+                  <span
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      borderRadius: "50%",
+                      overflow: "hidden",
+                      display: "block",
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={avatarUrl}
+                      alt={name}
+                      style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", display: "block" }}
+                    />
+                  </span>
                 ) : (
                   initial
                 )}
@@ -829,32 +872,108 @@ export default function UserProfileDropdown({
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Keyboard Shortcuts</h3>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--ink, #17231f)" }}>Keyboard Shortcuts</h3>
               <button
                 type="button"
                 onClick={() => setShowShortcuts(false)}
-                style={{ border: 0, background: "transparent", cursor: "pointer" }}
+                aria-label="Close shortcuts"
+                style={{ border: 0, background: "transparent", cursor: "pointer", color: "var(--muted, #64748b)" }}
               >
                 <X size={16} />
               </button>
             </div>
-            <div style={{ display: "grid", gap: 10, fontSize: 13 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Global Search</span>
-                <kbd style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>Ctrl + K</kbd>
+            <div style={{ display: "grid", gap: 8, fontSize: 13 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowShortcuts(false);
+                  setTimeout(() => window.dispatchEvent(new CustomEvent("orbitwork:open-search")), 40);
+                }}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid var(--line, #e2e8f0)",
+                  background: "var(--surface-soft, #f8fafc)",
+                  color: "var(--ink, #17231f)",
+                  cursor: "pointer",
+                }}
+              >
+                <span>
+                  <strong>Global Search</strong>
+                  <small style={{ display: "block", fontSize: 11, color: "var(--muted, #64748b)" }}>
+                    Click or press to search tasks, docs, projects &amp; workspaces
+                  </small>
+                </span>
+                <kbd style={{ background: "var(--paper, #fff)", color: "var(--ink, #17231f)", border: "1px solid var(--line, #cbd5e1)", padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 600 }}>Ctrl + K</kbd>
+              </button>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid var(--line, #e2e8f0)",
+                  color: "var(--ink, #17231f)",
+                }}
+              >
+                <span>
+                  <strong>Submit / Send Comment</strong>
+                  <small style={{ display: "block", fontSize: 11, color: "var(--muted, #64748b)" }}>
+                    Works in task discussions &amp; team channel posts
+                  </small>
+                </span>
+                <kbd style={{ background: "var(--paper, #fff)", color: "var(--ink, #17231f)", border: "1px solid var(--line, #cbd5e1)", padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 600 }}>Ctrl + Enter</kbd>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Submit / Send Comment</span>
-                <kbd style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>Ctrl + Enter</kbd>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid var(--line, #e2e8f0)",
+                  color: "var(--ink, #17231f)",
+                }}
+              >
+                <span>
+                  <strong>Mention Team Member</strong>
+                  <small style={{ display: "block", fontSize: 11, color: "var(--muted, #64748b)" }}>
+                    Type @ in task comments or team channel to tag &amp; alert teammates
+                  </small>
+                </span>
+                <kbd style={{ background: "var(--paper, #fff)", color: "var(--ink, #17231f)", border: "1px solid var(--line, #cbd5e1)", padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 600 }}>@</kbd>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Mention Team Member</span>
-                <kbd style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>@</kbd>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Close modal</span>
-                <kbd style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>Escape</kbd>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowShortcuts(false)}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid var(--line, #e2e8f0)",
+                  background: "transparent",
+                  color: "var(--ink, #17231f)",
+                  cursor: "pointer",
+                }}
+              >
+                <span>
+                  <strong>Close modal</strong>
+                  <small style={{ display: "block", fontSize: 11, color: "var(--muted, #64748b)" }}>
+                    Dismisses dialogs, popovers, search, and comment drawers
+                  </small>
+                </span>
+                <kbd style={{ background: "var(--paper, #fff)", color: "var(--ink, #17231f)", border: "1px solid var(--line, #cbd5e1)", padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 600 }}>Escape</kbd>
+              </button>
             </div>
           </div>
         </div>

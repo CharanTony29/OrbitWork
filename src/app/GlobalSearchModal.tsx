@@ -70,12 +70,33 @@ type SearchResults = {
   discussions: SearchDiscussion[];
 };
 
+const searchHosts: Array<{ id: string; priority: number }> = [];
+
+function registerSearchHost(id: string, priority: number) {
+  searchHosts.push({ id, priority });
+  return () => {
+    const idx = searchHosts.findIndex((h) => h.id === id);
+    if (idx !== -1) searchHosts.splice(idx, 1);
+  };
+}
+
+function isPrimarySearchHost(id: string): boolean {
+  if (searchHosts.length === 0) return true;
+  let best = searchHosts[0];
+  for (const h of searchHosts) {
+    if (h.priority > best.priority) best = h;
+  }
+  return best.id === id;
+}
+
 export default function GlobalSearchModal({
   workspaceId,
   workspaceName,
+  variant = "sidebar",
 }: {
-  workspaceId: string;
+  workspaceId?: string;
   workspaceName?: string;
+  variant?: "sidebar" | "topbar" | "hidden";
 }) {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
@@ -90,24 +111,36 @@ export default function GlobalSearchModal({
     discussions: [],
   });
   const inputRef = useRef<HTMLInputElement>(null);
+  const instanceIdRef = useRef(`search-${Math.random().toString(36).slice(2)}`);
   const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    const priority = variant === "topbar" ? 2 : 1;
+    return registerSearchHost(instanceIdRef.current, priority);
+  }, [variant]);
 
-  // Listen for Cmd+K / Ctrl+K
+  // Listen for Cmd+K / Ctrl+K, custom open event, and Escape
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        if (!isPrimarySearchHost(instanceIdRef.current)) return;
         e.preventDefault();
         setOpen((prev) => !prev);
       } else if (e.key === "Escape" && open) {
         setOpen(false);
       }
     }
+    function handleOpenEvent() {
+      if (!isPrimarySearchHost(instanceIdRef.current)) return;
+      setOpen(true);
+    }
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("orbitwork:open-search", handleOpenEvent);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("orbitwork:open-search", handleOpenEvent);
+    };
   }, [open]);
 
   // Focus input on open
@@ -130,9 +163,10 @@ export default function GlobalSearchModal({
       }
       setLoading(true);
       try {
-        const res = await fetch(
-          `/api/workspaces/${workspaceId}/search?q=${encodeURIComponent(q.trim())}`
-        );
+        const endpoint = workspaceId
+          ? `/api/workspaces/${workspaceId}/search?q=${encodeURIComponent(q.trim())}`
+          : `/api/search?q=${encodeURIComponent(q.trim())}`;
+        const res = await fetch(endpoint);
         if (res.ok) {
           const data = await res.json();
           setResults({
@@ -488,19 +522,41 @@ export default function GlobalSearchModal({
     </div>
   );
 
+  const triggerOpen = () => {
+    if (isPrimarySearchHost(instanceIdRef.current)) {
+      setOpen(true);
+    } else {
+      window.dispatchEvent(new CustomEvent("orbitwork:open-search"));
+    }
+  };
+
   return (
     <>
-      {/* Sidebar search trigger button */}
-      <button
-        type="button"
-        className="global-search-trigger"
-        onClick={() => setOpen(true)}
-        aria-label="Search workspace"
-      >
-        <Search size={13} />
-        <span className="global-search-trigger-text">Search workspace...</span>
-        <kbd className="global-search-kbd">⌘K</kbd>
-      </button>
+      {variant === "topbar" ? (
+        <button
+          type="button"
+          className="topbar-search-trigger"
+          onClick={triggerOpen}
+          aria-label={workspaceName ? `Search ${workspaceName}` : "Search everything"}
+        >
+          <Search size={15} className="topbar-search-icon" />
+          <span className="topbar-search-placeholder">
+            {workspaceName ? `Search ${workspaceName}, tasks, docs…` : "Search tasks, projects, docs, workspaces…"}
+          </span>
+          <kbd className="topbar-search-kbd">Ctrl + K</kbd>
+        </button>
+      ) : variant === "sidebar" ? (
+        <button
+          type="button"
+          className="global-search-trigger"
+          onClick={triggerOpen}
+          aria-label="Search workspace"
+        >
+          <Search size={13} />
+          <span className="global-search-trigger-text">Search workspace...</span>
+          <kbd className="global-search-kbd">⌘K</kbd>
+        </button>
+      ) : null}
 
       {/* Global Search Dialog Modal mounted to document body via portal */}
       {open && mounted && createPortal(modalDialog, document.body)}

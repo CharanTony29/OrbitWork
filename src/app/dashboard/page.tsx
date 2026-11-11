@@ -1,11 +1,9 @@
-import { redirect } from "next/navigation";
-import CurrentUserBadge from "@/app/CurrentUserBadge";
 import Link from "next/link";
-import { Building2, Layers3, Plus, FolderKanban, UsersRound, ArrowUpRight, Bell, Trash2, ChevronDown, MessageSquare } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
-import { createOrganization, createWorkspace, deleteOrganization, inviteOrganizationMember, signOut } from "../actions";
-import MultiEmailInviteForm from "@/app/MultiEmailInviteForm";
-import UserDashboardSection from "./UserDashboardSection";
+import { redirect } from "next/navigation";
+import { Bell, Layers3, LayoutDashboard, MessageSquare } from "lucide-react";
+import AppTopBar from "@/app/AppTopBar";
+import { getUserSpaceData } from "@/lib/workspace-space";
+import OverviewCommandCenter from "./OverviewCommandCenter";
 
 const dashboardErrorMessages: Record<string, string> = {
   invalid_invitation: "Check the invitation details and selected workspace, then try again.",
@@ -18,67 +16,117 @@ const dashboardErrorMessages: Record<string, string> = {
   invitation_accept_failed: "The invitation could not be accepted. Confirm migration 014_invitation_acceptance.sql is applied and sign in with the email address that received the invite.",
   invalid_workspace: "Enter a valid workspace name with at least two characters.",
   workspace_failed: "The workspace could not be created. Check your organization permissions and Supabase setup.",
+  invalid_organization: "Enter an organization name with at least two characters.",
+  organization_failed: "The organization could not be created. Please try again.",
+  organization_delete_confirmation: "Enter the exact organization name to confirm deletion.",
+  organization_delete_forbidden: "Only an organization owner can delete an organization.",
+  organization_delete_failed: "The organization could not be deleted. Please try again.",
 };
 
-export default async function Dashboard({ searchParams }: { searchParams: Promise<{ error?: string; invited?: string; invitation_accepted?: string; organization_deleted?: string; organization_created?: string }> }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  // Automatically process any pending invitations for this user
-  try {
-    await supabase.rpc("accept_user_pending_invitations");
-  } catch {}
-
-  const { data: ownProfile } = await supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
-
-  const displayName = ownProfile?.display_name?.trim() || user.email?.split("@")[0] || "there";
-  const { data: memberships } = await supabase.from("organization_members").select("organization_id, role, organizations(id, name, created_at)").eq("user_id", user.id);
-  const organizations = (memberships ?? []).map((item) => ({ ...((Array.isArray(item.organizations) ? item.organizations[0] : item.organizations) as { id: string; name: string; created_at: string } | null), role: item.role })).filter((item): item is { id: string; name: string; created_at: string; role: string } => Boolean(item.id));
-  const orgIds = organizations.map((org) => org.id);
-  const { data: workspaces } = orgIds.length ? await supabase.from("workspaces").select("id, organization_id, name, description, created_at").in("organization_id", orgIds).order("created_at", { ascending: false }) : { data: [] };
-  const workspaceIds = (workspaces ?? []).map((workspace) => workspace.id);
-  const { data: projects } = workspaceIds.length ? await supabase.from("projects").select("id, workspace_id, name, status").in("workspace_id", workspaceIds).order("name") : { data: [] };
-  const { data: organizationMembers } = orgIds.length ? await supabase.from("organization_members").select("organization_id, user_id").in("organization_id", orgIds).eq("status", "active") : { data: [] };
-  const { count: assignedTaskCount } = await supabase.from("task_assignees").select("task_id", { count: "exact", head: true }).eq("user_id", user.id);
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    error?: string;
+    invited?: string;
+    invitation_accepted?: string;
+    organization_deleted?: string;
+    organization_created?: string;
+  }>;
+}) {
+  const space = await getUserSpaceData();
+  if (!space) redirect("/login");
+  const {
+    user,
+    displayName,
+    organizations,
+    workspaces,
+    projects,
+    organizationMembers,
+    assignedTaskCount,
+  } = space;
   const params = await searchParams;
 
-  return <main className="app-shell">
-    <header className="topbar"><a className="brand" href="/dashboard"><span className="brand-mark">O</span>Orbit<span>work</span></a><div className="topbar-right"><CurrentUserBadge email={user.email ?? ""}/></div></header>
-    <div className="dashboard-layout"><aside className="sidebar"><div className="sidebar-label">YOUR SPACE</div><a className="nav-item active" href="/dashboard"><Layers3 size={17}/> Overview</a><Link className="nav-item" href="/inbox"><Bell size={16}/> Inbox {(assignedTaskCount ?? 0) > 0 && <span className="count-pill" style={{ marginLeft: "auto", fontSize: "10px", padding: "1px 6px" }}>{assignedTaskCount}</span>}</Link><Link className="nav-item" href="/chat"><MessageSquare size={16}/> Chat</Link><div className="sidebar-label sidebar-label-spaced">WORKSPACE HIERARCHY</div><nav className="dashboard-hierarchy" aria-label="Organization, workspace, and project navigation">{organizations.map((org) => <details className="dashboard-org-tree" key={org.id} open><summary><ChevronDown size={12}/><Building2 size={14}/><span>{org.name}</span></summary><div className="dashboard-tree-children">{(workspaces ?? []).filter((workspace) => workspace.organization_id === org.id).map((workspace) => <details className="dashboard-workspace-tree" key={workspace.id} open><summary><ChevronDown size={11}/><FolderKanban size={13}/><Link className="dashboard-tree-ws-link" href={`/workspaces/${workspace.id}`}>{workspace.name}</Link></summary><div className="dashboard-project-links"><Link href={`/workspaces/${workspace.id}`}>Workspace overview</Link>{(projects ?? []).filter((project) => project.workspace_id === workspace.id).map((project) => <Link href={`/projects/${project.id}`} key={project.id}><span/>{project.name}</Link>)}</div></details>)}{!(workspaces ?? []).some((workspace) => workspace.organization_id === org.id) && <p className="dashboard-tree-empty">No workspaces</p>}<Link className="dashboard-org-members" href={`/organizations/${org.id}/members`}>Members &amp; roles</Link></div></details>)}</nav><div className="sidebar-note">Projects, tasks, and team spaces, all in one place.</div></aside>
-    <section className="dashboard-content"><div className="welcome-row"><div><p className="eyebrow">YOUR OVERVIEW</p><h1>Good to have you here, {displayName}.</h1><p className="muted">Start with an organization, then shape the workspaces your team needs.</p></div></div>
-      <UserDashboardSection userId={user.id} projects={projects ?? []} />
-      {params.error && <p className="error banner-error" role="alert">{dashboardErrorMessages[params.error] ?? "That action could not be completed. Check your access and Supabase configuration."}</p>}
-      {params.invited && <p className="notice" role="status">{Number(params.invited) > 1 ? `Invitation emails sent to ${params.invited} people.` : "Invitation email sent."}</p>}
-      {params.invitation_accepted && <p className="notice" role="status">Invitation accepted. You now have access to the workspace.</p>}
-      {params.organization_deleted && <p className="notice" role="status">Organization deleted.</p>}
-      {params.organization_created && <p className="notice" role="status">Organization created.</p>}
+  const banner = (
+    <>
+      {params.error && (
+        <p className="error banner-error ov-status-banner" role="alert">
+          {dashboardErrorMessages[params.error] ??
+            "That action could not be completed. Check your access and Supabase configuration."}
+        </p>
+      )}
+      {params.invited && (
+        <p className="notice ov-status-banner" role="status">
+          {Number(params.invited) > 1
+            ? `Invitation emails sent to ${params.invited} people.`
+            : "Invitation email sent."}
+        </p>
+      )}
+      {params.invitation_accepted && (
+        <p className="notice ov-status-banner" role="status">
+          Invitation accepted. You now have access to the workspace.
+        </p>
+      )}
+      {params.organization_deleted && (
+        <p className="notice ov-status-banner" role="status">
+          Organization deleted.
+        </p>
+      )}
+      {params.organization_created && (
+        <p className="notice ov-status-banner" role="status">
+          Organization created.
+        </p>
+      )}
+    </>
+  );
 
-      <section className="organization-directory">
-        <header className="organization-directory-heading">
-          <div><p className="eyebrow">ORGANIZATION DIRECTORY</p><h2>Your organizations <span className="count-pill">{organizations.length}</span></h2><p>Keep each company or team’s work in its own space.</p></div>
-          <details className="organization-create"><summary className="button button-primary"><Plus size={16}/> New organization</summary><form action={createOrganization}><label>Organization name<input name="name" placeholder="e.g. Acme Studio" minLength={2} maxLength={100} required/></label><button className="button button-primary">Create organization</button></form></details>
-        </header>
-        {organizations.length ? <div className="org-grid">{organizations.map((org) => {
-          const orgWorkspaces = (workspaces ?? []).filter((workspace) => workspace.organization_id === org.id);
-          const memberCount = (organizationMembers ?? []).filter((member) => member.organization_id === org.id).length;
-          return <article className="org-card" id={`org-${org.id}`} key={org.id}>
-            <header className="org-card-top"><div className="org-icon"><Building2 size={19}/></div><span className="role-pill">{org.role}</span></header>
-            <div className="org-card-title"><h3>{org.name}</h3><p>Created {new Date(org.created_at).toLocaleDateString()}</p></div>
-            <nav className="organization-links" aria-label={`${org.name} settings`}><Link href={`/organizations/${org.id}/members`}>Members &amp; roles</Link><Link href={`/organizations/${org.id}/calendar`}>Holidays &amp; leave</Link><Link href={`/organizations/${org.id}/integrations`}>Integrations</Link></nav>
-            <div className="org-metrics"><Link href={`/organizations/${org.id}/workspaces`} className="org-metric-link"><Layers3 size={14}/>{orgWorkspaces.length} workspaces</Link><Link href={`/organizations/${org.id}/members`} className="org-metric-link"><UsersRound size={14}/>{memberCount} members</Link></div>
-            <div className="workspace-list">{orgWorkspaces.map((workspace) => <Link className="workspace-row" href={`/workspaces/${workspace.id}`} key={workspace.id}><div><span className="workspace-dot"/><strong>{workspace.name}</strong>{workspace.description && <small>{workspace.description}</small>}</div><ArrowUpRight size={15}/></Link>)}{!orgWorkspaces.length && <p className="muted small">No workspaces yet. Create one to organize projects.</p>}</div>
-            <form action={createWorkspace} className="workspace-form"><input type="hidden" name="organizationId" value={org.id}/><input name="name" placeholder="New workspace name" minLength={2} maxLength={100} required/><button className="icon-button" aria-label={`Create workspace in ${org.name}`} title="Create workspace"><Plus size={17}/></button></form>
-            {["owner", "admin"].includes(org.role) && (
-              <MultiEmailInviteForm
-                organizationId={org.id}
-                workspaces={orgWorkspaces.map((ws) => ({ id: ws.id, name: ws.name }))}
-              />
-            )}
-            {org.role === "owner" && <details className="org-danger-zone"><summary><Trash2 size={14}/> Delete organization</summary><p>This permanently deletes the organization, its workspaces, projects, tasks, and related records.</p><form action={deleteOrganization}><input type="hidden" name="organizationId" value={org.id}/><label>Type <strong>{org.name}</strong> to confirm<input name="confirmName" placeholder={org.name} required autoComplete="off"/></label><button className="button button-danger">Delete organization</button></form></details>}
-          </article>;
-        })}</div> : <div className="organization-empty"><div className="empty-icon"><Building2 size={22}/></div><h3>No organizations yet</h3><p>Create one to get started with workspaces, members, and projects.</p></div>}
-      </section>      <div className="footnote"><FolderKanban size={15}/> Open an organization workspace to manage its projects and tasks.</div>
-    </section></div>
-  </main>;
+  return (
+    <main className="app-shell ov-shell ov-fullpage-shell">
+      <AppTopBar
+        email={user.email ?? ""}
+        leftSlot={
+          <div className="ov-topbar-left-nav">
+            <Link className="brand ov-brand" href="/dashboard">
+              <span className="brand-mark">O</span>
+              <span>
+                Orbit<span className="ov-brand-accent">Work</span>
+              </span>
+            </Link>
+            <nav className="ov-topbar-links" aria-label="Primary navigation">
+              <Link href="/dashboard" className="is-active" aria-current="page">
+                <Layers3 size={14} />
+                <span>Overview</span>
+              </Link>
+              <Link href="/my-dashboard">
+                <LayoutDashboard size={14} />
+                <span>Dashboard</span>
+              </Link>
+              <Link href="/inbox">
+                <Bell size={14} />
+                <span>Inbox</span>
+                {assignedTaskCount > 0 && (
+                  <span className="ov-topbar-count">{assignedTaskCount}</span>
+                )}
+              </Link>
+              <Link href="/chat">
+                <MessageSquare size={14} />
+                <span>Chat</span>
+              </Link>
+            </nav>
+          </div>
+        }
+      />
+      <section className="ov-fullpage-content">
+        <OverviewCommandCenter
+          displayName={displayName}
+          organizations={organizations}
+          workspaces={workspaces}
+          projects={projects}
+          organizationMembers={organizationMembers}
+          banner={banner}
+          refreshKey={JSON.stringify(params)}
+        />
+      </section>
+    </main>
+  );
 }

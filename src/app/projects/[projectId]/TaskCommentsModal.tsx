@@ -194,8 +194,29 @@ export default function TaskCommentsModal({
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSubmit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      if (showMentionPicker) {
+        setShowMentionPicker(false);
+      } else {
+        onClose();
+      }
     }
   };
+
+  useEffect(() => {
+    function handleWindowEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        if (showMentionPicker) {
+          setShowMentionPicker(false);
+        } else {
+          onClose();
+        }
+      }
+    }
+    window.addEventListener("keydown", handleWindowEsc);
+    return () => window.removeEventListener("keydown", handleWindowEsc);
+  }, [showMentionPicker, onClose]);
 
   const toggleReaction = (commentId: string, type: "thumbs" | "smile") => {
     setReactions((prev) => {

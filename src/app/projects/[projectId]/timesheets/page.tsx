@@ -1,5 +1,5 @@
 import Link from "next/link";
-import CurrentUserBadge from "@/app/CurrentUserBadge";
+import AppTopBar from "@/app/AppTopBar";
 import BackButton from "@/app/BackButton";
 import { notFound, redirect } from "next/navigation";
 import { Clock3, Calendar, ListFilter, BarChart3, Settings } from "lucide-react";
@@ -140,14 +140,7 @@ export default async function ProjectTimesheetsPage({
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <Link className="brand" href="/dashboard">
-          <span className="brand-mark">O</span>Orbit<span>work</span>
-        </Link>
-        <div className="topbar-right">
-          <CurrentUserBadge email={user.email ?? ""} />
-        </div>
-      </header>
+      <AppTopBar email={user.email ?? ""} projectId={projectId} />
 
       <section className="timesheets-page">
         <BackButton fallbackHref={`/projects/${projectId}`} label={project.name} />

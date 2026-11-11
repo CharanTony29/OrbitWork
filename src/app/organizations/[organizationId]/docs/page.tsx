@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import CurrentUserBadge from "@/app/CurrentUserBadge";
+import AppTopBar from "@/app/AppTopBar";
 import HierarchyNavigation from "@/app/HierarchyNavigation";
 import { createClient } from "@/lib/supabase/server";
 import OrganizationDocsClient, {
@@ -109,14 +108,11 @@ export default async function OrganizationDocsPage({
       />
       <div className="hierarchy-content">
         <main className="app-shell project-app-shell">
-          <header className="topbar">
-            <Link className="brand" href="/dashboard">
-              <span className="brand-mark">O</span>Orbit<span>work</span>
-            </Link>
-            <div className="topbar-right">
-              <CurrentUserBadge email={user.email ?? ""} />
-            </div>
-          </header>
+          <AppTopBar
+            email={user.email ?? ""}
+            organizationId={organizationId}
+            workspaceId={currentWorkspaceId || undefined}
+          />
 
           <div
             className="project-page"
