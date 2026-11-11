@@ -17,6 +17,7 @@ export default function ProjectSublinks({ projectId }: { projectId: string }) {
       <Link
         className={`hierarchy-sublink${isDocs ? " is-current" : ""}`}
         href={`/projects/${projectId}/documents`}
+        prefetch={false}
       >
         <FileText size={12} />
         <span>Project documents</span>
@@ -24,6 +25,7 @@ export default function ProjectSublinks({ projectId }: { projectId: string }) {
       <Link
         className={`hierarchy-sublink${isTimesheets ? " is-current" : ""}`}
         href={`/projects/${projectId}/timesheets`}
+        prefetch={false}
       >
         <Clock3 size={12} />
         <span>Timesheets</span>
@@ -31,6 +33,7 @@ export default function ProjectSublinks({ projectId }: { projectId: string }) {
       <Link
         className={`hierarchy-sublink${isReports ? " is-current" : ""}`}
         href={`/projects/${projectId}/reports`}
+        prefetch={false}
       >
         <BarChart3 size={12} />
         <span>Reports</span>
@@ -38,6 +41,7 @@ export default function ProjectSublinks({ projectId }: { projectId: string }) {
       <Link
         className={`hierarchy-sublink${isAttachments ? " is-current" : ""}`}
         href={`/projects/${projectId}/attachments`}
+        prefetch={false}
       >
         <Paperclip size={12} />
         <span>Attachments</span>

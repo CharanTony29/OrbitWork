@@ -136,6 +136,7 @@ export default function ProjectViewTabsClient({
             <Link
               key={key}
               href={buildViewHref(key)}
+              prefetch={false}
               draggable
               onDragStart={(e) => {
                 setDragKey(key);

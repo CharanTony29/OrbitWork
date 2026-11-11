@@ -18,7 +18,6 @@ import ProjectFlowchartView from "./ProjectFlowchartView";
 import ProjectViewTabsClient from "./ProjectViewTabsClient";
 import ProjectChannelView from "./ProjectChannelView";
 import FavoriteButton from "@/app/FavoriteButton";
-import { checkAndSendDueDateReminders } from "@/lib/email";
 import {
   DEFAULT_PROJECT_TAB_ORDER,
   normalizeTabOrder,
@@ -109,9 +108,6 @@ export default async function ProjectPage({ params, searchParams }: {
     isProjectFavorited = true;
   }
   const today = new Date().toISOString().slice(0, 10);
-
-  // Check and dispatch due date email reminders for this project
-  checkAndSendDueDateReminders(projectId).catch(console.error);
   const completedStatusIds = (statuses ?? []).filter((status) => status.category === "completed" || status.category === "cancelled").map((status) => status.id);
   const [totalMetric, overdueMetric, statusMetrics] = await Promise.all([
     supabase.from("tasks").select("id", { count: "exact", head: true }).eq("project_id", projectId),
@@ -140,10 +136,13 @@ export default async function ProjectPage({ params, searchParams }: {
   const { data: profiles } = peopleIds.length ? await supabase.from("profiles").select("id, display_name, email").in("id", peopleIds) : { data: [] };
   const taskIds = (tasks ?? []).map((task) => task.id);
   const customFieldIds = (customFields ?? []).map((field) => field.id);
+  const needsProjectDocs = view === "list" || view === "whiteboard" || view === "flowchart";
   const [fieldValuesResult, taskAssigneesResult, projectDocsResult, attachmentsResult, commentsResult, timeEntriesResult, runningTimersResult] = await Promise.all([
     taskIds.length && customFieldIds.length ? supabase.from("task_custom_field_values").select("task_id, field_id, value").in("task_id", taskIds).in("field_id", customFieldIds) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("task_assignees").select("task_id, user_id, assigned_at").in("task_id", taskIds).order("assigned_at", { ascending: true }) : Promise.resolve({ data: [] }),
-    supabase.from("project_documents").select("id, title, body_markdown, updated_at").eq("project_id", projectId).order("updated_at", { ascending: false }),
+    needsProjectDocs
+      ? supabase.from("project_documents").select("id, title, body_markdown, updated_at").eq("project_id", projectId).order("updated_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("task_attachments").select("id, task_id, file_name, mime_type, external_file_id, external_url").in("task_id", taskIds) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("task_comments").select("task_id").in("task_id", taskIds) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("time_entries").select("task_id, duration_minutes, billable").in("task_id", taskIds).not("ended_at", "is", null) : Promise.resolve({ data: [] }),
@@ -151,7 +150,15 @@ export default async function ProjectPage({ params, searchParams }: {
   ]);
   const { data: fieldValues } = fieldValuesResult;
   const { data: taskAssigneeRows } = taskAssigneesResult;
-  const { data: projectDocs } = projectDocsResult;
+  const rawProjectDocs = projectDocsResult.data ?? [];
+  const projectDocs =
+    view === "list"
+      ? rawProjectDocs.map((doc) => ({
+          ...doc,
+          // Preserve JSON canvas payloads for quick whiteboard/flowchart opening; strip large markdown docs on List view
+          body_markdown: doc.body_markdown?.trimStart().startsWith("{") ? doc.body_markdown : "",
+        }))
+      : rawProjectDocs;
   const taskAttachments = attachmentsResult.data ?? [];
   const commentRows = commentsResult.data ?? [];
   const timeEntriesRows = timeEntriesResult.data ?? [];

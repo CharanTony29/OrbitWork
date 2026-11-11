@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { notifyNavigationStart } from "@/app/TopProgressBar";
 import {
   Search,
   X,
@@ -202,6 +203,7 @@ export default function GlobalSearchModal({
 
   const navigateTo = (href: string) => {
     setOpen(false);
+    notifyNavigationStart(href);
     router.push(href);
   };
 

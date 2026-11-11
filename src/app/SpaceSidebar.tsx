@@ -46,6 +46,7 @@ export default function SpaceSidebar({
           <Link
             className={`nav-item ov-nav-item${activeNav === "overview" ? " active" : ""}`}
             href="/dashboard"
+            prefetch={false}
             aria-current={activeNav === "overview" ? "page" : undefined}
           >
             <Layers3 size={16} />
@@ -54,19 +55,20 @@ export default function SpaceSidebar({
           <Link
             className={`nav-item ov-nav-item${activeNav === "dashboard" ? " active" : ""}`}
             href="/my-dashboard"
+            prefetch={false}
             aria-current={activeNav === "dashboard" ? "page" : undefined}
           >
             <LayoutDashboard size={16} />
             <span>Dashboard</span>
           </Link>
-          <Link className="nav-item ov-nav-item" href="/inbox">
+          <Link className="nav-item ov-nav-item" href="/inbox" prefetch={false}>
             <Bell size={16} />
             <span>Inbox</span>
             {assignedTaskCount > 0 && (
               <span className="ov-nav-badge">{assignedTaskCount}</span>
             )}
           </Link>
-          <Link className="nav-item ov-nav-item" href="/chat">
+          <Link className="nav-item ov-nav-item" href="/chat" prefetch={false}>
             <MessageSquare size={16} />
             <span>Chat</span>
           </Link>
@@ -117,6 +119,7 @@ export default function SpaceSidebar({
                           <Link
                             className="ov-tree-ws-link"
                             href={`/workspaces/${workspace.id}`}
+                            prefetch={false}
                           >
                             {workspace.name}
                           </Link>
@@ -126,6 +129,7 @@ export default function SpaceSidebar({
                         <div className="ov-ws-branch">
                           <Link
                             href={`/workspaces/${workspace.id}`}
+                            prefetch={false}
                             className="ov-ws-resource-link"
                           >
                             <Layers3 size={12} />
@@ -133,6 +137,7 @@ export default function SpaceSidebar({
                           </Link>
                           <Link
                             href={`/workspaces/${workspace.id}/timesheets`}
+                            prefetch={false}
                             className="ov-ws-resource-link"
                           >
                             <Clock3 size={12} />
@@ -142,6 +147,7 @@ export default function SpaceSidebar({
                           {wsProjects.map((project) => (
                             <Link
                               href={`/projects/${project.id}`}
+                              prefetch={false}
                               key={project.id}
                               className="ov-project-leaf"
                               title={project.name}
@@ -162,19 +168,19 @@ export default function SpaceSidebar({
                   )}
 
                   <div className="ov-org-resources">
-                    <Link href={`/organizations/${org.id}/members`}>
+                    <Link href={`/organizations/${org.id}/members`} prefetch={false}>
                       <UsersRound size={12} />
                       <span>Members &amp; roles</span>
                     </Link>
-                    <Link href={`/organizations/${org.id}/calendar`}>
+                    <Link href={`/organizations/${org.id}/calendar`} prefetch={false}>
                       <CalendarDays size={12} />
                       <span>Holidays &amp; leave</span>
                     </Link>
-                    <Link href={`/organizations/${org.id}/integrations`}>
+                    <Link href={`/organizations/${org.id}/integrations`} prefetch={false}>
                       <PlugZap size={12} />
                       <span>Integrations</span>
                     </Link>
-                    <Link href={`/organizations/${org.id}/docs`}>
+                    <Link href={`/organizations/${org.id}/docs`} prefetch={false}>
                       <FileText size={12} />
                       <span>Docs &amp; attachments</span>
                     </Link>

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
 import type { SetAllCookies } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
@@ -13,7 +14,7 @@ export function createAdminClient(): SupabaseClient | null {
   });
 }
 
-export async function createClient() {
+export const createClient = cache(async () => {
   const cookieStore = await cookies();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key =
@@ -51,4 +52,9 @@ export async function createClient() {
       },
     },
   );
-}
+});
+
+export const getAuthUser = cache(async () => {
+  const supabase = await createClient();
+  return supabase.auth.getUser();
+});

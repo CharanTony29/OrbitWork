@@ -1,20 +1,77 @@
 "use client";
 
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+
+export function notifyNavigationStart(targetHref?: string) {
+  if (typeof window === "undefined") return;
+  if (targetHref) {
+    try {
+      const currentUrl = new URL(window.location.href);
+      const targetUrl = new URL(targetHref, window.location.href);
+      if (targetUrl.origin !== currentUrl.origin) return;
+      if (targetUrl.pathname === currentUrl.pathname && targetUrl.search === currentUrl.search) {
+        return;
+      }
+    } catch {
+      return;
+    }
+  }
+  window.dispatchEvent(new Event("orbitwork-nav-start"));
+}
+
+export function notifyNavigationDone() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event("orbitwork-nav-done"));
+}
 
 function ProgressTracker() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const start = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const failsafeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeRef = useRef(false);
 
+  const clearAllTimers = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
+    }
+    if (failsafeTimerRef.current) {
+      clearTimeout(failsafeTimerRef.current);
+      failsafeTimerRef.current = null;
+    }
+  }, []);
+
+  const done = useCallback(() => {
+    if (!activeRef.current) return;
+    activeRef.current = false;
+    clearAllTimers();
+    setProgress(100);
+    hideTimerRef.current = setTimeout(() => {
+      setVisible(false);
+      resetTimerRef.current = setTimeout(() => {
+        setProgress(0);
+      }, 220);
+    }, 180);
+  }, [clearAllTimers]);
+
+  const start = useCallback(() => {
+    clearAllTimers();
+    activeRef.current = true;
     setVisible(true);
     setProgress((prev) => (prev > 0 && prev < 80 ? prev : 18));
 
@@ -22,29 +79,23 @@ function ProgressTracker() {
       setProgress((prev) => {
         if (prev >= 88) return prev;
         const remaining = 90 - prev;
-        const step = Math.max(1, Math.floor(remaining * 0.12));
+        const step = Math.max(1, Math.floor(remaining * 0.14));
         return Math.min(88, prev + step);
       });
-    }, 180);
-  };
+    }, 160);
 
-  const done = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    setProgress(100);
-    timeoutRef.current = setTimeout(() => {
-      setVisible(false);
-      timeoutRef.current = setTimeout(() => {
-        setProgress(0);
-      }, 200);
-    }, 250);
-  };
+    // Prevent the bar from ever remaining stuck if a request stalls, aborts, or does not change URL
+    failsafeTimerRef.current = setTimeout(() => {
+      done();
+    }, 8000);
+  }, [clearAllTimers, done]);
 
   // Complete progress whenever route or query params change
   useEffect(() => {
     done();
-  }, [pathname, searchParams]);
+  }, [pathname, searchParams, done]);
 
-  // Global listeners for clicks, form submits, and popstate
+  // Global listeners for bubble-phase anchor navigation, history changes, and error recovery
   useEffect(() => {
     const handleAnchorClick = (e: MouseEvent) => {
       if (e.defaultPrevented) return;
@@ -75,20 +126,17 @@ function ProgressTracker() {
 
         if (targetUrl.origin !== currentUrl.origin) return;
 
-        // Skip if exact same path and query
-        if (targetUrl.pathname === currentUrl.pathname && targetUrl.search === currentUrl.search) {
+        if (
+          targetUrl.pathname === currentUrl.pathname &&
+          targetUrl.search === currentUrl.search
+        ) {
           return;
         }
 
         start();
-      } catch {}
-    };
-
-    const handleFormSubmit = (e: SubmitEvent) => {
-      const form = e.target as HTMLFormElement | null;
-      if (!form) return;
-      if (form.target && form.target !== "_self") return;
-      start();
+      } catch {
+        // Ignore malformed URLs
+      }
     };
 
     const handlePopState = () => {
@@ -97,23 +145,28 @@ function ProgressTracker() {
 
     const handleCustomStart = () => start();
     const handleCustomDone = () => done();
+    const handleNavError = () => {
+      if (activeRef.current) done();
+    };
 
-    document.addEventListener("click", handleAnchorClick, true);
-    document.addEventListener("submit", handleFormSubmit, true);
+    // Listen in bubble phase so React/component onClick handlers calling preventDefault() are respected
+    document.addEventListener("click", handleAnchorClick, false);
     window.addEventListener("popstate", handlePopState);
     window.addEventListener("orbitwork-nav-start", handleCustomStart);
     window.addEventListener("orbitwork-nav-done", handleCustomDone);
+    window.addEventListener("error", handleNavError);
+    window.addEventListener("unhandledrejection", handleNavError);
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      document.removeEventListener("click", handleAnchorClick, true);
-      document.removeEventListener("submit", handleFormSubmit, true);
+      clearAllTimers();
+      document.removeEventListener("click", handleAnchorClick, false);
       window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("orbitwork-nav-start", handleCustomStart);
       window.removeEventListener("orbitwork-nav-done", handleCustomDone);
+      window.removeEventListener("error", handleNavError);
+      window.removeEventListener("unhandledrejection", handleNavError);
     };
-  }, []);
+  }, [clearAllTimers, done, start]);
 
   if (!visible && progress === 0) return null;
 
@@ -142,8 +195,8 @@ function ProgressTracker() {
           opacity: visible ? 1 : 0,
           transition:
             progress === 100
-              ? "width 180ms ease-out, opacity 200ms 150ms ease"
-              : "width 220ms cubic-bezier(0.4, 0, 0.2, 1), opacity 150ms ease",
+              ? "width 160ms ease-out, opacity 200ms 120ms ease"
+              : "width 200ms cubic-bezier(0.4, 0, 0.2, 1), opacity 150ms ease",
         }}
       />
     </div>

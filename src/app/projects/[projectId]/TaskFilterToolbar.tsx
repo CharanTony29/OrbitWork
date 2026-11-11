@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { notifyNavigationStart } from "@/app/TopProgressBar";
 import {
   Layers,
   Filter,
@@ -89,7 +90,9 @@ export default function TaskFilterToolbar({
       params.delete(key);
     }
     params.delete("page"); // reset pagination on filter change
-    router.push(`${pathname}?${params.toString()}`);
+    const href = `${pathname}?${params.toString()}`;
+    notifyNavigationStart(href);
+    router.push(href);
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -128,7 +131,9 @@ export default function TaskFilterToolbar({
   const clearAllFilters = () => {
     const params = new URLSearchParams();
     if (currentFilters.view) params.set("view", currentFilters.view);
-    router.push(`${pathname}?${params.toString()}`);
+    const href = `${pathname}?${params.toString()}`;
+    notifyNavigationStart(href);
+    router.push(href);
   };
 
   const hasAnyFilter = Boolean(

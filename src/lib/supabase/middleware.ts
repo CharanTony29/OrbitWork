@@ -31,6 +31,18 @@ export async function updateSession(request: NextRequest) {
   }
 
   let response = NextResponse.next({ request });
+
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return response;
+  }
+
+  const hasSupabaseSessionCookie = request.cookies
+    .getAll()
+    .some(({ name }) => name.startsWith("sb-"));
+  if (!hasSupabaseSessionCookie) {
+    return response;
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 

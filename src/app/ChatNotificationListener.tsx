@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { notifyNavigationStart } from "@/app/TopProgressBar";
 import { MessageSquare, X, Bell } from "lucide-react";
 
 type ToastMessage = {
@@ -49,11 +50,12 @@ export default function ChatNotificationListener() {
     }
   };
 
-  // Poll for latest messages every 5 seconds
+  // Poll for latest messages every 15 seconds while tab is visible
   useEffect(() => {
     let ignore = false;
 
     async function pollLatest() {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       try {
         const res = await fetch("/api/chat/messages?type=latest");
         if (!res.ok) return;
@@ -100,6 +102,7 @@ export default function ChatNotificationListener() {
               });
               notif.onclick = () => {
                 window.focus();
+                notifyNavigationStart("/chat");
                 router.push("/chat");
               };
             }
@@ -195,6 +198,7 @@ export default function ChatNotificationListener() {
           });
           osNotif.onclick = () => {
             window.focus();
+            notifyNavigationStart(href);
             router.push(href);
           };
         }
@@ -203,10 +207,18 @@ export default function ChatNotificationListener() {
       }
     }
 
-    const interval = setInterval(pollLatest, 5000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void pollLatest();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    const interval = setInterval(pollLatest, 15000);
     return () => {
       ignore = true;
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [pathname, router]);
 
@@ -293,6 +305,7 @@ export default function ChatNotificationListener() {
               }).catch(() => {});
             }
             setActiveToast(null);
+            notifyNavigationStart(targetHref);
             router.push(targetHref);
           }}
           style={{
