@@ -143,6 +143,30 @@ function ProgressTracker() {
       start();
     };
 
+    const handleFormSubmit = (e: SubmitEvent) => {
+      if (e.defaultPrevented) return;
+      start();
+    };
+
+    // Safely observe programmatic router.push() calls without mutating React state synchronously during commit
+    const origPushState = window.history.pushState.bind(window.history);
+    const wrappedPushState: History["pushState"] = (data, unused, url) => {
+      const prevHref = window.location.href;
+      origPushState(data, unused, url);
+      if (url) {
+        try {
+          const prev = new URL(prevHref);
+          const next = new URL(String(url), prevHref);
+          if (prev.pathname !== next.pathname || prev.search !== next.search) {
+            window.setTimeout(() => start(), 0);
+          }
+        } catch {
+          // ignore malformed URL
+        }
+      }
+    };
+    window.history.pushState = wrappedPushState;
+
     const handleCustomStart = () => start();
     const handleCustomDone = () => done();
     const handleNavError = () => {
@@ -151,6 +175,7 @@ function ProgressTracker() {
 
     // Listen in bubble phase so React/component onClick handlers calling preventDefault() are respected
     document.addEventListener("click", handleAnchorClick, false);
+    document.addEventListener("submit", handleFormSubmit, false);
     window.addEventListener("popstate", handlePopState);
     window.addEventListener("orbitwork-nav-start", handleCustomStart);
     window.addEventListener("orbitwork-nav-done", handleCustomDone);
@@ -159,7 +184,9 @@ function ProgressTracker() {
 
     return () => {
       clearAllTimers();
+      window.history.pushState = origPushState;
       document.removeEventListener("click", handleAnchorClick, false);
+      document.removeEventListener("submit", handleFormSubmit, false);
       window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("orbitwork-nav-start", handleCustomStart);
       window.removeEventListener("orbitwork-nav-done", handleCustomDone);

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  getPresenceState,
   isSchemaMissingError,
+  resolveEffectivePresence,
   resolveProfileAvatarSrc,
   type ChatMessageMetadata,
   type ChatPresenceState,
@@ -87,19 +87,29 @@ export async function fetchProfilesMap(
     email: string | null;
     avatar_url: string | null;
     last_seen_at?: string | null;
+    presence_status?: string | null;
+    presence_expires_at?: string | null;
   }> = [];
 
   const extRes = await supabase
     .from("profiles")
-    .select("id, display_name, email, avatar_url, last_seen_at")
+    .select("id, display_name, email, avatar_url, last_seen_at, presence_status, presence_expires_at")
     .in("id", uniqueIds);
 
   if (extRes.error && isSchemaMissingError(extRes.error)) {
-    const baseRes = await supabase
+    const fallbackSeen = await supabase
       .from("profiles")
-      .select("id, display_name, email, avatar_url")
+      .select("id, display_name, email, avatar_url, last_seen_at")
       .in("id", uniqueIds);
-    rows = baseRes.data ?? [];
+    if (fallbackSeen.error && isSchemaMissingError(fallbackSeen.error)) {
+      const baseRes = await supabase
+        .from("profiles")
+        .select("id, display_name, email, avatar_url")
+        .in("id", uniqueIds);
+      rows = baseRes.data ?? [];
+    } else {
+      rows = fallbackSeen.data ?? [];
+    }
   } else {
     rows = extRes.data ?? [];
   }
@@ -116,7 +126,11 @@ export async function fetchProfilesMap(
       email: row.email ?? "",
       avatarUrl: resolveProfileAvatarSrc(row.id, row.avatar_url),
       lastSeenAt,
-      presence: getPresenceState(lastSeenAt),
+      presence: resolveEffectivePresence(
+        lastSeenAt,
+        row.presence_status ?? null,
+        row.presence_expires_at ?? null
+      ),
     });
   }
 

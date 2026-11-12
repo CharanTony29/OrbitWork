@@ -87,8 +87,21 @@ export default async function WorkspaceTimesheetsPage({
     entryQuery = entryQuery.eq("user_id", user.id);
   }
 
-  const { data: rawEntries } = projectIds.length ? await entryQuery : { data: [] };
+  const [{ data: rawEntries }, { data: orgHolidays }] = await Promise.all([
+    projectIds.length ? entryQuery : Promise.resolve({ data: [] }),
+    supabase
+      .from("organization_holidays")
+      .select("id, name, holiday_date")
+      .eq("organization_id", workspace.organization_id)
+      .gte("holiday_date", rangeStart)
+      .lt("holiday_date", endDate),
+  ]);
   const entries = rawEntries ?? [];
+  const holidayByDate = new Map<string, string>();
+  for (const h of orgHolidays ?? []) {
+    const prev = holidayByDate.get(h.holiday_date);
+    holidayByDate.set(h.holiday_date, prev ? `${prev}, ${h.name}` : h.name);
+  }
 
   const userIds = [...new Set(entries.map((e) => e.user_id))];
   const { data: profiles } = userIds.length
@@ -108,6 +121,7 @@ export default async function WorkspaceTimesheetsPage({
     dayName: string;
     formattedDate: string;
     isWeekend: boolean;
+    holidayName: string | null;
     isToday: boolean;
     totalMinutes: number;
     entries: typeof entries;
@@ -118,6 +132,7 @@ export default async function WorkspaceTimesheetsPage({
     const dateStr = d.toISOString().slice(0, 10);
     const dayOfWeek = d.getUTCDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const holidayName = holidayByDate.get(dateStr) ?? null;
     const dayName = d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
     const formattedDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
     const dayEntries = entries.filter((e) => e.started_at.slice(0, 10) === dateStr);
@@ -128,14 +143,15 @@ export default async function WorkspaceTimesheetsPage({
       dayName,
       formattedDate,
       isWeekend,
+      holidayName,
       isToday: dateStr === todayStr,
       totalMinutes: dayMinutes,
       entries: dayEntries,
     });
   }
 
-  // Workload calculations based on Manager Daily Target Hours
-  const workingDays = dayCards.filter((d) => !d.isWeekend).length || 5;
+  // Workload calculations based on Manager Daily Target Hours (excluding weekends & organization holidays)
+  const workingDays = dayCards.filter((d) => !d.isWeekend && !d.holidayName).length || 0;
   const expectedMinutes = workingDays * targetHours * 60;
   const totalWorkedMinutes = entries.reduce((sum, e) => sum + (e.duration_minutes ?? 0), 0);
   const totalWorkedHours = Math.floor(totalWorkedMinutes / 60);
@@ -332,20 +348,31 @@ export default async function WorkspaceTimesheetsPage({
           {dayCards.map((card) => {
             const dayHours = Math.floor(card.totalMinutes / 60);
             const dayMins = card.totalMinutes % 60;
-            const dayTargetMinutes = card.isWeekend ? 0 : targetHours * 60;
+            const isNonWorking = card.isWeekend || Boolean(card.holidayName);
+            const dayTargetMinutes = isNonWorking ? 0 : targetHours * 60;
             const dayProgress = dayTargetMinutes > 0 ? Math.min(100, Math.round((card.totalMinutes / dayTargetMinutes) * 100)) : 0;
 
             return (
               <div
                 key={card.dateStr}
-                className={`timesheet-day-card${card.isToday ? " is-today" : ""}${card.isWeekend ? " is-weekend" : ""}`}
+                className={`timesheet-day-card${card.isToday ? " is-today" : ""}${isNonWorking ? " is-weekend" : ""}`}
               >
                 <div className="day-card-header">
                   <div className="day-card-title">
                     <span className="day-card-name">{card.dayName}</span>
                     <span className="day-card-date">{card.formattedDate}</span>
                   </div>
-                  {card.isToday && <span className="today-pill">Today</span>}
+                  {card.holidayName ? (
+                    <span
+                      className="today-pill"
+                      style={{ background: "#fff3cf", color: "#854d0e", border: "1px solid #fde68a" }}
+                      title={card.holidayName}
+                    >
+                      Holiday: {card.holidayName}
+                    </span>
+                  ) : (
+                    card.isToday && <span className="today-pill">Today</span>
+                  )}
                 </div>
 
                 <div className="day-card-body">
@@ -353,9 +380,11 @@ export default async function WorkspaceTimesheetsPage({
                     <span className="day-card-hours">
                       {dayHours}h {dayMins}m
                     </span>
-                    {!card.isWeekend && (
+                    {card.holidayName ? (
+                      <span className="day-card-target">Holiday</span>
+                    ) : !card.isWeekend ? (
                       <span className="day-card-target">/{targetHours}h</span>
-                    )}
+                    ) : null}
                   </div>
 
                   {!card.isWeekend && (

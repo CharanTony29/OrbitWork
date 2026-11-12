@@ -19,14 +19,16 @@ export default async function InboxPage() {
   } = await getAuthUser();
   if (!user) redirect("/login");
 
-  // 1. Parallel fetch notifications, task_assignees rows, and direct assignee tasks
-  const [notifResult, multiAssigneeResult, directAssigneeResult] =
+  // 1. Parallel fetch notifications, task_assignees rows, direct assignee tasks, and pending leave requests
+  const extNotifPromise = supabase
+    .from("notifications")
+    .select("id, actor_id, project_id, task_id, organization_id, action_url, event_type, message, created_at, read_at")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  const [notifResultExt, multiAssigneeResult, directAssigneeResult, pendingLeavesResult] =
     await Promise.all([
-      supabase
-        .from("notifications")
-        .select("id, actor_id, project_id, task_id, event_type, message, created_at, read_at")
-        .order("created_at", { ascending: false })
-        .limit(100),
+      extNotifPromise,
       supabase
         .from("task_assignees")
         .select("task_id")
@@ -35,9 +37,35 @@ export default async function InboxPage() {
         .from("tasks")
         .select("id, project_id, title, generated_key, priority, due_date, status_id, created_at, projects(id, name, workspace_id, workspaces(id, name))")
         .or(`primary_assignee_id.eq.${user.id},secondary_assignee_id.eq.${user.id}`),
+      supabase
+        .from("leave_requests")
+        .select("id, organization_id, user_id, leave_type, start_date, end_date, request_note, status, created_at")
+        .eq("status", "pending")
+        .neq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(20),
     ]);
 
-  const notifications = notifResult.data ?? [];
+  const notifications: Array<{
+    id: string;
+    actor_id: string | null;
+    project_id: string | null;
+    task_id: string | null;
+    organization_id?: string | null;
+    action_url?: string | null;
+    event_type: string;
+    message: string;
+    created_at: string;
+    read_at: string | null;
+  }> = notifResultExt.error
+    ? (await supabase
+        .from("notifications")
+        .select("id, actor_id, project_id, task_id, event_type, message, created_at, read_at")
+        .order("created_at", { ascending: false })
+        .limit(100)).data ?? []
+    : notifResultExt.data ?? [];
+
+  const pendingLeaves = pendingLeavesResult.data ?? [];
   const multiTaskIds = (multiAssigneeResult.data ?? []).map((r) => r.task_id);
   const assignedTaskCount = multiTaskIds.length;
   const directTasks = directAssigneeResult.data ?? [];
@@ -80,13 +108,14 @@ export default async function InboxPage() {
     (statuses ?? []).map((s) => [`${s.project_id}-${s.id}`, s])
   );
 
-  // Fetch actor names for notifications
+  // Fetch actor names for notifications & leave requesters
   const actorIds = [
-    ...new Set(
-      notifications
+    ...new Set([
+      ...notifications
         .map((item) => item.actor_id)
-        .filter((id): id is string => Boolean(id))
-    ),
+        .filter((id): id is string => Boolean(id)),
+      ...pendingLeaves.map((l) => l.user_id).filter(Boolean),
+    ]),
   ];
   const { data: profiles } = actorIds.length
     ? await supabase
@@ -270,35 +299,48 @@ export default async function InboxPage() {
 
           <div className="inbox-list">
             {notifications.length > 0 ? (
-              notifications.map((item) => (
-                <article
-                  className={`inbox-item${item.read_at ? " read" : " unread"}`}
-                  key={item.id}
-                >
-                  <span className="inbox-icon">
-                    <Bell size={16} />
-                  </span>
-                  <div className="inbox-copy">
-                    <p>
-                      <strong>
-                        {item.actor_id
-                          ? actorNames.get(item.actor_id) ?? "A teammate"
-                          : "Orbitwork"}
-                      </strong>{" "}
-                      · {item.message}
-                    </p>
-                    <time>{new Date(item.created_at).toLocaleString()}</time>
-                  </div>
-                  {item.task_id && (
-                    <Link
-                      className="discussion-link"
-                      href={`/projects/${item.project_id}/tasks/${item.task_id}`}
-                    >
-                      Open task
-                    </Link>
-                  )}
-                </article>
-              ))
+              notifications.map((item) => {
+                const targetHref =
+                  item.action_url ||
+                  (item.task_id && item.project_id
+                    ? `/projects/${item.project_id}/tasks/${item.task_id}`
+                    : item.organization_id && item.event_type.startsWith("leave")
+                      ? `/organizations/${item.organization_id}/calendar`
+                      : item.project_id
+                        ? `/projects/${item.project_id}`
+                        : null);
+
+                return (
+                  <article
+                    className={`inbox-item${item.read_at ? " read" : " unread"}`}
+                    key={item.id}
+                  >
+                    <span className="inbox-icon">
+                      <Bell size={16} />
+                    </span>
+                    <div className="inbox-copy">
+                      <p>
+                        <strong>
+                          {item.actor_id
+                            ? actorNames.get(item.actor_id) ?? "A teammate"
+                            : "Orbitwork"}
+                        </strong>{" "}
+                        · {item.message}
+                      </p>
+                      <time>{new Date(item.created_at).toLocaleString()}</time>
+                    </div>
+                    {targetHref && (
+                      <Link className="discussion-link" href={targetHref}>
+                        {item.event_type.startsWith("leave")
+                          ? "Review leave"
+                          : item.task_id
+                            ? "Open task"
+                            : "Open"}
+                      </Link>
+                    )}
+                  </article>
+                );
+              })
             ) : (
               <div className="empty-tasks">
                 <h3>You’re all caught up</h3>
@@ -307,6 +349,41 @@ export default async function InboxPage() {
             )}
           </div>
         </div>
+
+        {/* Section 3: Pending Leave Approvals for Manager/Admin */}
+        {pendingLeaves.length > 0 && (
+          <div className="inbox-section" style={{ marginTop: "18px" }}>
+            <div className="inbox-section-title">
+              <h2>
+                <Clock size={17} style={{ color: "var(--green)" }} />
+                Pending Leave Requests <span className="count-pill">{pendingLeaves.length}</span>
+              </h2>
+            </div>
+            <div className="inbox-list">
+              {pendingLeaves.map((leave) => (
+                <article className="inbox-item unread" key={leave.id}>
+                  <span className="inbox-icon">
+                    <Clock size={16} />
+                  </span>
+                  <div className="inbox-copy">
+                    <p>
+                      <strong>{actorNames.get(leave.user_id) ?? "Teammate"}</strong> requested{" "}
+                      <strong>{leave.leave_type}</strong> leave ({leave.start_date} – {leave.end_date})
+                    </p>
+                    {leave.request_note && <p className="muted small" style={{ margin: "2px 0 0" }}>{leave.request_note}</p>}
+                    <time>{new Date(leave.created_at).toLocaleString()}</time>
+                  </div>
+                  <Link
+                    className="discussion-link"
+                    href={`/organizations/${leave.organization_id}/calendar`}
+                  >
+                    Approve / Reject
+                  </Link>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
         </section>
       </section>
     </main>

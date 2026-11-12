@@ -1,5 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isSchemaMissingError } from "@/lib/chat";
+
+const RELEVANT_EVENTS = [
+  "channel_mentioned",
+  "task_mentioned",
+  "task_completed",
+  "task_assigned",
+  "task_reassigned",
+  "task_unassigned",
+  "task_delegated",
+  "leave_requested",
+  "leave_reviewed",
+  "goal_completed",
+  "meeting_scheduled",
+];
 
 export async function GET() {
   const supabase = await createClient();
@@ -10,25 +25,26 @@ export async function GET() {
     return NextResponse.json({ notifications: [] }, { status: 401 });
   }
 
-  const { data: rows, error } = await supabase
+  const extRes = await supabase
     .from("notifications")
-    .select("id, event_type, project_id, task_id, message, read_at, created_at")
+    .select("id, event_type, project_id, task_id, organization_id, action_url, message, read_at, created_at")
     .eq("recipient_id", user.id)
-    .in("event_type", [
-      "channel_mentioned",
-      "task_mentioned",
-      "task_completed",
-      "task_assigned",
-      "task_unassigned",
-    ])
+    .in("event_type", RELEVANT_EVENTS)
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(15);
 
-  if (error) {
-    return NextResponse.json({ notifications: [] });
+  if (extRes.error && isSchemaMissingError(extRes.error)) {
+    const baseRes = await supabase
+      .from("notifications")
+      .select("id, event_type, project_id, task_id, message, read_at, created_at")
+      .eq("recipient_id", user.id)
+      .in("event_type", RELEVANT_EVENTS)
+      .order("created_at", { ascending: false })
+      .limit(15);
+    return NextResponse.json({ notifications: baseRes.data ?? [] });
   }
 
-  return NextResponse.json({ notifications: rows ?? [] });
+  return NextResponse.json({ notifications: extRes.data ?? [] });
 }
 
 export async function POST(req: NextRequest) {

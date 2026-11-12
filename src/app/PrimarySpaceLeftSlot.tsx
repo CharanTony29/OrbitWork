@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Bell, Layers3, LayoutDashboard, MessageSquare } from "lucide-react";
+import { Bell, CalendarDays, Layers3, LayoutDashboard, MessageSquare } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 import ChatUnreadBadge from "./ChatUnreadBadge";
 
-export type PrimarySpaceNavKey = "overview" | "dashboard" | "inbox" | "chat";
+export type PrimarySpaceNavKey = "overview" | "dashboard" | "inbox" | "planner" | "chat";
 
 /**
  * Persistent top-bar brand and primary navigation pills shared across the
@@ -54,6 +54,15 @@ export default function PrimarySpaceLeftSlot({
           {assignedTaskCount > 0 && (
             <span className="ov-topbar-count">{assignedTaskCount}</span>
           )}
+        </Link>
+        <Link
+          href="/planner"
+          prefetch={false}
+          className={activeNav === "planner" ? "is-active" : undefined}
+          aria-current={activeNav === "planner" ? "page" : undefined}
+        >
+          <CalendarDays size={14} />
+          <span>Planner</span>
         </Link>
         <Link
           href="/chat"

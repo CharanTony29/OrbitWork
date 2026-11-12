@@ -40,8 +40,15 @@ export default async function ProjectTimesheetsPage({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: project } = await supabase.from("projects").select("id, name").eq("id", projectId).maybeSingle();
+  const { data: project } = await supabase.from("projects").select("id, name, workspace_id, workspaces(organization_id)").eq("id", projectId).maybeSingle();
   if (!project) notFound();
+  const workspaceRel = project.workspaces as unknown as
+    | { organization_id?: string | null }
+    | Array<{ organization_id?: string | null }>
+    | null;
+  const orgId =
+    (Array.isArray(workspaceRel) ? workspaceRel[0]?.organization_id : workspaceRel?.organization_id) ??
+    null;
   const managerResult = await supabase.rpc("can_manage_project", { target_project: projectId });
   const canManage = managerResult.data === true;
 
@@ -64,7 +71,24 @@ export default async function ProjectTimesheetsPage({
     .lt("week_start", endDate);
   if (!canManage) sheetQuery = sheetQuery.eq("user_id", user.id);
 
-  const [entriesResult, sheetsResult] = await Promise.all([entryQuery, sheetQuery]);
+  const [entriesResult, sheetsResult, holidaysResult] = await Promise.all([
+    entryQuery,
+    sheetQuery,
+    orgId
+      ? supabase
+          .from("organization_holidays")
+          .select("id, name, holiday_date, location")
+          .eq("organization_id", orgId)
+          .gte("holiday_date", rangeStart)
+          .lt("holiday_date", endDate)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const holidays = holidaysResult.data ?? [];
+  const holidayByDate = new Map<string, string>();
+  for (const h of holidays) {
+    const prev = holidayByDate.get(h.holiday_date);
+    holidayByDate.set(h.holiday_date, prev ? `${prev}, ${h.name}` : h.name);
+  }
   const entries = entriesResult.data ?? [];
   const sheets = sheetsResult.data ?? [];
   const userIds = [
@@ -94,6 +118,7 @@ export default async function ProjectTimesheetsPage({
     dayName: string;
     formattedDate: string;
     isWeekend: boolean;
+    holidayName: string | null;
     isToday: boolean;
     totalMinutes: number;
     entries: typeof entries;
@@ -104,6 +129,7 @@ export default async function ProjectTimesheetsPage({
     const dateStr = d.toISOString().slice(0, 10);
     const dayOfWeek = d.getUTCDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const holidayName = holidayByDate.get(dateStr) ?? null;
     const dayName = d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
     const formattedDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
     const dayEntries = (canManage ? entries : meEntries).filter((e) => e.started_at.slice(0, 10) === dateStr);
@@ -114,14 +140,15 @@ export default async function ProjectTimesheetsPage({
       dayName,
       formattedDate,
       isWeekend,
+      holidayName,
       isToday: dateStr === todayStr,
       totalMinutes: dayMinutes,
       entries: dayEntries,
     });
   }
 
-  // Workload calculations based on Manager Daily Target Hours
-  const workingDays = dayCards.filter((d) => !d.isWeekend).length || 5;
+  // Workload calculations based on Manager Daily Target Hours (excluding weekends & organization holidays)
+  const workingDays = dayCards.filter((d) => !d.isWeekend && !d.holidayName).length || 0;
   const expectedMinutes = workingDays * targetHours * 60;
   const totalWorkedMinutes = (canManage ? entries : meEntries).reduce((sum, e) => sum + (e.duration_minutes ?? 0), 0);
   const totalWorkedHours = Math.floor(totalWorkedMinutes / 60);
@@ -270,20 +297,31 @@ export default async function ProjectTimesheetsPage({
             {dayCards.map((card) => {
               const dayHours = Math.floor(card.totalMinutes / 60);
               const dayMins = card.totalMinutes % 60;
-              const dayTargetMinutes = card.isWeekend ? 0 : targetHours * 60;
+              const isNonWorking = card.isWeekend || Boolean(card.holidayName);
+              const dayTargetMinutes = isNonWorking ? 0 : targetHours * 60;
               const dayProgress = dayTargetMinutes > 0 ? Math.min(100, Math.round((card.totalMinutes / dayTargetMinutes) * 100)) : 0;
 
               return (
                 <div
                   key={card.dateStr}
-                  className={`timesheet-day-card${card.isToday ? " is-today" : ""}${card.isWeekend ? " is-weekend" : ""}`}
+                  className={`timesheet-day-card${card.isToday ? " is-today" : ""}${isNonWorking ? " is-weekend" : ""}`}
                 >
                   <div className="day-card-header">
                     <div className="day-card-title">
                       <span className="day-card-name">{card.dayName}</span>
                       <span className="day-card-date">{card.formattedDate}</span>
                     </div>
-                    {card.isToday && <span className="today-pill">Today</span>}
+                    {card.holidayName ? (
+                      <span
+                        className="today-pill"
+                        style={{ background: "#fff3cf", color: "#854d0e", border: "1px solid #fde68a" }}
+                        title={card.holidayName}
+                      >
+                        Holiday: {card.holidayName}
+                      </span>
+                    ) : (
+                      card.isToday && <span className="today-pill">Today</span>
+                    )}
                   </div>
 
                   <div className="day-card-body">
@@ -292,11 +330,11 @@ export default async function ProjectTimesheetsPage({
                         {dayHours}h {dayMins}m
                       </span>
                       <span className="day-card-target">
-                        {card.isWeekend ? "Weekend" : `Target ${targetHours}h`}
+                        {card.holidayName ? "Holiday" : card.isWeekend ? "Weekend" : `Target ${targetHours}h`}
                       </span>
                     </div>
 
-                    {!card.isWeekend && (
+                    {!isNonWorking && (
                       <div className="day-card-progress" title={`${dayProgress}% of daily target`}>
                         <div className="day-card-fill" style={{ width: `${dayProgress}%` }} />
                       </div>

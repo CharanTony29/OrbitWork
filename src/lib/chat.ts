@@ -1,6 +1,75 @@
 export type ChatConversationType = "channel" | "direct" | "group";
 
-export type ChatPresenceState = "online" | "away" | "offline";
+export type ChatPresenceState =
+  | "available"
+  | "online"
+  | "busy"
+  | "dnd"
+  | "brb"
+  | "away"
+  | "offline";
+
+export type ManualPresenceKey = "available" | "busy" | "dnd" | "brb" | "away" | "offline";
+
+export const PRESENCE_STATUS_OPTIONS: Array<{
+  key: ManualPresenceKey;
+  label: string;
+  color: string;
+}> = [
+  { key: "available", label: "Available", color: "#16a34a" },
+  { key: "busy", label: "Busy", color: "#dc2626" },
+  { key: "dnd", label: "Do not disturb", color: "#dc2626" },
+  { key: "brb", label: "Be right back", color: "#f59e0b" },
+  { key: "away", label: "Appear away", color: "#f59e0b" },
+  { key: "offline", label: "Appear offline", color: "#64748b" },
+];
+
+export const PRESENCE_DURATION_OPTIONS: Array<{
+  id: string;
+  label: string;
+  minutes: number | "today" | "week";
+}> = [
+  { id: "30m", label: "30 minutes", minutes: 30 },
+  { id: "1h", label: "1 hour", minutes: 60 },
+  { id: "2h", label: "2 hours", minutes: 120 },
+  { id: "4h", label: "4 hours", minutes: 240 },
+  { id: "today", label: "Today", minutes: "today" },
+  { id: "week", label: "This week", minutes: "week" },
+];
+
+export function formatPresenceLabel(state?: ChatPresenceState | null): string {
+  switch (state) {
+    case "available":
+    case "online":
+      return "Available";
+    case "busy":
+      return "Busy";
+    case "dnd":
+      return "Do not disturb";
+    case "brb":
+      return "Be right back";
+    case "away":
+      return "Appear away";
+    default:
+      return "Offline";
+  }
+}
+
+export function getPresenceColor(state?: ChatPresenceState | null): string {
+  switch (state) {
+    case "available":
+    case "online":
+      return "#16a34a";
+    case "busy":
+    case "dnd":
+      return "#dc2626";
+    case "brb":
+    case "away":
+      return "#f59e0b";
+    default:
+      return "#64748b";
+  }
+}
 
 export const CHAT_CHANNELS = [
   { id: "general", name: "general", desc: "Team-wide updates and everyday collaboration" },
@@ -75,9 +144,38 @@ export function resolveProfileAvatarSrc(userId: string, rawAvatarUrl: string | n
 export function getPresenceState(lastSeenAt?: string | null): ChatPresenceState {
   if (!lastSeenAt) return "offline";
   const diffMs = Date.now() - new Date(lastSeenAt).getTime();
-  if (diffMs <= 2.5 * 60 * 1000) return "online";
+  if (diffMs <= 2.5 * 60 * 1000) return "available";
   if (diffMs <= 12 * 60 * 1000) return "away";
   return "offline";
+}
+
+export function resolveEffectivePresence(
+  lastSeenAt?: string | null,
+  manualStatus?: string | null,
+  expiresAt?: string | null
+): ChatPresenceState {
+  const validManual: ManualPresenceKey[] = [
+    "available",
+    "busy",
+    "dnd",
+    "brb",
+    "away",
+    "offline",
+  ];
+  const normalized = manualStatus?.toLowerCase() as ManualPresenceKey | undefined;
+  const notExpired =
+    !expiresAt || Number.isNaN(new Date(expiresAt).getTime())
+      ? true
+      : new Date(expiresAt).getTime() > Date.now();
+
+  if (normalized && validManual.includes(normalized) && notExpired) {
+    if (normalized === "available") {
+      // If explicitly set to Available, show available while active/recent or within expiry
+      return expiresAt ? "available" : getPresenceState(lastSeenAt) === "offline" ? "offline" : "available";
+    }
+    return normalized;
+  }
+  return getPresenceState(lastSeenAt);
 }
 
 export function formatSidebarTimestamp(iso?: string | null): string {

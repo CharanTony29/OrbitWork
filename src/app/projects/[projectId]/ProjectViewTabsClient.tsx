@@ -10,6 +10,7 @@ import {
   MessageSquare,
   RotateCcw,
   SlidersHorizontal,
+  Target,
 } from "lucide-react";
 import {
   DEFAULT_PROJECT_TAB_ORDER,
@@ -160,10 +161,11 @@ export default function ProjectViewTabsClient({
               }}
               className={`${isSelected ? "selected" : ""}${
                 isDropTarget ? " is-tab-drop-target" : ""
-              }${key === "channel" ? " view-tab-channel" : ""}`}
+              }${key === "channel" ? " view-tab-channel" : ""}${key === "goals" ? " view-tab-channel" : ""}`}
               title={`Open ${PROJECT_TAB_LABELS[key]} view (drag to reorder tabs)`}
             >
               {key === "channel" && <MessageSquare size={12} />}
+              {key === "goals" && <Target size={12} />}
               <span>{PROJECT_TAB_LABELS[key]}</span>
             </Link>
           );

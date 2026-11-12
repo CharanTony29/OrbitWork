@@ -7,6 +7,7 @@ import {
   formatSidebarTimestamp,
   getPresenceState,
   isSchemaMissingError,
+  resolveEffectivePresence,
   resolveProfileAvatarSrc,
   stripMarkdownForPreview,
 } from "../chat.ts";
@@ -39,12 +40,25 @@ test("resolveProfileAvatarSrc proxies base64 avatars and preserves HTTP/relative
   );
 });
 
-test("getPresenceState classifies online, away, and offline accurately", () => {
+test("getPresenceState classifies available, away, and offline accurately", () => {
   assert.equal(getPresenceState(null), "offline");
   const now = Date.now();
-  assert.equal(getPresenceState(new Date(now - 60_000).toISOString()), "online");
+  assert.equal(getPresenceState(new Date(now - 60_000).toISOString()), "available");
   assert.equal(getPresenceState(new Date(now - 5 * 60_000).toISOString()), "away");
   assert.equal(getPresenceState(new Date(now - 30 * 60_000).toISOString()), "offline");
+
+  assert.equal(
+    resolveEffectivePresence(new Date(now - 60_000).toISOString(), "dnd", null),
+    "dnd"
+  );
+  assert.equal(
+    resolveEffectivePresence(
+      new Date(now - 60_000).toISOString(),
+      "busy",
+      new Date(now - 10_000).toISOString()
+    ),
+    "available"
+  );
 });
 
 test("formatSidebarTimestamp formats today, same-year, and prior-year timestamps", () => {

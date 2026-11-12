@@ -20,6 +20,12 @@ import {
   checkAndSendDueDateReminders,
   checkAndNotifyHoursExhausting,
   sendOrganizationInvitationEmail,
+  sendLeaveRequestToManagerEmail,
+  sendLeaveDelegationSummaryToRequesterEmail,
+  sendDelegatedTasksNoticeToDelegateEmail,
+  sendLeaveReviewedEmail,
+  resolveRecipientContacts,
+  type DelegatedTaskSummary,
 } from "@/lib/email";
 
 async function recordSubtaskAddedActivity({
@@ -712,6 +718,73 @@ export async function updateOrganizationMemberRole(formData: FormData) {
   if (error) redirect(`/organizations/${parsed.data.organizationId}/members?error=update_failed`);
   revalidatePath(`/organizations/${parsed.data.organizationId}/members`);
   redirect(`/organizations/${parsed.data.organizationId}/members?member_updated=1`);
+}
+
+export async function updateOrganizationMemberManager(formData: FormData) {
+  const parsed = z.object({
+    organizationId: z.string().uuid(),
+    userId: z.string().uuid(),
+    managerId: z.union([z.literal(""), z.string().uuid()]),
+  }).safeParse({
+    organizationId: formData.get("organizationId"),
+    userId: formData.get("userId"),
+    managerId: formData.get("managerId") ?? "",
+  });
+  if (!parsed.success) redirect("/dashboard?error=invalid_hierarchy");
+  const { organizationId, userId, managerId } = parsed.data;
+  if (managerId && managerId === userId) {
+    redirect(`/organizations/${organizationId}/members?error=self_manager`);
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+
+  // Only Organization Owner may modify the reporting hierarchy
+  const { data: isOwner } = await supabase.rpc("has_org_role", {
+    target_org: organizationId,
+    allowed_roles: ["owner"],
+  });
+  if (!isOwner) redirect(`/organizations/${organizationId}/members?error=owner_only`);
+
+  if (managerId) {
+    const { data: members } = await supabase
+      .from("organization_members")
+      .select("user_id, manager_id")
+      .eq("organization_id", organizationId)
+      .eq("status", "active");
+
+    const parentByUser = new Map<string, string | null>(
+      (members ?? []).map((m) => [m.user_id, m.manager_id ?? null])
+    );
+
+    if (!parentByUser.has(managerId)) {
+      redirect(`/organizations/${organizationId}/members?error=invalid_manager`);
+    }
+
+    // Cycle check: walking up ancestors from managerId must never reach userId
+    let cursor: string | null = managerId;
+    const seen = new Set<string>();
+    while (cursor) {
+      if (cursor === userId) {
+        redirect(`/organizations/${organizationId}/members?error=hierarchy_cycle`);
+      }
+      if (seen.has(cursor)) break;
+      seen.add(cursor);
+      cursor = parentByUser.get(cursor) ?? null;
+    }
+  }
+
+  const { error } = await supabase
+    .from("organization_members")
+    .update({ manager_id: managerId || null })
+    .eq("organization_id", organizationId)
+    .eq("user_id", userId);
+
+  if (error) redirect(`/organizations/${organizationId}/members?error=hierarchy_failed`);
+  revalidatePath(`/organizations/${organizationId}/members`);
+  revalidatePath(`/organizations/${organizationId}/calendar`);
+  redirect(`/organizations/${organizationId}/members?hierarchy_updated=1`);
 }
 
 export async function createProject(formData: FormData) {
@@ -2119,16 +2192,350 @@ export async function reviewProjectTimesheet(formData: FormData) {
 }
 
 export async function createLeaveRequest(formData: FormData) {
-  const parsed = z.object({ organizationId: z.string().uuid(), leaveType: z.enum(["vacation", "sick", "personal", "other"]), startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), note: z.string().trim().max(2000).optional() }).safeParse({
-    organizationId: formData.get("organizationId"), leaveType: formData.get("leaveType"), startDate: formData.get("startDate"), endDate: formData.get("endDate"), note: formData.get("note") || undefined,
+  const parsed = z.object({
+    organizationId: z.string().uuid(),
+    leaveType: z.enum(["vacation", "sick", "personal", "other"]),
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    note: z.string().trim().max(2000).optional(),
+    outOfOffice: z.string().optional(),
+    delegateUserId: z.union([z.literal(""), z.string().uuid()]).optional(),
+  }).safeParse({
+    organizationId: formData.get("organizationId"),
+    leaveType: formData.get("leaveType"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+    note: formData.get("note") || undefined,
+    outOfOffice: formData.get("outOfOffice") ? String(formData.get("outOfOffice")) : undefined,
+    delegateUserId: (formData.get("delegateUserId") as string | null) ?? "",
   });
   if (!parsed.success || parsed.data.endDate < parsed.data.startDate) redirect("/dashboard?error=invalid_leave_request");
+
   const supabase = await createClient();
+  const adminClient = createAdminClient();
+  const reader = adminClient ?? supabase;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { error } = await supabase.from("leave_requests").insert({ organization_id: parsed.data.organizationId, user_id: user.id, leave_type: parsed.data.leaveType, start_date: parsed.data.startDate, end_date: parsed.data.endDate, request_note: parsed.data.note ?? "" });
-  if (error) redirect(`/organizations/${parsed.data.organizationId}/calendar?error=leave_request_failed`);
+
+  const outOfOffice = parsed.data.outOfOffice === "on" || parsed.data.outOfOffice === "true" || parsed.data.outOfOffice === "1";
+  const requestedDelegateId = outOfOffice && parsed.data.delegateUserId && parsed.data.delegateUserId !== user.id
+    ? parsed.data.delegateUserId
+    : null;
+
+  // Resolve Org Hierarchy immediate manager (or fallback to active owner/admin)
+  let orgMembers: Array<{ user_id: string; role: string; manager_id?: string | null; status: string }> = [];
+  const extMemRes = await reader
+    .from("organization_members")
+    .select("user_id, role, manager_id, status")
+    .eq("organization_id", parsed.data.organizationId)
+    .eq("status", "active");
+  if (extMemRes.error) {
+    const baseMemRes = await reader
+      .from("organization_members")
+      .select("user_id, role, status")
+      .eq("organization_id", parsed.data.organizationId)
+      .eq("status", "active");
+    orgMembers = baseMemRes.data ?? [];
+  } else {
+    orgMembers = extMemRes.data ?? [];
+  }
+
+  const requesterMember = orgMembers.find((m) => m.user_id === user.id);
+  let managerId = requesterMember?.manager_id ?? null;
+  if (!managerId || managerId === user.id) {
+    const fallbackAdmin =
+      orgMembers.find((m) => m.role === "owner" && m.user_id !== user.id) ??
+      orgMembers.find((m) => m.role === "admin" && m.user_id !== user.id) ??
+      orgMembers.find((m) => m.role === "manager" && m.user_id !== user.id) ??
+      null;
+    managerId = fallbackAdmin?.user_id ?? null;
+  }
+
+  const validDelegateId = requestedDelegateId && orgMembers.some((m) => m.user_id === requestedDelegateId)
+    ? requestedDelegateId
+    : null;
+
+  // Insert leave request (resilient if migration columns are pending)
+  let leaveRequestId: string | null = null;
+  const extInsert = await supabase
+    .from("leave_requests")
+    .insert({
+      organization_id: parsed.data.organizationId,
+      user_id: user.id,
+      leave_type: parsed.data.leaveType,
+      start_date: parsed.data.startDate,
+      end_date: parsed.data.endDate,
+      request_note: parsed.data.note ?? "",
+      out_of_office: outOfOffice,
+      delegate_user_id: validDelegateId,
+      manager_id: managerId,
+    })
+    .select("id")
+    .single();
+
+  if (extInsert.error) {
+    const baseInsert = await supabase
+      .from("leave_requests")
+      .insert({
+        organization_id: parsed.data.organizationId,
+        user_id: user.id,
+        leave_type: parsed.data.leaveType,
+        start_date: parsed.data.startDate,
+        end_date: parsed.data.endDate,
+        request_note: parsed.data.note ?? "",
+      })
+      .select("id")
+      .single();
+    if (baseInsert.error) {
+      redirect(`/organizations/${parsed.data.organizationId}/calendar?error=leave_request_failed`);
+    }
+    leaveRequestId = baseInsert.data?.id ?? null;
+  } else {
+    leaveRequestId = extInsert.data?.id ?? null;
+  }
+
+  // Delegate ONLY urgent and high priority open tasks assigned to the requester
+  const delegatedTasks: DelegatedTaskSummary[] = [];
+  if (outOfOffice && validDelegateId) {
+    const { data: orgWorkspaces } = await reader
+      .from("workspaces")
+      .select("id")
+      .eq("organization_id", parsed.data.organizationId);
+    const wsIds = (orgWorkspaces ?? []).map((w) => w.id);
+
+    const { data: orgProjects } = wsIds.length
+      ? await reader.from("projects").select("id, name").in("workspace_id", wsIds)
+      : { data: [] };
+    const projectMap = new Map((orgProjects ?? []).map((p) => [p.id, p.name]));
+    const orgProjectIds = (orgProjects ?? []).map((p) => p.id);
+
+    if (orgProjectIds.length > 0) {
+      const [{ data: statuses }, { data: candidateTasks }, { data: extraAssigneeRows }] = await Promise.all([
+        reader.from("project_statuses").select("id, category").in("project_id", orgProjectIds),
+        reader
+          .from("tasks")
+          .select("id, project_id, status_id, generated_key, title, priority, due_date, primary_assignee_id, secondary_assignee_id")
+          .in("project_id", orgProjectIds)
+          .in("priority", ["urgent", "high"]),
+        reader.from("task_assignees").select("task_id, user_id").in("project_id", orgProjectIds),
+      ]);
+
+      const closedStatusIds = new Set(
+        (statuses ?? [])
+          .filter((s) => s.category === "completed" || s.category === "cancelled")
+          .map((s) => s.id)
+      );
+
+      const assigneesByTask = new Map<string, string[]>();
+      for (const row of extraAssigneeRows ?? []) {
+        assigneesByTask.set(row.task_id, [...(assigneesByTask.get(row.task_id) ?? []), row.user_id]);
+      }
+
+      for (const t of candidateTasks ?? []) {
+        if (closedStatusIds.has(t.status_id)) continue;
+        const extra = assigneesByTask.get(t.id) ?? [];
+        const isAssignedToRequester =
+          t.primary_assignee_id === user.id ||
+          t.secondary_assignee_id === user.id ||
+          extra.includes(user.id);
+        if (!isAssignedToRequester) continue;
+
+        const nextPrimary =
+          t.primary_assignee_id === user.id ? validDelegateId : t.primary_assignee_id;
+        let nextSecondary =
+          t.secondary_assignee_id === user.id ? validDelegateId : t.secondary_assignee_id;
+        if (nextPrimary && nextSecondary && nextPrimary === nextSecondary) {
+          nextSecondary = null;
+        }
+
+        await reader
+          .from("tasks")
+          .update({
+            primary_assignee_id: nextPrimary,
+            secondary_assignee_id: nextSecondary,
+          })
+          .eq("id", t.id);
+
+        try {
+          const mergedIds = Array.from(
+            new Set([
+              ...extra.filter((uid) => uid !== user.id),
+              validDelegateId,
+              ...(nextPrimary ? [nextPrimary] : []),
+              ...(nextSecondary ? [nextSecondary] : []),
+            ])
+          );
+          await reader.from("task_assignees").delete().eq("task_id", t.id).eq("project_id", t.project_id);
+          if (mergedIds.length > 0) {
+            await reader.from("task_assignees").insert(
+              mergedIds.map((uid) => ({
+                project_id: t.project_id,
+                task_id: t.id,
+                user_id: uid,
+                assigned_by: user.id,
+              }))
+            );
+          }
+        } catch {
+          // ignore task_assignees sync issue
+        }
+
+        delegatedTasks.push({
+          id: t.id,
+          key: t.generated_key,
+          title: t.title,
+          priority: t.priority,
+          dueDate: t.due_date,
+          projectId: t.project_id,
+          projectName: projectMap.get(t.project_id) ?? "Project",
+        });
+      }
+
+      if (leaveRequestId && delegatedTasks.length > 0) {
+        try {
+          await reader
+            .from("leave_requests")
+            .update({ delegated_task_ids: delegatedTasks.map((d) => d.id) })
+            .eq("id", leaveRequestId);
+        } catch {
+          // ignore if column pending
+        }
+      }
+    }
+  }
+
+  // Resolve names/emails & dispatch emails + in-app notifications
+  const { data: orgRow } = await reader
+    .from("organizations")
+    .select("name")
+    .eq("id", parsed.data.organizationId)
+    .maybeSingle();
+  const orgName = orgRow?.name ?? "Organization";
+
+  const contactIds = [user.id, managerId, validDelegateId].filter((id): id is string => Boolean(id));
+  const contacts = await resolveRecipientContacts(supabase, adminClient, contactIds);
+  const contactMap = new Map(contacts.map((c) => [c.id, c]));
+
+  const requesterContact = contactMap.get(user.id);
+  const requesterName = requesterContact?.display_name?.trim() || requesterContact?.email || user.email || "Teammate";
+  const requesterEmail = requesterContact?.email || user.email || "";
+  const managerContact = managerId ? contactMap.get(managerId) : null;
+  const delegateContact = validDelegateId ? contactMap.get(validDelegateId) : null;
+  const delegateName = delegateContact?.display_name?.trim() || delegateContact?.email || "Teammate";
+
+  const notifInserts: Array<Record<string, unknown>> = [];
+
+  if (managerId) {
+    const delegateSuffix = outOfOffice && validDelegateId
+      ? ` (OOO · ${delegatedTasks.length} urgent/high task${delegatedTasks.length === 1 ? "" : "s"} delegated to ${delegateName})`
+      : "";
+    notifInserts.push({
+      recipient_id: managerId,
+      actor_id: user.id,
+      project_id: null,
+      organization_id: parsed.data.organizationId,
+      event_type: "leave_requested",
+      message: `${requesterName} requested ${parsed.data.leaveType} leave (${parsed.data.startDate} to ${parsed.data.endDate})${delegateSuffix}`.slice(0, 490),
+      action_url: `/organizations/${parsed.data.organizationId}/calendar`,
+    });
+
+    if (managerContact?.email) {
+      await sendLeaveRequestToManagerEmail({
+        managerEmail: managerContact.email,
+        managerName: managerContact.display_name?.trim() || managerContact.email,
+        requesterName,
+        requesterEmail,
+        organizationId: parsed.data.organizationId,
+        organizationName: orgName,
+        leaveType: parsed.data.leaveType,
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
+        note: parsed.data.note,
+        outOfOffice,
+        delegateName: validDelegateId ? delegateName : null,
+        delegateEmail: delegateContact?.email ?? null,
+        delegatedTasks,
+      });
+    }
+  }
+
+  if (outOfOffice && validDelegateId) {
+    // Notifications for delegate per delegated urgent/high task
+    for (const dt of delegatedTasks) {
+      notifInserts.push({
+        recipient_id: validDelegateId,
+        actor_id: user.id,
+        project_id: dt.projectId,
+        task_id: dt.id,
+        organization_id: parsed.data.organizationId,
+        event_type: "task_delegated",
+        message: `You were assigned ${dt.priority} priority task ${dt.key}: ${dt.title} on behalf of ${requesterName} (Out of Office).`.slice(0, 490),
+        action_url: `/projects/${dt.projectId}/tasks/${dt.id}`,
+      });
+    }
+
+    if (delegatedTasks.length === 0) {
+      notifInserts.push({
+        recipient_id: validDelegateId,
+        actor_id: user.id,
+        project_id: null,
+        organization_id: parsed.data.organizationId,
+        event_type: "task_delegated",
+        message: `${requesterName} designated you as Out-of-Office delegate (${parsed.data.startDate} to ${parsed.data.endDate}).`.slice(0, 490),
+        action_url: `/inbox`,
+      });
+    }
+
+    // Notification for requester confirming delegation
+    notifInserts.push({
+      recipient_id: user.id,
+      actor_id: user.id,
+      project_id: null,
+      organization_id: parsed.data.organizationId,
+      event_type: "task_delegated",
+      message: `${delegatedTasks.length} urgent/high priority task${delegatedTasks.length === 1 ? "" : "s"} delegated to ${delegateName} for your leave.`.slice(0, 490),
+      action_url: `/inbox`,
+    });
+
+    if (requesterEmail) {
+      await sendLeaveDelegationSummaryToRequesterEmail({
+        requesterEmail,
+        requesterName,
+        organizationId: parsed.data.organizationId,
+        organizationName: orgName,
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
+        delegateName,
+        delegateEmail: delegateContact?.email ?? "",
+        delegatedTasks,
+      });
+    }
+
+    if (delegateContact?.email) {
+      await sendDelegatedTasksNoticeToDelegateEmail({
+        delegateEmail: delegateContact.email,
+        delegateName,
+        requesterName,
+        organizationName: orgName,
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
+        delegatedTasks,
+      });
+    }
+  }
+
+  if (notifInserts.length > 0) {
+    try {
+      await reader.from("notifications").insert(notifInserts);
+    } catch (e) {
+      console.warn("Non-fatal leave notification insert error:", e);
+    }
+  }
+
   revalidatePath(`/organizations/${parsed.data.organizationId}/calendar`);
+  revalidatePath("/inbox");
+  revalidatePath("/dashboard");
+  revalidatePath("/my-dashboard");
 }
 
 export async function reviewLeaveRequest(formData: FormData) {
@@ -2138,11 +2545,61 @@ export async function reviewLeaveRequest(formData: FormData) {
   if (!parsed.success) redirect("/dashboard?error=invalid_leave_review");
   if (parsed.data.decision === "rejected" && !parsed.data.note?.trim()) redirect(`/organizations/${parsed.data.organizationId}/calendar?error=review_note_required`);
   const supabase = await createClient();
+  const adminClient = createAdminClient();
+  const reader = adminClient ?? supabase;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
+
+  const { data: leaveReq } = await reader
+    .from("leave_requests")
+    .select("id, user_id, start_date, end_date, leave_type")
+    .eq("id", parsed.data.requestId)
+    .maybeSingle();
+
   const { error } = await supabase.rpc("review_leave_request", { target_request: parsed.data.requestId, decision: parsed.data.decision, note: parsed.data.note ?? "" });
   if (error) redirect(`/organizations/${parsed.data.organizationId}/calendar?error=leave_review_failed`);
+
+  if (leaveReq?.user_id) {
+    try {
+      const [{ data: orgRow }, contacts] = await Promise.all([
+        reader.from("organizations").select("name").eq("id", parsed.data.organizationId).maybeSingle(),
+        resolveRecipientContacts(supabase, adminClient, [user.id, leaveReq.user_id]),
+      ]);
+      const cMap = new Map(contacts.map((c) => [c.id, c]));
+      const reviewer = cMap.get(user.id);
+      const requester = cMap.get(leaveReq.user_id);
+      const reviewerName = reviewer?.display_name?.trim() || reviewer?.email || user.email || "Manager";
+
+      await reader.from("notifications").insert({
+        recipient_id: leaveReq.user_id,
+        actor_id: user.id,
+        project_id: null,
+        organization_id: parsed.data.organizationId,
+        event_type: "leave_reviewed",
+        message: `${reviewerName} ${parsed.data.decision} your ${leaveReq.leave_type} leave (${leaveReq.start_date} to ${leaveReq.end_date}).`.slice(0, 490),
+        action_url: `/organizations/${parsed.data.organizationId}/calendar`,
+      });
+
+      if (requester?.email) {
+        await sendLeaveReviewedEmail({
+          requesterEmail: requester.email,
+          requesterName: requester.display_name?.trim() || requester.email,
+          reviewerName,
+          organizationId: parsed.data.organizationId,
+          organizationName: orgRow?.name ?? "Organization",
+          decision: parsed.data.decision,
+          startDate: leaveReq.start_date,
+          endDate: leaveReq.end_date,
+          reviewNote: parsed.data.note,
+        });
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
   revalidatePath(`/organizations/${parsed.data.organizationId}/calendar`);
+  revalidatePath("/inbox");
 }
 
 export async function createOrganizationHoliday(formData: FormData) {

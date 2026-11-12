@@ -504,7 +504,7 @@ interface RecipientContact {
 
 type AnySupabaseClient = Awaited<ReturnType<typeof import("./supabase/server")["createClient"]>>;
 
-async function resolveRecipientContacts(
+export async function resolveRecipientContacts(
   supabase: AnySupabaseClient,
   adminClient: ReturnType<typeof import("./supabase/server")["createAdminClient"]>,
   userIds: string[]
@@ -705,6 +705,50 @@ export async function notifyAssigneesOnTask({
           })
         )
     );
+
+    // Ensure every assigned teammate also receives an in-app notification (covers multi-assignee & cases where triggers skip)
+    try {
+      const writer = adminClient ?? supabase;
+      const tenSecAgo = new Date(Date.now() - 10_000).toISOString();
+      const { data: recentExisting } = await writer
+        .from("notifications")
+        .select("recipient_id")
+        .eq("task_id", taskId)
+        .in("recipient_id", targetUserIds)
+        .in("event_type", ["task_assigned", "task_reassigned"])
+        .gte("created_at", tenSecAgo);
+
+      const alreadyNotified = new Set((recentExisting ?? []).map((r) => r.recipient_id));
+      const missingRecipients = targetUserIds.filter((uid) => !alreadyNotified.has(uid));
+
+      if (missingRecipients.length > 0) {
+        const message = `${assignerName} assigned you to task ${task.generated_key || "TASK"}: ${task.title}`;
+        const extRows = missingRecipients.map((uid) => ({
+          recipient_id: uid,
+          actor_id: actorId,
+          project_id: projectId,
+          task_id: taskId,
+          event_type: "task_assigned",
+          message: message.slice(0, 490),
+          action_url: `/projects/${projectId}/tasks/${taskId}`,
+        }));
+        const ins = await writer.from("notifications").insert(extRows);
+        if (ins.error) {
+          await writer.from("notifications").insert(
+            missingRecipients.map((uid) => ({
+              recipient_id: uid,
+              actor_id: actorId,
+              project_id: projectId,
+              task_id: taskId,
+              event_type: "task_assigned",
+              message: message.slice(0, 490),
+            }))
+          );
+        }
+      }
+    } catch (notifErr) {
+      console.warn("Non-fatal in-app assignment notification fallback:", notifErr);
+    }
   } catch (err) {
     console.error("Error sending task assignment notifications:", err);
   }
@@ -1264,4 +1308,178 @@ export async function sendOrganizationInvitationEmail(params: OrganizationInvita
     subject,
     html,
   });
+}
+
+export interface DelegatedTaskSummary {
+  id: string;
+  key: string;
+  title: string;
+  priority: string;
+  dueDate?: string | null;
+  projectId: string;
+  projectName: string;
+}
+
+export async function sendLeaveRequestToManagerEmail(params: {
+  managerEmail: string;
+  managerName: string;
+  requesterName: string;
+  requesterEmail: string;
+  organizationId: string;
+  organizationName: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  note?: string;
+  outOfOffice: boolean;
+  delegateName?: string | null;
+  delegateEmail?: string | null;
+  delegatedTasks?: DelegatedTaskSummary[];
+}) {
+  const appUrl = getAppUrl();
+  const calendarUrl = `${appUrl}/organizations/${params.organizationId}/calendar`;
+  const subject = `Leave Request: ${params.requesterName} (${params.startDate} to ${params.endDate})`;
+  const delegatedList = params.delegatedTasks ?? [];
+
+  const delegationBlock = params.outOfOffice
+    ? `<div style="margin:14px 0;padding:12px 14px;border-radius:8px;background:#eff6ff;border:1px solid #bfdbfe;">
+        <div style="font-weight:700;color:#1d4ed8;margin-bottom:4px;">Out of Office &amp; Work Delegation</div>
+        ${
+          params.delegateName
+            ? `<p style="margin:0 0 8px;font-size:13px;color:#1e3a8a;">Urgent &amp; High priority tasks (${delegatedList.length}) have been delegated to <strong>${params.delegateName}</strong>${params.delegateEmail ? ` (${params.delegateEmail})` : ""}.</p>`
+            : `<p style="margin:0;font-size:13px;color:#1e3a8a;">Marked as Out of Office (no task delegate selected).</p>`
+        }
+        ${
+          delegatedList.length > 0
+            ? `<ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;color:#1e293b;">${delegatedList
+                .map(
+                  (t) =>
+                    `<li><strong>${t.key}</strong>: ${t.title} (${getPriorityBadge(t.priority)}${t.projectName ? ` · ${t.projectName}` : ""})</li>`
+                )
+                .join("")}</ul>`
+            : ""
+        }
+      </div>`
+    : "";
+
+  const html = emailWrapper(
+    `
+    <p>Hi <strong>${params.managerName}</strong>,</p>
+    <p><strong>${params.requesterName}</strong> (${params.requesterEmail}) has submitted a new leave request for your review in <strong>${params.organizationName}</strong>.</p>
+    <div style="border-left:4px solid #167c58;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin:14px 0;">
+      <p style="margin:0 0 6px;font-size:13px;"><strong>Leave Type:</strong> ${params.leaveType}</p>
+      <p style="margin:0 0 6px;font-size:13px;"><strong>Dates:</strong> ${params.startDate} to ${params.endDate}</p>
+      ${params.note ? `<p style="margin:0;font-size:13px;"><strong>Note:</strong> ${params.note}</p>` : ""}
+    </div>
+    ${delegationBlock}
+    <a href="${calendarUrl}" style="background:#167c58;color:#ffffff;display:inline-block;padding:10px 18px;text-decoration:none;border-radius:6px;font-weight:600;margin-top:8px;">Review Leave Request</a>
+    `,
+    subject
+  );
+
+  return sendEmail({ to: params.managerEmail, subject, html });
+}
+
+export async function sendLeaveDelegationSummaryToRequesterEmail(params: {
+  requesterEmail: string;
+  requesterName: string;
+  organizationId: string;
+  organizationName: string;
+  startDate: string;
+  endDate: string;
+  delegateName: string;
+  delegateEmail: string;
+  delegatedTasks: DelegatedTaskSummary[];
+}) {
+  const appUrl = getAppUrl();
+  const inboxUrl = `${appUrl}/inbox`;
+  const subject = `Your urgent/high tasks are delegated to ${params.delegateName}`;
+
+  const html = emailWrapper(
+    `
+    <p>Hi <strong>${params.requesterName}</strong>,</p>
+    <p>Your Out-of-Office delegation for your leave (${params.startDate} to ${params.endDate}) in <strong>${params.organizationName}</strong> has been applied.</p>
+    <div style="border-left:4px solid #0284c7;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px;margin:14px 0;">
+      <p style="margin:0 0 8px;font-size:13px;">The following <strong>Urgent / High</strong> priority tasks (${params.delegatedTasks.length}) were delegated to <strong>${params.delegateName}</strong> (${params.delegateEmail}):</p>
+      ${
+        params.delegatedTasks.length > 0
+          ? `<ul style="margin:0;padding-left:18px;font-size:12.5px;">${params.delegatedTasks
+              .map(
+                (t) =>
+                  `<li><a href="${appUrl}/projects/${t.projectId}/tasks/${t.id}" style="color:#0369a1;"><strong>${t.key}</strong>: ${t.title}</a> ${getPriorityBadge(t.priority)}</li>`
+              )
+              .join("")}</ul>`
+          : `<p style="margin:0;font-size:12.5px;color:#475569;">No open Urgent or High priority tasks were found to reassign; normal and low priority tasks remain unchanged.</p>`
+      }
+    </div>
+    <a href="${inboxUrl}" style="background:#167c58;color:#ffffff;display:inline-block;padding:9px 16px;text-decoration:none;border-radius:6px;font-weight:600;">Open Inbox</a>
+    `,
+    subject
+  );
+
+  return sendEmail({ to: params.requesterEmail, subject, html });
+}
+
+export async function sendDelegatedTasksNoticeToDelegateEmail(params: {
+  delegateEmail: string;
+  delegateName: string;
+  requesterName: string;
+  organizationName: string;
+  startDate: string;
+  endDate: string;
+  delegatedTasks: DelegatedTaskSummary[];
+}) {
+  const appUrl = getAppUrl();
+  const inboxUrl = `${appUrl}/inbox`;
+  const subject = `Urgent/High tasks assigned to you on behalf of ${params.requesterName}`;
+
+  const html = emailWrapper(
+    `
+    <p>Hi <strong>${params.delegateName}</strong>,</p>
+    <p><strong>${params.requesterName}</strong> is Out of Office from <strong>${params.startDate}</strong> to <strong>${params.endDate}</strong> in <strong>${params.organizationName}</strong> and has delegated their urgent &amp; high priority tasks to you.</p>
+    <div style="border-left:4px solid #d97706;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px;margin:14px 0;">
+      <p style="margin:0 0 8px;font-size:13px;">You are assigned to the following tasks on behalf of <strong>${params.requesterName}</strong>:</p>
+      ${
+        params.delegatedTasks.length > 0
+          ? `<ul style="margin:0;padding-left:18px;font-size:12.5px;">${params.delegatedTasks
+              .map(
+                (t) =>
+                  `<li><a href="${appUrl}/projects/${t.projectId}/tasks/${t.id}" style="color:#b45309;"><strong>${t.key}</strong>: ${t.title}</a> ${getPriorityBadge(t.priority)}${t.dueDate ? ` · Due ${t.dueDate}` : ""}</li>`
+              )
+              .join("")}</ul>`
+          : `<p style="margin:0;font-size:12.5px;color:#78350f;">You are designated as backup contact during their leave; there are currently no open Urgent/High tasks transferred.</p>`
+      }
+    </div>
+    <a href="${inboxUrl}" style="background:#167c58;color:#ffffff;display:inline-block;padding:9px 16px;text-decoration:none;border-radius:6px;font-weight:600;">View in Inbox</a>
+    `,
+    subject
+  );
+
+  return sendEmail({ to: params.delegateEmail, subject, html });
+}
+
+export async function sendLeaveReviewedEmail(params: {
+  requesterEmail: string;
+  requesterName: string;
+  reviewerName: string;
+  organizationId: string;
+  organizationName: string;
+  decision: "approved" | "rejected";
+  startDate: string;
+  endDate: string;
+  reviewNote?: string;
+}) {
+  const appUrl = getAppUrl();
+  const calendarUrl = `${appUrl}/organizations/${params.organizationId}/calendar`;
+  const subject = `Your leave request (${params.startDate} to ${params.endDate}) was ${params.decision}`;
+  const html = emailWrapper(
+    `
+    <p>Hi <strong>${params.requesterName}</strong>,</p>
+    <p>Your leave request (${params.startDate} to ${params.endDate}) in <strong>${params.organizationName}</strong> was <strong>${params.decision}</strong> by ${params.reviewerName}.</p>
+    ${params.reviewNote ? `<p><strong>Review note:</strong> ${params.reviewNote}</p>` : ""}
+    <a href="${calendarUrl}" style="background:#167c58;color:#ffffff;display:inline-block;padding:9px 16px;text-decoration:none;border-radius:6px;font-weight:600;">View Calendar</a>
+    `,
+    subject
+  );
+  return sendEmail({ to: params.requesterEmail, subject, html });
 }

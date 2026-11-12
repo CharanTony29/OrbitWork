@@ -1,16 +1,9 @@
 import AppTopBar from "@/app/AppTopBar";
 import BackButton from "@/app/BackButton";
 import { notFound, redirect } from "next/navigation";
-import {
-  Download,
-  Gauge,
-  Users,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
-} from "lucide-react";
-import { signOut } from "@/app/actions";
+import { Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import ReportsChartsClient from "./ReportsChartsClient";
 
 type Metric = {
   status_id: string;
@@ -257,236 +250,23 @@ export default async function ProjectReportsPage({
           </article>
         </div>
 
-        {/* Multi-Category Breakdown Grid */}
-        <div className="report-categories-grid">
-          {/* Category 1: Workflow & Statuses */}
-          <section className="report-card">
-            <header>
-              <div>
-                <p className="eyebrow">WORKFLOW</p>
-                <h2>Tasks by status</h2>
-              </div>
-              <Gauge size={18} />
-            </header>
-            <div className="report-status-feed">
-              {metrics.map((row) => {
-                const pct = total ? Math.round((row.task_count * 100) / total) : 0;
-                return (
-                  <div className="report-status-row" key={row.status_id}>
-                    <div>
-                      <i style={{ backgroundColor: row.status_color }} />
-                      <strong>{row.status_name}</strong>
-                      <span>
-                        {row.task_count} task{row.task_count === 1 ? "" : "s"} ({pct}%)
-                      </span>
-                    </div>
-                    <div className="report-status-meter">
-                      <i
-                        style={{
-                          width: `${pct}%`,
-                          backgroundColor: row.status_color,
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-              {!metrics.length && (
-                <p className="muted small">No task statuses available.</p>
-              )}
-            </div>
-          </section>
-
-          {/* Category 2: People & Workload */}
-          <section className="report-card">
-            <header>
-              <div>
-                <p className="eyebrow">TEAM WORKLOAD</p>
-                <h2>People & Performance</h2>
-              </div>
-              <Users size={18} />
-            </header>
-            <div className="report-people-feed">
-              {peopleList.map((person) => {
-                const totalH = Math.floor(person.totalMinutes / 60);
-                const totalM = person.totalMinutes % 60;
-                const billableH = Math.floor(person.billableMinutes / 60);
-                const billableM = person.billableMinutes % 60;
-                const completionRate = person.assignedCount
-                  ? Math.round((person.completedCount * 100) / person.assignedCount)
-                  : 0;
-
-                return (
-                  <div className="report-people-row" key={person.id}>
-                    <div className="report-person-avatar">
-                      {person.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="report-person-info">
-                      <div className="report-person-name">{person.name}</div>
-                      <div className="report-person-meta">
-                        <span>
-                          {person.assignedCount} assigned · {person.completedCount}{" "}
-                          done ({completionRate}%)
-                        </span>
-                      </div>
-                    </div>
-                    <div className="report-person-stats">
-                      <div className="report-person-hours">
-                        {totalH}h {totalM}m
-                      </div>
-                      <div className="report-person-billable">
-                        {billableH}h {billableM}m billable
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              {peopleList.length === 0 && (
-                <p className="muted small">
-                  No members have been assigned tasks or logged time yet.
-                </p>
-              )}
-            </div>
-          </section>
-
-          {/* Category 3: Time & Billable Breakdown */}
-          <section className="report-card">
-            <header>
-              <div>
-                <p className="eyebrow">TIME TRACKING</p>
-                <h2>Billable vs Non-Billable</h2>
-              </div>
-              <Clock size={18} />
-            </header>
-            <div className="time-split-card">
-              <div className="time-split-bar">
-                <div
-                  className="time-bar-billable"
-                  style={{ width: `${billablePercent}%` }}
-                  title={`Billable: ${billablePercent}%`}
-                />
-                <div
-                  className="time-bar-nonbillable"
-                  style={{ width: `${100 - billablePercent}%` }}
-                  title={`Non-billable: ${100 - billablePercent}%`}
-                />
-              </div>
-
-              <div className="time-split-legend">
-                <div className="time-legend-item">
-                  <span className="time-legend-dot billable" />
-                  <span>
-                    <strong>Billable:</strong>{" "}
-                    {Math.floor(totalBillableMinutes / 60)}h{" "}
-                    {totalBillableMinutes % 60}m ({billablePercent}%)
-                  </span>
-                </div>
-                <div className="time-legend-item">
-                  <span className="time-legend-dot nonbillable" />
-                  <span>
-                    <strong>Non-billable:</strong>{" "}
-                    {Math.floor(totalNonBillableMinutes / 60)}h{" "}
-                    {totalNonBillableMinutes % 60}m ({100 - billablePercent}%)
-                  </span>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "10px",
-                  paddingTop: "10px",
-                  borderTop: "1px solid var(--line, #edf0ed)",
-                }}
-              >
-                <div>
-                  <small style={{ color: "var(--muted)", fontSize: "11px" }}>
-                    Total Time Tracked
-                  </small>
-                  <p
-                    style={{
-                      margin: "4px 0 0",
-                      fontSize: "16px",
-                      fontWeight: 700,
-                      color: "var(--ink)",
-                    }}
-                  >
-                    {Math.floor(totalTrackedMinutes / 60)}h{" "}
-                    {totalTrackedMinutes % 60}m
-                  </p>
-                </div>
-                <div>
-                  <small style={{ color: "var(--muted)", fontSize: "11px" }}>
-                    Average Per Done Task
-                  </small>
-                  <p
-                    style={{
-                      margin: "4px 0 0",
-                      fontSize: "16px",
-                      fontWeight: 700,
-                      color: "var(--ink)",
-                    }}
-                  >
-                    {completed > 0
-                      ? `${Math.floor(totalTrackedMinutes / completed / 60)}h ${Math.round((totalTrackedMinutes / completed) % 60)}m`
-                      : "—"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Category 4: Priority Distribution */}
-          <section className="report-card">
-            <header>
-              <div>
-                <p className="eyebrow">RISK & PRIORITY</p>
-                <h2>Priority Breakdown</h2>
-              </div>
-              <AlertTriangle size={18} />
-            </header>
-            <div className="priority-report-feed">
-              {(
-                [
-                  { key: "urgent", label: "Urgent", count: priorityCounts.urgent, class: "priority-urgent-pill" },
-                  { key: "high", label: "High", count: priorityCounts.high, class: "priority-high-pill" },
-                  { key: "normal", label: "Normal", count: priorityCounts.normal, class: "priority-normal-pill" },
-                  { key: "low", label: "Low", count: priorityCounts.low, class: "priority-low-pill" },
-                ] as const
-              ).map((p) => {
-                const pct = total ? Math.round((p.count * 100) / total) : 0;
-                return (
-                  <div className="priority-report-row" key={p.key}>
-                    <div className="priority-report-header">
-                      <span className={`priority-pill-mini ${p.class}`}>
-                        {p.label}
-                      </span>
-                      <span>
-                        <strong>{p.count}</strong> ({pct}%)
-                      </span>
-                    </div>
-                    <div className="report-status-meter">
-                      <i
-                        style={{
-                          width: `${pct}%`,
-                          backgroundColor:
-                            p.key === "urgent"
-                              ? "#dc2626"
-                              : p.key === "high"
-                              ? "#d97706"
-                              : p.key === "normal"
-                              ? "#0284c7"
-                              : "#64748b",
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        </div>
+        {/* Multi-Category Breakdown Grid (Bar / Pie Switcher) */}
+        <ReportsChartsClient
+          total={total}
+          completed={completed}
+          metrics={metrics.map((m) => ({
+            status_id: m.status_id,
+            status_name: m.status_name,
+            status_color: m.status_color,
+            task_count: m.task_count,
+          }))}
+          peopleList={peopleList}
+          totalBillableMinutes={totalBillableMinutes}
+          totalNonBillableMinutes={totalNonBillableMinutes}
+          totalTrackedMinutes={totalTrackedMinutes}
+          billablePercent={billablePercent}
+          priorityCounts={priorityCounts}
+        />
 
         <p className="report-footnote">
           Overdue excludes tasks in completed and cancelled workflow categories.

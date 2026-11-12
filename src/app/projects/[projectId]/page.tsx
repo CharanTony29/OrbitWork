@@ -17,6 +17,7 @@ import ProjectWhiteboardView from "./ProjectWhiteboardView";
 import ProjectFlowchartView from "./ProjectFlowchartView";
 import ProjectViewTabsClient from "./ProjectViewTabsClient";
 import ProjectChannelView from "./ProjectChannelView";
+import ProjectGoalsView, { type ProjectGoalRecord } from "./ProjectGoalsView";
 import FavoriteButton from "@/app/FavoriteButton";
 import {
   DEFAULT_PROJECT_TAB_ORDER,
@@ -137,7 +138,7 @@ export default async function ProjectPage({ params, searchParams }: {
   const taskIds = (tasks ?? []).map((task) => task.id);
   const customFieldIds = (customFields ?? []).map((field) => field.id);
   const needsProjectDocs = view === "list" || view === "whiteboard" || view === "flowchart";
-  const [fieldValuesResult, taskAssigneesResult, projectDocsResult, attachmentsResult, commentsResult, timeEntriesResult, runningTimersResult] = await Promise.all([
+  const [fieldValuesResult, taskAssigneesResult, projectDocsResult, attachmentsResult, commentsResult, timeEntriesResult, runningTimersResult, projectGoalsResult] = await Promise.all([
     taskIds.length && customFieldIds.length ? supabase.from("task_custom_field_values").select("task_id, field_id, value").in("task_id", taskIds).in("field_id", customFieldIds) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("task_assignees").select("task_id, user_id, assigned_at").in("task_id", taskIds).order("assigned_at", { ascending: true }) : Promise.resolve({ data: [] }),
     needsProjectDocs
@@ -147,6 +148,9 @@ export default async function ProjectPage({ params, searchParams }: {
     taskIds.length ? supabase.from("task_comments").select("task_id").in("task_id", taskIds) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("time_entries").select("task_id, duration_minutes, billable").in("task_id", taskIds).not("ended_at", "is", null) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("time_entries").select("id, task_id, user_id, started_at, billable").in("task_id", taskIds).is("ended_at", null) : Promise.resolve({ data: [] }),
+    view === "goals"
+      ? supabase.from("project_goals").select("*").eq("project_id", projectId).order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
   ]);
   const { data: fieldValues } = fieldValuesResult;
   const { data: taskAssigneeRows } = taskAssigneesResult;
@@ -271,7 +275,7 @@ export default async function ProjectPage({ params, searchParams }: {
             )}
           </div>
         </nav>
-        {view !== "channel" && (
+        {view !== "channel" && view !== "goals" && (
           <TaskFilterToolbar
             projectId={project.id}
             projectName={project.name}
@@ -288,8 +292,8 @@ export default async function ProjectPage({ params, searchParams }: {
             }}
           />
         )}
-        {view === "list" ? <TaskTable projectId={project.id} canEdit={canEdit} initialColumnOrder={userColumnOrder} tasks={(tasks ?? []).map((task) => ({ ...task, assigneeIds: taskAssigneeMap.get(task.id) ?? [], billable_minutes: billableMinutesMap.get(task.id) ?? 0 }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} members={members} createdBy={createdBy} customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))} customValues={customValues} attachmentsMap={attachmentsMap} projectDocuments={(projectDocs ?? []).map(({ id, title, body_markdown }) => ({ id, title, body_markdown }))} commentCounts={commentCounts} runningTimerMap={runningTimerMap} initialGroupBy={(filters.group as "status" | "priority" | "due_date" | "none") || "status"} /> : view === "board" ? <TaskBoard projectId={project.id} canEdit={canEdit} tasks={tasks ?? []} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} people={people}/> : view === "calendar" ? <TaskCalendar projectId={project.id} tasks={(tasks ?? []).map((task) => ({ ...task, status_category: statuses?.find((status) => status.id === task.status_id)?.category }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "gantt" ? <TaskGantt projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, start_date, due_date, progress, created_at, status_id }) => ({ id, generated_key, title, start_date, due_date, progress, created_at, status_category: statuses?.find((status) => status.id === status_id)?.category }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "whiteboard" ? <ProjectWhiteboardView projectId={project.id} documents={projectDocs ?? []}/> : view === "flowchart" ? <ProjectFlowchartView projectId={project.id} documents={projectDocs ?? []}/> : view === "channel" ? <ProjectChannelView projectId={project.id} projectName={project.name}/> : <TaskWorkload projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }) => ({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }))} people={people}/>}
-        {view !== "channel" && (taskCount ?? 0) > 100 && (
+        {view === "list" ? <TaskTable projectId={project.id} canEdit={canEdit} initialColumnOrder={userColumnOrder} tasks={(tasks ?? []).map((task) => ({ ...task, assigneeIds: taskAssigneeMap.get(task.id) ?? [], billable_minutes: billableMinutesMap.get(task.id) ?? 0 }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} members={members} createdBy={createdBy} customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))} customValues={customValues} attachmentsMap={attachmentsMap} projectDocuments={(projectDocs ?? []).map(({ id, title, body_markdown }) => ({ id, title, body_markdown }))} commentCounts={commentCounts} runningTimerMap={runningTimerMap} initialGroupBy={(filters.group as "status" | "priority" | "due_date" | "none") || "status"} /> : view === "board" ? <TaskBoard projectId={project.id} canEdit={canEdit} tasks={tasks ?? []} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} people={people}/> : view === "calendar" ? <TaskCalendar projectId={project.id} tasks={(tasks ?? []).map((task) => ({ ...task, status_category: statuses?.find((status) => status.id === task.status_id)?.category }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "gantt" ? <TaskGantt projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, start_date, due_date, progress, created_at, status_id }) => ({ id, generated_key, title, start_date, due_date, progress, created_at, status_category: statuses?.find((status) => status.id === status_id)?.category }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "whiteboard" ? <ProjectWhiteboardView projectId={project.id} documents={projectDocs ?? []}/> : view === "flowchart" ? <ProjectFlowchartView projectId={project.id} documents={projectDocs ?? []}/> : view === "channel" ? <ProjectChannelView projectId={project.id} projectName={project.name}/> : view === "goals" ? <ProjectGoalsView projectId={project.id} projectName={project.name} canEdit={canEdit} members={members} initialGoals={((projectGoalsResult.data ?? []) as ProjectGoalRecord[])} schemaMissing={Boolean(projectGoalsResult.error)}/> : <TaskWorkload projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }) => ({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }))} people={people}/>}
+        {view !== "channel" && view !== "goals" && (taskCount ?? 0) > 100 && (
           <div className="task-pagination">
             {page > 1 && <Link href={pageHref(page - 1)}>Previous</Link>}
             <span>Page {page} of {Math.ceil((taskCount ?? 0) / 100)}</span>

@@ -16,7 +16,7 @@ export default async function HierarchyNavigation({ organizationId, organization
       <Link href="/dashboard" prefetch={false} title="Overview"><House size={18}/><span>Home</span></Link>
       <Link href="/my-dashboard" prefetch={false} title="Dashboard"><LayoutDashboard size={17}/><span>Dashboard</span></Link>
       <Link href="/inbox" prefetch={false} title="Inbox"><Bell size={17}/><span>Inbox</span></Link>
-      <Link href={currentProjectId ? `/projects/${currentProjectId}?view=calendar` : `/workspaces/${currentWorkspaceId}`} prefetch={false} title="Planner"><CalendarDays size={17}/><span>Planner</span></Link>
+      <Link href={organizationId ? `/planner?org=${organizationId}` : "/planner"} prefetch={false} title="Planner & Meeting Rooms"><CalendarDays size={17}/><span>Planner</span></Link>
       <Link href={currentProjectId ? `/projects/${currentProjectId}/documents` : `/organizations/${organizationId}/docs`} prefetch={false} title="Docs & Attachments"><FileText size={17}/><span>Docs</span></Link>
       <Link href={`/workspaces/${currentWorkspaceId}/timesheets`} prefetch={false} title="Workspace Timesheets"><Clock3 size={17}/><span>Time</span></Link>
       <Link href="/chat" prefetch={false} title="Team & Personal Chat"><MessageSquare size={17}/><span>Chat</span></Link>

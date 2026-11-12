@@ -121,9 +121,21 @@ function formatDateDivider(iso: string): string {
 }
 
 function presenceLabel(state?: ChatPresenceState | null): string {
-  if (state === "online") return "Online";
-  if (state === "away") return "Away";
-  return "Offline";
+  switch (state) {
+    case "available":
+    case "online":
+      return "Available";
+    case "busy":
+      return "Busy";
+    case "dnd":
+      return "Do not disturb";
+    case "brb":
+      return "Be right back";
+    case "away":
+      return "Appear away";
+    default:
+      return "Offline";
+  }
 }
 
 async function compressImageForFallback(file: File): Promise<string | null> {
@@ -1053,12 +1065,22 @@ export default function ChatWorkspace({
     return items;
   }, [messages]);
 
+  const mentionableMembers = useMemo(() => {
+    if (selectedType === "group") {
+      return activeThreadSummary.members ?? [];
+    }
+    if (selectedType === "direct") {
+      return initialMembers.filter((m) => m.id === selectedTarget);
+    }
+    return initialMembers;
+  }, [selectedType, selectedTarget, activeThreadSummary.members, initialMembers]);
+
   const filteredMentions = useMemo(() => {
     if (mentionQuery === null) return [];
-    return initialMembers
+    return mentionableMembers
       .filter((m) => m.name.toLowerCase().includes(mentionQuery))
       .slice(0, 6);
-  }, [mentionQuery, initialMembers]);
+  }, [mentionQuery, mentionableMembers]);
 
   const filteredLinkItems = useMemo(() => {
     const q = linkSearch.trim().toLowerCase();

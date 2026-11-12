@@ -14,9 +14,34 @@ export default function TaskGantt({ projectId, tasks, month, events = [] }: { pr
   const fmt = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
   const columns = `minmax(220px, 1.2fr) repeat(${days}, minmax(22px, 1fr))`;
 
+  // Map day-of-month (1..days) -> holiday names for vertical column highlights in Timeline
+  const holidayByDay = new Map<number, string[]>();
+  for (const event of events) {
+    if (event.kind !== "holiday") continue;
+    const end = event.end ?? event.start;
+    const startDay = event.start.startsWith(key) ? Number(event.start.slice(8, 10)) : event.start < `${key}-01` ? 1 : days + 1;
+    const endDay = end.startsWith(key) ? Number(end.slice(8, 10)) : end > `${key}-${String(days).padStart(2, "0")}` ? days : 0;
+    if (startDay <= days && endDay >= 1) {
+      for (let d = Math.max(1, startDay); d <= Math.min(days, endDay); d++) {
+        holidayByDay.set(d, [...(holidayByDay.get(d) ?? []), event.label]);
+      }
+    }
+  }
+  const monthHolidays = events.filter((e) => e.kind === "holiday" && e.start.startsWith(key));
+
   return <section className="gantt-view">
     <header className="gantt-header"><Link href={`/projects/${projectId}?view=gantt&month=${fmt(previous)}`}>← Previous</Link><h3>{first.toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" })}</h3><Link href={`/projects/${projectId}?view=gantt&month=${fmt(next)}`}>Next →</Link></header>
-    <div className="gantt-scale" style={{ gridTemplateColumns: columns }}><span>Task</span>{Array.from({ length: days }, (_, index) => <span className="gantt-day" key={index}>{index + 1}</span>)}</div>
+    {monthHolidays.length > 0 && (
+      <div className="gantt-holiday-strip">
+        <strong>Holidays:</strong>
+        {monthHolidays.map((h) => (
+          <span key={`pill-${h.id}`} className="calendar-event calendar-event-holiday" style={{ marginTop: 0 }}>
+            {new Date(`${h.start}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })} · {h.label}
+          </span>
+        ))}
+      </div>
+    )}
+    <div className="gantt-scale" style={{ gridTemplateColumns: columns }}><span>Task</span>{Array.from({ length: days }, (_, index) => { const d = index + 1; const hLabels = holidayByDay.get(d); return <span className={`gantt-day${hLabels ? " is-holiday" : ""}`} key={index} title={hLabels ? `Holiday: ${hLabels.join(", ")}` : undefined}>{d}</span>; })}</div>
     {tasks.map((task) => {
       const start = task.start_date ?? task.created_at?.slice(0, 10) ?? task.due_date;
       const today = new Date().toISOString().slice(0, 10);
@@ -31,7 +56,7 @@ export default function TaskGantt({ projectId, tasks, month, events = [] }: { pr
       const progress = task.progress > 0 ? task.progress : task.status_category === "active" || task.status_category === "completed" ? 100 : 0;
       return <div className="gantt-row" key={task.id} style={{ gridTemplateColumns: columns }}>
         <Link className="gantt-task-name" href={`/projects/${projectId}/tasks/${task.id}`}><span>{task.generated_key}</span>{task.title}</Link>
-        {Array.from({ length: days }, (_, index) => <span className="gantt-cell" key={index}/>)}
+        {Array.from({ length: days }, (_, index) => { const hLabels = holidayByDay.get(index + 1); return <span className={`gantt-cell${hLabels ? " is-holiday" : ""}`} key={index} title={hLabels ? `Holiday: ${hLabels.join(", ")}` : undefined}/>; })}
         {visible && <Link className={`gantt-bar${planned ? " is-planned" : ""}${late ? " is-overdue" : ""}`} href={`/projects/${projectId}/tasks/${task.id}`} style={{ gridColumn: `${clampedStart + 1} / ${clampedEnd + 2}`, left: 0, "--bar-progress": `${Math.max(0, Math.min(100, progress))}%` } as React.CSSProperties} title={`${start} to ${task.due_date ?? end}${late ? " · Overdue" : ""}`}/>}
         {!visible && <span className="gantt-unscheduled">No schedule</span>}
       </div>;

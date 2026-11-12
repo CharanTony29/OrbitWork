@@ -24,9 +24,23 @@ import {
   Moon,
   Monitor,
   X,
+  CheckCircle2,
+  Circle,
+  MinusCircle,
+  XCircle,
+  RotateCcw,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { signOut } from "./actions";
 import UniversalCreateModal from "./UniversalCreateModal";
+import {
+  PRESENCE_DURATION_OPTIONS,
+  PRESENCE_STATUS_OPTIONS,
+  formatPresenceLabel,
+  getPresenceColor,
+  type ManualPresenceKey,
+} from "@/lib/chat";
 
 export default function UserProfileDropdown({
   email,
@@ -44,9 +58,14 @@ export default function UserProfileDropdown({
   projectId?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [userStatus, setUserStatus] = useState("Online");
+  const [presenceStatus, setPresenceStatus] = useState<ManualPresenceKey>("available");
+  const [presenceExpiresAt, setPresenceExpiresAt] = useState<string | null>(null);
+  const [userStatus, setUserStatus] = useState("");
   const [customStatusInput, setCustomStatusInput] = useState("");
   const [showStatusEdit, setShowStatusEdit] = useState(false);
+  const [showPresenceMenu, setShowPresenceMenu] = useState(false);
+  const [showDurationMenu, setShowDurationMenu] = useState(false);
+  const [savingPresence, setSavingPresence] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showNotepad, setShowNotepad] = useState(false);
   const [notepadContent, setNotepadContent] = useState("");
@@ -59,15 +78,130 @@ export default function UserProfileDropdown({
   const name = displayName?.trim() || email.split("@")[0] || "User";
   const initial = name.charAt(0).toUpperCase();
 
-  // Load saved notepad from localStorage
+  // Load saved notepad & presence status
   useEffect(() => {
     try {
       const saved = localStorage.getItem("orbitwork_personal_notepad");
       if (saved) setNotepadContent(saved);
       const savedStatus = localStorage.getItem("orbitwork_user_status");
       if (savedStatus) setUserStatus(savedStatus);
+      const savedPresence = localStorage.getItem("orbitwork_presence_status") as ManualPresenceKey | null;
+      if (savedPresence && PRESENCE_STATUS_OPTIONS.some((o) => o.key === savedPresence)) {
+        setPresenceStatus(savedPresence);
+      }
     } catch {}
+
+    let active = true;
+    void fetch("/api/profile/status", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !data) return;
+        if (
+          typeof data.presenceStatus === "string" &&
+          PRESENCE_STATUS_OPTIONS.some((o) => o.key === data.presenceStatus)
+        ) {
+          setPresenceStatus(data.presenceStatus as ManualPresenceKey);
+          try {
+            localStorage.setItem("orbitwork_presence_status", data.presenceStatus);
+          } catch {}
+        }
+        if (typeof data.presenceExpiresAt === "string" || data.presenceExpiresAt === null) {
+          setPresenceExpiresAt(data.presenceExpiresAt);
+        }
+        if (typeof data.statusMessage === "string") {
+          setUserStatus(data.statusMessage);
+          try {
+            localStorage.setItem("orbitwork_user_status", data.statusMessage);
+          } catch {}
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
+
+  const updatePresenceStatus = async (
+    nextKey: ManualPresenceKey,
+    duration?: number | "today" | "week" | null
+  ) => {
+    setPresenceStatus(nextKey);
+    try {
+      localStorage.setItem("orbitwork_presence_status", nextKey);
+    } catch {}
+    setSavingPresence(true);
+    try {
+      const res = await fetch("/api/profile/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          presenceStatus: nextKey,
+          ...(duration !== undefined ? { durationMinutes: duration } : {}),
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPresenceExpiresAt(data.presenceExpiresAt ?? null);
+      }
+    } catch {}
+    setSavingPresence(false);
+    setShowPresenceMenu(false);
+    setShowDurationMenu(false);
+  };
+
+  const resetPresenceStatus = async () => {
+    setPresenceStatus("available");
+    setPresenceExpiresAt(null);
+    setUserStatus("");
+    try {
+      localStorage.setItem("orbitwork_presence_status", "available");
+      localStorage.removeItem("orbitwork_user_status");
+    } catch {}
+    setSavingPresence(true);
+    try {
+      await fetch("/api/profile/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reset: true }),
+      });
+    } catch {}
+    setSavingPresence(false);
+    setShowPresenceMenu(false);
+    setShowDurationMenu(false);
+  };
+
+  const saveStatusMessage = async (msg: string) => {
+    const trimmed = msg.trim();
+    setUserStatus(trimmed);
+    try {
+      localStorage.setItem("orbitwork_user_status", trimmed);
+    } catch {}
+    setShowStatusEdit(false);
+    try {
+      await fetch("/api/profile/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statusMessage: trimmed }),
+      });
+    } catch {}
+  };
+
+  const renderPresenceGlyph = (key: ManualPresenceKey, size = 14) => {
+    const color = getPresenceColor(key);
+    switch (key) {
+      case "available":
+        return <CheckCircle2 size={size} color={color} />;
+      case "busy":
+        return <Circle size={size} fill={color} color={color} />;
+      case "dnd":
+        return <MinusCircle size={size} color={color} />;
+      case "brb":
+      case "away":
+        return <Clock size={size} color={color} />;
+      default:
+        return <XCircle size={size} color={color} />;
+    }
+  };
 
   // Save notepad
   const handleNotepadChange = (val: string) => {
@@ -183,8 +317,9 @@ export default function UserProfileDropdown({
         ) : (
           initial
         )}
-        {/* Green Online status dot */}
+        {/* Dynamic Presence status dot */}
         <span
+          title={formatPresenceLabel(presenceStatus)}
           style={{
             position: "absolute",
             bottom: 0,
@@ -192,7 +327,7 @@ export default function UserProfileDropdown({
             width: 10,
             height: 10,
             borderRadius: "50%",
-            backgroundColor: "#22c55e",
+            backgroundColor: getPresenceColor(presenceStatus),
             border: "2px solid #ffffff",
           }}
         />
@@ -268,12 +403,12 @@ export default function UserProfileDropdown({
                     width: 10,
                     height: 10,
                     borderRadius: "50%",
-                    backgroundColor: "#22c55e",
+                    backgroundColor: getPresenceColor(presenceStatus),
                     border: "2px solid #ffffff",
                   }}
                 />
               </div>
-              <div style={{ overflow: "hidden", minWidth: 0 }}>
+              <div style={{ overflow: "hidden", minWidth: 0, flex: 1 }}>
                 <div
                   style={{
                     fontWeight: 700,
@@ -285,16 +420,174 @@ export default function UserProfileDropdown({
                 >
                   {name}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--muted, #64748b)" }}>{userStatus}</div>
+                <div style={{ fontSize: 11, color: "var(--muted, #64748b)", display: "flex", alignItems: "center", gap: 5 }}>
+                  <span>{formatPresenceLabel(presenceStatus)}</span>
+                  {presenceExpiresAt && (
+                    <span title={`Active until ${new Date(presenceExpiresAt).toLocaleString()}`} style={{ opacity: 0.8 }}>
+                      · Timed
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Set Status Input */}
-            <div style={{ marginTop: 10 }}>
+            {/* Presence Status LOV Selector */}
+            <div style={{ marginTop: 10, position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPresenceMenu((prev) => !prev);
+                  setShowDurationMenu(false);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  width: "100%",
+                  padding: "7px 10px",
+                  borderRadius: 7,
+                  border: "1px solid var(--line, #e2e8f0)",
+                  background: "var(--paper, #ffffff)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "var(--ink, #1e293b)",
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  {renderPresenceGlyph(presenceStatus, 14)}
+                  <span>{formatPresenceLabel(presenceStatus)}</span>
+                </span>
+                <ChevronDown size={13} style={{ color: "var(--muted, #64748b)" }} />
+              </button>
+
+              {showPresenceMenu && (
+                <div
+                  role="listbox"
+                  aria-label="Set presence status"
+                  style={{
+                    marginTop: 6,
+                    borderRadius: 9,
+                    border: "1px solid var(--line, #e2e8f0)",
+                    background: "var(--paper, #ffffff)",
+                    boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
+                    overflow: "hidden",
+                  }}
+                >
+                  {PRESENCE_STATUS_OPTIONS.map((opt) => {
+                    const active = presenceStatus === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        disabled={savingPresence}
+                        onClick={() => void updatePresenceStatus(opt.key)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          width: "100%",
+                          padding: "8px 12px",
+                          border: 0,
+                          background: active ? "var(--nav-hover, rgba(22,124,88,0.08))" : "transparent",
+                          color: "var(--ink, #1e293b)",
+                          fontSize: 12.5,
+                          fontWeight: active ? 700 : 500,
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        {renderPresenceGlyph(opt.key, 15)}
+                        <span style={{ flex: 1 }}>{opt.label}</span>
+                        {active && <span style={{ fontSize: 10, color: "var(--green, #167c58)" }}>✓</span>}
+                      </button>
+                    );
+                  })}
+
+                  <div style={{ borderTop: "1px solid var(--line, #e2e8f0)" }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowDurationMenu((prev) => !prev)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        width: "100%",
+                        padding: "8px 12px",
+                        border: 0,
+                        background: "transparent",
+                        color: "var(--ink, #1e293b)",
+                        fontSize: 12.5,
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      <Clock size={15} style={{ color: "var(--muted, #64748b)" }} />
+                      <span style={{ flex: 1 }}>Duration</span>
+                      <ChevronRight size={13} style={{ color: "var(--muted, #64748b)" }} />
+                    </button>
+                    {showDurationMenu && (
+                      <div style={{ padding: "4px 8px 8px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, background: "var(--soft, #f8fafc)" }}>
+                        {PRESENCE_DURATION_OPTIONS.map((dur) => (
+                          <button
+                            key={dur.id}
+                            type="button"
+                            disabled={savingPresence}
+                            onClick={() => void updatePresenceStatus(presenceStatus, dur.minutes)}
+                            style={{
+                              padding: "5px 6px",
+                              borderRadius: 6,
+                              border: "1px solid var(--line, #e2e8f0)",
+                              background: "var(--paper, #ffffff)",
+                              color: "var(--ink, #1e293b)",
+                              fontSize: 11,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {dur.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ borderTop: "1px solid var(--line, #e2e8f0)" }}>
+                    <button
+                      type="button"
+                      disabled={savingPresence}
+                      onClick={() => void resetPresenceStatus()}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        width: "100%",
+                        padding: "8px 12px",
+                        border: 0,
+                        background: "transparent",
+                        color: "var(--ink, #1e293b)",
+                        fontSize: 12.5,
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      <RotateCcw size={15} style={{ color: "var(--muted, #64748b)" }} />
+                      <span>Reset status</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Optional Status Note Input */}
+            <div style={{ marginTop: 8 }}>
               {!showStatusEdit ? (
                 <button
                   type="button"
-                  onClick={() => setShowStatusEdit(true)}
+                  onClick={() => {
+                    setCustomStatusInput(userStatus);
+                    setShowStatusEdit(true);
+                  }}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -311,7 +604,7 @@ export default function UserProfileDropdown({
                   }}
                 >
                   <Smile size={13} />
-                  <span>{userStatus === "Online" ? "Set status…" : userStatus}</span>
+                  <span>{userStatus || "Set status message…"}</span>
                 </button>
               ) : (
                 <div style={{ display: "flex", gap: 6 }}>
@@ -320,7 +613,7 @@ export default function UserProfileDropdown({
                     value={customStatusInput}
                     onChange={(e) => setCustomStatusInput(e.target.value)}
                     placeholder="In a meeting, working remote…"
-                    maxLength={50}
+                    maxLength={80}
                     autoFocus
                     style={{
                       flex: 1,
@@ -334,11 +627,7 @@ export default function UserProfileDropdown({
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
-                        if (customStatusInput.trim()) {
-                          setUserStatus(customStatusInput.trim());
-                          localStorage.setItem("orbitwork_user_status", customStatusInput.trim());
-                        }
-                        setShowStatusEdit(false);
+                        void saveStatusMessage(customStatusInput);
                       } else if (e.key === "Escape") {
                         setShowStatusEdit(false);
                       }
@@ -346,13 +635,7 @@ export default function UserProfileDropdown({
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      if (customStatusInput.trim()) {
-                        setUserStatus(customStatusInput.trim());
-                        localStorage.setItem("orbitwork_user_status", customStatusInput.trim());
-                      }
-                      setShowStatusEdit(false);
-                    }}
+                    onClick={() => void saveStatusMessage(customStatusInput)}
                     style={{
                       padding: "4px 8px",
                       borderRadius: 6,

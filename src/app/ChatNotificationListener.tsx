@@ -31,7 +31,16 @@ type LiveChatToast = {
   replyError: string | null;
 };
 
+type LiveAppToast = {
+  id: string;
+  eventType: string;
+  message: string;
+  href: string;
+  createdAt: string;
+};
+
 const SEEN_STORAGE_KEY = "orbitwork_seen_toast_ids_v1";
+const SEEN_APP_NOTIF_KEY = "orbitwork_seen_app_notif_ids_v1";
 const MUTE_STORAGE_KEY = "orbitwork_chat_sound_muted";
 const PERMISSION_DISMISSED_KEY = "orbitwork_chat_notif_dismissed";
 
@@ -100,6 +109,7 @@ export default function ChatNotificationListener() {
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<LiveChatToast[]>([]);
+  const [appToasts, setAppToasts] = useState<LiveAppToast[]>([]);
   const [soundMuted, setSoundMuted] = useState<boolean>(false);
   const [showPermissionPrompt, setShowPermissionPrompt] =
     useState<boolean>(false);
@@ -108,7 +118,9 @@ export default function ChatNotificationListener() {
   const activeChatKeyRef = useRef<string | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
+  const seenAppNotifsRef = useRef<Set<string>>(new Set());
   const baselinedRef = useRef<boolean>(false);
+  const appNotifBaselinedRef = useRef<boolean>(false);
   const soundMutedRef = useRef<boolean>(false);
   const mountTimeMsRef = useRef<number>(Date.now());
 
@@ -355,11 +367,86 @@ export default function ChatNotificationListener() {
     }
   }, [navigateToThread]);
 
+  const pollAppNotifications = useCallback(async () => {
+    const uid = currentUserIdRef.current;
+    if (!uid) return;
+
+    try {
+      const res = await fetch("/api/notifications/latest", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const rows = Array.isArray(data.notifications) ? data.notifications : [];
+
+      if (seenAppNotifsRef.current.size === 0) {
+        try {
+          const raw = window.localStorage.getItem(SEEN_APP_NOTIF_KEY);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) seenAppNotifsRef.current = new Set(arr.slice(-100).map(String));
+          }
+        } catch {}
+      }
+
+      const isInitial = !appNotifBaselinedRef.current;
+      appNotifBaselinedRef.current = true;
+
+      const fresh: LiveAppToast[] = [];
+      for (const n of rows) {
+        if (!n?.id || n.read_at) continue;
+        const id = String(n.id);
+        if (seenAppNotifsRef.current.has(id)) continue;
+
+        const createdMs = new Date(n.created_at ?? 0).getTime();
+        if (isInitial && Number.isFinite(createdMs) && mountTimeMsRef.current - createdMs > 15_000) {
+          seenAppNotifsRef.current.add(id);
+          continue;
+        }
+
+        seenAppNotifsRef.current.add(id);
+        const href =
+          (typeof n.action_url === "string" && n.action_url) ||
+          (n.task_id && n.project_id
+            ? `/projects/${n.project_id}/tasks/${n.task_id}`
+            : n.organization_id && String(n.event_type ?? "").startsWith("leave")
+              ? `/organizations/${n.organization_id}/calendar`
+              : n.project_id
+                ? `/projects/${n.project_id}`
+                : "/inbox");
+
+        fresh.push({
+          id,
+          eventType: String(n.event_type ?? "notification"),
+          message: String(n.message ?? "New activity in Orbitwork"),
+          href,
+          createdAt: String(n.created_at ?? new Date().toISOString()),
+        });
+      }
+
+      try {
+        window.localStorage.setItem(
+          SEEN_APP_NOTIF_KEY,
+          JSON.stringify([...seenAppNotifsRef.current].slice(-100))
+        );
+      } catch {}
+
+      if (fresh.length > 0) {
+        if (!soundMutedRef.current) playNotificationChime();
+        setAppToasts((prev) => {
+          const existing = new Set(prev.map((x) => x.id));
+          return [...prev, ...fresh.filter((x) => !existing.has(x.id))].slice(-4);
+        });
+      }
+    } catch {
+      // Non-blocking poll error
+    }
+  }, []);
+
   // Persistent session-level polling + Realtime + focus triggers + presence heartbeat
   useEffect(() => {
     if (!currentUserId) return;
 
     void pollLatestMessages();
+    void pollAppNotifications();
 
     const sendHeartbeat = () => {
       if (document.visibilityState === "visible") {
@@ -375,14 +462,16 @@ export default function ChatNotificationListener() {
     const pollInterval = window.setInterval(() => {
       if (document.visibilityState === "visible") {
         void pollLatestMessages();
+        void pollAppNotifications();
       }
-    }, 4500);
+    }, 5500);
 
     const heartbeatInterval = window.setInterval(sendHeartbeat, 45_000);
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
         void pollLatestMessages();
+        void pollAppNotifications();
         sendHeartbeat();
       }
     };
@@ -400,6 +489,13 @@ export default function ChatNotificationListener() {
           void pollLatestMessages();
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${currentUserId}` },
+        () => {
+          void pollAppNotifications();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -409,7 +505,7 @@ export default function ChatNotificationListener() {
       document.removeEventListener("visibilitychange", onVisibility);
       void supabase.removeChannel(realtimeChannel);
     };
-  }, [currentUserId, pollLatestMessages]);
+  }, [currentUserId, pollLatestMessages, pollAppNotifications]);
 
   // Auto-dismiss non-hovered/idle toasts cleanly after 10s
   useEffect(() => {
@@ -585,7 +681,7 @@ export default function ChatNotificationListener() {
         </div>
       )}
 
-      {toasts.length > 0 && (
+      {(toasts.length > 0 || appToasts.length > 0) && (
         <div
           style={{
             position: "fixed",
@@ -599,6 +695,78 @@ export default function ChatNotificationListener() {
             maxWidth: "calc(100vw - 32px)",
           }}
         >
+          {appToasts.map((nt) => (
+            <div
+              key={`app-${nt.id}`}
+              style={{
+                background: "var(--surface)",
+                border: "1px solid rgba(22, 124, 88, 0.4)",
+                borderRadius: "12px",
+                padding: "12px 14px",
+                boxShadow: "0 14px 36px rgba(0, 0, 0, 0.22)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700, color: "var(--green)" }}>
+                  <Bell size={14} />
+                  {nt.eventType === "leave_requested"
+                    ? "Leave Request"
+                    : nt.eventType === "leave_reviewed"
+                      ? "Leave Update"
+                      : nt.eventType === "task_delegated"
+                        ? "Task Delegated"
+                        : nt.eventType === "goal_completed"
+                          ? "Goal Completed"
+                          : "Task Notification"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppToasts((prev) => prev.filter((item) => item.id !== nt.id));
+                    void fetch("/api/notifications/latest", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ id: nt.id }),
+                    }).catch(() => {});
+                  }}
+                  aria-label="Dismiss notification"
+                  style={{ background: "transparent", border: 0, color: "var(--muted)", cursor: "pointer", padding: "3px" }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div style={{ fontSize: "12.5px", lineHeight: 1.4, color: "var(--ink)" }}>{nt.message}</div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppToasts((prev) => prev.filter((item) => item.id !== nt.id));
+                    void fetch("/api/notifications/latest", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ id: nt.id }),
+                    }).catch(() => {});
+                    router.push(nt.href);
+                  }}
+                  style={{
+                    border: 0,
+                    background: "var(--green)",
+                    color: "#fff",
+                    padding: "5px 11px",
+                    borderRadius: "7px",
+                    fontSize: "11.5px",
+                    fontWeight: 650,
+                    cursor: "pointer",
+                  }}
+                >
+                  Open
+                </button>
+              </div>
+            </div>
+          ))}
           {toasts.map((toast) => (
             <div
               key={toast.id}
