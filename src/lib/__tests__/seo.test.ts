@@ -22,24 +22,27 @@ test("buildCanonicalUrl builds exact canonical URLs under https://www.orbitwork.
   assert.equal(buildCanonicalUrl(""), CANONICAL_HOME_URL);
   assert.equal(buildCanonicalUrl("/services"), "https://www.orbitwork.org/services");
   assert.equal(
-    buildCanonicalUrl("services/plm-engineering/"),
-    "https://www.orbitwork.org/services/plm-engineering"
+    buildCanonicalUrl("services/project-management/"),
+    "https://www.orbitwork.org/services/project-management"
   );
   assert.equal(buildCanonicalUrl("/about/"), "https://www.orbitwork.org/about");
 });
 
 test("buildPublicMetadata populates title, description, canonical, and OpenGraph cleanly", () => {
   const meta = buildPublicMetadata({
-    title: "Orbitwork | PLM Engineering & Product Lifecycle Management",
+    title: "Orbitwork | Project Management & Team Collaboration Platform",
     absoluteTitle: true,
-    description: "PLM engineering solutions.",
+    description: "Modern project management and team collaboration platform.",
     path: "/",
   });
 
   assert.deepEqual(meta.title, {
-    absolute: "Orbitwork | PLM Engineering & Product Lifecycle Management",
+    absolute: "Orbitwork | Project Management & Team Collaboration Platform",
   });
-  assert.equal(meta.description, "PLM engineering solutions.");
+  assert.equal(
+    meta.description,
+    "Modern project management and team collaboration platform."
+  );
   assert.equal(meta.alternates?.canonical, "https://www.orbitwork.org/");
   assert.equal(meta.openGraph?.url, "https://www.orbitwork.org/");
 });

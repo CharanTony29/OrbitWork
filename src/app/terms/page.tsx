@@ -5,7 +5,7 @@ import { buildPublicMetadata } from "@/lib/seo";
 export const metadata: Metadata = buildPublicMetadata({
   title: "Terms of Service",
   description:
-    "Orbitwork Terms of Service covering collaborative workspaces, PLM consulting tools, cloud storage integrations, and tenant security responsibilities.",
+    "Orbitwork Terms of Service covering collaborative project management workspaces, cloud storage integrations, and tenant security responsibilities.",
   path: "/terms",
 });
 

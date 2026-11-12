@@ -10,7 +10,7 @@ export default function robots(): MetadataRoute.Robots {
           "/",
           "/about",
           "/services",
-          "/services/plm-engineering",
+          "/services/project-management",
           "/projects-case-studies",
           "/contact",
           "/privacy",

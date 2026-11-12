@@ -5,7 +5,7 @@ import { HomeMobileNav } from "./HomeInteractiveTabs";
 export type PublicNavKey =
   | "home"
   | "services"
-  | "plm"
+  | "pm"
   | "projects"
   | "about"
   | "contact";
@@ -37,19 +37,19 @@ export function PublicSiteHeader({
             href="/services"
             className={`hp-nav-link ${active === "services" ? "is-active" : ""}`}
           >
-            Services
+            Solutions
           </Link>
           <Link
-            href="/services/plm-engineering"
-            className={`hp-nav-link ${active === "plm" ? "is-active" : ""}`}
+            href="/services/project-management"
+            className={`hp-nav-link ${active === "pm" ? "is-active" : ""}`}
           >
-            PLM Engineering
+            Project Management
           </Link>
           <Link
             href="/projects-case-studies"
             className={`hp-nav-link ${active === "projects" ? "is-active" : ""}`}
           >
-            Projects &amp; Case Studies
+            Use Cases
           </Link>
           <Link
             href="/about"
@@ -110,50 +110,50 @@ export function PublicSiteFooter() {
               <span className="brand-mark">O</span>Orbit<span>work</span>
             </Link>
             <p>
-              PLM engineering consulting, CAD &amp; BOM change governance, and a
-              unified product lifecycle &amp; project management platform built
-              for modern engineering organizations.
+              The modern, multi-tenant project management and work collaboration
+              platform uniting tasks, boards, Gantt timelines, docs, team chat,
+              timesheets, and cloud storage.
             </p>
           </div>
 
           <div className="hp-footer-col">
-            <h5>Engineering &amp; Services</h5>
+            <h5>Solutions &amp; Company</h5>
             <ul>
               <li>
-                <Link href="/services">All Services</Link>
+                <Link href="/services">Platform Solutions</Link>
               </li>
               <li>
-                <Link href="/services/plm-engineering">PLM Engineering</Link>
+                <Link href="/services/project-management">Project Management</Link>
               </li>
               <li>
-                <Link href="/projects-case-studies">Projects &amp; Case Studies</Link>
+                <Link href="/projects-case-studies">Use Cases &amp; Case Studies</Link>
               </li>
               <li>
                 <Link href="/about">About Orbitwork</Link>
               </li>
               <li>
-                <Link href="/contact">Contact Engineering Team</Link>
+                <Link href="/contact">Contact Us</Link>
               </li>
             </ul>
           </div>
 
           <div className="hp-footer-col">
-            <h5>Platform &amp; Workspaces</h5>
+            <h5>Platform Capabilities</h5>
             <ul>
               <li>
-                <Link href="/#features">Platform Capabilities</Link>
+                <Link href="/#features">Task Views &amp; Custom Fields</Link>
               </li>
               <li>
                 <Link href="/#views">Kanban, Sheet &amp; Gantt</Link>
               </li>
               <li>
-                <Link href="/#timesheets">Engineering Timesheets</Link>
+                <Link href="/#timesheets">Time Tracking &amp; Timesheets</Link>
               </li>
               <li>
                 <Link href="/#storage">Drive, OneDrive &amp; SharePoint</Link>
               </li>
               <li>
-                <Link href="/signup">Start Free Workspace</Link>
+                <Link href="/signup">Create Free Workspace</Link>
               </li>
             </ul>
           </div>
@@ -184,7 +184,7 @@ export function PublicSiteFooter() {
 
         <div className="hp-footer-bottom">
           <div>&copy; {new Date().getFullYear()} Orbitwork. All rights reserved.</div>
-          <div>PLM Engineering &amp; Collaborative Product Lifecycle Platform</div>
+          <div>Project Management, Time Tracking &amp; Team Collaboration</div>
         </div>
       </div>
     </footer>

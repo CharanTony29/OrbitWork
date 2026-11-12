@@ -37,11 +37,11 @@ import TopProgressBar from "./TopProgressBar";
 export const metadata: Metadata = {
   metadataBase: new URL(CANONICAL_ORIGIN),
   title: {
-    default: "Orbitwork | PLM Engineering & Product Lifecycle Management",
+    default: "Orbitwork | Project Management & Team Collaboration Platform",
     template: "%s | Orbitwork",
   },
   description:
-    "Orbitwork provides PLM engineering, Teamcenter consulting, CAD & BOM integration, and collaborative product lifecycle management software for engineering teams.",
+    "Orbitwork is a modern project management and work execution platform featuring Kanban boards, Gantt timelines, time tracking, team chat, docs, and cloud storage.",
   applicationName: "Orbitwork",
 };
 

@@ -1,71 +1,71 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Check, Cpu, Factory, ShieldCheck, Workflow } from "lucide-react";
+import { ArrowRight, Briefcase, Check, Code2, Layers3, Users } from "lucide-react";
 import { PublicSiteHeader, PublicSiteFooter } from "@/app/PublicSiteChrome";
 import { buildPublicMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildPublicMetadata({
-  title: "Projects & Case Studies | PLM Engineering Blueprints",
+  title: "Use Cases & Case Studies | Orbitwork Project Management",
   description:
-    "Explore Orbitwork engineering engagements and architecture blueprints across Teamcenter BOM alignment, ECN/ECO automation, multi-CAD vault migration, and NPI governance.",
+    "Explore how product teams, client service agencies, operations leaders, and distributed organizations deliver projects cleanly with Orbitwork.",
   path: "/projects-case-studies",
 });
 
-const ENGAGEMENT_BLUEPRINTS = [
+const USE_CASES = [
   {
-    icon: Cpu,
-    sector: "EV & Powertrain Systems",
-    title: "Multi-Site eBOM to mBOM Alignment & Change Governance",
+    icon: Code2,
+    sector: "Software & Product Teams",
+    title: "Sprint Planning, Dependencies & Visual Roadmaps",
     challenge:
-      "Electrical battery enclosures and mechanical chassis assemblies lived across disconnected regional vaults, causing delayed ECO handoffs to assembly plants.",
+      "Product managers, developers, and QA engineers needed to view the same sprint milestones differently without maintaining separate tools.",
     architecture:
-      "Designed unified BMIDE revision rules, automated ECN/ECO impact matrices, and connected engineering gate sign-offs with Orbitwork program schedules.",
+      "Configured per-user project tab ordering (Board first for engineers, Flowchart/Gantt for leads), subtask assignees, and automated status & completion alerts.",
     outcomes: [
-      "Eliminated manual spreadsheet BOM reconciliations between R&D and manufacturing",
-      "Unified mechanical + harness revision traceability under single release gates",
-      "Real-time engineering task visibility across supplier and internal leads",
+      "Zero duplicate updates across Kanban, Sheet, and Gantt views",
+      "Real-time chat threads turn directly into tracked sprint tasks",
+      "Instant visibility into urgent blockers and open deliverables",
     ],
   },
   {
-    icon: Workflow,
-    sector: "Industrial Robotics & Automation",
-    title: "Legacy PDM Consolidation to Modern Enterprise PLM",
+    icon: Briefcase,
+    sector: "Consulting & Client Agencies",
+    title: "Billable Time Tracking, Weekly Timesheets & Client Access",
     challenge:
-      "Years of duplicated part numbers and unlinked CAD drawings slowed quoting cycles and increased procurement scrap across custom tooling lines.",
+      "Agencies struggled to reconcile separate time-tracking apps with active client project deliverables and external viewer permissions.",
     architecture:
-      "Executed scripted metadata normalization, duplicate-part deduplication, checksum-verified CAD vault migration, and Active Workspace role dashboards.",
+      "Deployed isolated multi-tenant client workspaces with Viewer access, live task timers, billable hour warnings, and weekly manager timesheet approvals.",
     outcomes: [
-      "Preserved 100% of historical revision lineage during staged weekend cutover",
-      "Automated standard-part reuse rules across SolidWorks and NX teams",
-      "Integrated design review SOPs and engineering time logs in Orbitwork",
+      "Accurate billable hours tied directly to each project task",
+      "Clean CSV/PDF timesheet exports for client invoicing",
+      "Clients review progress safely with Viewer role isolation",
     ],
   },
   {
-    icon: Factory,
-    sector: "Precision Manufacturing",
-    title: "Bi-Directional PLM-to-ERP Release Automation",
+    icon: Users,
+    sector: "Distributed & Remote Organizations",
+    title: "Unified Team Chat, Country Holidays & PTO Coordination",
     challenge:
-      "Re-keying released BOM items and approved deviations into ERP introduced transcription errors and lengthened NPI production readiness.",
+      "Remote teammates missed critical updates across disconnected messaging channels and lacked visibility into regional public holidays and leave.",
     architecture:
-      "Implemented idempotent REST/SOA integration payloads triggered upon final ECO approval with dead-letter retry logging and discrepancy notifications.",
+      "Enabled persistent Orbitwork team chat with instant desktop & toast popups, @mentions, country public holiday automation, and PTO leave calendars.",
     outcomes: [
-      "Zero manual BOM transcription after ECO sign-off",
-      "Automatic plant-specific effectivity propagation to procurement teams",
-      "Clear audit history for engineering change approvers and IT admins",
+      "Persistent channel, group, and DM conversations synced in real time",
+      "Automatic national holiday calendars per organization country",
+      "Balanced team capacity across Workload and Calendar views",
     ],
   },
   {
-    icon: ShieldCheck,
-    sector: "Regulated Hardware & Compliance",
-    title: "Supplier Portal & Audit-Ready Technical Documentation",
+    icon: Layers3,
+    sector: "Operations & Internal PMO",
+    title: "Controlled Project Documentation & Cloud Storage Governance",
     challenge:
-      "Sharing drawings and engineering deviations with external contract manufacturers via email attachments created version sprawl and IP exposure.",
+      "SOPs, project briefs, and attachments lived scattered across personal drives without version history or structured security.",
     architecture:
-      "Configured isolated multi-tenant Orbitwork vendor workspaces backed by encrypted SharePoint/OneDrive routing and time-stamped document version history.",
+      "Connected Google Drive, Microsoft OneDrive, and SharePoint per workspace using encrypted OAuth tokens alongside versioned Markdown project docs.",
     outcomes: [
-      "Scoped external vendor access restricted solely to assigned programs",
-      "Centralized Markdown DFM reviews, test evidence, and PDF exports",
-      "Complete revision audit trail for ISO and regulatory reviews",
+      "Living specifications linked directly to active execution tasks",
+      "One-click HTML and PDF documentation exports for stakeholders",
+      "Enterprise-grade PostgreSQL Row Level Security across organizations",
     ],
   },
 ];
@@ -81,23 +81,22 @@ export default function ProjectsCaseStudiesPage() {
             <nav className="hp-breadcrumb" aria-label="Breadcrumb">
               <Link href="/">Home</Link>
               <span>/</span>
-              <span>Projects &amp; Case Studies</span>
+              <span>Use Cases &amp; Case Studies</span>
             </nav>
             <h1 className="hp-subpage-title">
-              PLM Engineering Projects &amp; Solution Case Studies
+              Project Management Use Cases &amp; Workflow Blueprints
             </h1>
             <p className="hp-subpage-lead">
-              Representative architectures and delivery blueprints showing how
-              engineering organizations streamline BOM governance, PDM
-              migrations, ERP synchronization, and NPI program tracking with
-              Orbitwork.
+              See how cross-functional teams configure Orbitwork for software
+              delivery, client agencies, PMO governance, and distributed
+              collaboration.
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-              <Link href="/contact" className="hp-btn-primary">
-                Discuss Your Program <ArrowRight size={16} />
+              <Link href="/signup" className="hp-btn-primary">
+                Try Orbitwork Free <ArrowRight size={16} />
               </Link>
-              <Link href="/services/plm-engineering" className="hp-btn-secondary">
-                View PLM Capabilities
+              <Link href="/services/project-management" className="hp-btn-secondary">
+                Explore Project Features
               </Link>
             </div>
           </div>
@@ -105,7 +104,7 @@ export default function ProjectsCaseStudiesPage() {
 
         <section className="hp-container" style={{ padding: "52px 24px" }}>
           <div className="hp-two-col-grid">
-            {ENGAGEMENT_BLUEPRINTS.map((item) => {
+            {USE_CASES.map((item) => {
               const Icon = item.icon;
               return (
                 <article key={item.title} className="hp-info-card">
@@ -131,7 +130,7 @@ export default function ProjectsCaseStudiesPage() {
                     <strong>Challenge:</strong> {item.challenge}
                   </p>
                   <p>
-                    <strong>Architecture:</strong> {item.architecture}
+                    <strong>Solution:</strong> {item.architecture}
                   </p>
                   <ul className="hp-feature-bullets" style={{ marginTop: 4 }}>
                     {item.outcomes.map((out) => (
@@ -141,7 +140,7 @@ export default function ProjectsCaseStudiesPage() {
                     ))}
                   </ul>
                   <Link href="/contact" className="hp-inline-link">
-                    Request similar solution walkthrough <ArrowRight size={14} />
+                    Ask how to set up this workflow <ArrowRight size={14} />
                   </Link>
                 </article>
               );

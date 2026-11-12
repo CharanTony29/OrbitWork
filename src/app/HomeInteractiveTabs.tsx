@@ -510,28 +510,28 @@ export function HomeTeamPersonas() {
 export function HomeFaqAccordion() {
   const faqs = [
     {
-      q: "What PLM engineering and product lifecycle services does Orbitwork provide?",
-      a: "Orbitwork delivers end-to-end PLM engineering, Teamcenter consulting and BMIDE data model configuration, multi-CAD (NX, SolidWorks, Creo, AutoCAD) integration, eBOM-to-mBOM governance, engineering change notice (ECN/ECO) workflows, and legacy PDM-to-PLM migrations alongside a collaborative project management workspace."
+      q: "What is Orbitwork and how does it compare to other project management tools?",
+      a: "Orbitwork is a unified project management and work collaboration platform designed to replace fragmented tool stacks (like Jira + Toggl + Google Docs + Slack). It combines multi-tenant organizations and workspaces, Kanban boards, interactive task sheets, Gantt timelines, built-in time tracking, weekly timesheet approvals, ClickUp-style Markdown docs, real-time team chat, and cloud storage integrations."
     },
     {
-      q: "How does Orbitwork connect PLM engineering with everyday project execution?",
-      a: "Instead of leaving engineering schedules in disconnected spreadsheets, Orbitwork links BOM releases, NPI milestones, Kanban sprint boards, Gantt timelines, engineering timesheets, technical Markdown specifications, and real-time team chat inside one unified platform."
+      q: "Is Orbitwork free to start for small and growing teams?",
+      a: "Yes. Orbitwork is designed to get your organization up and running quickly with workspaces, projects, task views, checklists, custom fields, and timesheets with zero artificial paywalls blocking collaboration."
     },
     {
-      q: "How does workspace and organization multi-tenancy work?",
-      a: "Orbitwork uses PostgreSQL Row Level Security (RLS) to enforce strict isolation across organizations, suppliers, and engineering programs. Organizations have owners and admins, while workspaces can restrict external suppliers or contractors to specific projects as Members or Viewers."
+      q: "How does multi-tenant organization and workspace security work?",
+      a: "Orbitwork uses PostgreSQL Row Level Security (RLS) to enforce strict isolation across every organization, workspace, and project. Owners and admins manage roles (Owner, Admin, Member, Viewer) so internal teams, contractors, and clients only see the projects assigned to them."
     },
     {
-      q: "Can engineering teams connect Google Drive, Microsoft OneDrive, or SharePoint?",
-      a: "Yes. Each workspace can attach Google Drive, Microsoft OneDrive, or SharePoint document libraries via encrypted OAuth 2.0 credentials (AES-256-GCM at rest), or store engineering attachments directly in Orbitwork's encrypted database storage."
+      q: "Can we connect Google Drive, Microsoft OneDrive, or SharePoint?",
+      a: "Yes. Each workspace can choose its own storage provider—Google Drive, Microsoft OneDrive, SharePoint, or Orbitwork's encrypted built-in database storage—using minimal OAuth 2.0 scopes and AES-256-GCM encryption for credentials at rest."
     },
     {
-      q: "How does built-in time tracking and engineering timesheet approval work?",
-      a: "Engineers can run live stopwatch timers on any task or log manual billable hours against specific projects and change requests. Managers review weekly timesheets with approval audit trails and export CSV/PDF utilization reports."
+      q: "How do built-in time tracking, timesheets, and holidays work?",
+      a: "Team members can start live stopwatch timers directly on tasks or log manual billable hours, then submit weekly timesheets for manager review and CSV/PDF export. Organizations can also manage PTO leave requests and auto-import country public holidays."
     },
     {
-      q: "Can we start using Orbitwork's workspace free before engaging PLM consulting?",
-      a: "Yes! Orbitwork includes a free workspace tier with zero per-seat trial walls, and our PLM engineering specialists can help architect your Teamcenter, BOM, change management, and supplier portal workflows via a custom consultation."
+      q: "Can users customize project view tabs, table columns, and chat alerts?",
+      a: "Yes. Every user can reorder project view tabs (List, Board, Calendar, Timeline, Workload, Whiteboard, Flowchart, Channel) and customize table column layouts independently without affecting teammates, while receiving real-time team chat messages, notifications, and email alerts."
     }
   ];
 
@@ -568,9 +568,9 @@ export function HomeMobileNav({ isUserLoggedIn }: { isUserLoggedIn: boolean }) {
         <div className="hp-mobile-drawer">
           <nav className="hp-mobile-drawer-links" aria-label="Mobile Navigation">
             <Link href="/" onClick={() => setIsOpen(false)}>Home</Link>
-            <Link href="/services" onClick={() => setIsOpen(false)}>Services</Link>
-            <Link href="/services/plm-engineering" onClick={() => setIsOpen(false)}>PLM Engineering</Link>
-            <Link href="/projects-case-studies" onClick={() => setIsOpen(false)}>Projects &amp; Case Studies</Link>
+            <Link href="/services" onClick={() => setIsOpen(false)}>Solutions</Link>
+            <Link href="/services/project-management" onClick={() => setIsOpen(false)}>Project Management</Link>
+            <Link href="/projects-case-studies" onClick={() => setIsOpen(false)}>Use Cases</Link>
             <Link href="/about" onClick={() => setIsOpen(false)}>About</Link>
             <Link href="/contact" onClick={() => setIsOpen(false)}>Contact</Link>
           </nav>

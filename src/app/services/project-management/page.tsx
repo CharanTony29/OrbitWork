@@ -1,28 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Check, CheckCircle2, Layers3, ShieldCheck, Workflow } from "lucide-react";
+import { ArrowRight, Check, CheckCircle2, Kanban, Layers3, ShieldCheck } from "lucide-react";
 import { PublicSiteHeader, PublicSiteFooter } from "@/app/PublicSiteChrome";
 import { buildPublicMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildPublicMetadata({
-  title: "PLM Engineering & Teamcenter Consulting Services",
+  title: "Project Management Software | Kanban, Gantt, Subtasks & Custom Views",
   description:
-    "Comprehensive PLM engineering services: Teamcenter architecture, BMIDE configuration, Multi-CAD data management, eBOM/mBOM alignment, ECN/ECO workflows, and ERP integration.",
-  path: "/services/plm-engineering",
+    "Discover Orbitwork project management capabilities: Kanban boards, spreadsheet list views, Gantt charts, subtasks, progress tracking, custom fields, and role permissions.",
+  path: "/services/project-management",
   keywords: [
-    "PLM Engineering",
-    "Teamcenter Implementation",
-    "BMIDE Configuration",
-    "ECN ECO Workflow",
-    "eBOM mBOM Management",
-    "PDM Migration",
+    "project management software",
+    "Kanban board",
+    "Gantt timeline",
+    "task management platform",
+    "custom fields and subtasks",
   ],
 });
 
-export default function PlmEngineeringPage() {
+export default function ProjectManagementPage() {
   return (
     <div className="hp-page">
-      <PublicSiteHeader active="plm" />
+      <PublicSiteHeader active="pm" />
 
       <main>
         <section className="hp-subpage-hero">
@@ -30,25 +29,25 @@ export default function PlmEngineeringPage() {
             <nav className="hp-breadcrumb" aria-label="Breadcrumb">
               <Link href="/">Home</Link>
               <span>/</span>
-              <Link href="/services">Services</Link>
+              <Link href="/services">Solutions</Link>
               <span>/</span>
-              <span>PLM Engineering</span>
+              <span>Project Management</span>
             </nav>
             <h1 className="hp-subpage-title">
-              PLM Engineering, BOM Governance &amp; Lifecycle Implementation
+              Flexible Project Management Built for How Your Team Actually Works
             </h1>
             <p className="hp-subpage-lead">
-              We help engineering organizations architect resilient PLM systems,
-              eliminate revision drift across CAD and manufacturing BOMs, and
-              deliver clean, auditable change management from concept to
-              production release.
+              Every role sees work differently. Orbitwork synchronizes List
+              sheets, Kanban boards, Gantt timelines, Calendar schedules,
+              Workload views, Whiteboards, and Flowcharts over one source of
+              truth.
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-              <Link href="/contact" className="hp-btn-primary">
-                Request Architecture Review <ArrowRight size={16} />
+              <Link href="/signup" className="hp-btn-primary">
+                Launch Free Workspace <ArrowRight size={16} />
               </Link>
               <Link href="/projects-case-studies" className="hp-btn-secondary">
-                Explore Delivery Case Studies
+                Explore Team Use Cases
               </Link>
             </div>
           </div>
@@ -56,34 +55,34 @@ export default function PlmEngineeringPage() {
 
         <section className="hp-container" style={{ padding: "52px 24px" }}>
           <div className="hp-section-header" style={{ marginBottom: 32 }}>
-            <span className="hp-section-tag">Technical Capabilities</span>
+            <span className="hp-section-tag">Core Capabilities</span>
             <h2 className="hp-section-title">
-              Core pillars of our PLM engineering practice
+              Structured control from personal tasks to multi-workspace portfolios
             </h2>
           </div>
 
           <div className="hp-three-col-grid">
             <article className="hp-info-card">
               <div className="hp-feature-icon-wrap">
-                <Layers3 size={22} />
+                <Kanban size={22} />
               </div>
-              <h3>Data Model &amp; BMIDE Architecture</h3>
+              <h3>Personalizable Project Views</h3>
               <p>
-                Design clean item types, classification hierarchies, custom
-                properties, revision schemes, and naming conventions built to
-                scale cleanly over multi-decade product lifecycles.
+                Each team member—including Viewers—can reorder their own project
+                tabs and customize List table columns independently without
+                disrupting teammates.
               </p>
             </article>
 
             <article className="hp-info-card">
               <div className="hp-feature-icon-wrap">
-                <Workflow size={22} />
+                <Layers3 size={22} />
               </div>
-              <h3>Closed-Loop ECR / ECN / ECO</h3>
+              <h3>Deep Task Hierarchy</h3>
               <p>
-                Configure parallel Change Control Board (CCB) sign-offs,
-                automated impact analysis routing, role-based access locks, and
-                time-stamped compliance trails.
+                Break deliverables into subtasks with independent assignees and
+                editable statuses, dynamic checklists, progress bars, and
+                multi-value custom fields.
               </p>
             </article>
 
@@ -91,11 +90,11 @@ export default function PlmEngineeringPage() {
               <div className="hp-feature-icon-wrap">
                 <ShieldCheck size={22} />
               </div>
-              <h3>Multi-CAD &amp; ERP Continuity</h3>
+              <h3>Smart Alerts &amp; Email Updates</h3>
               <p>
-                Synchronize mechanical and electrical assemblies (NX,
-                SolidWorks, Creo, Altium) directly with plant-specific mBOMs and
-                SAP/ERP material masters.
+                Keep everyone accountable with email notifications when tasks are
+                assigned, reassigned, mentioned, completed, due today, or nearing
+                budget hours.
               </p>
             </article>
           </div>
@@ -105,68 +104,63 @@ export default function PlmEngineeringPage() {
             style={{ marginTop: 28, padding: 30, gap: 16 }}
           >
             <h2 style={{ margin: 0, fontSize: 22 }}>
-              Structured 4-Phase PLM Implementation Methodology
+              Included in Every Orbitwork Project
             </h2>
-            <p style={{ maxWidth: 820 }}>
-              Every deployment follows measurable checkpoints so engineering
-              teams adopt workflows smoothly without stalling active NPI
-              schedules:
-            </p>
             <div className="hp-two-col-grid">
               <div style={{ display: "grid", gap: 8 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 700 }}>
                   <CheckCircle2 size={16} color="var(--hp-green)" />
-                  1. Discovery &amp; Process Blueprint
+                  Personal Command Dashboard
                 </div>
                 <p>
-                  Audit existing CAD vaults, part numbering, change velocity,
-                  and cross-plant BOM handoffs to establish target KPIs.
+                  Monitor assigned tasks, urgent priorities, in-progress work,
+                  billed hours, and pinned favorites on your own dedicated dashboard.
                 </p>
               </div>
               <div style={{ display: "grid", gap: 8 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 700 }}>
                   <CheckCircle2 size={16} color="var(--hp-green)" />
-                  2. Core Configuration &amp; Integration
+                  Rich Task Descriptions &amp; Resizable Images
                 </div>
                 <p>
-                  Build data models, workflow templates, Active Workspace tiles,
-                  and automated REST/SOA ERP connectors in staging.
+                  Paste screenshots directly into task descriptions, resize images
+                  cleanly inline, and collaborate with @mentions in task comments.
                 </p>
               </div>
               <div style={{ display: "grid", gap: 8 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 700 }}>
                   <CheckCircle2 size={16} color="var(--hp-green)" />
-                  3. Trial Migration &amp; UAT Validation
+                  Visual Whiteboards &amp; Flowcharts
                 </div>
                 <p>
-                  Run repeatable ETL validation checks on historical assemblies,
-                  permissions, and drawing watermarks with key leads.
+                  Map project workflows visually and convert whiteboard nodes
+                  directly into tracked deliverables on your sprint board.
                 </p>
               </div>
               <div style={{ display: "grid", gap: 8 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 700 }}>
                   <CheckCircle2 size={16} color="var(--hp-green)" />
-                  4. Cutover, Training &amp; Hypercare
+                  Global Ctrl+K Search &amp; CSV Export
                 </div>
                 <p>
-                  Execute controlled production cutover backed by Orbitwork runbooks,
-                  role training, and rapid post-launch engineering support.
+                  Jump instantaneously to any task, document, workspace, or team
+                  member from the top command search bar or export lists to CSV.
                 </p>
               </div>
             </div>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8 }}>
               <Link href="/projects-case-studies" className="hp-btn-secondary">
-                See Case Studies
+                See Use Cases
               </Link>
-              <Link href="/contact" className="hp-btn-primary">
-                Talk to a PLM Architect <ArrowRight size={15} />
+              <Link href="/signup" className="hp-btn-primary">
+                Create Your Free Workspace <ArrowRight size={15} />
               </Link>
             </div>
           </div>
 
           <div style={{ marginTop: 24, display: "grid", gap: 8 }}>
-            <h3 style={{ margin: 0, fontSize: 16 }}>Related Industries Supported</h3>
+            <h3 style={{ margin: 0, fontSize: 16 }}>Built for Every Department</h3>
             <ul
               className="hp-feature-bullets"
               style={{
@@ -176,16 +170,16 @@ export default function PlmEngineeringPage() {
               }}
             >
               <li>
-                <Check size={15} /> Automotive &amp; EV Powertrain Engineering
+                <Check size={15} /> Software &amp; Product Development Teams
               </li>
               <li>
-                <Check size={15} /> Industrial Machinery &amp; Automation Systems
+                <Check size={15} /> Digital Agencies &amp; Client Services
               </li>
               <li>
-                <Check size={15} /> Aerospace, Defense &amp; Regulatory Traceability
+                <Check size={15} /> Operations, PMO &amp; Cross-Functional Programs
               </li>
               <li>
-                <Check size={15} /> Consumer Electronics &amp; Medical Devices
+                <Check size={15} /> Consulting &amp; Billable Delivery Teams
               </li>
             </ul>
           </div>

@@ -9,7 +9,7 @@ import LoginForm from "./LoginForm";
 export const metadata: Metadata = buildPublicMetadata({
   title: "Sign In",
   description:
-    "Sign in to your Orbitwork organization workspace to manage engineering projects, PLM deliverables, documents, timesheets, and team chat.",
+    "Sign in to your Orbitwork workspace to manage projects, tasks, Kanban boards, documents, timesheets, and team chat.",
   path: "/login",
 });
 

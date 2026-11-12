@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Check, Cog, Database, Kanban, Workflow } from "lucide-react";
+import { ArrowRight, Check, Cloud, Clock, Kanban, MessageSquare } from "lucide-react";
 import { PublicSiteHeader, PublicSiteFooter } from "@/app/PublicSiteChrome";
 import { buildPublicMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildPublicMetadata({
-  title: "Services | PLM Engineering, Integrations & Program Delivery",
+  title: "Solutions | Project Management, Time Tracking, Docs & Team Chat",
   description:
-    "Explore Orbitwork services across PLM engineering consulting, Teamcenter configuration, CAD/BOM change governance, legacy PDM migrations, and enterprise work management.",
+    "Explore Orbitwork solutions for agile task execution, time tracking and weekly timesheets, real-time team chat, living Markdown docs, and encrypted cloud storage.",
   path: "/services",
 });
 
@@ -22,22 +22,22 @@ export default function ServicesPage() {
             <nav className="hp-breadcrumb" aria-label="Breadcrumb">
               <Link href="/">Home</Link>
               <span>/</span>
-              <span>Services</span>
+              <span>Solutions</span>
             </nav>
             <h1 className="hp-subpage-title">
-              PLM Engineering &amp; Enterprise Work Management Services
+              Everything Your Team Needs to Plan, Track &amp; Deliver Projects
             </h1>
             <p className="hp-subpage-lead">
-              From configuring enterprise Teamcenter backbones and BOM change
-              workflows to rolling out unified project execution workspaces,
-              Orbitwork helps engineering teams ship reliable products faster.
+              Orbitwork brings project planning, real-time team communication,
+              billable time tracking, and cloud document storage into a single,
+              unified workspace built for speed and clarity.
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-              <Link href="/services/plm-engineering" className="hp-btn-primary">
-                Deep Dive: PLM Engineering <ArrowRight size={16} />
+              <Link href="/services/project-management" className="hp-btn-primary">
+                Deep Dive: Project Management <ArrowRight size={16} />
               </Link>
-              <Link href="/contact" className="hp-btn-secondary">
-                Schedule Scoping Call
+              <Link href="/signup" className="hp-btn-secondary">
+                Get Started Free
               </Link>
             </div>
           </div>
@@ -47,105 +47,105 @@ export default function ServicesPage() {
           <div className="hp-two-col-grid">
             <article className="hp-info-card">
               <div className="hp-feature-icon-wrap">
-                <Cog size={24} />
+                <Kanban size={24} />
               </div>
-              <h3>PLM Engineering &amp; Teamcenter Consulting</h3>
+              <h3>Project &amp; Task Management</h3>
               <p>
-                End-to-end PLM architecture, BMIDE data modeling, Active
-                Workspace customization, security rule hardening, and global
-                multi-site deployments.
+                Switch between List sheets, Kanban boards, Gantt timelines,
+                Calendars, Workload capacity, Whiteboards, and Flowcharts with
+                custom user layouts.
               </p>
               <ul className="hp-feature-bullets">
                 <li>
-                  <Check size={15} /> BMIDE schemas, LOVs &amp; naming rules
+                  <Check size={15} /> Subtasks with dedicated assignees &amp; status editing
                 </li>
                 <li>
-                  <Check size={15} /> Active Workspace UI &amp; role tailoring
+                  <Check size={15} /> Multi-value custom fields, checklists &amp; progress bars
                 </li>
                 <li>
-                  <Check size={15} /> Multi-site replication &amp; upgrade planning
+                  <Check size={15} /> Dependency mapping &amp; automated task notifications
                 </li>
               </ul>
-              <Link href="/services/plm-engineering" className="hp-inline-link">
-                Explore PLM Engineering <ArrowRight size={14} />
+              <Link href="/services/project-management" className="hp-inline-link">
+                Explore Project Management <ArrowRight size={14} />
               </Link>
             </article>
 
             <article className="hp-info-card">
               <div className="hp-feature-icon-wrap">
-                <Workflow size={24} />
+                <MessageSquare size={24} />
               </div>
-              <h3>CAD, BOM &amp; Change Management (ECR/ECN/ECO)</h3>
+              <h3>Team Chat &amp; Project Channels</h3>
               <p>
-                Standardize revision policies and eliminate downstream
-                manufacturing scrap by connecting CAD structures with closed-loop
-                change governance.
+                Keep conversations organized in persistent workspace channels,
+                custom group chats, and direct messages with instant desktop &amp;
+                in-app popups.
               </p>
               <ul className="hp-feature-bullets">
                 <li>
-                  <Check size={15} /> Multi-CAD integration (NX, SolidWorks, Creo)
+                  <Check size={15} /> Direct screenshot paste (Ctrl+V) &amp; file sharing
                 </li>
                 <li>
-                  <Check size={15} /> eBOM-to-mBOM reconciliation workflows
+                  <Check size={15} /> Share Orbitwork tasks, projects &amp; docs inline
                 </li>
                 <li>
-                  <Check size={15} /> Automated CCB review &amp; effectivity sign-off
+                  <Check size={15} /> Convert any chat message into a task in 1 click
                 </li>
               </ul>
               <Link href="/projects-case-studies" className="hp-inline-link">
-                See BOM &amp; ECO outcomes <ArrowRight size={14} />
+                See Collaboration Use Cases <ArrowRight size={14} />
               </Link>
             </article>
 
             <article className="hp-info-card">
               <div className="hp-feature-icon-wrap">
-                <Database size={24} />
+                <Clock size={24} />
               </div>
-              <h3>PDM Data Migration &amp; ERP Integration</h3>
+              <h3>Time Tracking, Timesheets &amp; Holidays</h3>
               <p>
-                Cleanse, map, and migrate legacy engineering vaults without
-                losing revision lineage, and connect released BOMs into ERP and
-                MES systems cleanly.
+                Track live task timers, separate billable vs. non-billable
+                hours, submit weekly timesheets for manager sign-off, and sync
+                country public holidays.
               </p>
               <ul className="hp-feature-bullets">
                 <li>
-                  <Check size={15} /> Pre-migration metadata cleansing &amp; dry runs
+                  <Check size={15} /> Real-time stopwatches &amp; remaining estimate alerts
                 </li>
                 <li>
-                  <Check size={15} /> SAP, NetSuite &amp; Oracle REST/SOA connectors
+                  <Check size={15} /> Team PTO leave calendar &amp; country holidays
                 </li>
                 <li>
-                  <Check size={15} /> Checksum audit verification reports
+                  <Check size={15} /> Instant CSV and PDF utilization exports
                 </li>
               </ul>
               <Link href="/contact" className="hp-inline-link">
-                Discuss migration assessment <ArrowRight size={14} />
+                Talk to Our Team <ArrowRight size={14} />
               </Link>
             </article>
 
             <article className="hp-info-card">
               <div className="hp-feature-icon-wrap">
-                <Kanban size={24} />
+                <Cloud size={24} />
               </div>
-              <h3>Orbitwork Program Execution Platform</h3>
+              <h3>Living Docs &amp; Multi-Cloud Storage</h3>
               <p>
-                Equip program managers, suppliers, and engineering leads with
-                Kanban boards, Gantt schedules, technical Markdown docs, team
-                chat, and timesheet approvals.
+                Create Markdown project documentation with full version history
+                and store attachments in Google Drive, OneDrive, SharePoint, or
+                built-in local storage.
               </p>
               <ul className="hp-feature-bullets">
                 <li>
-                  <Check size={15} /> Multi-tenant supplier &amp; vendor portals
+                  <Check size={15} /> Resizable inline images &amp; task widget embeds
                 </li>
                 <li>
-                  <Check size={15} /> Drive, OneDrive &amp; SharePoint storage sync
+                  <Check size={15} /> AES-256-GCM encrypted workspace cloud credentials
                 </li>
                 <li>
-                  <Check size={15} /> Weekly engineering timesheets &amp; CSV/PDF exports
+                  <Check size={15} /> Download any specification cleanly as HTML or PDF
                 </li>
               </ul>
               <Link href="/signup" className="hp-inline-link">
-                Launch free workspace <ArrowRight size={14} />
+                Start Free Workspace <ArrowRight size={14} />
               </Link>
             </article>
           </div>

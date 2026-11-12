@@ -2034,7 +2034,7 @@ export default function ChatWorkspace({
               <input
                 type="text"
                 required
-                placeholder="e.g. PLM Migration Sync"
+                placeholder="e.g. Sprint Planning Sync"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
               />

@@ -5,20 +5,18 @@ import { createClient } from "@/lib/supabase/server";
 import {
   ArrowRight,
   Building2,
+  Calendar,
   Check,
   Clock,
   Cloud,
-  Cog,
-  Cpu,
   FileText,
-  GitBranch,
   Kanban,
-  Layers3,
+  MessageSquare,
   Share2,
   ShieldCheck,
   Sparkles,
   Timer,
-  Workflow,
+  Users,
   Zap,
 } from "lucide-react";
 import {
@@ -31,20 +29,20 @@ import { PublicSiteHeader, PublicSiteFooter } from "./PublicSiteChrome";
 import { CANONICAL_HOME_URL, CANONICAL_ORIGIN, buildPublicMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildPublicMetadata({
-  title: "Orbitwork | PLM Engineering & Product Lifecycle Management",
+  title: "Orbitwork | Project Management & Team Collaboration Platform",
   absoluteTitle: true,
   description:
-    "Orbitwork provides PLM engineering, Teamcenter implementation, CAD & BOM integration, and product lifecycle management solutions for modern engineering organizations.",
+    "Orbitwork is a modern project management and work execution platform uniting Kanban boards, Gantt timelines, task sheets, docs, team chat, timesheets, and cloud storage.",
   path: "/",
   keywords: [
-    "PLM engineering",
-    "Product Lifecycle Management",
-    "Teamcenter consulting",
-    "BOM management",
-    "ECN ECO change management",
-    "CAD data management",
-    "engineering project management",
     "Orbitwork",
+    "project management software",
+    "work management platform",
+    "Kanban board",
+    "Gantt chart software",
+    "team time tracking",
+    "collaborative project docs",
+    "team chat and tasks",
   ],
 });
 
@@ -58,7 +56,7 @@ const STRUCTURED_DATA = {
       url: CANONICAL_HOME_URL,
       email: "orbitwork.admin@gmail.com",
       description:
-        "PLM engineering consulting and collaborative product lifecycle & project management software for engineering teams.",
+        "Modern multi-tenant project management, time tracking, documentation, and team collaboration platform.",
     },
     {
       "@type": "WebSite",
@@ -68,18 +66,18 @@ const STRUCTURED_DATA = {
       publisher: { "@id": `${CANONICAL_ORIGIN}/#organization` },
     },
     {
-      "@type": "Service",
-      name: "PLM Engineering & Product Lifecycle Management Solutions",
-      provider: { "@id": `${CANONICAL_ORIGIN}/#organization` },
-      serviceType: [
-        "PLM Engineering Consulting",
-        "Teamcenter Implementation & BMIDE Configuration",
-        "CAD, eBOM & mBOM Integration",
-        "Engineering Change Management (ECN/ECO)",
-        "Collaborative Engineering Workspaces",
-      ],
-      areaServed: "Global",
-      url: `${CANONICAL_ORIGIN}/services/plm-engineering`,
+      "@type": "SoftwareApplication",
+      name: "Orbitwork",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      url: CANONICAL_HOME_URL,
+      description:
+        "All-in-one project management OS featuring Kanban boards, task sheets, Gantt timelines, workload calendars, timesheets, collaborative docs, team chat, and cloud drive sync.",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
     },
   ],
 };
@@ -217,50 +215,57 @@ export default async function Home({
           <div className="hp-container hp-hero-content">
             <div className="hp-pill-badge">
               <Sparkles size={14} />
-              <span>PLM Engineering Consulting &amp; Work Execution OS</span>
+              <span>All-in-One Project &amp; Work Management Platform</span>
             </div>
 
             <h1 className="hp-hero-title">
-              PLM Engineering &amp;{" "}
+              Modern Project Management for{" "}
               <span className="hp-hero-highlight">
-                Product Lifecycle Management Solutions
+                Projects, People, and Progress
               </span>
             </h1>
 
             <p className="hp-hero-subtitle">
-              Orbitwork helps manufacturing and technology organizations unify
-              PLM engineering, Teamcenter workflows, CAD and BOM revision
-              control, engineering change management (ECN/ECO), and day-to-day
-              project delivery inside one secure platform.
+              Unify agile Kanban boards, interactive task spreadsheets, Gantt
+              timelines, collaborative Markdown docs, real-time team chat, built-in
+              time tracking, and multi-cloud storage inside one calm, distraction-free
+              workspace.
             </p>
 
             <div className="hp-hero-cta-group">
-              <Link href="/services/plm-engineering" className="hp-btn-primary">
-                Explore PLM Engineering <ArrowRight size={17} />
-              </Link>
               {user ? (
-                <Link href="/dashboard" className="hp-btn-secondary">
-                  Go to Your Dashboard
-                </Link>
+                <>
+                  <Link href="/dashboard" className="hp-btn-primary">
+                    Go to Your Dashboard <ArrowRight size={17} />
+                  </Link>
+                  <Link href="/services/project-management" className="hp-btn-secondary">
+                    Explore Capabilities
+                  </Link>
+                </>
               ) : (
-                <Link href="/contact" className="hp-btn-secondary">
-                  Book a PLM Consultation
-                </Link>
+                <>
+                  <Link href="/signup" className="hp-btn-primary">
+                    Get Started for Free <ArrowRight size={17} />
+                  </Link>
+                  <Link href="/services/project-management" className="hp-btn-secondary">
+                    Explore Project Management
+                  </Link>
+                </>
               )}
             </div>
 
             <ul className="hp-hero-checklist">
               <li>
-                <Check size={16} /> Teamcenter &amp; BMIDE Architecture
+                <Check size={16} /> Kanban, List, Gantt &amp; Calendar Views
               </li>
               <li>
-                <Check size={16} /> eBOM / mBOM &amp; ECO Governance
+                <Check size={16} /> Built-in Timers &amp; Weekly Timesheets
               </li>
               <li>
-                <Check size={16} /> Multi-CAD &amp; ERP Integration
+                <Check size={16} /> Team Chat, Mentions &amp; Docs
               </li>
               <li>
-                <Check size={16} /> Unified Workspace &amp; Timesheets
+                <Check size={16} /> Multi-Tenant Organization Hierarchy
               </li>
             </ul>
 
@@ -271,8 +276,8 @@ export default async function Home({
                   <Timer size={20} />
                 </div>
                 <div className="hp-float-text">
-                  <strong>38.5 Engineering Hours</strong>
-                  <span>NPI Release Gate · Approved ✓</span>
+                  <strong>38.5 Hours Logged</strong>
+                  <span>Weekly Timesheet · Approved ✓</span>
                 </div>
               </div>
 
@@ -282,7 +287,7 @@ export default async function Home({
                 </div>
                 <div className="hp-float-text">
                   <strong>Drive, OneDrive &amp; SharePoint</strong>
-                  <span>Controlled engineering doc sync</span>
+                  <span>Workspace cloud sync active</span>
                 </div>
               </div>
 
@@ -297,13 +302,13 @@ export default async function Home({
             <div className="hp-value-grid">
               <div className="hp-value-item">
                 <div className="hp-value-icon">
-                  <Workflow size={22} />
+                  <Zap size={22} />
                 </div>
                 <div>
-                  <h4>End-to-End PLM Delivery</h4>
+                  <h4>Zero Context Switching</h4>
                   <p>
-                    From BMIDE data model design and Active Workspace rollouts to
-                    production ERP synchronization.
+                    Tasks, boards, Gantt charts, docs, timesheets, and real-time
+                    team chat live together in one coherent workspace.
                   </p>
                 </div>
               </div>
@@ -313,23 +318,10 @@ export default async function Home({
                   <ShieldCheck size={22} />
                 </div>
                 <div>
-                  <h4>Traceable Change Control</h4>
+                  <h4>Multi-Tenant Isolation</h4>
                   <p>
-                    Eliminate broken BOM handoffs with structured ECR, ECN, and
-                    ECO approval workflows.
-                  </p>
-                </div>
-              </div>
-
-              <div className="hp-value-item">
-                <div className="hp-value-icon">
-                  <Zap size={22} />
-                </div>
-                <div>
-                  <h4>Connected Execution OS</h4>
-                  <p>
-                    Link PLM milestones directly to Kanban boards, Gantt charts,
-                    living specs, chat, and timesheets.
+                    PostgreSQL Row Level Security keeps every organization,
+                    workspace, client project, and file strictly isolated.
                   </p>
                 </div>
               </div>
@@ -339,10 +331,23 @@ export default async function Home({
                   <Cloud size={22} />
                 </div>
                 <div>
-                  <h4>Multi-Tenant Cloud Choice</h4>
+                  <h4>Your Choice of Cloud</h4>
                   <p>
-                    Keep engineering artifacts in Google Drive, OneDrive,
-                    SharePoint, or isolated database storage.
+                    Store project files in Google Drive, OneDrive, SharePoint, or
+                    built-in encrypted local storage per workspace.
+                  </p>
+                </div>
+              </div>
+
+              <div className="hp-value-item">
+                <div className="hp-value-icon">
+                  <Clock size={22} />
+                </div>
+                <div>
+                  <h4>Native Time &amp; Leave Tracking</h4>
+                  <p>
+                    Live task stopwatch timers, weekly timesheet approvals, and
+                    country public holidays built directly into your workflow.
                   </p>
                 </div>
               </div>
@@ -350,82 +355,82 @@ export default async function Home({
           </div>
         </section>
 
-        {/* PLM Engineering Services & Capabilities */}
+        {/* Solutions & Use Cases Overview */}
         <section
           className="hp-container"
-          id="plm-services"
+          id="solutions"
           style={{ padding: "64px 24px 24px" }}
         >
           <div className="hp-section-header">
-            <span className="hp-section-tag">Core Practice Areas</span>
+            <span className="hp-section-tag">Built for Modern Teams</span>
             <h2 className="hp-section-title">
-              PLM engineering expertise tailored to complex products
+              Project execution tailored to how real organizations work
             </h2>
             <p className="hp-section-desc">
-              We partner with discrete manufacturing, automotive, electronics, and
-              industrial engineering teams to modernize product data lifecycles
-              and accelerate New Product Introduction (NPI).
+              Whether managing client deliverables, software sprints, agency
+              retainers, or cross-department operations, Orbitwork keeps every
+              milestone, assignee, document, and logged hour aligned.
             </p>
           </div>
 
           <div className="hp-two-col-grid">
             <article className="hp-info-card">
               <div className="hp-feature-icon-wrap">
-                <Cog size={24} />
+                <Kanban size={24} />
               </div>
-              <h3>Teamcenter Implementation &amp; Upgrade</h3>
+              <h3>Project &amp; Task Management</h3>
               <p>
-                Architecture planning, BMIDE custom object and revision rule
-                design, Active Workspace configuration, access control lists, and
-                zero-downtime version upgrades across global sites.
+                Plan work with customizable workflow statuses, subtasks with
+                independent assignees, progress bars, checklists, dependencies,
+                and personalizable per-user view tabs and sheet columns.
               </p>
-              <Link href="/services/plm-engineering" className="hp-inline-link">
-                Read PLM implementation scope <ArrowRight size={14} />
+              <Link href="/services/project-management" className="hp-inline-link">
+                Explore Project Management <ArrowRight size={14} />
               </Link>
             </article>
 
             <article className="hp-info-card">
               <div className="hp-feature-icon-wrap">
-                <GitBranch size={24} />
+                <MessageSquare size={24} />
               </div>
-              <h3>CAD, BOM &amp; Change Governance (ECN/ECO)</h3>
+              <h3>Real-Time Team Chat &amp; Channels</h3>
               <p>
-                Align mechanical and electrical CAD structures (Siemens NX,
-                SolidWorks, Creo, AutoCAD) with governed eBOM-to-mBOM
-                transformation and closed-loop engineering change orders.
-              </p>
-              <Link href="/services/plm-engineering" className="hp-inline-link">
-                Explore BOM &amp; ECO governance <ArrowRight size={14} />
-              </Link>
-            </article>
-
-            <article className="hp-info-card">
-              <div className="hp-feature-icon-wrap">
-                <Layers3 size={24} />
-              </div>
-              <h3>Legacy PDM Migration &amp; ERP Integration</h3>
-              <p>
-                Automated ETL validation for migrating legacy vault data, custom
-                attributes, and multi-revision CAD assemblies into modern PLM
-                with bi-directional REST/SOA connectors to SAP and NetSuite.
+                Collaborate via workspace channels, custom group chats, and direct
+                messages with instant pop-up notifications, read receipts, image
+                pasting, and 1-click task creation from any message.
               </p>
               <Link href="/services" className="hp-inline-link">
-                Browse integration services <ArrowRight size={14} />
+                See Platform Solutions <ArrowRight size={14} />
               </Link>
             </article>
 
             <article className="hp-info-card">
               <div className="hp-feature-icon-wrap">
-                <Cpu size={24} />
+                <Calendar size={24} />
               </div>
-              <h3>Industries &amp; Program Case Studies</h3>
+              <h3>Timesheets, Leave &amp; Public Holidays</h3>
               <p>
-                Proven engineering workflows across EV powertrain, industrial
-                robotics, aerospace compliance, and medical hardware programs.
-                Explore measurable cycle-time and audit outcomes.
+                Track billable and non-billable effort with live task timers,
+                approve weekly timesheets, coordinate team PTO, and automatically
+                populate public holidays for your selected country.
               </p>
               <Link href="/projects-case-studies" className="hp-inline-link">
-                View projects &amp; case studies <ArrowRight size={14} />
+                View Team Use Cases <ArrowRight size={14} />
+              </Link>
+            </article>
+
+            <article className="hp-info-card">
+              <div className="hp-feature-icon-wrap">
+                <Users size={24} />
+              </div>
+              <h3>Organizations, Workspaces &amp; Client Access</h3>
+              <p>
+                Structure companies cleanly into Organizations, Workspaces, and
+                Projects with Owner, Admin, Member, and Viewer permissions plus
+                seamless password-less or Google sign-in.
+              </p>
+              <Link href="/about" className="hp-inline-link">
+                Learn About Orbitwork <ArrowRight size={14} />
               </Link>
             </article>
           </div>
@@ -436,21 +441,20 @@ export default async function Home({
           <HomeInteractiveTabs isUserLoggedIn={!!user} />
         </div>
 
-        {/* Platform Capabilities Deep Dive Grid */}
+        {/* Core Features Deep Dive Grid */}
         <section
           className="hp-container"
           id="features"
           style={{ padding: "56px 24px" }}
         >
           <div className="hp-section-header">
-            <span className="hp-section-tag">Orbitwork Platform</span>
+            <span className="hp-section-tag">Core Capabilities</span>
             <h2 className="hp-section-title">
-              Everything engineered for program execution clarity
+              Everything required for calm, high-velocity execution
             </h2>
             <p className="hp-section-desc">
-              Complement your core PLM backbone with calm project management,
-              engineering time tracking, and live cross-functional
-              collaboration.
+              Replace scattered trackers, chat apps, and billing sheets with one
+              cohesive workspace.
             </p>
           </div>
 
@@ -459,21 +463,21 @@ export default async function Home({
               <div className="hp-feature-icon-wrap">
                 <Kanban size={26} />
               </div>
-              <h3>Dynamic Task Views</h3>
+              <h3>8 Synchronized Project Views</h3>
               <p>
-                Switch between agile Kanban boards, Excel-like sheet tables,
-                interactive Gantt timelines, and workload schedules in a single
-                click.
+                Switch effortlessly between List, Board, Calendar, Gantt
+                Timeline, Workload, Whiteboard, Flowchart, and Project Channel
+                tabs arranged in your preferred order.
               </p>
               <ul className="hp-feature-bullets">
                 <li>
-                  <Check size={15} /> Custom workflow stages &amp; priorities
+                  <Check size={15} /> Per-user custom tab &amp; column ordering
                 </li>
                 <li>
-                  <Check size={15} /> Inline rapid task creation &amp; editing
+                  <Check size={15} /> Multi-value custom fields &amp; inline editing
                 </li>
                 <li>
-                  <Check size={15} /> Subtasks, checklists &amp; dependencies
+                  <Check size={15} /> Subtasks, progress tracking &amp; dependencies
                 </li>
               </ul>
             </div>
@@ -482,10 +486,10 @@ export default async function Home({
               <div className="hp-feature-icon-wrap">
                 <Clock size={26} />
               </div>
-              <h3>Engineering Timesheets</h3>
+              <h3>Integrated Time Tracking</h3>
               <p>
-                Track engineering R&amp;D and consulting effort directly inside
-                every task. Submit weekly timesheets with approval audit trails.
+                Accurate, pain-free time logging inside every task. Submit weekly
+                timesheets for manager approval and monitor remaining budget hours.
               </p>
               <ul className="hp-feature-bullets">
                 <li>
@@ -504,20 +508,21 @@ export default async function Home({
               <div className="hp-feature-icon-wrap">
                 <FileText size={26} />
               </div>
-              <h3>Technical Specifications &amp; Docs</h3>
+              <h3>Living Project Docs &amp; Wikis</h3>
               <p>
-                Write living engineering specifications, ECR impact assessments,
-                and SOP runbooks with revision snapshots next to project tasks.
+                Write project specs, meeting notes, and team SOPs with inline
+                images, task references, revision history snapshots, and PDF
+                export.
               </p>
               <ul className="hp-feature-bullets">
                 <li>
-                  <Check size={15} /> Markdown formatting &amp; inline diagrams
+                  <Check size={15} /> Rich Markdown formatting &amp; resizable images
                 </li>
                 <li>
-                  <Check size={15} /> Historical snapshots &amp; version restore
+                  <Check size={15} /> Version history &amp; restore checkpoints
                 </li>
                 <li>
-                  <Check size={15} /> Instant professional PDF download
+                  <Check size={15} /> Instant HTML and PDF export anytime
                 </li>
               </ul>
             </div>
@@ -528,9 +533,9 @@ export default async function Home({
               </div>
               <h3>Multi-Cloud Storage Freedom</h3>
               <p>
-                Connect Google Drive, Microsoft OneDrive, SharePoint, or use
-                Orbitwork’s encrypted database storage per engineering
-                workspace.
+                You retain control of your files. Attach Google Drive, Microsoft
+                OneDrive, SharePoint, or Orbitwork&apos;s encrypted database
+                storage per workspace.
               </p>
               <ul className="hp-feature-bullets">
                 <li>
@@ -540,7 +545,7 @@ export default async function Home({
                   <Check size={15} /> Workspace-level storage routing
                 </li>
                 <li>
-                  <Check size={15} /> Zero vendor lock-in or extra file fees
+                  <Check size={15} /> Zero vendor lock-in or extra hosting markup
                 </li>
               </ul>
             </div>
@@ -549,20 +554,21 @@ export default async function Home({
               <div className="hp-feature-icon-wrap">
                 <Building2 size={26} />
               </div>
-              <h3>Multi-Tenant Supplier Isolation</h3>
+              <h3>Multi-Tenant Hierarchy</h3>
               <p>
-                Isolate internal programs from external vendors using strict
-                Organization, Workspace, and Project role-based access control.
+                Organize complex teams clearly: Organizations contain
+                Workspaces, Workspaces house Projects, and Projects manage Tasks
+                and Docs.
               </p>
               <ul className="hp-feature-bullets">
                 <li>
                   <Check size={15} /> Owner, Admin, Member &amp; Viewer roles
                 </li>
                 <li>
-                  <Check size={15} /> Secure email tokens for vendor invitations
+                  <Check size={15} /> Bulk teammate email invitations
                 </li>
                 <li>
-                  <Check size={15} /> PostgreSQL Row Level Security isolation
+                  <Check size={15} /> Granular project &amp; workspace access
                 </li>
               </ul>
             </div>
@@ -571,21 +577,21 @@ export default async function Home({
               <div className="hp-feature-icon-wrap">
                 <Share2 size={26} />
               </div>
-              <h3>Whiteboards &amp; Architecture Flows</h3>
+              <h3>Whiteboards &amp; Flowcharts</h3>
               <p>
-                Map complex PLM interfaces, BOM workflows, and system diagrams
-                on infinite whiteboards linked directly to executable sprint
-                tasks.
+                Brainstorm architectures, customer journeys, and workflow diagrams
+                with interactive flowcharts and whiteboards linked directly to
+                project tasks.
               </p>
               <ul className="hp-feature-bullets">
                 <li>
-                  <Check size={15} /> Convert diagram nodes into project tasks
+                  <Check size={15} /> Convert canvas shapes into tracked tasks
                 </li>
                 <li>
-                  <Check size={15} /> Visual dependency arrows &amp; critical paths
+                  <Check size={15} /> Visual dependency arrows &amp; milestones
                 </li>
                 <li>
-                  <Check size={15} /> Export high-res vector graphics anytime
+                  <Check size={15} /> Share diagrams in team chat &amp; channels
                 </li>
               </ul>
             </div>
@@ -601,13 +607,13 @@ export default async function Home({
         <section className="hp-compare-section" id="comparison">
           <div className="hp-container">
             <div className="hp-section-header">
-              <span className="hp-section-tag">Unified Work Architecture</span>
+              <span className="hp-section-tag">Unified Architecture</span>
               <h2 className="hp-section-title">
-                How Orbitwork bridges PLM systems and project delivery
+                How Orbitwork brings every project workflow together
               </h2>
               <p className="hp-section-desc">
-                Engineering specifications, tasks, change approvals, files, and
-                billable hours stay connected under every project.
+                Tasks, conversations, files, time logs, and project documentation
+                stay synchronized in one place.
               </p>
             </div>
 
@@ -615,7 +621,7 @@ export default async function Home({
               <table className="hp-compare-table">
                 <thead>
                   <tr>
-                    <th style={{ width: "25%" }}>Discipline</th>
+                    <th style={{ width: "25%" }}>Capability</th>
                     <th style={{ width: "38%" }} className="hp-compare-highlight-col">
                       <div className="hp-compare-badge-orbit">
                         <span
@@ -632,73 +638,75 @@ export default async function Home({
                         In Orbitwork
                       </div>
                     </th>
-                    <th style={{ width: "37%" }}>Engineering Outcome</th>
+                    <th style={{ width: "37%" }}>Team Benefit</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td>
-                      <strong>PLM &amp; Change Workflows</strong>
+                      <strong>Task Planning</strong>
                     </td>
                     <td className="hp-compare-highlight-col">
                       <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
-                        Structured Gates
+                        8 Flexible Views
                       </span>{" "}
-                      — ECR/ECO milestones, dependencies &amp; audit logs
+                      — List, Board, Calendar, Timeline, Workload, Flowchart,
+                      Whiteboard &amp; Channel
                     </td>
                     <td>
-                      Clear sign-off accountability across mechanical, electrical,
-                      and manufacturing teams.
+                      Every teammate views live project state in the format that
+                      fits their role best.
                     </td>
                   </tr>
                   <tr>
                     <td>
-                      <strong>Task Management</strong>
-                    </td>
-                    <td className="hp-compare-highlight-col">
-                      <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
-                        5 Synchronized Views
-                      </span>{" "}
-                      — Board, Sheet, Gantt, Calendar &amp; Flowchart
-                    </td>
-                    <td>
-                      Program managers and engineers view live deliverables
-                      without manual status slide decks.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <strong>Time &amp; R&amp;D Costing</strong>
+                      <strong>Time &amp; Timesheets</strong>
                     </td>
                     <td className="hp-compare-highlight-col">
                       <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
                         Built-in Timers
                       </span>{" "}
-                      — Live task stopwatch + weekly approval &amp; CSV/PDF export
+                      — Task stopwatches + weekly approval &amp; CSV/PDF export
                     </td>
                     <td>
-                      Accurate engineering utilization tracking across internal
-                      NPI and client engagements.
+                      Eliminates separate time trackers and tracks billable client
+                      work accurately.
                     </td>
                   </tr>
                   <tr>
                     <td>
-                      <strong>Engineering Docs</strong>
+                      <strong>Team Messaging</strong>
                     </td>
                     <td className="hp-compare-highlight-col">
                       <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
-                        Living Specs
+                        Integrated Chat
+                      </span>{" "}
+                      — Direct DMs, group chats, channels, read receipts &amp;
+                      alerts
+                    </td>
+                    <td>
+                      Keep project discussions searchable and turn any message into
+                      an assigned task.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>Project Documents</strong>
+                    </td>
+                    <td className="hp-compare-highlight-col">
+                      <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
+                        Living Docs
                       </span>{" "}
                       — Markdown specs, embedded images &amp; version history
                     </td>
                     <td>
-                      Keep DFM reviews, test plans, and deployment SOPs alongside
-                      the tasks that implement them.
+                      Requirements, meeting notes, and runbooks stay right alongside
+                      tasks.
                     </td>
                   </tr>
                   <tr>
                     <td>
-                      <strong>Enterprise Storage</strong>
+                      <strong>File Storage</strong>
                     </td>
                     <td className="hp-compare-highlight-col">
                       <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
@@ -707,8 +715,8 @@ export default async function Home({
                       — Google Drive, OneDrive, SharePoint or Local DB
                     </td>
                     <td>
-                      Files remain under corporate IT governance with AES-256-GCM
-                      encrypted OAuth tokens.
+                      Every workspace connects the storage provider your company
+                      already governs.
                     </td>
                   </tr>
                 </tbody>
@@ -723,8 +731,8 @@ export default async function Home({
             <span className="hp-section-tag">Frequently Asked Questions</span>
             <h2 className="hp-section-title">Everything you need to know</h2>
             <p className="hp-section-desc">
-              Answers about Orbitwork PLM engineering services, Teamcenter
-              consulting, multi-tenancy, and security.
+              Quick answers about Orbitwork project management features,
+              workspaces, time tracking, and security.
             </p>
           </div>
 
@@ -734,39 +742,48 @@ export default async function Home({
         {/* Final Call to Action Banner */}
         <div className="hp-container">
           <section className="hp-cta-banner">
-            <h2>Ready to modernize your PLM and engineering workflows?</h2>
+            <h2>Bring clarity to your projects today</h2>
             <p>
-              Speak with our PLM engineering architects or launch a collaborative
-              Orbitwork workspace for your team today.
+              Organize workspaces, empower your team with unified views, and
+              deliver meaningful results together in Orbitwork.
             </p>
 
             <div className="hp-cta-buttons">
-              <Link href="/contact" className="hp-btn-primary">
-                Request a PLM Consultation <ArrowRight size={17} />
-              </Link>
-              <Link
-                href={user ? "/dashboard" : "/signup"}
-                className="hp-btn-secondary"
-              >
-                {user ? "Open Your Dashboard" : "Get Started for Free"}
-              </Link>
+              {user ? (
+                <Link href="/dashboard" className="hp-btn-primary">
+                  Open Your Dashboard <ArrowRight size={17} />
+                </Link>
+              ) : (
+                <>
+                  <Link href="/signup" className="hp-btn-primary">
+                    Get Started for Free <ArrowRight size={17} />
+                  </Link>
+                  <Link href="/contact" className="hp-btn-secondary">
+                    Contact Us
+                  </Link>
+                </>
+              )}
             </div>
 
             <div className="hp-cta-fineprint">
-              <Link href="/services" style={{ color: "inherit" }}>
-                Services
+              <Link href="/about" style={{ color: "inherit" }}>
+                About
               </Link>{" "}
               ·{" "}
-              <Link href="/services/plm-engineering" style={{ color: "inherit" }}>
-                PLM Engineering
+              <Link href="/services" style={{ color: "inherit" }}>
+                Solutions
+              </Link>{" "}
+              ·{" "}
+              <Link href="/services/project-management" style={{ color: "inherit" }}>
+                Project Management
               </Link>{" "}
               ·{" "}
               <Link href="/projects-case-studies" style={{ color: "inherit" }}>
-                Case Studies
+                Use Cases
               </Link>{" "}
               ·{" "}
-              <Link href="/about" style={{ color: "inherit" }}>
-                About Orbitwork
+              <Link href="/contact" style={{ color: "inherit" }}>
+                Contact
               </Link>
             </div>
           </section>

@@ -9,7 +9,7 @@ import SignupForm from "./SignupForm";
 export const metadata: Metadata = buildPublicMetadata({
   title: "Create Free Account",
   description:
-    "Create your free Orbitwork workspace for PLM engineering coordination, Kanban & Gantt workflows, technical docs, time tracking, and team chat.",
+    "Create your free Orbitwork workspace for project management, Kanban & Gantt workflows, team docs, time tracking, and real-time chat.",
   path: "/signup",
 });
 

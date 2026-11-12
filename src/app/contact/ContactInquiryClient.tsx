@@ -7,7 +7,7 @@ export default function ContactInquiryClient() {
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
-  const [focus, setFocus] = useState("Teamcenter & PLM Implementation");
+  const [focus, setFocus] = useState("Team Onboarding & Workspaces");
   const [notes, setNotes] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -15,10 +15,10 @@ export default function ContactInquiryClient() {
     `Name: ${name || "(Not provided)"}`,
     `Organization: ${company || "(Not provided)"}`,
     `Work Email: ${email || "(Not provided)"}`,
-    `Focus Area: ${focus}`,
+    `Topic: ${focus}`,
     "",
-    "Project Scope & Timeline:",
-    notes || "(Please share a brief overview of your CAD/PLM tools, team size, and goals.)",
+    "Project Details & Team Needs:",
+    notes || "(Share your team size, workspace goals, or questions about Orbitwork.)",
   ].join("\n");
 
   const mailtoHref = `mailto:orbitwork.admin@gmail.com?subject=${encodeURIComponent(
@@ -39,10 +39,10 @@ export default function ContactInquiryClient() {
 
   return (
     <div className="hp-info-card" style={{ gap: 14 }}>
-      <h2 style={{ margin: 0, fontSize: 20 }}>Prepare a Project Brief</h2>
+      <h2 style={{ margin: 0, fontSize: 20 }}>Send Us a Message</h2>
       <p>
-        Fill in your technical focus area below to launch a pre-formatted email
-        or copy the brief directly.
+        Prepare your inquiry below to open it in your email client or copy it
+        directly to send to our team.
       </p>
 
       <div style={{ display: "grid", gap: 12 }}>
@@ -65,10 +65,10 @@ export default function ContactInquiryClient() {
         </label>
 
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 600 }}>
-          Company / Engineering Team
+          Organization / Team Name
           <input
             type="text"
-            placeholder="e.g. Apex Powertrain Systems"
+            placeholder="e.g. Northstar Operations"
             value={company}
             onChange={(e) => setCompany(e.target.value)}
             style={{
@@ -101,7 +101,7 @@ export default function ContactInquiryClient() {
         </label>
 
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 600 }}>
-          Service Area
+          Topic
           <select
             value={focus}
             onChange={(e) => setFocus(e.target.value)}
@@ -114,26 +114,26 @@ export default function ContactInquiryClient() {
               fontSize: 13.5,
             }}
           >
-            <option value="Teamcenter & PLM Implementation">
-              Teamcenter &amp; PLM Implementation
+            <option value="Team Onboarding & Workspaces">
+              Team Onboarding &amp; Workspaces
             </option>
-            <option value="CAD, eBOM/mBOM & ECO Governance">
-              CAD, eBOM/mBOM &amp; ECO Governance
+            <option value="Project Views, Tasks & Timesheets">
+              Project Views, Tasks &amp; Timesheets
             </option>
-            <option value="PDM Data Migration & ERP Integration">
-              PDM Data Migration &amp; ERP Integration
+            <option value="Cloud Storage Integrations (Drive / OneDrive / SharePoint)">
+              Cloud Storage Integrations (Drive / OneDrive / SharePoint)
             </option>
-            <option value="Orbitwork Workspaces & Enterprise Onboarding">
-              Orbitwork Workspaces &amp; Enterprise Onboarding
+            <option value="Account Support & Security">
+              Account Support &amp; Security
             </option>
           </select>
         </label>
 
         <label style={{ display: "grid", gap: 5, fontSize: 13, fontWeight: 600 }}>
-          Scope &amp; Goals
+          Message &amp; Requirements
           <textarea
             rows={4}
-            placeholder="Share your CAD tools, PLM environment, target go-live window, or workspace requirements..."
+            placeholder="Tell us about your team size, project workflow requirements, or questions..."
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             style={{
@@ -159,7 +159,7 @@ export default function ContactInquiryClient() {
           className="hp-btn-secondary"
         >
           {copied ? <Check size={15} /> : <Copy size={15} />}
-          <span>{copied ? "Brief Copied!" : "Copy Brief"}</span>
+          <span>{copied ? "Copied!" : "Copy Message"}</span>
         </button>
       </div>
     </div>
