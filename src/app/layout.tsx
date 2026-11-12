@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CANONICAL_ORIGIN } from "@/lib/seo";
 import "./globals.css";
 import "./modules.css";
 import "./modules-base.css";
@@ -34,8 +35,14 @@ import AuthRecoveryListener from "./AuthRecoveryListener";
 import TopProgressBar from "./TopProgressBar";
 
 export const metadata: Metadata = {
-  title: "Orbitwork — Project and Work Management",
-  description: "A thoughtful home for your organization’s projects and work.",
+  metadataBase: new URL(CANONICAL_ORIGIN),
+  title: {
+    default: "Orbitwork | PLM Engineering & Product Lifecycle Management",
+    template: "%s | Orbitwork",
+  },
+  description:
+    "Orbitwork provides PLM engineering, Teamcenter consulting, CAD & BOM integration, and collaborative product lifecycle management software for engineering teams.",
+  applicationName: "Orbitwork",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

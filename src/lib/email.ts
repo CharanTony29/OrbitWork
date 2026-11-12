@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
+import { normalizeAppOrigin } from "./seo.ts";
 import { formatMinutes, formatRemaining } from "./work.ts";
 
 // Cache transporter instance
@@ -19,7 +20,7 @@ export interface EmailOptions {
 }
 
 export function getAppUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  return normalizeAppOrigin(process.env.NEXT_PUBLIC_APP_URL);
 }
 
 export function getSmtpConfig() {

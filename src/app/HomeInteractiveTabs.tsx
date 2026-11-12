@@ -510,28 +510,28 @@ export function HomeTeamPersonas() {
 export function HomeFaqAccordion() {
   const faqs = [
     {
-      q: "What is Orbitwork and how does it compare to other tools?",
-      a: "Orbitwork is a unified project and work management platform designed to replace fragmented tool stacks (like Jira + Toggl + Google Docs + Slack). It offers multi-tenant organizations and workspaces, Kanban boards, interactive task sheets, Gantt timelines, built-in time tracking, weekly timesheet review, ClickUp-style Markdown docs, and direct cloud storage integrations."
+      q: "What PLM engineering and product lifecycle services does Orbitwork provide?",
+      a: "Orbitwork delivers end-to-end PLM engineering, Teamcenter consulting and BMIDE data model configuration, multi-CAD (NX, SolidWorks, Creo, AutoCAD) integration, eBOM-to-mBOM governance, engineering change notice (ECN/ECO) workflows, and legacy PDM-to-PLM migrations alongside a collaborative project management workspace."
     },
     {
-      q: "Is Orbitwork really free to use?",
-      a: "Yes! Orbitwork is designed free-first without artificial user paywalls. You can create organizations, invite members, track tasks, and log timesheets using the free tier or self-hosted Supabase configuration."
+      q: "How does Orbitwork connect PLM engineering with everyday project execution?",
+      a: "Instead of leaving engineering schedules in disconnected spreadsheets, Orbitwork links BOM releases, NPI milestones, Kanban sprint boards, Gantt timelines, engineering timesheets, technical Markdown specifications, and real-time team chat inside one unified platform."
     },
     {
       q: "How does workspace and organization multi-tenancy work?",
-      a: "Orbitwork uses PostgreSQL Row Level Security (RLS) to enforce strict isolation. Organizations have owners and admins, while workspaces can have dedicated members and viewers. Files, tasks, and timesheets belong strictly to the tenant and workspace where they are created."
+      a: "Orbitwork uses PostgreSQL Row Level Security (RLS) to enforce strict isolation across organizations, suppliers, and engineering programs. Organizations have owners and admins, while workspaces can restrict external suppliers or contractors to specific projects as Members or Viewers."
     },
     {
-      q: "Can I connect our company's Google Drive or Microsoft OneDrive?",
-      a: "Yes! Each workspace can connect its own Google Drive or Microsoft OneDrive/SharePoint account using OAuth 2.0 with minimal required scopes. All OAuth refresh tokens are encrypted at rest with AES-256-GCM. Alternatively, you can use the built-in Local Storage."
+      q: "Can engineering teams connect Google Drive, Microsoft OneDrive, or SharePoint?",
+      a: "Yes. Each workspace can attach Google Drive, Microsoft OneDrive, or SharePoint document libraries via encrypted OAuth 2.0 credentials (AES-256-GCM at rest), or store engineering attachments directly in Orbitwork's encrypted database storage."
     },
     {
-      q: "How does the built-in time tracking and timesheet approval work?",
-      a: "Teammates can start and stop active timers directly from any task card or record manual time entries with billable tags. At the end of each week, users submit their timesheet for manager review, where admins can approve or reject with feedback notes, and export to CSV/PDF."
+      q: "How does built-in time tracking and engineering timesheet approval work?",
+      a: "Engineers can run live stopwatch timers on any task or log manual billable hours against specific projects and change requests. Managers review weekly timesheets with approval audit trails and export CSV/PDF utilization reports."
     },
     {
-      q: "How do I invite external contractors or clients?",
-      a: "Organization owners and admins can send email invitations directly from the Members directory or Workspace settings. External users receive a secure one-time invite token to sign in or register, granting access only to assigned workspaces as Members or Viewers."
+      q: "Can we start using Orbitwork's workspace free before engaging PLM consulting?",
+      a: "Yes! Orbitwork includes a free workspace tier with zero per-seat trial walls, and our PLM engineering specialists can help architect your Teamcenter, BOM, change management, and supplier portal workflows via a custom consultation."
     }
   ];
 
@@ -566,13 +566,13 @@ export function HomeMobileNav({ isUserLoggedIn }: { isUserLoggedIn: boolean }) {
 
       {isOpen && (
         <div className="hp-mobile-drawer">
-          <nav className="hp-mobile-drawer-links">
-            <a href="#features" onClick={() => setIsOpen(false)}>Features</a>
-            <a href="#views" onClick={() => setIsOpen(false)}>Task Views</a>
-            <a href="#timesheets" onClick={() => setIsOpen(false)}>Timesheets</a>
-            <a href="#storage" onClick={() => setIsOpen(false)}>Cloud Storage</a>
-            <a href="#comparison" onClick={() => setIsOpen(false)}>Workflows</a>
-            <a href="#faq" onClick={() => setIsOpen(false)}>FAQ</a>
+          <nav className="hp-mobile-drawer-links" aria-label="Mobile Navigation">
+            <Link href="/" onClick={() => setIsOpen(false)}>Home</Link>
+            <Link href="/services" onClick={() => setIsOpen(false)}>Services</Link>
+            <Link href="/services/plm-engineering" onClick={() => setIsOpen(false)}>PLM Engineering</Link>
+            <Link href="/projects-case-studies" onClick={() => setIsOpen(false)}>Projects &amp; Case Studies</Link>
+            <Link href="/about" onClick={() => setIsOpen(false)}>About</Link>
+            <Link href="/contact" onClick={() => setIsOpen(false)}>Contact</Link>
           </nav>
           <div className="hp-mobile-drawer-actions">
             {isUserLoggedIn ? (

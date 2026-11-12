@@ -1279,3 +1279,142 @@
     text-align: center;
   }
 }
+
+/* ==========================================================================
+   SEO Content Sections & Public Site Pages
+   ========================================================================== */
+.hp-nav-link.is-active {
+  color: var(--hp-green);
+}
+
+.hp-subpage-hero {
+  padding: 54px 0 42px;
+  border-bottom: 1px solid var(--hp-line);
+  background: radial-gradient(circle at 80% 0%, rgba(22, 124, 88, 0.08), transparent 55%);
+}
+
+.hp-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--hp-muted);
+  margin-bottom: 16px;
+}
+
+.hp-breadcrumb a {
+  color: var(--hp-green);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.hp-breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.hp-subpage-title {
+  font-family: Manrope, sans-serif;
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 850;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 0 0 14px;
+  color: var(--hp-ink);
+}
+
+.hp-subpage-lead {
+  font-size: 16.5px;
+  line-height: 1.65;
+  color: var(--hp-muted);
+  max-width: 760px;
+  margin: 0 0 24px;
+}
+
+.hp-two-col-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.hp-three-col-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.hp-info-card {
+  background: var(--hp-surface);
+  border: 1px solid var(--hp-line);
+  border-radius: 14px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hp-info-card h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 750;
+  color: var(--hp-ink);
+}
+
+.hp-info-card p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--hp-muted);
+}
+
+.hp-inline-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--hp-green);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+  margin-top: auto;
+}
+
+.hp-inline-link:hover {
+  text-decoration: underline;
+}
+
+.hp-metric-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 28px 0;
+}
+
+.hp-metric-box {
+  background: var(--hp-surface);
+  border: 1px solid var(--hp-line);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+
+.hp-metric-box strong {
+  display: block;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--hp-green);
+  margin-bottom: 4px;
+}
+
+.hp-metric-box span {
+  font-size: 13px;
+  color: var(--hp-muted);
+}
+
+@media (max-width: 900px) {
+  .hp-two-col-grid,
+  .hp-three-col-grid {
+    grid-template-columns: 1fr;
+  }
+  .hp-metric-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

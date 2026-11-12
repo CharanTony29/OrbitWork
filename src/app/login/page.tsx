@@ -1,8 +1,17 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signIn, signInWithMagicLink } from "../actions";
 import { createClient } from "@/lib/supabase/server";
+import { buildPublicMetadata } from "@/lib/seo";
 import LoginForm from "./LoginForm";
+
+export const metadata: Metadata = buildPublicMetadata({
+  title: "Sign In",
+  description:
+    "Sign in to your Orbitwork organization workspace to manage engineering projects, PLM deliverables, documents, timesheets, and team chat.",
+  path: "/login",
+});
 
 export default async function LoginPage({
   searchParams,

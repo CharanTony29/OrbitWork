@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { createHash, randomBytes } from "node:crypto";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { normalizeAppOrigin } from "@/lib/seo";
 import { distinctAssigneeIds, elapsedMinutes, parseEstimateToMinutes, parseInviteEmails } from "@/lib/work";
 import {
   fetchOrGenerateCountryPublicHolidays,
@@ -86,7 +87,7 @@ export async function signUp(formData: FormData) {
 
   if (!parsed.success) redirect(`/signup?error=invalid_input${returnQuery}`);
   const supabase = await createClient();
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  const appUrl = normalizeAppOrigin(process.env.NEXT_PUBLIC_APP_URL);
   const { data, error } = await supabase.auth.signUp({
     ...parsed.data,
     options: { emailRedirectTo: `${appUrl}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}` },
@@ -114,7 +115,7 @@ export async function signInWithMagicLink(formData: FormData) {
 
   if (!email.success) redirect(`${fromSource}?error=invalid_input${returnQuery}`);
   const supabase = await createClient();
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  const appUrl = normalizeAppOrigin(process.env.NEXT_PUBLIC_APP_URL);
   const emailRedirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}`;
 
   const { error } = await supabase.auth.signInWithOtp({
@@ -550,7 +551,7 @@ export async function inviteOrganizationMember(formData: FormData) {
     redirect(forbiddenRedirect);
   }
 
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  const appUrl = normalizeAppOrigin(process.env.NEXT_PUBLIC_APP_URL);
 
   // Fetch organization and inviter profile once for all invitations
   const [{ data: org }, { data: inviterProfile }] = await Promise.all([
@@ -2316,13 +2317,13 @@ export async function requestPasswordReset(formData: FormData) {
   const email = z.string().trim().email().safeParse(formData.get("email"));
   if (!email.success) redirect("/reset-password?error=invalid_input");
 
-  let appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  let appUrl = normalizeAppOrigin(process.env.NEXT_PUBLIC_APP_URL);
   try {
     const headerList = await headers();
     const host = headerList.get("x-forwarded-host") || headerList.get("host");
     if (host) {
       const proto = headerList.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
-      appUrl = `${proto}://${host}`;
+      appUrl = normalizeAppOrigin(`${proto}://${host}`);
     }
   } catch {}
 

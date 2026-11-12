@@ -1,31 +1,56 @@
 import { createServerClient } from "@supabase/ssr";
 import type { SetAllCookies } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { CANONICAL_ORIGIN, normalizeAppOrigin } from "@/lib/seo";
 
 export async function updateSession(request: NextRequest) {
-  // Normalize www. vs non-www. to match NEXT_PUBLIC_APP_URL so auth/PKCE cookies share a single origin
-  const envAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  // Enforce one canonical origin (https://www.orbitwork.org) across all public routes
   if (
-    envAppUrl &&
-    request.method === "GET" &&
+    (request.method === "GET" || request.method === "HEAD") &&
     !request.nextUrl.pathname.startsWith("/api/") &&
     !request.nextUrl.pathname.startsWith("/auth/callback")
   ) {
     try {
-      const canonical = new URL(envAppUrl);
-      const reqHost = (request.headers.get("x-forwarded-host") || request.nextUrl.hostname)
+      const reqHost = (
+        request.headers.get("x-forwarded-host") ||
+        request.headers.get("host") ||
+        request.nextUrl.hostname
+      )
         .split(",")[0]
         .trim()
         .split(":")[0]
         .toLowerCase();
-      const canonicalHost = canonical.hostname.toLowerCase();
-      if (
-        reqHost &&
-        reqHost !== canonicalHost &&
-        reqHost.replace(/^www\./, "") === canonicalHost.replace(/^www\./, "")
-      ) {
-        const target = new URL(`${request.nextUrl.pathname}${request.nextUrl.search}`, canonical.origin);
+      const reqProto = (
+        request.headers.get("x-forwarded-proto") ||
+        request.nextUrl.protocol.replace(":", "")
+      )
+        .split(",")[0]
+        .trim()
+        .toLowerCase();
+
+      if (reqHost === "orbitwork.org" || (reqHost === "www.orbitwork.org" && reqProto === "http")) {
+        const target = new URL(
+          `${request.nextUrl.pathname}${request.nextUrl.search}`,
+          CANONICAL_ORIGIN
+        );
         return NextResponse.redirect(target, 308);
+      }
+
+      const envAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+      if (envAppUrl) {
+        const canonical = new URL(normalizeAppOrigin(envAppUrl));
+        const canonicalHost = canonical.hostname.toLowerCase();
+        if (
+          reqHost &&
+          reqHost !== canonicalHost &&
+          reqHost.replace(/^www\./, "") === canonicalHost.replace(/^www\./, "")
+        ) {
+          const target = new URL(
+            `${request.nextUrl.pathname}${request.nextUrl.search}`,
+            canonical.origin
+          );
+          return NextResponse.redirect(target, 308);
+        }
       }
     } catch {}
   }

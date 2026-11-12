@@ -1,8 +1,17 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signUp, signInWithMagicLink } from "../actions";
 import { createClient } from "@/lib/supabase/server";
+import { buildPublicMetadata } from "@/lib/seo";
 import SignupForm from "./SignupForm";
+
+export const metadata: Metadata = buildPublicMetadata({
+  title: "Create Free Account",
+  description:
+    "Create your free Orbitwork workspace for PLM engineering coordination, Kanban & Gantt workflows, technical docs, time tracking, and team chat.",
+  path: "/signup",
+});
 
 export default async function SignupPage({
   searchParams,

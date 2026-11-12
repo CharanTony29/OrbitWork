@@ -1,4 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { buildPublicMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildPublicMetadata({
+  title: "Privacy Policy",
+  description:
+    "Orbitwork Privacy Policy detailing how organization workspaces, Google Drive, Microsoft OneDrive, SharePoint integrations, and user account data are protected.",
+  path: "/privacy",
+});
 
 export default function PrivacyPolicyPage() {
   return (
