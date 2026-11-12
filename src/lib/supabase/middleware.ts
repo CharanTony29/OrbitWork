@@ -40,11 +40,13 @@ export async function updateSession(request: NextRequest) {
       if (envAppUrl) {
         const canonical = new URL(normalizeAppOrigin(envAppUrl));
         const canonicalHost = canonical.hostname.toLowerCase();
-        if (
+        const needsHostNormalization =
           reqHost &&
           reqHost !== canonicalHost &&
-          reqHost.replace(/^www\./, "") === canonicalHost.replace(/^www\./, "")
-        ) {
+          reqHost.replace(/^www\./, "") === canonicalHost.replace(/^www\./, "");
+        const needsHttpsUpgrade =
+          reqHost === canonicalHost && canonical.protocol === "https:" && reqProto === "http";
+        if (needsHostNormalization || needsHttpsUpgrade) {
           const target = new URL(
             `${request.nextUrl.pathname}${request.nextUrl.search}`,
             canonical.origin

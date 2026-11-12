@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CANONICAL_HOME_URL,
+  CANONICAL_LOGO_URL,
   CANONICAL_ORIGIN,
   buildCanonicalUrl,
   buildPublicMetadata,
@@ -45,4 +46,12 @@ test("buildPublicMetadata populates title, description, canonical, and OpenGraph
   );
   assert.equal(meta.alternates?.canonical, "https://www.orbitwork.org/");
   assert.equal(meta.openGraph?.url, "https://www.orbitwork.org/");
+  assert.deepEqual(meta.openGraph?.images, [
+    {
+      url: CANONICAL_LOGO_URL,
+      width: 512,
+      height: 512,
+      alt: "Orbitwork logo",
+    },
+  ]);
 });

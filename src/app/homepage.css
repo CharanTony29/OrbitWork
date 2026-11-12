@@ -84,16 +84,17 @@
 }
 
 .hp-page .brand-mark {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 8px;
-  background: var(--hp-green);
-  color: #fff;
+  background: #ffffff;
+  border: 1px solid var(--hp-line);
+  padding: 2px;
   display: inline-grid;
   place-items: center;
-  font-size: 15px;
-  font-weight: 850;
   margin-right: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .hp-page .brand > span:last-child {

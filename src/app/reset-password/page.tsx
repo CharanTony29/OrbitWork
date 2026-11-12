@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requestPasswordReset } from "../actions";
+import { BrandMark } from "../BrandMark";
 
 export default async function RequestResetPasswordPage({
   searchParams,
@@ -39,7 +40,7 @@ export default async function RequestResetPasswordPage({
     <main className="auth-shell">
       <section className="auth-card">
         <Link className="brand" href="/">
-          <span className="brand-mark">O</span>Orbit<span>work</span>
+          <BrandMark />Orbit<span>work</span>
         </Link>
         <p className="eyebrow">RECOVER ACCESS</p>
         <h1>Reset your password</h1>

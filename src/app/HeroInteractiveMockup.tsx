@@ -67,7 +67,7 @@ export function HeroInteractiveMockup() {
         {/* Mockup Sidebar */}
         <aside className="hp-mockup-sidebar">
           <div className="hp-mini-brand">
-            <span className="hp-mini-brand-mark">O</span>
+            <span className="hp-mini-brand-mark" aria-hidden="true">A</span>
             <div>
               <div style={{ fontSize: 12, fontWeight: 800 }}>Acme Systems</div>
               <div style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 500 }}>Engineering Workspace</div>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 export const CANONICAL_ORIGIN = "https://www.orbitwork.org";
 export const CANONICAL_HOME_URL = "https://www.orbitwork.org/";
+export const CANONICAL_LOGO_URL = `${CANONICAL_ORIGIN}/icon-512.png`;
 export const SITE_NAME = "Orbitwork";
 
 /**
@@ -73,11 +74,20 @@ export function buildPublicMetadata({
       siteName: SITE_NAME,
       type: "website",
       locale: "en_US",
+      images: [
+        {
+          url: CANONICAL_LOGO_URL,
+          width: 512,
+          height: 512,
+          alt: `${SITE_NAME} logo`,
+        },
+      ],
     },
     twitter: {
-      card: "summary_large_image",
+      card: "summary",
       title: fullTitle,
       description,
+      images: [CANONICAL_LOGO_URL],
     },
     ...(noIndex
       ? {

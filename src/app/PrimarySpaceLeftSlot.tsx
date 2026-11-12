@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Bell, Layers3, LayoutDashboard, MessageSquare } from "lucide-react";
+import { BrandMark } from "./BrandMark";
 import ChatUnreadBadge from "./ChatUnreadBadge";
 
 export type PrimarySpaceNavKey = "overview" | "dashboard" | "inbox" | "chat";
@@ -18,7 +19,7 @@ export default function PrimarySpaceLeftSlot({
   return (
     <div className="ov-topbar-left-nav">
       <Link className="brand ov-brand" href="/dashboard" prefetch={false}>
-        <span className="brand-mark">O</span>
+        <BrandMark size={27} />
         <span>
           Orbit<span className="ov-brand-accent">Work</span>
         </span>

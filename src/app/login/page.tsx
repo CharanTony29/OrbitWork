@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { signIn, signInWithMagicLink } from "../actions";
 import { createClient } from "@/lib/supabase/server";
 import { buildPublicMetadata } from "@/lib/seo";
+import { BrandMark } from "../BrandMark";
 import LoginForm from "./LoginForm";
 
 export const metadata: Metadata = buildPublicMetadata({
@@ -57,7 +58,7 @@ export default async function LoginPage({
     <main className="auth-shell">
       <section className="auth-card">
         <Link className="brand" href="/">
-          <span className="brand-mark">O</span>Orbit<span>work</span>
+          <BrandMark />Orbit<span>work</span>
         </Link>
         <p className="eyebrow" style={{ marginTop: 18, marginBottom: 6 }}>WELCOME BACK</p>
         <h1 style={{ fontSize: 26, marginBottom: 4 }}>Sign in to Orbitwork</h1>

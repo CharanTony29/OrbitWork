@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "../../BrandMark";
 import UpdatePasswordForm from "./UpdatePasswordForm";
 
 export default async function ResetPasswordPage({
@@ -18,7 +19,7 @@ export default async function ResetPasswordPage({
     <main className="auth-shell">
       <section className="auth-card">
         <Link className="brand" href="/">
-          <span className="brand-mark">O</span>Orbit<span>work</span>
+          <BrandMark />Orbit<span>work</span>
         </Link>
         <p className="eyebrow">SECURITY</p>
         <h1>Set a new password</h1>

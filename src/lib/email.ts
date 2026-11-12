@@ -17,6 +17,7 @@ export interface EmailOptions {
   subject: string;
   html: string;
   text?: string;
+  replyTo?: string;
 }
 
 export function getAppUrl(): string {
@@ -61,7 +62,7 @@ export function getTransporter(): Transporter | null {
 /**
  * Send an email using SMTP if configured, or log to console in development.
  */
-export async function sendEmail({ to, subject, html, text }: EmailOptions): Promise<{ ok: boolean; messageId?: string; simulated?: boolean; error?: string }> {
+export async function sendEmail({ to, subject, html, text, replyTo }: EmailOptions): Promise<{ ok: boolean; messageId?: string; simulated?: boolean; error?: string }> {
   const config = getSmtpConfig();
   const transporter = getTransporter();
 
@@ -83,6 +84,7 @@ export async function sendEmail({ to, subject, html, text }: EmailOptions): Prom
     const info = await transporter.sendMail({
       from: config.from,
       to,
+      ...(replyTo ? { replyTo } : {}),
       subject,
       text: plainText,
       html,

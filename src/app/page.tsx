@@ -24,9 +24,15 @@ import {
   HomeTeamPersonas,
   HomeFaqAccordion,
 } from "./HomeInteractiveTabs";
+import { BrandMark } from "./BrandMark";
 import { HeroInteractiveMockup } from "./HeroInteractiveMockup";
 import { PublicSiteHeader, PublicSiteFooter } from "./PublicSiteChrome";
-import { CANONICAL_HOME_URL, CANONICAL_ORIGIN, buildPublicMetadata } from "@/lib/seo";
+import {
+  CANONICAL_HOME_URL,
+  CANONICAL_LOGO_URL,
+  CANONICAL_ORIGIN,
+  buildPublicMetadata,
+} from "@/lib/seo";
 
 export const metadata: Metadata = buildPublicMetadata({
   title: "Orbitwork | Project Management & Team Collaboration Platform",
@@ -54,6 +60,13 @@ const STRUCTURED_DATA = {
       "@id": `${CANONICAL_ORIGIN}/#organization`,
       name: "Orbitwork",
       url: CANONICAL_HOME_URL,
+      logo: {
+        "@type": "ImageObject",
+        url: CANONICAL_LOGO_URL,
+        width: 512,
+        height: 512,
+      },
+      image: CANONICAL_LOGO_URL,
       email: "orbitwork.admin@gmail.com",
       description:
         "Modern multi-tenant project management, time tracking, documentation, and team collaboration platform.",
@@ -71,6 +84,7 @@ const STRUCTURED_DATA = {
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
       url: CANONICAL_HOME_URL,
+      image: CANONICAL_LOGO_URL,
       description:
         "All-in-one project management OS featuring Kanban boards, task sheets, Gantt timelines, workload calendars, timesheets, collaborative docs, team chat, and cloud drive sync.",
       offers: {
@@ -162,7 +176,7 @@ export default async function Home({
               fontSize: 18,
             }}
           >
-            <span className="brand-mark">O</span>Orbit<span>work</span>
+            <BrandMark />Orbit<span>work</span>
           </div>
           <h1 style={{ marginTop: 16 }}>Configuration Required</h1>
           <p className="muted">
@@ -624,17 +638,15 @@ export default async function Home({
                     <th style={{ width: "25%" }}>Capability</th>
                     <th style={{ width: "38%" }} className="hp-compare-highlight-col">
                       <div className="hp-compare-badge-orbit">
-                        <span
-                          className="brand-mark"
+                        <BrandMark
+                          size={22}
                           style={{
                             width: 22,
                             height: 22,
-                            fontSize: 13,
                             marginRight: 4,
+                            borderRadius: 6,
                           }}
-                        >
-                          O
-                        </span>
+                        />
                         In Orbitwork
                       </div>
                     </th>

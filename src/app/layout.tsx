@@ -43,6 +43,16 @@ export const metadata: Metadata = {
   description:
     "Orbitwork is a modern project management and work execution platform featuring Kanban boards, Gantt timelines, time tracking, team chat, docs, and cloud storage.",
   applicationName: "Orbitwork",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon-48.png", type: "image/png", sizes: "48x48" },
+      { url: "/icon-96.png", type: "image/png", sizes: "96x96" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+    ],
+    shortcut: ["/favicon.ico"],
+    apple: [{ url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Bell, Building2, CalendarDays, ChevronDown, Clock3, FileText, FolderKanban, House, Layers3, LayoutDashboard, UsersRound, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { BrandMark } from "./BrandMark";
 import ProjectSublinks from "./ProjectSublinks";
 
 export default async function HierarchyNavigation({ organizationId, organizationName, currentWorkspaceId, currentProjectId }: { organizationId: string; organizationName: string; currentWorkspaceId: string; currentProjectId?: string }) {
@@ -11,7 +12,7 @@ export default async function HierarchyNavigation({ organizationId, organization
 
   return <>
     <nav className="work-icon-rail" aria-label="Main navigation">
-      <Link className="work-rail-logo" href="/dashboard" prefetch={false} aria-label="Orbitwork home"><span>O</span></Link>
+      <Link className="work-rail-logo" href="/dashboard" prefetch={false} aria-label="Orbitwork home"><BrandMark className="brand-mark" size={25} /></Link>
       <Link href="/dashboard" prefetch={false} title="Overview"><House size={18}/><span>Home</span></Link>
       <Link href="/my-dashboard" prefetch={false} title="Dashboard"><LayoutDashboard size={17}/><span>Dashboard</span></Link>
       <Link href="/inbox" prefetch={false} title="Inbox"><Bell size={17}/><span>Inbox</span></Link>

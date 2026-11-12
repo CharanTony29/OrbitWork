@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { BrandMark } from "./BrandMark";
 import { HomeMobileNav } from "./HomeInteractiveTabs";
 
 export type PublicNavKey =
@@ -23,7 +24,7 @@ export function PublicSiteHeader({
     <header className="hp-nav">
       <div className="hp-container hp-nav-inner">
         <Link className="brand" href="/" aria-label="Orbitwork home">
-          <span className="brand-mark">O</span>Orbit<span>work</span>
+          <BrandMark />Orbit<span>work</span>
         </Link>
 
         <nav className="hp-nav-links" aria-label="Main Navigation">
@@ -107,7 +108,7 @@ export function PublicSiteFooter() {
         <div className="hp-footer-top">
           <div className="hp-footer-brand">
             <Link className="brand" href="/" aria-label="Orbitwork home">
-              <span className="brand-mark">O</span>Orbit<span>work</span>
+              <BrandMark />Orbit<span>work</span>
             </Link>
             <p>
               The modern, multi-tenant project management and work collaboration
