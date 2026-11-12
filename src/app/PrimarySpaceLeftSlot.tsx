@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Bell, Layers3, LayoutDashboard, MessageSquare } from "lucide-react";
+import ChatUnreadBadge from "./ChatUnreadBadge";
 
 export type PrimarySpaceNavKey = "overview" | "dashboard" | "inbox" | "chat";
 
@@ -61,6 +62,7 @@ export default function PrimarySpaceLeftSlot({
         >
           <MessageSquare size={14} />
           <span>Chat</span>
+          <ChatUnreadBadge />
         </Link>
       </nav>
     </div>

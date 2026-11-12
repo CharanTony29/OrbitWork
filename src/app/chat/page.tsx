@@ -1,87 +1,168 @@
 import { redirect } from "next/navigation";
-import { createClient, getAuthUser } from "@/lib/supabase/server";
 import AppTopBar from "@/app/AppTopBar";
 import PrimarySpaceLeftSlot from "@/app/PrimarySpaceLeftSlot";
-import { getAssignedTaskCount } from "@/lib/workspace-space";
-import ChatWorkspace from "./ChatWorkspace";
+import type { ChatConversationType } from "@/lib/chat";
+import { fetchProfilesMap } from "@/lib/chat-server";
+import { createClient } from "@/lib/supabase/server";
+import { getUserSpaceData } from "@/lib/workspace-space";
+import ChatWorkspace, {
+  type ChatWorkspaceProjectOption,
+  type ChatWorkspaceWorkItemOption,
+} from "./ChatWorkspace";
 
-export default async function ChatPage() {
+export const dynamic = "force-dynamic";
+
+type PageProps = {
+  searchParams: Promise<{
+    type?: string;
+    target?: string;
+    channel?: string;
+    recipientId?: string;
+    threadId?: string;
+  }>;
+};
+
+function resolveInitialSelection(sp: {
+  type?: string;
+  target?: string;
+  channel?: string;
+  recipientId?: string;
+  threadId?: string;
+}): { type: ChatConversationType; target: string } {
+  const rawType = sp.type?.trim();
+  const rawTarget = sp.target?.trim();
+  if (
+    (rawType === "channel" || rawType === "direct" || rawType === "group") &&
+    rawTarget
+  ) {
+    return { type: rawType, target: rawTarget };
+  }
+  if (sp.threadId?.trim()) {
+    return { type: "group", target: sp.threadId.trim() };
+  }
+  if (sp.recipientId?.trim()) {
+    return { type: "direct", target: sp.recipientId.trim() };
+  }
+  if (sp.channel?.trim()) {
+    return { type: "channel", target: sp.channel.trim() };
+  }
+  return { type: "channel", target: "general" };
+}
+
+export default async function ChatPage({ searchParams }: PageProps) {
+  const [space, resolvedParams] = await Promise.all([
+    getUserSpaceData(),
+    searchParams,
+  ]);
+  if (!space) redirect("/login");
+
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await getAuthUser();
+  const orgIds = space.organizations.map((o) => o.id);
+  const primaryOrgId = orgIds[0] ?? null;
+  const projectIds = space.projects.map((p) => p.id);
 
-  if (!user) redirect("/login");
+  // Collect unique colleague IDs across organizations
+  const colleagueIdSet = new Set<string>([space.user.id]);
+  for (const m of space.organizationMembers) {
+    colleagueIdSet.add(m.user_id);
+  }
 
-  // Fetch current user's profile, assigned count, and organization memberships
-  const [{ data: ownProfile }, assignedTaskCount, { data: orgMemberships }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("display_name, email, avatar_url")
-      .eq("id", user.id)
-      .maybeSingle(),
-    getAssignedTaskCount(user.id),
-    supabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", user.id),
+  const [profilesMap, tasksRes, docsRes] = await Promise.all([
+    fetchProfilesMap(supabase, [...colleagueIdSet]),
+    projectIds.length > 0
+      ? supabase
+          .from("tasks")
+          .select("id, project_id, title, generated_key")
+          .in("project_id", projectIds.slice(0, 40))
+          .order("updated_at", { ascending: false })
+          .limit(30)
+      : Promise.resolve({ data: [] as Array<{ id: string; project_id: string; title: string; generated_key?: string | null }> }),
+    projectIds.length > 0
+      ? supabase
+          .from("project_documents")
+          .select("id, project_id, title")
+          .in("project_id", projectIds.slice(0, 40))
+          .order("updated_at", { ascending: false })
+          .limit(20)
+      : Promise.resolve({ data: [] as Array<{ id: string; project_id: string; title: string }> }),
   ]);
 
-  const currentUserName = ownProfile?.display_name?.trim() || user.email?.split("@")[0] || "User";
+  const ownProfile = profilesMap.get(space.user.id);
+  const workspaceNameById = new Map(space.workspaces.map((w) => [w.id, w.name]));
+  const projectNameById = new Map(space.projects.map((p) => [p.id, p.name]));
 
-  const orgIds = (orgMemberships ?? []).map((m) => m.organization_id);
+  const initialMembers = [...colleagueIdSet]
+    .filter((id) => id !== space.user.id)
+    .map((id) => {
+      const p = profilesMap.get(id);
+      return {
+        id,
+        name: p?.name ?? "Teammate",
+        email: p?.email ?? "",
+        avatarUrl: p?.avatarUrl ?? null,
+        presence: p?.presence ?? ("offline" as const),
+        lastSeenAt: p?.lastSeenAt ?? null,
+      };
+    });
 
-  // Fetch all members in those organizations
-  let memberUserIds: string[] = [];
-  if (orgIds.length > 0) {
-    const { data: allOrgMembers } = await supabase
-      .from("organization_members")
-      .select("user_id")
-      .in("organization_id", orgIds)
-      .eq("status", "active");
-    memberUserIds = [...new Set((allOrgMembers ?? []).map((m) => m.user_id))];
-  }
+  const accessibleProjects: ChatWorkspaceProjectOption[] = space.projects.map(
+    (p) => ({
+      id: p.id,
+      name: p.name,
+      workspaceName: workspaceNameById.get(p.workspace_id) ?? "Workspace",
+    })
+  );
 
-  // Also include the current user
-  if (!memberUserIds.includes(user.id)) {
-    memberUserIds.push(user.id);
-  }
+  const linkableItems: ChatWorkspaceWorkItemOption[] = [
+    ...(tasksRes.data ?? []).map((t) => ({
+      kind: "task" as const,
+      id: t.id,
+      title: t.title,
+      href: `/projects/${t.project_id}/tasks/${t.id}`,
+      subtitle: projectNameById.get(t.project_id) ?? "Task",
+    })),
+    ...(docsRes.data ?? []).map((d) => ({
+      kind: "document" as const,
+      id: d.id,
+      title: d.title,
+      href: `/projects/${d.project_id}/documents/${d.id}`,
+      subtitle: projectNameById.get(d.project_id) ?? "Document",
+    })),
+    ...accessibleProjects.map((p) => ({
+      kind: "project" as const,
+      id: p.id,
+      title: p.name,
+      href: `/projects/${p.id}`,
+      subtitle: p.workspaceName,
+    })),
+  ];
 
-  // Fetch profiles for all members
-  const { data: memberProfiles } = memberUserIds.length
-    ? await supabase
-        .from("profiles")
-        .select("id, display_name, email, avatar_url")
-        .in("id", memberUserIds)
-    : { data: [] };
-
-  const teamMembers = (memberProfiles ?? []).map((p) => ({
-    id: p.id,
-    name: p.display_name?.trim() || p.email || "Team member",
-    email: p.email || "",
-    avatarUrl: p.avatar_url || null,
-  }));
+  const initialSelection = resolveInitialSelection(resolvedParams);
 
   return (
-    <main
-      className="app-shell ov-shell ov-fullpage-shell"
-      style={{ height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
-    >
+    <div className="ov-shell chat-page-shell">
       <AppTopBar
-        email={user.email ?? ""}
+        email={space.user.email ?? ""}
+        organizationId={primaryOrgId ?? undefined}
         leftSlot={
           <PrimarySpaceLeftSlot
             activeNav="chat"
-            assignedTaskCount={assignedTaskCount}
+            assignedTaskCount={space.assignedTaskCount}
           />
         }
       />
 
       <ChatWorkspace
-        currentUserId={user.id}
-        currentUserName={currentUserName}
-        teamMembers={teamMembers}
+        currentUserId={space.user.id}
+        currentUserName={ownProfile?.name ?? space.displayName}
+        currentUserEmail={space.user.email ?? ""}
+        currentUserAvatarUrl={ownProfile?.avatarUrl ?? null}
+        primaryOrgId={primaryOrgId}
+        initialMembers={initialMembers}
+        accessibleProjects={accessibleProjects}
+        linkableItems={linkableItems}
+        initialSelection={initialSelection}
       />
-    </main>
+    </div>
   );
 }

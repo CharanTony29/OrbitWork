@@ -1,20 +1,25 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient, getAuthUser } from "@/lib/supabase/server";
 
-export async function GET() {
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
 
   if (!user) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
+  const requestedId = req.nextUrl.searchParams.get("userId");
+  const targetUserId = requestedId && UUID_REGEX.test(requestedId) ? requestedId : user.id;
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("avatar_url")
-    .eq("id", user.id)
+    .eq("id", targetUserId)
     .maybeSingle();
 
   const raw = profile?.avatar_url?.trim();
