@@ -12,6 +12,7 @@ import {
   updateProjectStatus,
   toggleProjectActiveStatus,
 } from "@/app/actions";
+import MultiValueFieldInput from "@/app/MultiValueFieldInput";
 
 type Status = { id: string; name: string; color: string; category: string };
 type Member = { id: string; label: string };
@@ -327,12 +328,14 @@ function MembersPanel({
 
 /* ── Custom Fields ─────────────────────────────────── */
 function FieldsPanel({ projectId, customFields }: { projectId: string; customFields: CustomField[] }) {
+  const [fieldType, setFieldType] = useState("text");
+
   return (
     <div className="admin-panel-section">
       <form action={createCustomField} className="admin-field-form">
         <input type="hidden" name="projectId" value={projectId} />
         <input name="name" placeholder="Field name" maxLength={80} required />
-        <select name="fieldType" defaultValue="text">
+        <select name="fieldType" value={fieldType} onChange={(e) => setFieldType(e.target.value)}>
           <option value="text">Short text</option>
           <option value="long_text">Long text</option>
           <option value="number">Number</option>
@@ -348,7 +351,16 @@ function FieldsPanel({ projectId, customFields }: { projectId: string; customFie
           <option value="progress">Progress</option>
           <option value="duration">Duration</option>
         </select>
-        <input name="options" placeholder="Options for dropdowns, comma separated" />
+        {["dropdown", "multi_select"].includes(fieldType) && (
+          <div className="admin-field-options">
+            <MultiValueFieldInput
+              name="options"
+              placeholder="Option name"
+              addLabel="Add option"
+              required
+            />
+          </div>
+        )}
         <label className="required-field-option">
           <input type="checkbox" name="required" /> Required
         </label>

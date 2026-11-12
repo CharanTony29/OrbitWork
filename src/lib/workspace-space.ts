@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getAuthUser } from "@/lib/supabase/server";
 
 export type SpaceOrganization = {
   id: string;
@@ -55,6 +55,27 @@ function formatActivityEventSummary(eventType: string, details: unknown): string
 }
 
 /**
+ * Returns the count of tasks assigned to the given user across all projects.
+ */
+export async function getAssignedTaskCount(userId?: string): Promise<number> {
+  const supabase = await createClient();
+  let targetUserId = userId;
+  if (!targetUserId) {
+    const {
+      data: { user },
+    } = await getAuthUser();
+    targetUserId = user?.id;
+  }
+  if (!targetUserId) return 0;
+
+  const { count } = await supabase
+    .from("task_assignees")
+    .select("task_id", { count: "exact", head: true })
+    .eq("user_id", targetUserId);
+  return count ?? 0;
+}
+
+/**
  * Loads the authenticated user's space summary (profile name, organizations,
  * workspaces, projects, active members, owners, recent activity, and assigned
  * task count) shared by `/dashboard` and `/my-dashboard`.
@@ -63,7 +84,7 @@ export async function getUserSpaceData(): Promise<UserSpaceData | null> {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null;
 
   try {

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { createCustomFieldFromComposer, createTask, quickCreateProjectDocument } from "@/app/actions";
 import DateInput from "@/app/DateInput";
+import MultiValueFieldInput from "@/app/MultiValueFieldInput";
 
 type StatusItem = { id: string; name: string; color: string; category?: string };
 type MemberItem = { id: string; label: string };
@@ -803,13 +804,14 @@ export default function UniversalCreateModal({
                       <option value="checkbox">Checkbox</option>
                     </select>
                     {["dropdown", "multi_select"].includes(newFieldType) && (
-                      <input
-                        value={newFieldOptions}
-                        onChange={(event) => setNewFieldOptions(event.target.value)}
-                        placeholder="Options, comma separated"
-                        maxLength={1000}
-                        aria-label="Field options"
-                      />
+                      <div className="composer-field-options">
+                        <MultiValueFieldInput
+                          value={newFieldOptions}
+                          onChange={setNewFieldOptions}
+                          placeholder="Option name"
+                          addLabel="Add option"
+                        />
+                      </div>
                     )}
                     <label className="composer-required-toggle">
                       <input type="checkbox" checked={newFieldRequired} onChange={(event) => setNewFieldRequired(event.target.checked)} />

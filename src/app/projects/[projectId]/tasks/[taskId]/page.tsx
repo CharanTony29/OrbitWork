@@ -2,8 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import AppTopBar from "@/app/AppTopBar";
 import BackButton from "@/app/BackButton";
 import Link from "next/link";
-import { ArrowLeft, CheckSquare, GitBranch, MessageSquareText, Save, Eye, ExternalLink } from "lucide-react";
-import { addManualTimeEntry, createChecklistItem, createTaskChecklist, createTaskDependency, removeTaskDependency, startTaskTimer, stopTaskTimer, toggleChecklistItem, updateTask } from "@/app/actions";
+import { ArrowLeft, GitBranch, MessageSquareText, Save, Eye, ExternalLink } from "lucide-react";
+import { addManualTimeEntry, createTaskDependency, removeTaskDependency, startTaskTimer, stopTaskTimer, updateTask } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
 import { saveTaskCustomField } from "@/app/actions";
 import { formatEstimate, formatEstimateDetailed, formatMinutes, formatRemaining } from "@/lib/work";
@@ -14,7 +14,10 @@ import TaskHeaderTimer from "./TaskHeaderTimer";
 import TaskDescriptionEditor from "./TaskDescriptionEditor";
 import TaskPropertiesPanel from "./TaskPropertiesPanel";
 import SubtaskCreateForm from "./SubtaskCreateForm";
+import SubtaskStatusPicker from "./SubtaskStatusPicker";
+import TaskChecklistsSection from "./TaskChecklistsSection";
 import AssigneePicker from "../../AssigneePicker";
+import MultiValueFieldInput from "@/app/MultiValueFieldInput";
 import TaskCommentForm from "./TaskCommentForm";
 import FavoriteButton from "@/app/FavoriteButton";
 import DateInput from "@/app/DateInput";
@@ -115,8 +118,6 @@ export default async function TaskDetailPage({ params, searchParams }: {
   if (fcDoc?.body_markdown) {
     try { fcData = JSON.parse(fcDoc.body_markdown).content ?? ""; } catch { fcData = fcDoc.body_markdown; }
   }
-  const itemsByChecklist = new Map<string, NonNullable<typeof checklistItems>>();
-  for (const item of checklistItems ?? []) itemsByChecklist.set(item.checklist_id, [...(itemsByChecklist.get(item.checklist_id) ?? []), item]);
   const workspace = Array.isArray(project.workspaces) ? project.workspaces[0] : project.workspaces;
   const orgId = workspace?.organization_id;
   const { data: orgMembers } = orgId ? await supabase.from("organization_members").select("user_id").eq("organization_id", orgId).eq("status", "active") : { data: [] };
@@ -284,74 +285,112 @@ export default async function TaskDetailPage({ params, searchParams }: {
               </form>
 
               {/* Subtasks (Child Tasks) */}
-              <section className="task-subtasks">
-                <div className="relationship-heading">
-                  <div>
-                    <p className="eyebrow">CHILD TASKS</p>
-                    <h2>Subtasks <span className="count-pill">{subtasks?.length ?? 0}</span></h2>
-                  </div>
-                </div>
-                <div className="subtask-list">
-                  {subtasks?.map((subtask) => {
-                    const statusObj = statuses?.find((status) => status.id === subtask.status_id);
-                    const subtaskAssignees = subtaskAssigneesMap.get(subtask.id) ?? [];
-                    const assigneeNames = subtaskAssignees.map((uid) => profileLabel(uid));
-                    return (
-                      <div className="subtask-row-wrap" key={subtask.id}>
-                        <Link className="subtask-row" href={`/projects/${projectId}/tasks/${subtask.id}`}>
-                          <strong className="subtask-title">{subtask.title}</strong>
-                          {!canEdit && assigneeNames.length > 0 && (
-                            <span className="subtask-assignees-pill" title={assigneeNames.join(", ")}>
-                              {assigneeNames.length === 1
-                                ? assigneeNames[0]
-                                : `${assigneeNames[0]} +${assigneeNames.length - 1}`}
-                            </span>
-                          )}
-                          <span
-                            className="subtask-status-pill"
-                            style={{
-                              borderColor: statusObj?.color ?? "#cbd5cd",
-                              color: statusObj?.color ?? "#526057",
-                            }}
-                          >
-                            {statusObj?.name ?? "New"}
-                          </span>
-                        </Link>
-                        {canEdit && (
-                          <div className="subtask-row-assignee">
-                            <AssigneePicker
-                              projectId={projectId}
-                              taskId={subtask.id}
-                              members={members}
-                              initialAssignees={subtaskAssignees}
-                            />
-                          </div>
-                        )}
+              {(() => {
+                const totalSubtasks = subtasks?.length ?? 0;
+                const completedSubtasks = (subtasks ?? []).filter((subtask) => {
+                  const statusObj = statuses?.find((status) => status.id === subtask.status_id);
+                  if (!statusObj) return false;
+                  const category = (statusObj.category ?? "").toLowerCase();
+                  const name = statusObj.name.toLowerCase();
+                  return (
+                    category === "completed" ||
+                    category === "done" ||
+                    name.includes("complete") ||
+                    name.includes("done") ||
+                    name.includes("closed")
+                  );
+                }).length;
+                const subtaskPercent =
+                  totalSubtasks > 0 ? Math.round((completedSubtasks / totalSubtasks) * 100) : 0;
+
+                return (
+                  <section className="task-subtasks">
+                    <div className="relationship-heading">
+                      <div>
+                        <p className="eyebrow">CHILD TASKS</p>
+                        <h2>Subtasks <span className="count-pill">{totalSubtasks}</span></h2>
                       </div>
-                    );
-                  })}
-                  {(!subtasks || subtasks.length === 0) && (
-                    <div className="relationship-empty-state">
-                      <p>No subtasks yet</p>
-                      <small>Break down this task into smaller manageable steps.</small>
                     </div>
-                  )}
-                </div>
-                {canEdit && (
-                  <SubtaskCreateForm
-                    projectId={projectId}
-                    parentTaskId={taskId}
-                    members={members}
-                  />
-                )}
-              </section>
+                    {totalSubtasks > 0 && (
+                      <div className="relationship-progress-wrap" aria-label="Subtask completion progress">
+                        <div className="relationship-progress-meta">
+                          <span>Subtasks progress</span>
+                          <strong>
+                            {completedSubtasks} / {totalSubtasks} ({subtaskPercent}%)
+                          </strong>
+                        </div>
+                        <div className="relationship-progress-track">
+                          <div
+                            className={`relationship-progress-fill${subtaskPercent === 100 ? " is-complete" : ""}`}
+                            style={{ width: `${subtaskPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <div className="subtask-list">
+                      {subtasks?.map((subtask) => {
+                        const subtaskAssignees = subtaskAssigneesMap.get(subtask.id) ?? [];
+                        const assigneeNames = subtaskAssignees.map((uid) => profileLabel(uid));
+                        return (
+                          <div className="subtask-row-wrap" key={subtask.id}>
+                            <Link className="subtask-row" href={`/projects/${projectId}/tasks/${subtask.id}`}>
+                              <strong className="subtask-title">{subtask.title}</strong>
+                              {!canEdit && assigneeNames.length > 0 && (
+                                <span className="subtask-assignees-pill" title={assigneeNames.join(", ")}>
+                                  {assigneeNames.length === 1
+                                    ? assigneeNames[0]
+                                    : `${assigneeNames[0]} +${assigneeNames.length - 1}`}
+                                </span>
+                              )}
+                            </Link>
+                            <div className="subtask-row-controls">
+                              <SubtaskStatusPicker
+                                projectId={projectId}
+                                subtaskId={subtask.id}
+                                currentStatusId={subtask.status_id}
+                                statuses={statuses ?? []}
+                                canEdit={canEdit}
+                              />
+                              {canEdit && (
+                                <div className="subtask-row-assignee">
+                                  <AssigneePicker
+                                    projectId={projectId}
+                                    taskId={subtask.id}
+                                    members={members}
+                                    initialAssignees={subtaskAssignees}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {(!subtasks || subtasks.length === 0) && (
+                        <div className="relationship-empty-state">
+                          <p>No subtasks yet</p>
+                          <small>Break down this task into smaller manageable steps.</small>
+                        </div>
+                      )}
+                    </div>
+                    {canEdit && (
+                      <SubtaskCreateForm
+                        projectId={projectId}
+                        parentTaskId={taskId}
+                        members={members}
+                      />
+                    )}
+                  </section>
+                );
+              })()}
 
               {/* Task Checklists */}
-              <section className="task-checklists">
-                <div className="relationship-heading"><div><p className="eyebrow">TASK CHECKLISTS</p><h2>Checklists</h2></div><CheckSquare size={17}/></div>
-                {checklists?.map((checklist) => <div className="checklist-block" key={checklist.id}><h3>{checklist.title}</h3>{itemsByChecklist.get(checklist.id)?.map((item) => canEdit ? <form action={toggleChecklistItem} className="checklist-item" key={item.id}><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="itemId" value={item.id}/><input type="hidden" name="complete" value={item.is_complete ? "false" : "true"}/><button aria-label={item.is_complete ? `Reopen ${item.title}` : `Complete ${item.title}`}><span className={item.is_complete ? "checkmark checked" : "checkmark"}>{item.is_complete ? "✓" : ""}</span><span className={item.is_complete ? "item-complete" : ""}>{item.title}</span></button></form> : <div className="checklist-item" key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}><span className={item.is_complete ? "checkmark checked" : "checkmark"}>{item.is_complete ? "✓" : ""}</span><span className={item.is_complete ? "item-complete" : ""}>{item.title}</span></div>)}{canEdit && <form action={createChecklistItem} className="relationship-form"><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input type="hidden" name="checklistId" value={checklist.id}/><input name="title" placeholder="Add checklist item" maxLength={300} required/><button className="mini-save">Add item</button></form>}</div>)}
-                {canEdit && <form action={createTaskChecklist} className="relationship-form checklist-create-form"><input type="hidden" name="projectId" value={projectId}/><input type="hidden" name="taskId" value={taskId}/><input name="title" placeholder="New checklist name" maxLength={100} required/><button className="mini-save">Create checklist</button></form>}
-              </section>
+              <TaskChecklistsSection
+                projectId={projectId}
+                taskId={taskId}
+                canEdit={canEdit}
+                checklists={checklists ?? []}
+                items={checklistItems ?? []}
+              />
 
               {/* Attachments Section */}
               <TaskAttachmentsSection
@@ -576,27 +615,40 @@ export default async function TaskDetailPage({ params, searchParams }: {
 
                 if (field.field_type === "formula") return <div className="custom-field-item" key={field.id}><span>{field.name}</span><p className="muted small">Formula fields are read-only until formula configuration is available.</p></div>;
                 if (!canEdit) {
+                  const progressNum = field.field_type === "progress" ? Number(value) : NaN;
+                  const clampedProgress = Number.isFinite(progressNum)
+                    ? Math.max(0, Math.min(100, Math.round(progressNum)))
+                    : null;
                   return (
                     <div className="custom-field-item" key={field.id}>
                       <label>{field.name}</label>
-                      <div style={{ fontSize: '13px', color: '#334155', padding: '6px 0', minHeight: '28px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                        {parsedLinks.length > 0 ? (
-                          parsedLinks.map((link, idx) => (
-                            <a
-                              key={idx}
-                              href={link.href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ color: "var(--green, #167c58)", textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 3, background: "rgba(22, 124, 88, 0.08)", padding: "2px 8px", borderRadius: 4, fontWeight: 600, fontSize: 11 }}
-                            >
-                              <span>{link.label}</span>
-                              <ExternalLink size={10} />
-                            </a>
-                          ))
-                        ) : (
-                          value || "—"
-                        )}
-                      </div>
+                      {clampedProgress !== null ? (
+                        <div className="cf-progress-preview">
+                          <div className="cf-progress-track">
+                            <div className="cf-progress-fill" style={{ width: `${clampedProgress}%` }} />
+                          </div>
+                          <span>{clampedProgress}%</span>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '13px', color: 'var(--ink, #334155)', padding: '6px 0', minHeight: '28px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                          {parsedLinks.length > 0 ? (
+                            parsedLinks.map((link, idx) => (
+                              <a
+                                key={idx}
+                                href={link.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: "var(--green, #167c58)", textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 3, background: "rgba(22, 124, 88, 0.08)", padding: "2px 8px", borderRadius: 4, fontWeight: 600, fontSize: 11 }}
+                              >
+                                <span>{link.label}</span>
+                                <ExternalLink size={10} />
+                              </a>
+                            ))
+                          ) : (
+                            value || "—"
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 }
@@ -635,48 +687,16 @@ export default async function TaskDetailPage({ params, searchParams }: {
                         </select>
                       </div>
                     ) : field.field_type === "multi_select" ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                        <input
-                          id={`field-${field.id}`}
-                          name="value"
-                          type="text"
-                          defaultValue={value}
-                          required={field.required}
-                          placeholder={options.length > 0 ? `e.g. ${options.slice(0, 2).join(", ")}` : "Comma-separated values…"}
-                        />
-                        {options.length > 0 && (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                            {options.map((opt) => (
-                              <button
-                                key={opt}
-                                type="button"
-                                style={{
-                                  padding: "2px 6px",
-                                  borderRadius: 4,
-                                  fontSize: 10,
-                                  border: "1px dashed var(--line, #cbd5e1)",
-                                  background: "var(--nav-hover, #f8fafc)",
-                                  color: "var(--ink)",
-                                  cursor: "pointer",
-                                }}
-                                onClick={(e) => {
-                                  const input = document.getElementById(`field-${field.id}`) as HTMLInputElement | null;
-                                  if (!input) return;
-                                  const current = input.value.split(",").map((s) => s.trim()).filter(Boolean);
-                                  if (current.includes(opt)) {
-                                    input.value = current.filter((s) => s !== opt).join(", ");
-                                  } else {
-                                    input.value = [...current, opt].join(", ");
-                                  }
-                                }}
-                                title="Click to toggle option"
-                              >
-                                + {opt}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      <MultiValueFieldInput
+                        key={`${field.id}-${value}`}
+                        id={`field-${field.id}`}
+                        name="value"
+                        defaultValue={value}
+                        placeholder={options.length > 0 ? `Option (e.g. ${options[0]})` : "Option value"}
+                        addLabel="Add option value"
+                        required={field.required}
+                        suggestions={options}
+                      />
                     ) : field.field_type === "checkbox" ? (
                       <select id={`field-${field.id}`} name="value" defaultValue={value || "false"}>
                         <option value="false">No</option>
@@ -689,24 +709,68 @@ export default async function TaskDetailPage({ params, searchParams }: {
                       </select>
                     ) : field.field_type === "date" ? (
                       <DateInput id={`field-${field.id}`} name="value" defaultValue={value} required={field.required}/>
+                    ) : field.field_type === "progress" ? (
+                      (() => {
+                        const progressNum = value === "" ? NaN : Number(value);
+                        const clamped = Number.isFinite(progressNum)
+                          ? Math.max(0, Math.min(100, Math.round(progressNum)))
+                          : 0;
+                        return (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            <div className="cf-progress-preview">
+                              <div className="cf-progress-track">
+                                <div className="cf-progress-fill" style={{ width: `${clamped}%` }} />
+                              </div>
+                              <span>{clamped}%</span>
+                            </div>
+                            <input
+                              id={`field-${field.id}`}
+                              name="value"
+                              type="number"
+                              min={0}
+                              max={100}
+                              step="1"
+                              defaultValue={value}
+                              required={field.required}
+                              placeholder="0 - 100"
+                            />
+                          </div>
+                        );
+                      })()
+                    ) : isUrlField || field.field_type === "email" || field.field_type === "text" ? (
+                      <MultiValueFieldInput
+                        key={`${field.id}-${value}`}
+                        id={`field-${field.id}`}
+                        name="value"
+                        defaultValue={value}
+                        inputType={field.field_type === "email" ? "email" : "text"}
+                        placeholder={
+                          isUrlField
+                            ? "https://example.com"
+                            : field.field_type === "email"
+                              ? "name@company.com"
+                              : "Enter value"
+                        }
+                        addLabel={
+                          isUrlField
+                            ? "Add URL"
+                            : field.field_type === "email"
+                              ? "Add email"
+                              : "Add value"
+                        }
+                        maxItemLength={field.field_type === "text" || isUrlField ? 2000 : 240}
+                        required={field.required}
+                      />
                     ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                        <input
-                          id={`field-${field.id}`}
-                          name="value"
-                          type={field.field_type === "datetime" ? "datetime-local" : ["number", "currency", "rating", "progress", "duration"].includes(field.field_type) ? "number" : field.field_type === "email" ? "text" : "text"}
-                          defaultValue={value}
-                          required={field.required}
-                          maxLength={field.field_type === "text" || isUrlField ? 2000 : undefined}
-                          step={field.field_type === "rating" || field.field_type === "progress" ? "1" : field.field_type === "currency" ? "0.01" : undefined}
-                          placeholder={isUrlField ? "https://link1.com, https://link2.com" : "Comma-separated values supported"}
-                        />
-                        {(isUrlField || field.field_type === "text" || field.field_type === "email") && (
-                          <small style={{ fontSize: 10, color: "var(--muted)" }}>
-                            Multiple values supported (comma-separated)
-                          </small>
-                        )}
-                      </div>
+                      <input
+                        id={`field-${field.id}`}
+                        name="value"
+                        type={field.field_type === "datetime" ? "datetime-local" : ["number", "currency", "rating", "duration"].includes(field.field_type) ? "number" : "text"}
+                        defaultValue={value}
+                        required={field.required}
+                        step={field.field_type === "rating" ? "1" : field.field_type === "currency" ? "0.01" : undefined}
+                        placeholder="Enter value"
+                      />
                     )}
                     <button className="mini-save">Save field</button>
                   </form>

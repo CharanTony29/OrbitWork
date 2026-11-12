@@ -1092,6 +1092,10 @@ textarea:not(.composer-minimal-input):focus-visible {
   gap: 6px;
 }
 
+.composer-field-options {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 520px) {
   .composer-task-type-menu {
     min-width: 220px;

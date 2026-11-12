@@ -1,5 +1,6 @@
-.inbox-page{width:min(100%,1660px);max-width:1660px;padding:24px 32px 60px;margin:0 auto}
-.inbox-heading{display:flex;align-items:flex-end;justify-content:space-between;margin:20px 0}
+.inbox-page{width:100%;max-width:none;padding:20px clamp(16px,2vw,24px) 44px;margin:0}
+.ov-fullpage-content .inbox-page{padding:0}
+.inbox-heading{display:flex;align-items:flex-end;justify-content:space-between;margin:0 0 18px}
 .inbox-heading .eyebrow{margin:0 0 8px}
 .inbox-heading h1{font:800 29px Manrope,sans-serif;margin:0 0 7px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .inbox-heading .muted{margin:0}

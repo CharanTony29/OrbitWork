@@ -933,7 +933,7 @@ export async function updateTaskStatus(formData: FormData) {
   if (!user) redirect("/");
   const { data: prevTask } = await supabase
     .from("tasks")
-    .select("status_id")
+    .select("status_id, parent_task_id")
     .eq("id", parsed.data.taskId)
     .eq("project_id", parsed.data.projectId)
     .maybeSingle();
@@ -948,6 +948,9 @@ export async function updateTaskStatus(formData: FormData) {
   });
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+  if (prevTask?.parent_task_id) {
+    revalidatePath(`/projects/${parsed.data.projectId}/tasks/${prevTask.parent_task_id}`);
+  }
 }
 
 export async function updateTaskAssignees(formData: FormData) {
@@ -1560,7 +1563,7 @@ export async function createCustomFieldFromComposer(formData: FormData) {
 
   const options = (parsed.data.options ?? "").split(",").map((option) => option.trim()).filter(Boolean).slice(0, 50);
   if (["dropdown", "multi_select"].includes(parsed.data.fieldType) && !options.length) {
-    return { ok: false as const, message: "Add at least one comma-separated option for this field type." };
+    return { ok: false as const, message: "Add at least one option for this field type using +." };
   }
 
   const { error } = await supabase.from("custom_field_definitions").insert({
@@ -1771,6 +1774,122 @@ export async function toggleChecklistItem(formData: FormData) {
   const { error } = await supabase.from("checklist_items").update({ is_complete: isComplete, completed_by: isComplete ? user.id : null, completed_at: isComplete ? new Date().toISOString() : null }).eq("id", parsed.data.itemId).eq("project_id", parsed.data.projectId).eq("task_id", parsed.data.taskId);
   if (error) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=checklist_failed`);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+}
+
+export async function renameTaskChecklist(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+    taskId: z.string().uuid(),
+    checklistId: z.string().uuid(),
+    title: z.string().trim().min(1).max(100),
+  }).safeParse({
+    projectId: formData.get("projectId"),
+    taskId: formData.get("taskId"),
+    checklistId: formData.get("checklistId"),
+    title: formData.get("title"),
+  });
+  if (!parsed.success) return { ok: false, error: "Enter a valid checklist name (1-100 characters)." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to update checklists." };
+
+  const { error } = await supabase
+    .from("task_checklists")
+    .update({ title: parsed.data.title })
+    .eq("id", parsed.data.checklistId)
+    .eq("project_id", parsed.data.projectId)
+    .eq("task_id", parsed.data.taskId);
+
+  if (error) return { ok: false, error: "Could not rename checklist." };
+  revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+  return { ok: true };
+}
+
+export async function deleteTaskChecklist(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+    taskId: z.string().uuid(),
+    checklistId: z.string().uuid(),
+  }).safeParse({
+    projectId: formData.get("projectId"),
+    taskId: formData.get("taskId"),
+    checklistId: formData.get("checklistId"),
+  });
+  if (!parsed.success) return { ok: false, error: "Invalid checklist." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to delete checklists." };
+
+  const { error } = await supabase
+    .from("task_checklists")
+    .delete()
+    .eq("id", parsed.data.checklistId)
+    .eq("project_id", parsed.data.projectId)
+    .eq("task_id", parsed.data.taskId);
+
+  if (error) return { ok: false, error: "Could not delete checklist." };
+  revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+  return { ok: true };
+}
+
+export async function updateChecklistItemTitle(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+    taskId: z.string().uuid(),
+    itemId: z.string().uuid(),
+    title: z.string().trim().min(1).max(300),
+  }).safeParse({
+    projectId: formData.get("projectId"),
+    taskId: formData.get("taskId"),
+    itemId: formData.get("itemId"),
+    title: formData.get("title"),
+  });
+  if (!parsed.success) return { ok: false, error: "Enter a valid checklist item title." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to edit checklist items." };
+
+  const { error } = await supabase
+    .from("checklist_items")
+    .update({ title: parsed.data.title })
+    .eq("id", parsed.data.itemId)
+    .eq("project_id", parsed.data.projectId)
+    .eq("task_id", parsed.data.taskId);
+
+  if (error) return { ok: false, error: "Could not update checklist item." };
+  revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+  return { ok: true };
+}
+
+export async function deleteChecklistItem(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+    taskId: z.string().uuid(),
+    itemId: z.string().uuid(),
+  }).safeParse({
+    projectId: formData.get("projectId"),
+    taskId: formData.get("taskId"),
+    itemId: formData.get("itemId"),
+  });
+  if (!parsed.success) return { ok: false, error: "Invalid checklist item." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to delete checklist items." };
+
+  const { error } = await supabase
+    .from("checklist_items")
+    .delete()
+    .eq("id", parsed.data.itemId)
+    .eq("project_id", parsed.data.projectId)
+    .eq("task_id", parsed.data.taskId);
+
+  if (error) return { ok: false, error: "Could not delete checklist item." };
+  revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+  return { ok: true };
 }
 
 export async function startTaskTimer(formData: FormData) {

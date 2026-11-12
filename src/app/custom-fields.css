@@ -1,1 +1,23 @@
 .task-custom-fields{margin-top:14px;padding:16px 18px;border:1px solid var(--line);border-radius:10px;background:var(--surface,#fff)}.custom-fields-heading{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid #edf0ed}.custom-fields-heading .eyebrow{margin:0 0 4px}.custom-fields-heading h2{margin:0;color:var(--ink,#344138);font:700 15px Manrope,sans-serif}.custom-field-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;padding-top:12px}.custom-field-item{min-width:0;display:grid;align-content:start;gap:5px;padding:10px;border:1px solid var(--line,#edf0ed);border-radius:8px;background:var(--surface,#fff)}.custom-field-item>label,.custom-field-item>span{color:var(--muted,#526057);font-size:10px;font-weight:700}.required-mark{padding-left:4px;color:#bc5241}.custom-field-item input,.custom-field-item select,.custom-field-item textarea{width:100%;min-width:0;padding:7px 9px;border:1px solid var(--line,#dfe5e0);border-radius:6px;background:var(--surface,#fff);color:var(--ink,#354138);font:400 11px 'DM Sans',sans-serif;outline:none}.custom-field-item textarea{min-height:55px;resize:vertical}.custom-field-item input:focus,.custom-field-item select:focus,.custom-field-item textarea:focus{border-color:#6cad8d;box-shadow:0 0 0 3px #e7f3ec}.custom-field-item .mini-save{justify-self:start}.custom-field-item .muted{margin:0;font-size:10px}.custom-value-cell{min-width:140px;max-width:220px;overflow-wrap:anywhere;color:var(--muted,#526057);font-size:10px}
+.multi-value-field{display:grid;gap:6px;width:100%;min-width:0}
+.multi-value-rows{display:grid;gap:5px;width:100%}
+.multi-value-row{display:flex;align-items:center;gap:5px;width:100%;min-width:0}
+.multi-value-row input{flex:1;min-width:0}
+.multi-value-btn{flex:0 0 28px;width:28px;height:28px;padding:0;border-radius:6px;border:1px solid var(--line,#d8e0db);background:var(--surface-subtle,#f4f7f5);color:var(--ink,#26342c);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color .14s ease,border-color .14s ease,color .14s ease}
+.multi-value-btn.is-add{border-color:rgba(22,124,88,.35);background:rgba(22,124,88,.1);color:var(--green,#167c58)}
+.multi-value-btn.is-add:hover{background:rgba(22,124,88,.18);border-color:var(--green,#167c58)}
+.multi-value-btn.is-remove:hover:not(:disabled){background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.35);color:#dc2626}
+.multi-value-btn:disabled{opacity:.38;cursor:not-allowed}
+.multi-value-suggestions{display:flex;flex-wrap:wrap;gap:4px}
+.multi-value-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;border:1px dashed var(--line,#cbd5e1);background:var(--surface-subtle,#f8faf8);color:var(--ink,#26342c);cursor:pointer;transition:all .14s ease}
+.multi-value-chip.is-selected{border-style:solid;border-color:var(--green,#167c58);background:rgba(22,124,88,.12);color:var(--green,#167c58)}
+.cf-progress-preview,.cf-table-progress{display:flex;align-items:center;gap:8px;width:100%}
+.cf-progress-preview span,.cf-table-progress span{font-size:11px;font-weight:700;color:var(--ink,#25332b);white-space:nowrap;min-width:30px;text-align:right}
+.cf-progress-track{flex:1;min-width:52px;height:7px;border-radius:999px;background:var(--line,#e4eae6);overflow:hidden}
+.cf-progress-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--green,#167c58),#22a072);transition:width .2s ease}
+[data-color-scheme="dark"] .multi-value-btn{background:#181e1a;border-color:#2d3731;color:#e5ece7}
+[data-color-scheme="dark"] .multi-value-btn.is-add{background:rgba(34,160,114,.16);border-color:rgba(34,160,114,.42);color:#6ee7b7}
+[data-color-scheme="dark"] .multi-value-chip{background:#181e1a;border-color:#2e3832;color:#dce5df}
+[data-color-scheme="dark"] .multi-value-chip.is-selected{background:rgba(34,160,114,.2);border-color:#34d399;color:#6ee7b7}
+[data-color-scheme="dark"] .cf-progress-track{background:#252e29}
+[data-color-scheme="dark"] .cf-progress-preview span,[data-color-scheme="dark"] .cf-table-progress span{color:#e6eeea}

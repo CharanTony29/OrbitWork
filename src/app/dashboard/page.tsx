@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Bell, Layers3, LayoutDashboard, MessageSquare } from "lucide-react";
 import AppTopBar from "@/app/AppTopBar";
+import PrimarySpaceLeftSlot from "@/app/PrimarySpaceLeftSlot";
 import { getUserSpaceData } from "@/lib/workspace-space";
 import OverviewCommandCenter from "./OverviewCommandCenter";
 
@@ -85,35 +84,10 @@ export default async function Dashboard({
       <AppTopBar
         email={user.email ?? ""}
         leftSlot={
-          <div className="ov-topbar-left-nav">
-            <Link className="brand ov-brand" href="/dashboard">
-              <span className="brand-mark">O</span>
-              <span>
-                Orbit<span className="ov-brand-accent">Work</span>
-              </span>
-            </Link>
-            <nav className="ov-topbar-links" aria-label="Primary navigation">
-              <Link href="/dashboard" className="is-active" aria-current="page">
-                <Layers3 size={14} />
-                <span>Overview</span>
-              </Link>
-              <Link href="/my-dashboard">
-                <LayoutDashboard size={14} />
-                <span>Dashboard</span>
-              </Link>
-              <Link href="/inbox">
-                <Bell size={14} />
-                <span>Inbox</span>
-                {assignedTaskCount > 0 && (
-                  <span className="ov-topbar-count">{assignedTaskCount}</span>
-                )}
-              </Link>
-              <Link href="/chat">
-                <MessageSquare size={14} />
-                <span>Chat</span>
-              </Link>
-            </nav>
-          </div>
+          <PrimarySpaceLeftSlot
+            activeNav="overview"
+            assignedTaskCount={assignedTaskCount}
+          />
         }
       />
       <section className="ov-fullpage-content">

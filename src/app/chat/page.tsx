@@ -1,31 +1,33 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getAuthUser } from "@/lib/supabase/server";
 import AppTopBar from "@/app/AppTopBar";
-import BackButton from "@/app/BackButton";
+import PrimarySpaceLeftSlot from "@/app/PrimarySpaceLeftSlot";
+import { getAssignedTaskCount } from "@/lib/workspace-space";
 import ChatWorkspace from "./ChatWorkspace";
 
 export default async function ChatPage() {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
 
   if (!user) redirect("/login");
 
-  // Fetch current user's profile
-  const { data: ownProfile } = await supabase
-    .from("profiles")
-    .select("display_name, email, avatar_url")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Fetch current user's profile, assigned count, and organization memberships
+  const [{ data: ownProfile }, assignedTaskCount, { data: orgMemberships }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("display_name, email, avatar_url")
+      .eq("id", user.id)
+      .maybeSingle(),
+    getAssignedTaskCount(user.id),
+    supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id),
+  ]);
 
   const currentUserName = ownProfile?.display_name?.trim() || user.email?.split("@")[0] || "User";
-
-  // Fetch all organizations the user belongs to
-  const { data: orgMemberships } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id);
 
   const orgIds = (orgMemberships ?? []).map((m) => m.organization_id);
 
@@ -61,10 +63,18 @@ export default async function ChatPage() {
   }));
 
   return (
-    <main className="app-shell" style={{ height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <main
+      className="app-shell ov-shell ov-fullpage-shell"
+      style={{ height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
+    >
       <AppTopBar
         email={user.email ?? ""}
-        leftSlot={<BackButton fallbackHref="/dashboard" label="Dashboard" />}
+        leftSlot={
+          <PrimarySpaceLeftSlot
+            activeNav="chat"
+            assignedTaskCount={assignedTaskCount}
+          />
+        }
       />
 
       <ChatWorkspace

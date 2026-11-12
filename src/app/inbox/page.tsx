@@ -1,7 +1,7 @@
 import Link from "next/link";
 import AppTopBar from "@/app/AppTopBar";
+import PrimarySpaceLeftSlot from "@/app/PrimarySpaceLeftSlot";
 import { redirect } from "next/navigation";
-import BackButton from "@/app/BackButton";
 import {
   Bell,
   CheckSquare,
@@ -9,14 +9,14 @@ import {
   FolderKanban,
   ExternalLink,
 } from "lucide-react";
-import { markNotificationsRead, signOut } from "@/app/actions";
-import { createClient } from "@/lib/supabase/server";
+import { markNotificationsRead } from "@/app/actions";
+import { createClient, getAuthUser } from "@/lib/supabase/server";
 
 export default async function InboxPage() {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) redirect("/login");
 
   // 1. Parallel fetch notifications, task_assignees rows, and direct assignee tasks
@@ -39,6 +39,7 @@ export default async function InboxPage() {
 
   const notifications = notifResult.data ?? [];
   const multiTaskIds = (multiAssigneeResult.data ?? []).map((r) => r.task_id);
+  const assignedTaskCount = multiTaskIds.length;
   const directTasks = directAssigneeResult.data ?? [];
 
   // Combine task IDs
@@ -105,13 +106,20 @@ export default async function InboxPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <main className="app-shell">
-      <AppTopBar email={user.email ?? ""} />
+    <main className="app-shell ov-shell ov-fullpage-shell">
+      <AppTopBar
+        email={user.email ?? ""}
+        leftSlot={
+          <PrimarySpaceLeftSlot
+            activeNav="inbox"
+            assignedTaskCount={assignedTaskCount}
+          />
+        }
+      />
 
-      <section className="inbox-page">
-        <BackButton fallbackHref="/dashboard" label="Dashboard" />
-
-        <div className="inbox-heading">
+      <section className="ov-fullpage-content">
+        <section className="inbox-page ov-command-wrap ov-full-wrap">
+          <div className="inbox-heading">
           <div>
             <p className="eyebrow">YOUR SPACE</p>
             <h1>
@@ -299,6 +307,7 @@ export default async function InboxPage() {
             )}
           </div>
         </div>
+        </section>
       </section>
     </main>
   );

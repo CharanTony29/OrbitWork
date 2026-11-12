@@ -823,6 +823,21 @@ function CustomFieldCell({
     );
   }
 
+  if (fieldType === "progress") {
+    const num = Number(trimmed);
+    if (Number.isFinite(num)) {
+      const pct = Math.max(0, Math.min(100, Math.round(num)));
+      return (
+        <div className="cf-table-progress" title={`${pct}% complete`}>
+          <div className="cf-progress-track">
+            <div className="cf-progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+          <span>{pct}%</span>
+        </div>
+      );
+    }
+  }
+
   return <span>{trimmed}</span>;
 }
 

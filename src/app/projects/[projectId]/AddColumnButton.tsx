@@ -3,9 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, X } from "lucide-react";
 import { createCustomField } from "@/app/actions";
+import MultiValueFieldInput from "@/app/MultiValueFieldInput";
 
 export default function AddColumnButton({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(false);
+  const [fieldType, setFieldType] = useState("text");
   const popRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
@@ -59,7 +61,7 @@ export default function AddColumnButton({ projectId }: { projectId: string }) {
             </label>
             <label>
               Type
-              <select name="fieldType" defaultValue="text">
+              <select name="fieldType" value={fieldType} onChange={(e) => setFieldType(e.target.value)}>
                 <option value="text">Short text</option>
                 <option value="long_text">Long text</option>
                 <option value="number">Number</option>
@@ -76,10 +78,19 @@ export default function AddColumnButton({ projectId }: { projectId: string }) {
                 <option value="duration">Duration</option>
               </select>
             </label>
-            <label>
-              Options <span className="optional">dropdown/multi-select only, comma-separated</span>
-              <input name="options" placeholder="Option A, Option B" />
-            </label>
+            {["dropdown", "multi_select"].includes(fieldType) && (
+              <div className="add-col-field-group">
+                <span className="add-col-field-label">
+                  Options <span className="optional">use + / - to add choices</span>
+                </span>
+                <MultiValueFieldInput
+                  name="options"
+                  placeholder="Option name"
+                  addLabel="Add option"
+                  required
+                />
+              </div>
+            )}
             <label className="add-col-required">
               <input type="checkbox" name="required" /> Required field
             </label>

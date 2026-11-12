@@ -219,7 +219,10 @@ export default function ChatWorkspace({
       style={{
         display: "grid",
         gridTemplateColumns: isSidebarOpen ? "270px 1fr" : "1fr",
-        height: "calc(100vh - 66px)",
+        flex: 1,
+        minHeight: 0,
+        height: "calc(100vh - 58px)",
+        width: "100%",
         background: "var(--paper, #fff)",
         overflow: "hidden",
         transition: "grid-template-columns 0.2s ease",
