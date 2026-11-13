@@ -1,6 +1,154 @@
-.hierarchy-layout{min-height:100vh;display:grid;grid-template-columns:58px 245px minmax(0,1fr);background:var(--app-bg);color:var(--ink)}
-.hierarchy-content{min-width:0;min-height:100vh}
-.hierarchy-sidebar{height:100vh;position:sticky;top:0;align-self:start;overflow-y:auto;padding:17px 13px 13px;border-right:1px solid var(--nav-line);background:var(--nav-bg);display:flex;flex-direction:column;color:var(--nav-ink)}
+:root {
+  --nav-rail-width: 58px;
+  --nav-sidebar-width: 245px;
+  --nav-transition: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hierarchy-layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: var(--nav-rail-width) var(--nav-sidebar-width) minmax(0, 1fr);
+  background: var(--app-bg);
+  color: var(--ink);
+  transition: grid-template-columns var(--nav-transition);
+  position: relative;
+}
+
+.hierarchy-layout.is-collapsed {
+  grid-template-columns: var(--nav-rail-width) 0px minmax(0, 1fr);
+}
+
+.hierarchy-nav-group {
+  display: contents;
+}
+
+.hierarchy-layout.is-collapsed .hierarchy-sidebar {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  border-right: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden;
+}
+
+.hierarchy-content {
+  min-width: 0;
+  min-height: 100vh;
+  overflow-x: clip;
+}
+
+.hierarchy-sidebar {
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  overflow-y: auto;
+  padding: 17px 13px 13px;
+  border-right: 1px solid var(--nav-line);
+  background: var(--nav-bg);
+  display: flex;
+  flex-direction: column;
+  color: var(--nav-ink);
+  width: var(--nav-sidebar-width);
+  box-sizing: border-box;
+  transition: width var(--nav-transition), padding var(--nav-transition), opacity var(--nav-transition);
+}
+
+.work-rail-toggle-btn {
+  width: 44px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--rail-icon, #77847c);
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+  margin-bottom: 4px;
+}
+
+.work-rail-toggle-btn:hover {
+  background: var(--rail-hover, rgba(0, 0, 0, 0.05));
+  color: var(--green, #167c58);
+}
+
+.hierarchy-sidebar-heading {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 6px;
+  padding: 2px 4px 14px !important;
+  border-bottom: 1px solid var(--nav-line);
+}
+
+.hierarchy-sidebar-heading-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hierarchy-sidebar-heading-text span {
+  color: var(--nav-muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.9px;
+}
+
+.hierarchy-sidebar-heading-text strong {
+  color: var(--nav-strong);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hierarchy-sidebar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.hierarchy-collapse-btn,
+.hierarchy-mobile-close-btn {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nav-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.12s, color 0.12s;
+  flex: none;
+}
+
+.hierarchy-collapse-btn:hover,
+.hierarchy-mobile-close-btn:hover {
+  background: var(--nav-hover);
+  color: var(--green);
+}
+
+.desktop-only {
+  display: inline-flex;
+}
+
+.mobile-only {
+  display: none;
+}
+
+.hierarchy-mobile-backdrop {
+  display: none;
+}
 .hierarchy-brand{display:flex;align-items:center;gap:7px;padding:1px 6px 19px;font:800 17px Manrope,sans-serif;letter-spacing:-.65px}
 .hierarchy-brand>span:last-child>span{color:var(--green)}
 .hierarchy-brand .brand-mark{width:27px;height:27px;border-radius:8px;font-size:14px}
@@ -87,8 +235,101 @@
 .work-icon-rail .work-rail-logo{min-height:35px;margin-bottom:3px}
 .work-rail-logo span{width:27px;height:27px;border-radius:8px;display:grid;place-items:center;background:#fff;border:1px solid var(--rail-line);padding:2px;margin-right:0;overflow:hidden}
 .work-icon-rail .work-rail-more{margin-top:auto;margin-bottom:4px}
-@media(max-width:850px){.hierarchy-layout{grid-template-columns:52px 215px minmax(0,1fr)}}
-@media(max-width:640px){.hierarchy-layout{grid-template-columns:48px minmax(0,1fr)}.hierarchy-sidebar{position:static;width:100%;height:auto;max-height:45vh;border-right:0;border-bottom:1px solid var(--nav-line);padding:11px 12px;grid-column:2;grid-row:1}.work-icon-rail{grid-row:1/3}.hierarchy-brand{padding-bottom:8px}.hierarchy-org-label{margin-top:12px}.hierarchy-section-label{margin-top:14px}.hierarchy-tree{max-height:20vh;overflow:auto}.hierarchy-sidebar-footer{margin-top:10px;padding-top:9px}.hierarchy-content{grid-column:2;grid-row:2}}
+@media (max-width: 1023px) {
+  .hierarchy-layout {
+    grid-template-columns: var(--nav-rail-width) 220px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: inline-flex !important;
+  }
+
+  .hierarchy-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    min-height: 100vh;
+    width: 100%;
+    overflow-x: clip;
+  }
+
+  .hierarchy-nav-group {
+    display: flex !important;
+    flex-direction: row;
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(88vw, 320px);
+    max-width: 100vw;
+    z-index: 2100;
+    background: var(--nav-bg);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  .hierarchy-layout.is-mobile-open .hierarchy-nav-group {
+    transform: translateX(0);
+    pointer-events: auto;
+    visibility: visible;
+  }
+
+  .hierarchy-mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 19, 0.45);
+    backdrop-filter: blur(2px);
+    z-index: 2050;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease;
+  }
+
+  .hierarchy-layout.is-mobile-open .hierarchy-mobile-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .work-icon-rail {
+    position: static !important;
+    height: 100% !important;
+    flex: none;
+    width: 52px;
+    padding: 8px 3px;
+    border-right: 1px solid var(--rail-line);
+    overflow-y: auto;
+  }
+
+  .hierarchy-sidebar {
+    position: static !important;
+    height: 100% !important;
+    flex: 1;
+    width: auto !important;
+    min-width: 0 !important;
+    max-height: none !important;
+    border-right: 0 !important;
+    overflow-y: auto;
+    padding: 14px 10px;
+  }
+
+  .hierarchy-content {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 1;
+    grid-column: auto !important;
+    grid-row: auto !important;
+  }
+}
 
 .calendar-task{min-height:23px;padding:5px 7px;font-size:10px;line-height:1.25;font-weight:650;color:#233a2c;background:#edf5ef;border-radius:5px;box-shadow:inset 0 0 0 1px #dce9df}
 .calendar-task span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

@@ -46,6 +46,26 @@
 .inbox-page .empty-tasks{padding:30px;background:var(--surface,#fff);text-align:center}
 .unread-pill{background:#fef3c7;color:#92400e}
 
+@media (max-width: 680px) {
+  .inbox-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .inbox-task-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .inbox-task-main {
+    width: 100%;
+  }
+  .inbox-task-meta {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+}
+
 /* Dark mode adjustments for inbox */
 [data-color-scheme="dark"] .inbox-stat-num{color:#ffffff !important}
 [data-color-scheme="dark"] .inbox-stat-card{background:var(--surface,#16191f) !important;border-color:var(--line,#262a33) !important}

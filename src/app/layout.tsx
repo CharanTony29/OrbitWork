@@ -8,6 +8,7 @@ import ThemePicker from "./ThemePicker";
 import ChatNotificationListener from "./ChatNotificationListener";
 import AuthRecoveryListener from "./AuthRecoveryListener";
 import TopProgressBar from "./TopProgressBar";
+import GlobalMobileDrawer from "./GlobalMobileDrawer";
 
 export const metadata: Metadata = {
   metadataBase: new URL(CANONICAL_ORIGIN),
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <TopProgressBar />
         {children}
+        <GlobalMobileDrawer />
         <ThemePicker />
         <ChatNotificationListener />
         <AuthRecoveryListener />

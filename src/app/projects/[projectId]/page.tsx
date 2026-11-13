@@ -229,7 +229,13 @@ export default async function ProjectPage({ params, searchParams }: {
   };
 
   return <main className="app-shell project-app-shell">
-    <AppTopBar email={user.email ?? ""} />
+    <AppTopBar
+      email={user.email ?? ""}
+      projectId={projectId}
+      workspaceId={project.workspace_id}
+      workspaceName={workspace?.name}
+      organizationId={workspace?.organization_id}
+    />
     <div className="project-page">
       {error && <p className="error" role="alert">That change could not be saved. Check access and required fields.</p>}
       <section className="task-panel">

@@ -1438,26 +1438,7 @@ progress {
   justify-self: end;
 }
 
-@media (max-width: 780px) {
-  .app-topbar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    height: auto;
-    min-height: 60px;
-    padding-top: 10px;
-    padding-bottom: 10px;
-    row-gap: 10px;
-  }
-
-  .topbar-center {
-    grid-column: 1 / -1;
-    order: 3;
-    max-width: 100%;
-  }
-
-  .topbar-search-trigger {
-    max-width: 100%;
-  }
-}
+/* The topbar responsiveness is managed centrally in responsive-layout.css */
 
 .topbar-search-trigger {
   display: flex;

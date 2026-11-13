@@ -663,3 +663,9 @@
     inset: 8px;
   }
 }
+
+@media (max-width: 580px) {
+  .planner-kpis {
+    grid-template-columns: 1fr;
+  }
+}

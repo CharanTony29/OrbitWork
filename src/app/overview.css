@@ -2118,25 +2118,7 @@
   }
 }
 
-@media (max-width: 1120px) {
-  .ov-fullpage-shell .app-topbar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    height: auto;
-    min-height: 58px;
-    padding: 8px 18px;
-    row-gap: 8px;
-  }
-
-  .ov-fullpage-shell .topbar-center {
-    grid-column: 1 / -1;
-    order: 3;
-    max-width: 100%;
-  }
-
-  .ov-fullpage-shell .topbar-search-trigger {
-    max-width: 100%;
-  }
-}
+/* The topbar responsiveness is managed centrally in responsive-layout.css */
 
 @media (max-width: 850px) {
   .ov-shell .dashboard-layout {
