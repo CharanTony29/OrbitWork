@@ -16,7 +16,7 @@ export function BrandMark({
   return (
     <span className={className} aria-hidden="true" style={style}>
       <img
-        src="/logo.png"
+        src="/logo.png?v=3"
         alt=""
         width={size}
         height={size}

@@ -45,13 +45,13 @@ export const metadata: Metadata = {
   applicationName: "Orbitwork",
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon-48.png", type: "image/png", sizes: "48x48" },
-      { url: "/icon-96.png", type: "image/png", sizes: "96x96" },
-      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/favicon.ico?v=3", sizes: "any" },
+      { url: "/icon-48.png?v=3", type: "image/png", sizes: "48x48" },
+      { url: "/icon-96.png?v=3", type: "image/png", sizes: "96x96" },
+      { url: "/icon-192.png?v=3", type: "image/png", sizes: "192x192" },
     ],
-    shortcut: ["/favicon.ico"],
-    apple: [{ url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
+    shortcut: ["/favicon.ico?v=3"],
+    apple: [{ url: "/apple-touch-icon.png?v=3", type: "image/png", sizes: "180x180" }],
   },
 };
 
