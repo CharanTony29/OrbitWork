@@ -34,20 +34,22 @@ import {
 } from "@/lib/seo";
 
 export const metadata: Metadata = buildPublicMetadata({
-  title: "Orbitwork | Project Management & Team Collaboration Platform",
+  title: "Orbitwork — Project Management & Work Management Software",
   absoluteTitle: true,
   description:
-    "Orbitwork is a modern project management and work execution platform uniting Kanban boards, Gantt timelines, task sheets, docs, team chat, timesheets, and cloud storage.",
+    "Orbitwork is modern project management and work management software uniting Kanban boards, Gantt timelines, task sheets, docs, team chat, timesheets, and cloud storage.",
   path: "/",
   keywords: [
     "Orbitwork",
     "project management software",
-    "work management platform",
+    "project management tool",
+    "work management software",
+    "free project management tool",
+    "free project management software",
     "Kanban board",
     "Gantt chart software",
     "team time tracking",
-    "collaborative project docs",
-    "team chat and tasks",
+    "Jira alternative",
   ],
 });
 
@@ -85,12 +87,65 @@ const STRUCTURED_DATA = {
       url: CANONICAL_HOME_URL,
       image: CANONICAL_LOGO_URL,
       description:
-        "All-in-one project management OS featuring Kanban boards, task sheets, Gantt timelines, workload calendars, timesheets, collaborative docs, team chat, and cloud drive sync.",
+        "All-in-one project management and work management software featuring Kanban boards, task sheets, Gantt timelines, workload calendars, timesheets, collaborative docs, team chat, and cloud drive sync.",
       offers: {
         "@type": "Offer",
         price: "0",
         priceCurrency: "USD",
       },
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "What is Orbitwork and how does it compare to other project management tools?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Orbitwork is a unified project management and work collaboration platform designed to replace fragmented tool stacks (like Jira + Toggl + Google Docs + Slack). It combines multi-tenant organizations and workspaces, Kanban boards, interactive task sheets, Gantt timelines, built-in time tracking, weekly timesheet approvals, Markdown docs, real-time team chat, and cloud storage integrations.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Is Orbitwork free to start for small and growing teams?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes. Orbitwork is free to start. You can create workspaces, projects, task views, checklists, custom fields, docs, and timesheets without paying upfront or entering a credit card.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "How does multi-tenant organization and workspace security work?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Orbitwork uses PostgreSQL Row Level Security (RLS) to enforce strict isolation across every organization, workspace, and project. Owners and admins manage roles (Owner, Admin, Member, Viewer) so internal teams, contractors, and clients only see the projects assigned to them.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Can we connect Google Drive, Microsoft OneDrive, or SharePoint?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes. Each workspace can choose its own storage provider—Google Drive, Microsoft OneDrive, SharePoint, or Orbitwork built-in database storage—using minimal OAuth 2.0 scopes and AES-256-GCM encryption for credentials at rest.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "How do built-in time tracking, timesheets, and holidays work?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Team members can start live stopwatch timers directly on tasks or log manual billable hours, then submit weekly timesheets for manager review and CSV/PDF export. Organizations can also manage PTO leave requests and auto-import country public holidays.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Can users customize project view tabs, table columns, and chat alerts?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes. Every user can reorder project view tabs (List, Board, Calendar, Timeline, Workload, Whiteboard, Flowchart, Channel) and customize table column layouts independently without affecting teammates, while receiving real-time team chat messages, notifications, and email alerts.",
+          },
+        },
+      ],
     },
   ],
 };
@@ -733,20 +788,32 @@ export default async function Home({
             </div>
 
             <div className="hp-cta-fineprint">
-              <Link href="/about" style={{ color: "inherit" }}>
-                About
+              <Link href="/free-project-management-software" style={{ color: "inherit" }}>
+                Free Project Management
+              </Link>{" "}
+              ·{" "}
+              <Link href="/project-management-software" style={{ color: "inherit" }}>
+                Project Management Software
+              </Link>{" "}
+              ·{" "}
+              <Link href="/jira-alternative" style={{ color: "inherit" }}>
+                Jira Alternative
+              </Link>{" "}
+              ·{" "}
+              <Link href="/free-jira-alternative" style={{ color: "inherit" }}>
+                Free Jira Alternative
               </Link>{" "}
               ·{" "}
               <Link href="/services" style={{ color: "inherit" }}>
                 Solutions
               </Link>{" "}
               ·{" "}
-              <Link href="/services/project-management" style={{ color: "inherit" }}>
-                Project Management
-              </Link>{" "}
-              ·{" "}
               <Link href="/projects-case-studies" style={{ color: "inherit" }}>
                 Use Cases
+              </Link>{" "}
+              ·{" "}
+              <Link href="/about" style={{ color: "inherit" }}>
+                About
               </Link>{" "}
               ·{" "}
               <Link href="/contact" style={{ color: "inherit" }}>

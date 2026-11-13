@@ -567,6 +567,9 @@ export function HomeMobileNav({ isUserLoggedIn }: { isUserLoggedIn: boolean }) {
         <div className="hp-mobile-drawer">
           <nav className="hp-mobile-drawer-links" aria-label="Mobile Navigation">
             <Link href="/" onClick={() => setIsOpen(false)}>Home</Link>
+            <Link href="/free-project-management-software" onClick={() => setIsOpen(false)}>Free Project Management</Link>
+            <Link href="/project-management-software" onClick={() => setIsOpen(false)}>Project Management Software</Link>
+            <Link href="/jira-alternative" onClick={() => setIsOpen(false)}>Jira Alternative</Link>
             <Link href="/services" onClick={() => setIsOpen(false)}>Solutions</Link>
             <Link href="/services/project-management" onClick={() => setIsOpen(false)}>Project Management</Link>
             <Link href="/projects-case-studies" onClick={() => setIsOpen(false)}>Use Cases</Link>

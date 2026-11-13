@@ -12,11 +12,11 @@ import TopProgressBar from "./TopProgressBar";
 export const metadata: Metadata = {
   metadataBase: new URL(CANONICAL_ORIGIN),
   title: {
-    default: "Orbitwork | Project Management & Team Collaboration Platform",
+    default: "Orbitwork — Project Management & Work Management Software",
     template: "%s | Orbitwork",
   },
   description:
-    "Orbitwork is a modern project management and work execution platform featuring Kanban boards, Gantt timelines, time tracking, team chat, docs, and cloud storage.",
+    "Orbitwork is modern project management and work management software featuring Kanban boards, Gantt charts, task sheets, time tracking, team chat, docs, and cloud storage.",
   applicationName: "Orbitwork",
   icons: {
     icon: [

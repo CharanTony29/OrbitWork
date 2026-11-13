@@ -5,6 +5,9 @@ import { HomeMobileNav } from "./HomeInteractiveTabs";
 
 export type PublicNavKey =
   | "home"
+  | "free-pm"
+  | "pm-software"
+  | "jira-alt"
   | "services"
   | "pm"
   | "projects"
@@ -29,22 +32,28 @@ export function PublicSiteHeader({
 
         <nav className="hp-nav-links" aria-label="Main Navigation">
           <Link
-            href="/"
-            className={`hp-nav-link ${active === "home" ? "is-active" : ""}`}
+            href="/free-project-management-software"
+            className={`hp-nav-link ${active === "free-pm" ? "is-active" : ""}`}
           >
-            Home
+            Free Tool
+          </Link>
+          <Link
+            href="/project-management-software"
+            className={`hp-nav-link ${active === "pm-software" ? "is-active" : ""}`}
+          >
+            Software
+          </Link>
+          <Link
+            href="/jira-alternative"
+            className={`hp-nav-link ${active === "jira-alt" ? "is-active" : ""}`}
+          >
+            Jira Alternative
           </Link>
           <Link
             href="/services"
             className={`hp-nav-link ${active === "services" ? "is-active" : ""}`}
           >
             Solutions
-          </Link>
-          <Link
-            href="/services/project-management"
-            className={`hp-nav-link ${active === "pm" ? "is-active" : ""}`}
-          >
-            Project Management
           </Link>
           <Link
             href="/projects-case-studies"
@@ -118,13 +127,40 @@ export function PublicSiteFooter() {
           </div>
 
           <div className="hp-footer-col">
+            <h5>Product &amp; Free Tools</h5>
+            <ul>
+              <li>
+                <Link href="/free-project-management-software">Free Project Management</Link>
+              </li>
+              <li>
+                <Link href="/project-management-software">Project Management Software</Link>
+              </li>
+              <li>
+                <Link href="/jira-alternative">Jira Alternative</Link>
+              </li>
+              <li>
+                <Link href="/free-jira-alternative">Free Jira Alternative</Link>
+              </li>
+              <li>
+                <Link href="/asana-alternative">Asana Alternative</Link>
+              </li>
+              <li>
+                <Link href="/clickup-alternative">ClickUp Alternative</Link>
+              </li>
+              <li>
+                <Link href="/monday-alternative">Monday.com Alternative</Link>
+              </li>
+            </ul>
+          </div>
+
+          <div className="hp-footer-col">
             <h5>Solutions &amp; Company</h5>
             <ul>
               <li>
                 <Link href="/services">Platform Solutions</Link>
               </li>
               <li>
-                <Link href="/services/project-management">Project Management</Link>
+                <Link href="/services/project-management">Project Management Features</Link>
               </li>
               <li>
                 <Link href="/projects-case-studies">Use Cases &amp; Case Studies</Link>
