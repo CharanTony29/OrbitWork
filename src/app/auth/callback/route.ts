@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
+import { normalizeAppOrigin } from "@/lib/seo";
 
 function getRedirectOrigin(request: NextRequest): string {
   const forwardedHost = request.headers.get("x-forwarded-host");
@@ -9,20 +10,7 @@ function getRedirectOrigin(request: NextRequest): string {
     ? `${forwardedProto}://${forwardedHost.split(",")[0].trim()}`
     : request.nextUrl.origin;
 
-  const envAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "");
-  if (envAppUrl) {
-    try {
-      const reqUrl = new URL(requestOrigin);
-      const cfgUrl = new URL(envAppUrl);
-      if (
-        reqUrl.hostname.replace(/^www\./i, "").toLowerCase() ===
-        cfgUrl.hostname.replace(/^www\./i, "").toLowerCase()
-      ) {
-        return cfgUrl.origin;
-      }
-    } catch {}
-  }
-  return requestOrigin;
+  return normalizeAppOrigin(requestOrigin);
 }
 
 function sanitizeErrorDetail(raw: string | null | undefined): string {

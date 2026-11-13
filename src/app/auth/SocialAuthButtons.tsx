@@ -4,25 +4,6 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2 } from "lucide-react";
 
-function resolveCanonicalOrigin(): string {
-  if (typeof window === "undefined") return "";
-  const currentOrigin = window.location.origin;
-  const envAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "");
-  if (!envAppUrl) return currentOrigin;
-
-  try {
-    const current = new URL(currentOrigin);
-    const configured = new URL(envAppUrl);
-    const currentApex = current.hostname.replace(/^www\./i, "").toLowerCase();
-    const configuredApex = configured.hostname.replace(/^www\./i, "").toLowerCase();
-    if (currentApex === configuredApex) {
-      return configured.origin;
-    }
-  } catch {}
-
-  return currentOrigin;
-}
-
 export default function SocialAuthButtons({
   returnUrl = "",
   mode = "signin",
@@ -38,17 +19,12 @@ export default function SocialAuthButtons({
       setLoadingProvider(provider);
       setErrorMsg(null);
 
-      const canonicalOrigin = resolveCanonicalOrigin();
-      if (canonicalOrigin && canonicalOrigin !== window.location.origin) {
-        window.location.replace(`${canonicalOrigin}${window.location.pathname}${window.location.search}`);
-        return;
-      }
-
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
       const supabase = createClient();
       const safeNext = returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//") ? returnUrl : "/dashboard";
-      const redirectTo = `${canonicalOrigin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
+      const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
 
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo,
@@ -60,6 +36,11 @@ export default function SocialAuthButtons({
         console.error(`${provider} OAuth error:`, error);
         setErrorMsg(error.message || `Failed to connect with ${provider === "google" ? "Google" : "Microsoft"}.`);
         setLoadingProvider(null);
+        return;
+      }
+
+      if (data?.url) {
+        window.location.assign(data.url);
       }
     } catch (err) {
       console.error(err);
