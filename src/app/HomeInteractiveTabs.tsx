@@ -367,7 +367,6 @@ export function HomeInteractiveTabs({ isUserLoggedIn }: { isUserLoggedIn: boolea
           <ul className="hp-tab-highlights">
             {currentTab.highlights.map((item, idx) => (
               <li key={idx}>
-                <CheckCircle2 size={16} color="var(--green)" style={{ flexShrink: 0 }} />
                 <span>{item}</span>
               </li>
             ))}
@@ -497,7 +496,7 @@ export function HomeTeamPersonas() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
           {current.bullets.map((b, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13.5, fontWeight: 600 }}>
-              <CheckCircle2 size={16} color="var(--green)" style={{ flexShrink: 0 }} />
+              <span className="hp-check-bullet" aria-hidden="true">✓</span>
               <span>{b}</span>
             </div>
           ))}

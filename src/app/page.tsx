@@ -6,7 +6,6 @@ import {
   ArrowRight,
   Building2,
   Calendar,
-  Check,
   Clock,
   Cloud,
   FileText,
@@ -269,18 +268,10 @@ export default async function Home({
             </div>
 
             <ul className="hp-hero-checklist">
-              <li>
-                <Check size={16} /> Kanban, List, Gantt &amp; Calendar Views
-              </li>
-              <li>
-                <Check size={16} /> Built-in Timers &amp; Weekly Timesheets
-              </li>
-              <li>
-                <Check size={16} /> Team Chat, Mentions &amp; Docs
-              </li>
-              <li>
-                <Check size={16} /> Multi-Tenant Organization Hierarchy
-              </li>
+              <li>Kanban, List, Gantt &amp; Calendar Views</li>
+              <li>Built-in Timers &amp; Weekly Timesheets</li>
+              <li>Team Chat, Mentions &amp; Docs</li>
+              <li>Multi-Tenant Organization Hierarchy</li>
             </ul>
 
             {/* Product Hero Mockup Preview */}
@@ -484,15 +475,9 @@ export default async function Home({
                 tabs arranged in your preferred order.
               </p>
               <ul className="hp-feature-bullets">
-                <li>
-                  <Check size={15} /> Per-user custom tab &amp; column ordering
-                </li>
-                <li>
-                  <Check size={15} /> Multi-value custom fields &amp; inline editing
-                </li>
-                <li>
-                  <Check size={15} /> Subtasks, progress tracking &amp; dependencies
-                </li>
+                <li>Per-user custom tab &amp; column ordering</li>
+                <li>Multi-value custom fields &amp; inline editing</li>
+                <li>Subtasks, progress tracking &amp; dependencies</li>
               </ul>
             </div>
 
@@ -506,15 +491,9 @@ export default async function Home({
                 timesheets for manager approval and monitor remaining budget hours.
               </p>
               <ul className="hp-feature-bullets">
-                <li>
-                  <Check size={15} /> Live task stopwatch timers &amp; manual logs
-                </li>
-                <li>
-                  <Check size={15} /> Billable vs non-billable categorization
-                </li>
-                <li>
-                  <Check size={15} /> One-click CSV export &amp; PDF reports
-                </li>
+                <li>Live task stopwatch timers &amp; manual logs</li>
+                <li>Billable vs non-billable categorization</li>
+                <li>One-click CSV export &amp; PDF reports</li>
               </ul>
             </div>
 
@@ -529,15 +508,9 @@ export default async function Home({
                 export.
               </p>
               <ul className="hp-feature-bullets">
-                <li>
-                  <Check size={15} /> Rich Markdown formatting &amp; resizable images
-                </li>
-                <li>
-                  <Check size={15} /> Version history &amp; restore checkpoints
-                </li>
-                <li>
-                  <Check size={15} /> Instant HTML and PDF export anytime
-                </li>
+                <li>Rich Markdown formatting &amp; resizable images</li>
+                <li>Version history &amp; restore checkpoints</li>
+                <li>Instant HTML and PDF export anytime</li>
               </ul>
             </div>
 
@@ -552,15 +525,9 @@ export default async function Home({
                 storage per workspace.
               </p>
               <ul className="hp-feature-bullets">
-                <li>
-                  <Check size={15} /> Encrypted OAuth credentials (AES-256-GCM)
-                </li>
-                <li>
-                  <Check size={15} /> Workspace-level storage routing
-                </li>
-                <li>
-                  <Check size={15} /> Zero vendor lock-in or extra hosting markup
-                </li>
+                <li>Encrypted OAuth credentials (AES-256-GCM)</li>
+                <li>Workspace-level storage routing</li>
+                <li>Zero vendor lock-in or extra hosting markup</li>
               </ul>
             </div>
 
@@ -575,15 +542,9 @@ export default async function Home({
                 and Docs.
               </p>
               <ul className="hp-feature-bullets">
-                <li>
-                  <Check size={15} /> Owner, Admin, Member &amp; Viewer roles
-                </li>
-                <li>
-                  <Check size={15} /> Bulk teammate email invitations
-                </li>
-                <li>
-                  <Check size={15} /> Granular project &amp; workspace access
-                </li>
+                <li>Owner, Admin, Member &amp; Viewer roles</li>
+                <li>Bulk teammate email invitations</li>
+                <li>Granular project &amp; workspace access</li>
               </ul>
             </div>
 
@@ -598,15 +559,9 @@ export default async function Home({
                 project tasks.
               </p>
               <ul className="hp-feature-bullets">
-                <li>
-                  <Check size={15} /> Convert canvas shapes into tracked tasks
-                </li>
-                <li>
-                  <Check size={15} /> Visual dependency arrows &amp; milestones
-                </li>
-                <li>
-                  <Check size={15} /> Share diagrams in team chat &amp; channels
-                </li>
+                <li>Convert canvas shapes into tracked tasks</li>
+                <li>Visual dependency arrows &amp; milestones</li>
+                <li>Share diagrams in team chat &amp; channels</li>
               </ul>
             </div>
           </div>

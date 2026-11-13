@@ -1,4 +1,5 @@
 import Link from "next/link";
+import "./app-styles.css";
 import { Bell, Building2, CalendarDays, ChevronDown, Clock3, FileText, FolderKanban, House, Layers3, LayoutDashboard, UsersRound, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { BrandMark } from "./BrandMark";

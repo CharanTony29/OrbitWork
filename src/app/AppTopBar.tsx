@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import "./app-styles.css";
 import CurrentUserBadge from "./CurrentUserBadge";
 import GlobalSearchModal from "./GlobalSearchModal";
 

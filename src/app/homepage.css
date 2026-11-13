@@ -365,8 +365,16 @@
   gap: 6px;
 }
 
-.hp-hero-checklist svg {
+.hp-hero-checklist li::before {
+  content: "✓";
+  font-weight: 800;
   color: var(--hp-green);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.hp-hero-checklist svg {
+  display: none;
 }
 
 /* ==========================================================================
@@ -873,9 +881,17 @@
   gap: 8px;
 }
 
-.hp-feature-bullets svg {
+.hp-feature-bullets li::before {
+  content: "✓";
+  font-weight: 800;
   color: var(--hp-green);
+  font-size: 14px;
+  line-height: 1;
   flex-shrink: 0;
+}
+
+.hp-feature-bullets svg {
+  display: none;
 }
 
 /* ==========================================================================
@@ -966,6 +982,27 @@
   font-size: 13.5px;
   font-weight: 600;
   color: var(--hp-ink);
+}
+
+.hp-tab-highlights li::before {
+  content: "✓";
+  font-weight: 800;
+  color: var(--hp-green);
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.hp-tab-highlights svg {
+  display: none;
+}
+
+.hp-check-bullet {
+  color: var(--hp-green);
+  font-weight: 800;
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .hp-tab-visual-wrap {

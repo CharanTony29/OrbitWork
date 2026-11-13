@@ -103,7 +103,25 @@ function playNotificationChime() {
   }
 }
 
-export default function ChatNotificationListener() {
+function isPublicRoute(path: string | null): boolean {
+  if (!path) return false;
+  return (
+    path === "/" ||
+    path === "/about" ||
+    path === "/contact" ||
+    path === "/services" ||
+    path.startsWith("/services/") ||
+    path === "/projects-case-studies" ||
+    path === "/privacy" ||
+    path === "/terms" ||
+    path === "/login" ||
+    path === "/signup" ||
+    path === "/reset-password" ||
+    path.startsWith("/auth/")
+  );
+}
+
+function ActiveChatNotificationListener() {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -964,4 +982,12 @@ export default function ChatNotificationListener() {
       )}
     </>
   );
+}
+
+export default function ChatNotificationListener() {
+  const pathname = usePathname();
+  if (isPublicRoute(pathname)) {
+    return null;
+  }
+  return <ActiveChatNotificationListener />;
 }
