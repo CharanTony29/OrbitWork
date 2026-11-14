@@ -22,7 +22,10 @@ export default async function ProjectDocumentPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  const { data: project } = await supabase
+  const { createAdminClient } = await import("@/lib/supabase/server");
+  const db = createAdminClient() || supabase;
+
+  const { data: project } = await db
     .from("projects")
     .select("id, name, workspace_id, workspaces(id, name, organization_id)")
     .eq("id", projectId)

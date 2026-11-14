@@ -22,7 +22,10 @@ export default async function WorkspaceDocPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  const { data: workspace } = await supabase
+  const { createAdminClient } = await import("@/lib/supabase/server");
+  const db = createAdminClient() || supabase;
+
+  const { data: workspace } = await db
     .from("workspaces")
     .select("id, name, organization_id")
     .eq("id", workspaceId)

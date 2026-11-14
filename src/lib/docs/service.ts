@@ -40,7 +40,9 @@ export async function getWorkspaceDocs(
   } = await supabase.auth.getUser();
   if (!user) return { docs: [], total: 0 };
 
-  let queryBuilder = supabase
+  const db = createAdminClient() || supabase;
+
+  let queryBuilder = db
     .from("docs")
     .select(
       `
@@ -67,8 +69,7 @@ export async function getWorkspaceDocs(
       created_at,
       updated_at,
       projects(id, name),
-      workspaces(id, name),
-      profiles:created_by(id, display_name, email)
+      workspaces(id, name)
     `,
       { count: "exact" }
     )
@@ -142,7 +143,7 @@ export async function getWorkspaceDocs(
   const docIds = data.map((d) => d.id);
   let pageCountMap: Record<string, number> = {};
   if (docIds.length) {
-    const { data: pageRows } = await supabase
+    const { data: pageRows } = await db
       .from("doc_pages")
       .select("doc_id")
       .in("doc_id", docIds)
@@ -151,6 +152,21 @@ export async function getWorkspaceDocs(
     if (pageRows) {
       for (const p of pageRows) {
         pageCountMap[p.doc_id] = (pageCountMap[p.doc_id] || 0) + 1;
+      }
+    }
+  }
+
+  // Fetch creator profiles safely
+  const creatorIds = Array.from(new Set(data.map((d: any) => d.created_by).filter(Boolean)));
+  let creatorMap: Record<string, string> = {};
+  if (creatorIds.length) {
+    const { data: profs } = await db
+      .from("profiles")
+      .select("id, display_name, email")
+      .in("id", creatorIds);
+    if (profs) {
+      for (const p of profs) {
+        creatorMap[p.id] = p.display_name?.trim() || p.email || "Teammate";
       }
     }
   }
@@ -180,7 +196,7 @@ export async function getWorkspaceDocs(
     updated_at: d.updated_at,
     project_name: d.projects?.name,
     workspace_name: d.workspaces?.name,
-    creator_name: d.profiles?.display_name || d.profiles?.email || "Teammate",
+    creator_name: (d.created_by && creatorMap[d.created_by]) || "Teammate",
     pages_count: pageCountMap[d.id] || 1,
     is_favorited: favSet.has(d.id),
   }));
@@ -201,7 +217,9 @@ export async function getDoc(docId: string): Promise<DocItem | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data, error } = await supabase
+  const db = createAdminClient() || supabase;
+
+  const { data, error } = await db
     .from("docs")
     .select(
       `
@@ -228,14 +246,28 @@ export async function getDoc(docId: string): Promise<DocItem | null> {
       created_at,
       updated_at,
       projects(id, name),
-      workspaces(id, name),
-      profiles:created_by(id, display_name, email)
+      workspaces(id, name)
     `
     )
     .eq("id", docId)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (error || !data) {
+    if (error) console.error("getDoc error", error);
+    return null;
+  }
+
+  let creatorName = "Teammate";
+  if (data.created_by) {
+    const { data: prof } = await db
+      .from("profiles")
+      .select("display_name, email")
+      .eq("id", data.created_by)
+      .maybeSingle();
+    if (prof) {
+      creatorName = prof.display_name?.trim() || prof.email || "Teammate";
+    }
+  }
 
   const { data: favRow } = await supabase
     .from("user_favorites")
@@ -270,7 +302,7 @@ export async function getDoc(docId: string): Promise<DocItem | null> {
     updated_at: data.updated_at,
     project_name: (data.projects as any)?.name,
     workspace_name: (data.workspaces as any)?.name,
-    creator_name: (data.profiles as any)?.display_name || (data.profiles as any)?.email || "Teammate",
+    creator_name: creatorName,
     is_favorited: Boolean(favRow),
   };
 }
@@ -589,8 +621,10 @@ export async function getPageListing(docId: string): Promise<PageListingNode[]> 
   } = await supabase.auth.getUser();
   if (!user) return [];
 
+  const db = createAdminClient() || supabase;
+
   // Lightweight metadata query — DO NOT fetch heavy content_json/content_markdown!
-  const { data: rows, error } = await supabase
+  const { data: rows, error } = await db
     .from("doc_pages")
     .select("id, doc_id, parent_page_id, title, icon, position, created_at, updated_at, is_archived")
     .eq("doc_id", docId)
@@ -645,7 +679,9 @@ export async function getPage(docId: string, pageId: string): Promise<DocPageIte
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data, error } = await supabase
+  const db = createAdminClient() || supabase;
+
+  const { data, error } = await db
     .from("doc_pages")
     .select("*")
     .eq("doc_id", docId)
@@ -866,7 +902,14 @@ export async function deletePage(
 
 export async function getComments(pageId: string): Promise<DocComment[]> {
   const supabase = await createClient();
-  const { data: rows, error } = await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const db = createAdminClient() || supabase;
+
+  const { data: rows, error } = await db
     .from("doc_comments")
     .select(
       `
@@ -882,14 +925,27 @@ export async function getComments(pageId: string): Promise<DocComment[]> {
       resolved_by,
       resolved_at,
       created_at,
-      updated_at,
-      profiles:author_id(display_name, email)
+      updated_at
     `
     )
     .eq("page_id", pageId)
     .order("created_at", { ascending: true });
 
   if (error || !rows) return [];
+
+  const authorIds = Array.from(new Set(rows.map((r: any) => r.author_id).filter(Boolean)));
+  let authorMap: Record<string, string> = {};
+  if (authorIds.length) {
+    const { data: profs } = await db
+      .from("profiles")
+      .select("id, display_name, email")
+      .in("id", authorIds);
+    if (profs) {
+      for (const p of profs) {
+        authorMap[p.id] = p.display_name?.trim() || p.email || "Teammate";
+      }
+    }
+  }
 
   const commentMap = new Map<string, DocComment>();
   const topLevel: DocComment[] = [];
@@ -901,7 +957,7 @@ export async function getComments(pageId: string): Promise<DocComment[]> {
       page_id: r.page_id,
       parent_comment_id: r.parent_comment_id,
       author_id: r.author_id,
-      author_name: (r.profiles as any)?.display_name || (r.profiles as any)?.email || "Teammate",
+      author_name: authorMap[r.author_id] || "Teammate",
       content: r.content,
       selected_text: r.selected_text,
       block_id: r.block_id,
@@ -942,7 +998,9 @@ export async function createComment(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Unauthorized" };
 
-  const { data, error } = await supabase
+  const db = createAdminClient() || supabase;
+
+  const { data, error } = await db
     .from("doc_comments")
     .insert({
       doc_id: docId,
@@ -956,12 +1014,22 @@ export async function createComment(
     .select(
       `
       id, doc_id, page_id, parent_comment_id, author_id, content, selected_text, block_id,
-      is_resolved, created_at, updated_at, profiles:author_id(display_name, email)
+      is_resolved, resolved_by, resolved_at, created_at, updated_at
     `
     )
     .single();
 
   if (error || !data) return { ok: false, error: error?.message || "Failed to create comment" };
+
+  let authorName = "Teammate";
+  const { data: prof } = await db
+    .from("profiles")
+    .select("display_name, email")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (prof) {
+    authorName = prof.display_name?.trim() || prof.email || "Teammate";
+  }
 
   await logDocActivity(docId, pageId, "commented", {
     commentId: data.id,
@@ -976,11 +1044,13 @@ export async function createComment(
       page_id: data.page_id,
       parent_comment_id: data.parent_comment_id,
       author_id: data.author_id,
-      author_name: (data.profiles as any)?.display_name || (data.profiles as any)?.email || "Teammate",
+      author_name: authorName,
       content: data.content,
       selected_text: data.selected_text,
       block_id: data.block_id,
-      is_resolved: false,
+      is_resolved: Boolean(data.is_resolved),
+      resolved_by: data.resolved_by,
+      resolved_at: data.resolved_at,
       created_at: data.created_at,
       updated_at: data.updated_at,
       replies: [],
@@ -1098,19 +1168,39 @@ export async function convertCommentToTask(
 
 export async function getVersions(pageId: string): Promise<DocVersion[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const db = createAdminClient() || supabase;
+
+  const { data, error } = await db
     .from("doc_page_versions")
     .select(
       `
       id, page_id, doc_id, title, content_json, content_markdown,
-      version_number, changed_by, change_summary, created_at,
-      profiles:changed_by(display_name, email)
+      version_number, changed_by, change_summary, created_at
     `
     )
     .eq("page_id", pageId)
     .order("version_number", { ascending: false });
 
   if (error || !data) return [];
+
+  const changerIds = Array.from(new Set(data.map((v: any) => v.changed_by).filter(Boolean)));
+  let changerMap: Record<string, string> = {};
+  if (changerIds.length) {
+    const { data: profs } = await db
+      .from("profiles")
+      .select("id, display_name, email")
+      .in("id", changerIds);
+    if (profs) {
+      for (const p of profs) {
+        changerMap[p.id] = p.display_name?.trim() || p.email || "Editor";
+      }
+    }
+  }
 
   return data.map((v: any) => ({
     id: v.id,
@@ -1121,7 +1211,7 @@ export async function getVersions(pageId: string): Promise<DocVersion[]> {
     content_markdown: v.content_markdown || "",
     version_number: v.version_number,
     changed_by: v.changed_by,
-    changer_name: v.profiles?.display_name || v.profiles?.email || "Editor",
+    changer_name: (v.changed_by && changerMap[v.changed_by]) || "Editor",
     change_summary: v.change_summary || "Revision",
     created_at: v.created_at,
   }));
@@ -1217,25 +1307,44 @@ export async function restoreVersion(
 
 export async function getDocMembers(docId: string): Promise<DocMember[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const db = createAdminClient() || supabase;
+
+  const { data, error } = await db
     .from("doc_members")
-    .select(
-      `
-      id, doc_id, user_id, role, created_at,
-      profiles:user_id(display_name, email)
-    `
-    )
+    .select("id, doc_id, user_id, role, created_at")
     .eq("doc_id", docId);
 
   if (error || !data) return [];
+
+  const userIds = Array.from(new Set(data.map((m: any) => m.user_id).filter(Boolean)));
+  let userMap: Record<string, { name: string; email: string }> = {};
+  if (userIds.length) {
+    const { data: profs } = await db
+      .from("profiles")
+      .select("id, display_name, email")
+      .in("id", userIds);
+    if (profs) {
+      for (const p of profs) {
+        userMap[p.id] = {
+          name: p.display_name?.trim() || p.email || "Member",
+          email: p.email || "",
+        };
+      }
+    }
+  }
 
   return data.map((m: any) => ({
     id: m.id,
     doc_id: m.doc_id,
     user_id: m.user_id,
     role: m.role,
-    user_name: m.profiles?.display_name || m.profiles?.email || "Member",
-    user_email: m.profiles?.email || "",
+    user_name: userMap[m.user_id]?.name || "Member",
+    user_email: userMap[m.user_id]?.email || "",
     created_at: m.created_at,
   }));
 }
@@ -1398,26 +1507,42 @@ export async function logDocActivity(
 
 export async function getDocActivities(docId: string): Promise<DocActivity[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const db = createAdminClient() || supabase;
+
+  const { data, error } = await db
     .from("doc_activities")
-    .select(
-      `
-      id, doc_id, page_id, actor_id, action, details, created_at,
-      profiles:actor_id(display_name, email)
-    `
-    )
+    .select("id, doc_id, page_id, actor_id, action, details, created_at")
     .eq("doc_id", docId)
     .order("created_at", { ascending: false })
     .limit(50);
 
   if (error || !data) return [];
 
+  const actorIds = Array.from(new Set(data.map((a: any) => a.actor_id).filter(Boolean)));
+  let actorMap: Record<string, string> = {};
+  if (actorIds.length) {
+    const { data: profs } = await db
+      .from("profiles")
+      .select("id, display_name, email")
+      .in("id", actorIds);
+    if (profs) {
+      for (const p of profs) {
+        actorMap[p.id] = p.display_name?.trim() || p.email || "Teammate";
+      }
+    }
+  }
+
   return data.map((a: any) => ({
     id: a.id,
     doc_id: a.doc_id,
     page_id: a.page_id,
     actor_id: a.actor_id,
-    actor_name: a.profiles?.display_name || a.profiles?.email || "Teammate",
+    actor_name: (a.actor_id && actorMap[a.actor_id]) || "Teammate",
     action: a.action,
     details: a.details || {},
     created_at: a.created_at,
