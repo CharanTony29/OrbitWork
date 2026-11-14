@@ -23,14 +23,32 @@ export function blocksToMarkdown(blocks: DocBlock[]): string {
           return `- [${b.data.checked ? "x" : " "}] ${b.data.text || ""}`;
         case "quote":
           return `> ${b.data.text || ""}\n`;
+        case "pull_quote":
+          return `> **"${b.data.text || ""}"** — ${b.data.author || "Source"}\n`;
         case "callout":
           return `> **[${(b.data.calloutType || "info").toUpperCase()}]** ${b.data.text || ""}\n`;
+        case "banner":
+          return `> **[BANNER: ${(b.data.bannerType || "info").toUpperCase()}${b.data.bannerTitle ? ` - ${b.data.bannerTitle}` : ""}]** ${b.data.text || ""}\n`;
         case "code":
           return `\`\`\`${b.data.language || ""}\n${b.data.text || ""}\n\`\`\`\n`;
         case "divider":
           return `---\n`;
         case "image":
           return `![${b.data.caption || "Image"}](${b.data.url || ""})\n`;
+        case "video":
+          return `[Video: ${b.data.caption || "Embedded Video"}](${b.data.url || ""})\n`;
+        case "audio":
+          return `[Audio: ${b.data.caption || "Embedded Audio"}](${b.data.url || ""})\n`;
+        case "file":
+          return `[File: ${b.data.fileName || "Download"}](${b.data.url || ""})\n`;
+        case "embed":
+          return `[Embed: ${b.data.caption || "Interactive Embed"}](${b.data.url || ""})\n`;
+        case "toggle":
+          return `<details><summary>${b.data.text || "Toggle"}</summary>\n\n${b.data.content || ""}\n</details>\n`;
+        case "columns":
+          return `<div class="doc-cols-2">\n<div class="col">${b.data.colLeft || ""}</div>\n<div class="col">${b.data.colRight || ""}</div>\n</div>\n`;
+        case "columns_3":
+          return `<div class="doc-cols-3">\n<div class="col">${b.data.col1 || ""}</div>\n<div class="col">${b.data.col2 || ""}</div>\n<div class="col">${b.data.col3 || ""}</div>\n</div>\n`;
         case "table": {
           const rows = b.data.rows || [];
           if (!rows.length) return "";
@@ -46,6 +64,14 @@ export function blocksToMarkdown(blocks: DocBlock[]): string {
           return `[Task: ${b.data.taskTitle || "Task"}](#task-${b.data.taskId})`;
         case "page_reference":
           return `[Page: ${b.data.pageTitle || "Page"}](#page-${b.data.pageId})`;
+        case "person_reference":
+          return `@${b.data.userName || "Person"}`;
+        case "whiteboard_reference":
+          return `[Whiteboard: ${b.data.whiteboardTitle || "Whiteboard"}](#whiteboard-${b.data.whiteboardId})`;
+        case "clickup_list_table":
+          return `[ClickUp List (Table) - Project Tasks](#task-table-embed)`;
+        case "clickup_list_board":
+          return `[ClickUp List (Board) - Project Tasks Kanban](#task-board-embed)`;
         default:
           return `${b.data.text || ""}\n`;
       }

@@ -93,9 +93,9 @@ html,body{background:var(--app-bg);color:var(--ink)}
 }
 
 [data-color-scheme="dark"] :is(
-  input:not([type="checkbox"]):not([type="radio"]),
+  input:not([type="checkbox"]):not([type="radio"]):not(.block-input):not(.doc-title-editor-input):not(.doc-editor-input):not(.table-cell-input),
   select,
-  textarea,
+  textarea:not(.block-textarea):not(.doc-editor-input),
   .detail-field input,
   .detail-field textarea,
   .detail-field select,
@@ -116,9 +116,9 @@ html,body{background:var(--app-bg);color:var(--ink)}
 }
 
 [data-color-scheme="dark"] :is(
-  input:focus:not(.attachments-search-input):not(.composer-minimal-input),
+  input:focus:not(.attachments-search-input):not(.composer-minimal-input):not(.block-input):not(.doc-title-editor-input):not(.doc-editor-input):not(.table-cell-input),
   select:focus,
-  textarea:focus:not(.composer-minimal-input)
+  textarea:focus:not(.composer-minimal-input):not(.block-textarea):not(.doc-editor-input)
 ) {
   border-color: var(--green) !important;
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2) !important;

@@ -11,18 +11,26 @@ export type DocBlockType =
   | "numbered_list"
   | "checklist"
   | "quote"
+  | "pull_quote"
   | "callout"
+  | "banner"
   | "divider"
   | "code"
   | "table"
   | "image"
   | "video"
+  | "audio"
   | "file"
   | "embed"
   | "toggle"
   | "columns"
+  | "columns_3"
   | "task_reference"
-  | "page_reference";
+  | "page_reference"
+  | "person_reference"
+  | "whiteboard_reference"
+  | "clickup_list_table"
+  | "clickup_list_board";
 
 export interface DocBlock {
   id: string;
@@ -33,21 +41,35 @@ export interface DocBlock {
     checked?: boolean;
     language?: string;
     caption?: string;
+    altText?: string;
     url?: string;
+    width?: number | string;
+    align?: "left" | "center" | "right" | "full";
     fileName?: string;
     fileSize?: number;
     calloutType?: "info" | "warning" | "success" | "tip" | "neutral";
+    bannerType?: "info" | "warning" | "success" | "danger" | "neutral";
+    bannerTitle?: string;
+    author?: string;
     icon?: string;
     rows?: string[][];
     open?: boolean;
-    columnLeft?: DocBlock[];
-    columnRight?: DocBlock[];
+    colLeft?: string;
+    colRight?: string;
+    column1?: DocBlock[];
+    column2?: DocBlock[];
+    column3?: DocBlock[];
     taskId?: string;
     taskTitle?: string;
     taskStatus?: string;
     taskPriority?: string;
     pageId?: string;
     pageTitle?: string;
+    userId?: string;
+    userName?: string;
+    userAvatar?: string;
+    whiteboardId?: string;
+    whiteboardTitle?: string;
     embedProvider?: "youtube" | "vimeo" | "figma" | "miro" | "generic";
     [key: string]: any;
   };

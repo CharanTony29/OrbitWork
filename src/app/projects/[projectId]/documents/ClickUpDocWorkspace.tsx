@@ -25,12 +25,14 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  Heading4,
   Code,
   Minus,
   Layout,
   Eye,
   Edit3,
   Columns2,
+  Columns3,
   Loader2,
   X,
   Bold,
@@ -69,6 +71,18 @@ import {
   ArrowRight,
   PanelLeftClose,
   PanelLeftOpen,
+  Video,
+  Music,
+  FileUp,
+  AtSign,
+  PenTool,
+  Trello,
+  Maximize,
+  Minimize,
+  UploadCloud,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
 } from "lucide-react";
 import {
   DocItem,
@@ -81,6 +95,7 @@ import {
   DocMember,
 } from "@/lib/docs/types";
 import { blocksToMarkdown, markdownToBlocks } from "@/lib/docs/blocks";
+import { markdownToPdf } from "@/lib/pdf";
 import FavoriteButton from "@/app/FavoriteButton";
 
 interface ClickUpDocWorkspaceProps {
@@ -97,16 +112,41 @@ interface ClickUpDocWorkspaceProps {
   tasksInProject?: Array<{ id: string; title: string; status?: string; priority?: string }>;
 }
 
-const COVER_GRADIENTS = [
-  "linear-gradient(135deg, #065f46 0%, #064e3b 100%)",
-  "linear-gradient(135deg, #1e40af 0%, #172554 100%)",
-  "linear-gradient(135deg, #581c87 0%, #3b0764 100%)",
-  "linear-gradient(135deg, #831843 0%, #500724 100%)",
-  "linear-gradient(135deg, #9a3412 0%, #431407 100%)",
-  "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
-];
+const COVER_CATEGORIES = {
+  Gradients: [
+    { name: "Emerald Deep", value: "linear-gradient(135deg, #065f46 0%, #064e3b 100%)" },
+    { name: "Ocean Midnight", value: "linear-gradient(135deg, #1e40af 0%, #172554 100%)" },
+    { name: "Cosmic Purple", value: "linear-gradient(135deg, #581c87 0%, #3b0764 100%)" },
+    { name: "Ruby Sunset", value: "linear-gradient(135deg, #831843 0%, #500724 100%)" },
+    { name: "Amber Flame", value: "linear-gradient(135deg, #9a3412 0%, #431407 100%)" },
+    { name: "Titanium Dark", value: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)" },
+    { name: "Aurora Teal", value: "linear-gradient(135deg, #0f766e 0%, #1e1b4b 100%)" },
+    { name: "Golden Dune", value: "linear-gradient(135deg, #b45309 0%, #78350f 100%)" },
+  ],
+  Nature: [
+    { name: "Alpine Peak", value: "url('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80')" },
+    { name: "Deep Pines", value: "url('https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1200&q=80')" },
+    { name: "Ocean Crest", value: "url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80')" },
+    { name: "Night Sky", value: "url('https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?auto=format&fit=crop&w=1200&q=80')" },
+  ],
+  Technology: [
+    { name: "Cyber Circuit", value: "url('https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80')" },
+    { name: "Data Grid", value: "url('https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80')" },
+    { name: "Modern Glass", value: "url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200&q=80')" },
+  ],
+  Minimal: [
+    { name: "Clean Titanium", value: "linear-gradient(135deg, #334155 0%, #1e293b 100%)" },
+    { name: "Matte Charcoal", value: "linear-gradient(135deg, #18181b 0%, #09090b 100%)" },
+    { name: "Frost Slate", value: "linear-gradient(135deg, #475569 0%, #334155 100%)" },
+  ],
+};
 
-const EMOJI_LIST = ["📄", "📘", "💡", "🚀", "⚙️", "📝", "🎯", "🧪", "📌", "🔬", "📚", "✨", "🏛️", "🔌", "🎨", "🚨"];
+const EMOJI_CATEGORIES = {
+  Common: ["📄", "📝", "💡", "🚀", "🎯", "⚙️", "📌", "🔬", "🧪", "📚", "✨", "🏛️", "🔌", "🎨", "🚨", "📊", "📈", "💬"],
+  Office: ["💻", "🖥️", "📱", "⌨️", "📦", "📬", "🗂️", "🗃️", "📋", "📍", "📎", "📏", "📐", "✂️", "🔒", "🔑", "🛠️", "📅"],
+  Signals: ["✅", "❌", "⚠️", "ℹ️", "❓", "❗", "🛑", "🟢", "🟡", "🔴", "🟣", "🔵", "⚪", "⚫", "🔶", "🔷", "💎", "🔔"],
+  Nature: ["🌱", "🌲", "🌳", "🌴", "🍀", "🍁", "🍂", "🍃", "🍄", "🌸", "☀️", "🌤️", "⛅", "☁️", "🌧️", "⚡", "❄️", "🌊"],
+};
 
 export default function ClickUpDocWorkspace({
   workspaceId,
@@ -133,21 +173,46 @@ export default function ClickUpDocWorkspace({
   const [pageTitle, setPageTitle] = useState(initialActivePage.title);
   const [pageIcon, setPageIcon] = useState(initialActivePage.icon || "📄");
   const [pageCover, setPageCover] = useState<string | null>(initialActivePage.cover_url || null);
+  const [coverPosition, setCoverPosition] = useState<"top" | "center" | "bottom">("center");
   const [blocks, setBlocks] = useState<DocBlock[]>(initialActivePage.content_json || []);
 
   // UI state
+  const [editorWidth, setEditorWidth] = useState<"standard" | "wide" | "full">("standard");
+  const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [collapsedParents, setCollapsedParents] = useState<Record<string, boolean>>({});
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved" | "error">("saved");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Drawers
+  // Drawers & Modals
   const [showOutline, setShowOutline] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showCoverGallery, setShowCoverGallery] = useState(false);
+  const [selectedCoverCategory, setSelectedCoverCategory] = useState<keyof typeof COVER_CATEGORIES>("Gradients");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [emojiSearch, setEmojiSearch] = useState("");
+
+  // Slash menu state
+  const [slashMenuOpen, setSlashMenuOpen] = useState(false);
+  const [slashQuery, setSlashQuery] = useState("");
+  const [slashTargetBlockId, setSlashTargetBlockId] = useState<string | null>(null);
+
+  // Floating formatting toolbar
+  const [floatingToolbarPos, setFloatingToolbarPos] = useState<{ top: number; left: number } | null>(null);
+  const [selectedTextRange, setSelectedTextRange] = useState<string | null>(null);
+
+  // Block hover handle
+  const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
+  const [blockMenuOpenId, setBlockMenuOpenId] = useState<string | null>(null);
+
+  // Reference pickers
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [taskPickerBlockId, setTaskPickerBlockId] = useState<string | null>(null);
+  const [showPagePicker, setShowPagePicker] = useState(false);
+  const [pagePickerBlockId, setPagePickerBlockId] = useState<string | null>(null);
 
   // Comments state
   const [comments, setComments] = useState<DocComment[]>([]);
@@ -167,30 +232,8 @@ export default function ClickUpDocWorkspace({
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
   const [findMatches, setFindMatches] = useState<number>(0);
-  const [findCurrentIndex, setFindCurrentIndex] = useState<number>(0);
 
-  // Slash menu state
-  const [slashMenuOpen, setSlashMenuOpen] = useState(false);
-  const [slashQuery, setSlashQuery] = useState("");
-  const [slashTargetBlockId, setSlashTargetBlockId] = useState<string | null>(null);
-  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
-
-  // Floating formatting toolbar
-  const [floatingToolbarPos, setFloatingToolbarPos] = useState<{ top: number; left: number } | null>(null);
-  const [selectedTextRange, setSelectedTextRange] = useState<string | null>(null);
-
-  // Block hover handle
-  const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
-  const [blockMenuOpenId, setBlockMenuOpenId] = useState<string | null>(null);
-
-  // Drag and drop blocks
-  const [draggedBlockIndex, setDraggedBlockIndex] = useState<number | null>(null);
-
-  // Task linking modal
-  const [showTaskPicker, setShowTaskPicker] = useState(false);
-  const [taskPickerBlockId, setTaskPickerBlockId] = useState<string | null>(null);
-
-  // Convert selection/comment to task modal
+  // Convert comment to task modal
   const [convertTaskModal, setConvertTaskModal] = useState<{
     open: boolean;
     title: string;
@@ -200,6 +243,7 @@ export default function ClickUpDocWorkspace({
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorAreaRef = useRef<HTMLDivElement>(null);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -238,7 +282,6 @@ export default function ClickUpDocWorkspace({
 
         setSaveStatus("saved");
 
-        // Update tree title if it changed
         setPageTree((prevTree) => {
           const updateNodes = (nodes: PageListingNode[]): PageListingNode[] =>
             nodes.map((n) => {
@@ -273,7 +316,7 @@ export default function ClickUpDocWorkspace({
     }, 1200);
   };
 
-  // Keyboard shortcut Ctrl+S / Cmd+S
+  // Keyboard shortcut Ctrl+S / Cmd+S & Find
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
@@ -290,11 +333,10 @@ export default function ClickUpDocWorkspace({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [pageTitle, pageIcon, pageCover, blocks, performSave]);
 
-  // Handle active page switch
+  // Page switcher
   const switchPage = async (pageId: string) => {
     if (pageId === activePageId) return;
 
-    // Flush current pending save if unsaved
     if (saveStatus === "unsaved") {
       await performSave(pageTitle, pageIcon, pageCover, blocks);
     }
@@ -311,7 +353,7 @@ export default function ClickUpDocWorkspace({
         setBlocks(data.page.content_json || []);
         setSaveStatus("saved");
       }
-    } catch (err) {
+    } catch {
       showToast("Could not load page");
     }
   };
@@ -368,7 +410,6 @@ export default function ClickUpDocWorkspace({
       if (!res.ok) throw new Error("Failed to delete page");
 
       await reloadPageTree();
-      // If we deleted the active page, switch to first available
       if (pageId === activePageId) {
         const next = pageTree.find((p) => p.id !== pageId);
         if (next) switchPage(next.id);
@@ -380,7 +421,7 @@ export default function ClickUpDocWorkspace({
   };
 
   // ---------------------------------------------------------------------------
-  // BLOCK EDITOR OPERATIONS
+  // BLOCK OPERATIONS
   // ---------------------------------------------------------------------------
   const updateBlockData = (blockId: string, newData: Record<string, any>) => {
     const nextBlocks = blocks.map((b) =>
@@ -390,8 +431,8 @@ export default function ClickUpDocWorkspace({
     triggerAutosave(pageTitle, pageIcon, pageCover, nextBlocks);
   };
 
-  const insertBlockAfter = (targetId: string, type: DocBlock["type"], data: any = {}) => {
-    const idx = blocks.findIndex((b) => b.id === targetId);
+  const insertBlockAfter = (targetId: string | null, type: DocBlock["type"], data: any = {}) => {
+    const idx = targetId ? blocks.findIndex((b) => b.id === targetId) : -1;
     const newBlock: DocBlock = {
       id: `blk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       type,
@@ -406,20 +447,24 @@ export default function ClickUpDocWorkspace({
     }
 
     setBlocks(nextBlocks);
+    setFocusedBlockId(newBlock.id);
     triggerAutosave(pageTitle, pageIcon, pageCover, nextBlocks);
     return newBlock.id;
   };
 
   const removeBlock = (blockId: string) => {
     if (blocks.length <= 1) {
-      // Keep at least one empty block
       const empty: DocBlock[] = [{ id: "b1", type: "paragraph", data: { text: "" } }];
       setBlocks(empty);
+      setFocusedBlockId("b1");
       triggerAutosave(pageTitle, pageIcon, pageCover, empty);
       return;
     }
+    const idx = blocks.findIndex((b) => b.id === blockId);
     const nextBlocks = blocks.filter((b) => b.id !== blockId);
     setBlocks(nextBlocks);
+    const focusTarget = nextBlocks[Math.max(0, idx - 1)]?.id || null;
+    setFocusedBlockId(focusTarget);
     triggerAutosave(pageTitle, pageIcon, pageCover, nextBlocks);
   };
 
@@ -445,36 +490,156 @@ export default function ClickUpDocWorkspace({
     triggerAutosave(pageTitle, pageIcon, pageCover, nextBlocks);
   };
 
-  // Slash commands registry
-  const SLASH_COMMANDS = useMemo(
+  // ---------------------------------------------------------------------------
+  // CLIPBOARD PASTE & DESKTOP DRAG/DROP FOR IMAGES
+  // ---------------------------------------------------------------------------
+  const uploadImageFile = async (file: File): Promise<string | null> => {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/docs/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        return data.url;
+      }
+    } catch {}
+    // Fallback: FileReader Base64
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve((e.target?.result as string) || null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleEditorPaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        showToast("Uploading pasted image…");
+        const url = await uploadImageFile(file);
+        if (url) {
+          insertBlockAfter(focusedBlockId, "image", {
+            url,
+            caption: file.name || "Pasted image",
+            width: "100%",
+            align: "center",
+            altText: file.name || "Pasted image",
+          });
+          showToast("Image pasted & uploaded!");
+        }
+        return;
+      }
+    }
+  };
+
+  const handleEditorDrop = async (e: React.DragEvent) => {
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith("image/")) {
+        e.preventDefault();
+        showToast("Uploading dropped image…");
+        const url = await uploadImageFile(file);
+        if (url) {
+          insertBlockAfter(focusedBlockId, "image", {
+            url,
+            caption: file.name || "Dropped image",
+            width: "100%",
+            align: "center",
+          });
+          showToast("Image inserted!");
+        }
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // SLASH COMMANDS REGISTRY
+  // ---------------------------------------------------------------------------
+  const SLASH_GROUPS = useMemo(
     () => [
-      { type: "paragraph", label: "Text", desc: "Start writing plain text", icon: <Type size={15} /> },
-      { type: "heading_1", label: "Heading 1", desc: "Large section heading", icon: <Heading1 size={15} /> },
-      { type: "heading_2", label: "Heading 2", desc: "Medium section heading", icon: <Heading2 size={15} /> },
-      { type: "heading_3", label: "Heading 3", desc: "Small subsection heading", icon: <Heading3 size={15} /> },
-      { type: "bullet_list", label: "Bullet List", desc: "Create a bulleted list", icon: <List size={15} /> },
-      { type: "numbered_list", label: "Numbered List", desc: "Create a numbered list", icon: <ListOrdered size={15} /> },
-      { type: "checklist", label: "Checklist", desc: "Track tasks with checkable boxes", icon: <CheckSquare size={15} /> },
-      { type: "quote", label: "Quote", desc: "Capture a quote or important callout", icon: <Quote size={15} /> },
-      { type: "callout", label: "Callout", desc: "Highlight notes in a colored banner", icon: <Lightbulb size={15} /> },
-      { type: "table", label: "Table", desc: "Add a spreadsheet-like data table", icon: <Columns size={15} /> },
-      { type: "code", label: "Code Block", desc: "Syntax highlighted code snippet", icon: <Code size={15} /> },
-      { type: "divider", label: "Divider", desc: "Visual horizontal rule separation", icon: <Minus size={15} /> },
-      { type: "toggle", label: "Toggle List", desc: "Collapsible accordion block", icon: <ChevronRight size={15} /> },
-      { type: "columns", label: "2 Columns", desc: "Side-by-side 2-column layout", icon: <Columns2 size={15} /> },
-      { type: "image", label: "Image", desc: "Upload or embed an image", icon: <ImageIcon size={15} /> },
-      { type: "task_reference", label: "Task Link", desc: "Embed a live project task", icon: <CheckCircle2 size={15} /> },
+      {
+        category: "SUGGESTIONS",
+        items: [
+          { type: "paragraph", label: "Text", desc: "Start writing plain text", icon: <Type size={15} /> },
+          { type: "heading_1", label: "Heading 1", desc: "Big section heading", icon: <Heading1 size={15} /> },
+          { type: "checklist", label: "Checklist", desc: "Interactive to-do list", icon: <CheckSquare size={15} /> },
+          { type: "bullet_list", label: "Bullet List", desc: "Standard bulleted list", icon: <List size={15} /> },
+          { type: "table", label: "Table", desc: "Spreadsheet-style data grid", icon: <Columns size={15} /> },
+        ],
+      },
+      {
+        category: "TEXT",
+        items: [
+          { type: "paragraph", label: "Normal text", desc: "Standard body paragraph", icon: <Type size={15} /> },
+          { type: "heading_1", label: "Heading 1", desc: "Top-level page section", icon: <Heading1 size={15} /> },
+          { type: "heading_2", label: "Heading 2", desc: "Medium subsection heading", icon: <Heading2 size={15} /> },
+          { type: "heading_3", label: "Heading 3", desc: "Small subsection heading", icon: <Heading3 size={15} /> },
+          { type: "heading_4", label: "Heading 4", desc: "Minor subheader", icon: <Heading4 size={15} /> },
+          { type: "checklist", label: "Checklist", desc: "Tasks with interactive checkboxes", icon: <CheckSquare size={15} /> },
+          { type: "bullet_list", label: "Bulleted list", desc: "Bulleted outline format", icon: <List size={15} /> },
+          { type: "numbered_list", label: "Numbered list", desc: "Sequential ordered list", icon: <ListOrdered size={15} /> },
+          { type: "toggle", label: "Toggle list", desc: "Collapsible accordion container", icon: <ChevronRight size={15} /> },
+          { type: "quote", label: "Block quote", desc: "Indented quotation block", icon: <Quote size={15} /> },
+          { type: "pull_quote", label: "Pull quote", desc: "Large emphasized editorial quote", icon: <Quote size={15} /> },
+          { type: "code", label: "Code block", desc: "Syntax highlighted code snippet", icon: <Code size={15} /> },
+        ],
+      },
+      {
+        category: "INLINE & REFERENCES",
+        items: [
+          { type: "person_reference", label: "Mention a Person", desc: "@teammate inside the document", icon: <AtSign size={15} /> },
+          { type: "page_reference", label: "Mention a Page", desc: "Link to another document page", icon: <FileText size={15} /> },
+          { type: "task_reference", label: "Mention a Task", desc: "Link to a project task item", icon: <CheckCircle2 size={15} /> },
+          { type: "whiteboard_reference", label: "Mention a Whiteboard", desc: "Link to project whiteboard canvas", icon: <PenTool size={15} /> },
+        ],
+      },
+      {
+        category: "VIEWS & EMBEDS",
+        items: [
+          { type: "clickup_list_table", label: "ClickUp List (Table)", desc: "Embed live project tasks in a table", icon: <ListFilter size={15} /> },
+          { type: "clickup_list_board", label: "ClickUp List (Board)", desc: "Embed live project Kanban board", icon: <Trello size={15} /> },
+        ],
+      },
+      {
+        category: "BASIC CONTENT & MEDIA",
+        items: [
+          { type: "divider", label: "Divider", desc: "Horizontal separation line", icon: <Minus size={15} /> },
+          { type: "banner", label: "Banner / Callout", desc: "Emphasized colored alert banner", icon: <Lightbulb size={15} /> },
+          { type: "columns", label: "2 Columns", desc: "Side-by-side 2-column layout", icon: <Columns2 size={15} /> },
+          { type: "columns_3", label: "3 Columns", desc: "Side-by-side 3-column layout", icon: <Columns3 size={15} /> },
+          { type: "table", label: "Table", desc: "Interactive customizable data table", icon: <Columns size={15} /> },
+          { type: "image", label: "Image", desc: "Upload, paste or embed image", icon: <ImageIcon size={15} /> },
+          { type: "video", label: "Video", desc: "Embed YouTube, Vimeo or MP4", icon: <Video size={15} /> },
+          { type: "audio", label: "Audio", desc: "Embed audio stream or player", icon: <Music size={15} /> },
+          { type: "file", label: "File Attachment", desc: "Upload downloadable file block", icon: <FileUp size={15} /> },
+          { type: "embed", label: "Web Bookmark / Embed", desc: "Interactive iframe or web page", icon: <Globe size={15} /> },
+        ],
+      },
     ],
     []
   );
 
-  const filteredCommands = useMemo(() => {
-    if (!slashQuery.trim()) return SLASH_COMMANDS;
+  const filteredGroups = useMemo(() => {
+    if (!slashQuery.trim()) return SLASH_GROUPS;
     const q = slashQuery.toLowerCase().trim();
-    return SLASH_COMMANDS.filter(
-      (c) => c.label.toLowerCase().includes(q) || c.type.toLowerCase().includes(q)
-    );
-  }, [SLASH_COMMANDS, slashQuery]);
+    return SLASH_GROUPS.map((g) => ({
+      ...g,
+      items: g.items.filter(
+        (item) => item.label.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q)
+      ),
+    })).filter((g) => g.items.length > 0);
+  }, [SLASH_GROUPS, slashQuery]);
 
   const executeSlashCommand = (type: any) => {
     if (!slashTargetBlockId) return;
@@ -485,11 +650,25 @@ export default function ClickUpDocWorkspace({
       setSlashMenuOpen(false);
       return;
     }
+    if (type === "page_reference") {
+      setPagePickerBlockId(slashTargetBlockId);
+      setShowPagePicker(true);
+      setSlashMenuOpen(false);
+      return;
+    }
 
     let defaultData: any = { text: "" };
     if (type === "checklist") defaultData = { text: "", checked: false };
-    if (type === "callout") defaultData = { text: "", calloutType: "info", icon: "💡" };
+    if (type === "callout" || type === "banner")
+      defaultData = { text: "Callout note or key instruction…", bannerType: "info", bannerTitle: "Important Note", icon: "💡" };
+    if (type === "pull_quote") defaultData = { text: "A great design is not just what it looks like and feels like. Design is how it works.", author: currentUserName };
     if (type === "code") defaultData = { text: "", language: "typescript" };
+    if (type === "columns") defaultData = { colLeft: "Left column note…", colRight: "Right column note…" };
+    if (type === "columns_3") defaultData = { col1: "First column", col2: "Second column", col3: "Third column" };
+    if (type === "person_reference") defaultData = { userId: currentUserId, userName: currentUserName, userAvatar: currentUserName.charAt(0) };
+    if (type === "whiteboard_reference") defaultData = { whiteboardTitle: `${projectName || "Project"} Whiteboard`, whiteboardId: projectId || "" };
+    if (type === "clickup_list_table") defaultData = { viewType: "table" };
+    if (type === "clickup_list_board") defaultData = { viewType: "board" };
     if (type === "table")
       defaultData = {
         rows: [
@@ -498,8 +677,12 @@ export default function ClickUpDocWorkspace({
           ["Cell 4", "Cell 5", "Cell 6"],
         ],
       };
-    if (type === "toggle") defaultData = { text: "Toggle title", content: "Hidden details" };
-    if (type === "columns") defaultData = { colLeft: "Column 1 text", colRight: "Column 2 text" };
+    if (type === "toggle") defaultData = { text: "Toggle details", content: "Hidden expandable information…" };
+    if (type === "image") defaultData = { url: "", caption: "", width: "100%", align: "center" };
+    if (type === "video") defaultData = { url: "", caption: "Project Demo Video" };
+    if (type === "audio") defaultData = { url: "", caption: "Meeting Recording" };
+    if (type === "file") defaultData = { url: "", fileName: "Attachment.pdf" };
+    if (type === "embed") defaultData = { url: "https://orbitwork.org", caption: "Interactive Embed" };
 
     const nextBlocks = blocks.map((b) =>
       b.id === slashTargetBlockId ? { ...b, type, data: defaultData } : b
@@ -513,15 +696,15 @@ export default function ClickUpDocWorkspace({
   // Headings outline calculation
   const outlineItems = useMemo(() => {
     return blocks
-      .filter((b) => ["heading_1", "heading_2", "heading_3"].includes(b.type))
+      .filter((b) => ["heading_1", "heading_2", "heading_3", "heading_4"].includes(b.type))
       .map((b) => ({
         id: b.id,
-        level: b.type === "heading_1" ? 1 : b.type === "heading_2" ? 2 : 3,
+        level: b.type === "heading_1" ? 1 : b.type === "heading_2" ? 2 : b.type === "heading_3" ? 3 : 4,
         text: b.data.text || "Untitled Section",
       }));
   }, [blocks]);
 
-  // Load comments, versions, activities when their drawer opens
+  // Load comments, versions, activities
   useEffect(() => {
     if (showComments) {
       fetch(`/api/workspaces/${workspaceId}/docs/${doc.id}/pages/${activePageId}/comments`)
@@ -549,7 +732,7 @@ export default function ClickUpDocWorkspace({
     }
   }, [showActivity, workspaceId, doc.id]);
 
-  // Comment submit
+  // Comment handlers
   const handleAddComment = async () => {
     if (!newCommentText.trim()) return;
     try {
@@ -574,7 +757,6 @@ export default function ClickUpDocWorkspace({
     } catch {}
   };
 
-  // Reply submit
   const handleAddReply = async (parentCommentId: string) => {
     if (!replyText.trim()) return;
     try {
@@ -604,7 +786,6 @@ export default function ClickUpDocWorkspace({
     } catch {}
   };
 
-  // Resolve comment
   const handleToggleResolve = async (commentId: string, currentResolved: boolean) => {
     try {
       await fetch(
@@ -621,7 +802,9 @@ export default function ClickUpDocWorkspace({
     } catch {}
   };
 
-  // Export handlers
+  // ---------------------------------------------------------------------------
+  // EXPORT HANDLERS (SEPARATING DOWNLOAD PDF FROM PRINT)
+  // ---------------------------------------------------------------------------
   const handleExportMarkdown = () => {
     const md = `# ${pageTitle}\n\n${blocksToMarkdown(blocks)}`;
     const blob = new Blob([md], { type: "text/markdown" });
@@ -631,12 +814,32 @@ export default function ClickUpDocWorkspace({
     a.download = `${pageTitle.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.md`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast("Markdown exported");
+    showToast("Markdown downloaded");
   };
 
   const handleExportHtml = () => {
     const content = blocksToMarkdown(blocks);
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${pageTitle}</title><style>body{font-family:sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.6;}</style></head><body><h1>${pageTitle}</h1><div>${content}</div></body></html>`;
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${pageTitle}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 24px; line-height: 1.7; color: #1e293b; }
+    h1 { font-size: 28px; margin-bottom: 24px; }
+    h2 { font-size: 22px; margin-top: 28px; }
+    blockquote { border-left: 4px solid #167c58; margin: 16px 0; padding-left: 16px; color: #475569; }
+    pre { background: #0f172a; color: #f8fafc; padding: 16px; border-radius: 8px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px 12px; }
+    th { background: #f8fafc; }
+  </style>
+</head>
+<body>
+  <h1>${pageTitle}</h1>
+  <div>${content.replace(/\n/g, "<br>")}</div>
+</body>
+</html>`;
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -644,33 +847,32 @@ export default function ClickUpDocWorkspace({
     a.download = `${pageTitle.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.html`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast("HTML exported");
+    showToast("HTML downloaded");
   };
 
-  // Text selection listener for floating toolbar
-  const handleEditorMouseUp = () => {
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed) {
-      setFloatingToolbarPos(null);
-      setSelectedTextRange(null);
-      return;
+  const handleExportPdf = () => {
+    try {
+      const md = blocksToMarkdown(blocks);
+      const pdfBytes = markdownToPdf(md, pageTitle);
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${pageTitle.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("PDF downloaded to your computer");
+    } catch (err: any) {
+      showToast("PDF generation failed: " + err?.message);
     }
+  };
 
-    const text = sel.toString().trim();
-    if (!text) {
-      setFloatingToolbarPos(null);
-      setSelectedTextRange(null);
-      return;
-    }
-
-    const range = sel.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-
-    setFloatingToolbarPos({
-      top: rect.top - 46,
-      left: Math.max(10, rect.left + rect.width / 2 - 120),
-    });
-    setSelectedTextRange(text);
+  const handlePrint = () => {
+    // Close modal first so modal does not get printed
+    setShowShareModal(false);
+    setTimeout(() => {
+      window.print();
+    }, 120);
   };
 
   return (
@@ -683,7 +885,7 @@ export default function ClickUpDocWorkspace({
         </div>
       )}
 
-      {/* SUBBAR / TOP BAR */}
+      {/* TOP BAR / NAVIGATION */}
       <header className="clickup-topbar">
         <div className="topbar-left-zone">
           <button
@@ -707,7 +909,7 @@ export default function ClickUpDocWorkspace({
         </div>
 
         <div className="topbar-center-zone">
-          {/* Autosave Status Indicator */}
+          {/* Autosave Status */}
           <div className={`save-status-pill ${saveStatus}`}>
             {saveStatus === "saving" && <Loader2 size={12} className="spin" />}
             {saveStatus === "saved" && <Check size={12} />}
@@ -724,6 +926,34 @@ export default function ClickUpDocWorkspace({
             </span>
           </div>
 
+          {/* Width Switcher */}
+          <div className="content-width-switcher-wrap" title="Adjust page layout width">
+            <button
+              type="button"
+              className={`width-opt-btn ${editorWidth === "standard" ? "active" : ""}`}
+              onClick={() => setEditorWidth("standard")}
+              title="Standard width (760px)"
+            >
+              Standard
+            </button>
+            <button
+              type="button"
+              className={`width-opt-btn ${editorWidth === "wide" ? "active" : ""}`}
+              onClick={() => setEditorWidth("wide")}
+              title="Wide layout (1080px)"
+            >
+              Wide
+            </button>
+            <button
+              type="button"
+              className={`width-opt-btn ${editorWidth === "full" ? "active" : ""}`}
+              onClick={() => setEditorWidth("full")}
+              title="Full width (100%)"
+            >
+              Full
+            </button>
+          </div>
+
           {doc.is_wiki && (
             <span className="topbar-badge badge-wiki">
               <BookOpen size={12} /> Wiki
@@ -738,7 +968,7 @@ export default function ClickUpDocWorkspace({
         </div>
 
         <div className="topbar-right-zone">
-          {/* Find in page */}
+          {/* Find */}
           <button
             type="button"
             className={`topbar-action-btn ${findOpen ? "active" : ""}`}
@@ -748,7 +978,7 @@ export default function ClickUpDocWorkspace({
             <Search size={15} />
           </button>
 
-          {/* Table of contents / outline */}
+          {/* Outline */}
           <button
             type="button"
             className={`topbar-action-btn ${showOutline ? "active" : ""}`}
@@ -758,7 +988,7 @@ export default function ClickUpDocWorkspace({
             <ListTree size={15} />
           </button>
 
-          {/* Comments drawer */}
+          {/* Comments */}
           <button
             type="button"
             className={`topbar-action-btn ${showComments ? "active" : ""}`}
@@ -793,7 +1023,7 @@ export default function ClickUpDocWorkspace({
             <Activity size={15} />
           </button>
 
-          {/* Favorite button */}
+          {/* Favorite */}
           <FavoriteButton
             entityType="document"
             entityId={doc.id}
@@ -805,19 +1035,19 @@ export default function ClickUpDocWorkspace({
             label=""
           />
 
-          {/* Export dropdown */}
+          {/* Export Menu */}
           <div className="export-menu-wrap">
             <button
               type="button"
               className="topbar-action-btn"
-              title="Print / Export"
-              onClick={() => window.print()}
+              title="Print Document"
+              onClick={handlePrint}
             >
               <Printer size={15} />
             </button>
           </div>
 
-          {/* Share button */}
+          {/* Share */}
           <button
             type="button"
             className="docs-btn-primary share-btn"
@@ -829,7 +1059,7 @@ export default function ClickUpDocWorkspace({
         </div>
       </header>
 
-      {/* FIND IN PAGE BAR (Ctrl+F) */}
+      {/* FIND IN PAGE BAR */}
       {findOpen && (
         <div className="find-toolbar">
           <Search size={14} />
@@ -840,7 +1070,7 @@ export default function ClickUpDocWorkspace({
             onChange={(e) => setFindQuery(e.target.value)}
             autoFocus
           />
-          {findQuery && <span className="find-count">{findMatches} found</span>}
+          {findQuery && <span className="find-count">{findMatches} matches</span>}
           <button
             type="button"
             className="find-close-btn"
@@ -854,8 +1084,8 @@ export default function ClickUpDocWorkspace({
         </div>
       )}
 
-      {/* MAIN BODY AREA: Sidebar + Editor + Right Drawers */}
-      <div className="clickup-main-layout">
+      {/* WORKSPACE MAIN BODY */}
+      <div className="clickup-workspace-body">
         {/* LEFT PAGE NAVIGATION SIDEBAR */}
         {!sidebarCollapsed && (
           <aside className="clickup-page-sidebar">
@@ -903,22 +1133,65 @@ export default function ClickUpDocWorkspace({
         <main
           className="clickup-editor-scroll"
           ref={editorAreaRef}
-          onMouseUp={handleEditorMouseUp}
+          onPaste={handleEditorPaste}
+          onDrop={handleEditorDrop}
+          onDragOver={(e) => e.preventDefault()}
         >
-          <div className="clickup-editor-inner">
-            {/* Optional Banner Cover */}
+          <div className={`clickup-editor-inner width-${editorWidth}`}>
+            {/* Banner Cover */}
             {pageCover && (
-              <div className="doc-cover-banner" style={{ background: pageCover }}>
-                <button
-                  type="button"
-                  className="doc-cover-remove"
-                  onClick={() => {
-                    setPageCover(null);
-                    triggerAutosave(pageTitle, pageIcon, null, blocks);
-                  }}
-                >
-                  <X size={12} /> Remove cover
-                </button>
+              <div
+                className={`doc-cover-banner pos-${coverPosition}`}
+                style={{
+                  background: pageCover.startsWith("url") || pageCover.startsWith("linear-gradient") ? pageCover : `url('${pageCover}')`,
+                  backgroundSize: "cover",
+                }}
+              >
+                <div className="doc-cover-controls-floating">
+                  <div className="reposition-bar">
+                    <button
+                      type="button"
+                      className={`reposition-btn ${coverPosition === "top" ? "active" : ""}`}
+                      onClick={() => setCoverPosition("top")}
+                      title="Reposition top"
+                    >
+                      Top
+                    </button>
+                    <button
+                      type="button"
+                      className={`reposition-btn ${coverPosition === "center" ? "active" : ""}`}
+                      onClick={() => setCoverPosition("center")}
+                      title="Reposition center"
+                    >
+                      Center
+                    </button>
+                    <button
+                      type="button"
+                      className={`reposition-btn ${coverPosition === "bottom" ? "active" : ""}`}
+                      onClick={() => setCoverPosition("bottom")}
+                      title="Reposition bottom"
+                    >
+                      Bottom
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCoverGallery(true)}
+                    title="Change cover"
+                  >
+                    <ImageIcon size={13} /> Change cover
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPageCover(null);
+                      triggerAutosave(pageTitle, pageIcon, null, blocks);
+                    }}
+                    title="Remove cover"
+                  >
+                    <X size={13} /> Remove
+                  </button>
+                </div>
               </div>
             )}
 
@@ -928,43 +1201,19 @@ export default function ClickUpDocWorkspace({
                 <button
                   type="button"
                   className="page-icon-btn"
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  onClick={() => setShowEmojiPicker(true)}
                   title="Change icon"
                 >
                   {pageIcon}
                 </button>
 
-                {!pageCover && (
-                  <button
-                    type="button"
-                    className="add-cover-btn"
-                    onClick={() => {
-                      const cover = COVER_GRADIENTS[0];
-                      setPageCover(cover);
-                      triggerAutosave(pageTitle, pageIcon, cover, blocks);
-                    }}
-                  >
-                    <ImageIcon size={13} /> Add cover
-                  </button>
-                )}
-
-                {showEmojiPicker && (
-                  <div className="emoji-popover-box">
-                    {EMOJI_LIST.map((emo) => (
-                      <button
-                        key={emo}
-                        type="button"
-                        onClick={() => {
-                          setPageIcon(emo);
-                          setShowEmojiPicker(false);
-                          triggerAutosave(pageTitle, emo, pageCover, blocks);
-                        }}
-                      >
-                        {emo}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <button
+                  type="button"
+                  className="add-cover-btn"
+                  onClick={() => setShowCoverGallery(true)}
+                >
+                  <ImageIcon size={13} /> {pageCover ? "Change cover" : "Add cover"}
+                </button>
               </div>
 
               {/* Title input */}
@@ -995,21 +1244,21 @@ export default function ClickUpDocWorkspace({
                 <span className="meta-words">{blocks.length} blocks</span>
               </div>
 
-              {/* Wiki mode banner */}
+              {/* Wiki banner */}
               {doc.is_wiki && (
                 <div className="wiki-page-badge-banner">
                   <BookOpen size={16} />
                   <div>
                     <strong>Verified Knowledge Base Article</strong>
-                    <p>Maintained by the workspace engineering & product teams.</p>
+                    <p>Maintained by workspace engineering & product teams.</p>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* BLOCK EDITOR CONTENT STREAM */}
+            {/* BLOCK STREAM */}
             <div className="doc-blocks-container">
-              {blocks.map((block, index) => (
+              {blocks.map((block) => (
                 <div
                   key={block.id}
                   className={`doc-block-wrapper ${hoveredBlockId === block.id ? "hovered" : ""}`}
@@ -1029,7 +1278,7 @@ export default function ClickUpDocWorkspace({
                     <button
                       type="button"
                       className="gutter-btn drag-handle"
-                      title="Drag to reorder / Block options"
+                      title="Block options"
                       onClick={() =>
                         setBlockMenuOpenId(blockMenuOpenId === block.id ? null : block.id)
                       }
@@ -1085,7 +1334,12 @@ export default function ClickUpDocWorkspace({
                   <div className="block-content-area">
                     <BlockRenderer
                       block={block}
-                      findQuery={findQuery}
+                      isFocused={focusedBlockId === block.id}
+                      isOnlyBlock={blocks.length === 1}
+                      projectId={projectId}
+                      tasksInProject={tasksInProject}
+                      onFocus={() => setFocusedBlockId(block.id)}
+                      onBlur={() => setFocusedBlockId(null)}
                       onChange={(newData) => updateBlockData(block.id, newData)}
                       onEnterPress={() => insertBlockAfter(block.id, "paragraph")}
                       onBackspaceOnEmpty={() => removeBlock(block.id)}
@@ -1094,6 +1348,8 @@ export default function ClickUpDocWorkspace({
                         setSlashQuery("");
                         setSlashMenuOpen(true);
                       }}
+                      onSwitchPage={switchPage}
+                      uploadImageFile={uploadImageFile}
                     />
                   </div>
                 </div>
@@ -1104,7 +1360,7 @@ export default function ClickUpDocWorkspace({
             <div
               className="editor-bottom-add"
               onClick={() => {
-                const lastId = blocks[blocks.length - 1]?.id || "init";
+                const lastId = blocks[blocks.length - 1]?.id || null;
                 insertBlockAfter(lastId, "paragraph");
               }}
             >
@@ -1114,69 +1370,7 @@ export default function ClickUpDocWorkspace({
           </div>
         </main>
 
-        {/* FLOATING TEXT FORMATTING TOOLBAR */}
-        {floatingToolbarPos && selectedTextRange && (
-          <div
-            className="floating-format-toolbar"
-            style={{ top: `${floatingToolbarPos.top}px`, left: `${floatingToolbarPos.left}px` }}
-          >
-            <button
-              type="button"
-              onClick={() => document.execCommand("bold")}
-              title="Bold (Ctrl+B)"
-            >
-              <Bold size={13} />
-            </button>
-            <button
-              type="button"
-              onClick={() => document.execCommand("italic")}
-              title="Italic (Ctrl+I)"
-            >
-              <Italic size={13} />
-            </button>
-            <button
-              type="button"
-              onClick={() => document.execCommand("underline")}
-              title="Underline (Ctrl+U)"
-            >
-              <Underline size={13} />
-            </button>
-            <button
-              type="button"
-              onClick={() => document.execCommand("strikeThrough")}
-              title="Strikethrough"
-            >
-              <Strikethrough size={13} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedQuote(selectedTextRange);
-                setShowComments(true);
-                setFloatingToolbarPos(null);
-              }}
-              title="Comment on selection"
-            >
-              <MessageSquare size={13} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setConvertTaskModal({
-                  open: true,
-                  title: selectedTextRange.slice(0, 80),
-                  description: selectedTextRange,
-                });
-                setFloatingToolbarPos(null);
-              }}
-              title="Create Task from selection"
-            >
-              <CheckCircle2 size={13} />
-            </button>
-          </div>
-        )}
-
-        {/* SLASH COMMANDS DROPDOWN POPUP */}
+        {/* SLASH COMMANDS DROPDOWN PALETTE */}
         {slashMenuOpen && (
           <div className="slash-menu-palette">
             <div className="slash-search-head">
@@ -1189,26 +1383,31 @@ export default function ClickUpDocWorkspace({
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Escape") setSlashMenuOpen(false);
-                  if (e.key === "Enter" && filteredCommands.length > 0) {
-                    executeSlashCommand(filteredCommands[0].type);
+                  if (e.key === "Enter" && filteredGroups[0]?.items[0]) {
+                    executeSlashCommand(filteredGroups[0].items[0].type);
                   }
                 }}
               />
             </div>
             <div className="slash-options-list">
-              {filteredCommands.map((cmd) => (
-                <button
-                  key={cmd.type}
-                  type="button"
-                  className="slash-option-item"
-                  onClick={() => executeSlashCommand(cmd.type)}
-                >
-                  <span className="cmd-icon">{cmd.icon}</span>
-                  <div className="cmd-text">
-                    <strong>{cmd.label}</strong>
-                    <span>{cmd.desc}</span>
-                  </div>
-                </button>
+              {filteredGroups.map((group) => (
+                <div key={group.category} className="slash-group-section">
+                  <div className="slash-category-label">{group.category}</div>
+                  {group.items.map((cmd) => (
+                    <button
+                      key={cmd.label + cmd.type}
+                      type="button"
+                      className="slash-option-item"
+                      onClick={() => executeSlashCommand(cmd.type)}
+                    >
+                      <span className="cmd-icon">{cmd.icon}</span>
+                      <div className="cmd-text">
+                        <strong>{cmd.label}</strong>
+                        <span>{cmd.desc}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
           </div>
@@ -1255,13 +1454,13 @@ export default function ClickUpDocWorkspace({
           </aside>
         )}
 
-        {/* RIGHT DRAWER: COMMENTS & INLINE THREADS */}
+        {/* RIGHT DRAWER: COMMENTS */}
         {showComments && (
           <aside className="doc-right-drawer comments-drawer">
             <div className="drawer-header">
               <div className="drawer-title">
                 <MessageSquare size={16} />
-                <span>Page Comments</span>
+                <span>Comments</span>
               </div>
               <button
                 type="button"
@@ -1272,104 +1471,99 @@ export default function ClickUpDocWorkspace({
               </button>
             </div>
 
-            <div className="drawer-body comments-body">
-              {selectedQuote && (
-                <div className="quoted-selection-banner">
-                  <Quote size={13} />
-                  <span>&quot;{selectedQuote}&quot;</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedQuote(null)}
-                    title="Remove quote"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              )}
-
-              {/* New Comment Input */}
+            <div className="drawer-body">
+              {/* New Comment Box */}
               <div className="new-comment-box">
+                {selectedQuote && (
+                  <div className="comment-quote-preview">
+                    <span>&ldquo;{selectedQuote}&rdquo;</span>
+                    <button type="button" onClick={() => setSelectedQuote(null)}>
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
                 <textarea
-                  placeholder="Leave a comment or mention @teammate…"
                   rows={3}
+                  placeholder="Leave a comment or mention @teammate…"
                   value={newCommentText}
                   onChange={(e) => setNewCommentText(e.target.value)}
                 />
-                <button
-                  type="button"
-                  className="docs-btn-primary comment-post-btn"
-                  onClick={handleAddComment}
-                >
-                  Comment
-                </button>
+                <div className="new-comment-actions">
+                  <button
+                    type="button"
+                    className="docs-btn-primary"
+                    onClick={handleAddComment}
+                    disabled={!newCommentText.trim()}
+                  >
+                    Comment
+                  </button>
+                </div>
               </div>
 
-              {/* Comments Thread List */}
-              <div className="comments-thread-list">
+              {/* Comments Feed */}
+              <div className="comments-feed-list">
                 {comments.length === 0 ? (
                   <p className="drawer-empty-msg">No comments on this page yet.</p>
                 ) : (
                   comments.map((c) => (
                     <div
                       key={c.id}
-                      className={`comment-card ${c.is_resolved ? "resolved" : ""}`}
+                      className={`comment-thread-card ${c.is_resolved ? "resolved" : ""}`}
                     >
-                      {c.selected_text && (
-                        <blockquote className="comment-quote">
-                          &quot;{c.selected_text}&quot;
-                        </blockquote>
-                      )}
-
-                      <div className="comment-header-row">
-                        <div className="comment-author-info">
-                          <span className="author-circle">
-                            {c.author_name?.charAt(0).toUpperCase() || "U"}
+                      <div className="thread-author-row">
+                        <div className="author-info">
+                          <span className="author-avatar">
+                            {c.author_name?.charAt(0) || "U"}
                           </span>
                           <strong>{c.author_name}</strong>
+                          <span className="comment-timestamp">
+                            {new Date(c.created_at).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
                         </div>
-                        <span className="comment-time">
-                          {new Date(c.created_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
+                        <div className="thread-actions">
+                          <button
+                            type="button"
+                            className="resolve-btn"
+                            onClick={() => handleToggleResolve(c.id, c.is_resolved)}
+                            title={c.is_resolved ? "Reopen comment" : "Resolve comment"}
+                          >
+                            <Check size={13} />
+                          </button>
+                        </div>
                       </div>
 
-                      <p className="comment-content-text">{c.content}</p>
+                      {c.selected_text && (
+                        <div className="thread-quoted-text">&ldquo;{c.selected_text}&rdquo;</div>
+                      )}
 
-                      <div className="comment-footer-actions">
+                      <div className="thread-content">{c.content}</div>
+
+                      <div className="thread-bottom-bar">
                         <button
                           type="button"
-                          className="comment-action-link"
-                          onClick={() => handleToggleResolve(c.id, c.is_resolved)}
-                        >
-                          <Check size={12} />
-                          {c.is_resolved ? "Reopen" : "Resolve"}
-                        </button>
-
-                        <button
-                          type="button"
-                          className="comment-action-link"
+                          className="reply-link"
                           onClick={() =>
                             setReplyingCommentId(replyingCommentId === c.id ? null : c.id)
                           }
                         >
                           Reply
                         </button>
-
                         <button
                           type="button"
-                          className="comment-action-link"
+                          className="reply-link"
                           onClick={() =>
                             setConvertTaskModal({
                               open: true,
-                              title: c.content.slice(0, 80),
+                              title: `Task from Comment: ${c.content.slice(0, 40)}`,
                               description: c.content,
                               commentId: c.id,
                             })
                           }
                         >
-                          <CheckCircle2 size={12} /> Convert to Task
+                          Create Task
                         </button>
                       </div>
 
@@ -1441,14 +1635,14 @@ export default function ClickUpDocWorkspace({
             </div>
             <div className="drawer-body">
               {versions.length === 0 ? (
-                <p className="drawer-empty-msg">No historical revisions tracked yet.</p>
+                <p className="drawer-empty-msg">No prior version snapshots recorded yet.</p>
               ) : (
-                <div className="versions-list">
+                <div className="versions-timeline">
                   {versions.map((ver) => (
                     <div key={ver.id} className="version-item-card">
-                      <div className="ver-header">
+                      <div className="version-meta">
                         <strong>Version {ver.version_number}</strong>
-                        <span className="ver-date">
+                        <span>
                           {new Date(ver.created_at).toLocaleDateString(undefined, {
                             month: "short",
                             day: "numeric",
@@ -1457,23 +1651,18 @@ export default function ClickUpDocWorkspace({
                           })}
                         </span>
                       </div>
-                      <span className="ver-changer">Edited by {ver.changer_name}</span>
-                      <p className="ver-summary">{ver.change_summary || "Auto-snapshot"}</p>
+                      <div className="version-author">
+                        Saved by {ver.changer_name || "Team member"}
+                      </div>
                       <button
                         type="button"
-                        className="restore-btn"
+                        className="restore-version-btn"
                         onClick={async () => {
-                          const res = await fetch(
-                            `/api/workspaces/${workspaceId}/docs/${doc.id}/pages/${activePageId}/versions`,
-                            {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ versionId: ver.id }),
-                            }
-                          );
-                          if (res.ok) {
-                            showToast(`Restored Version ${ver.version_number}`);
-                            switchPage(activePageId);
+                          if (confirm(`Restore Version ${ver.version_number}?`)) {
+                            setBlocks(ver.content_json);
+                            setPageTitle(ver.title);
+                            triggerAutosave(ver.title, pageIcon, pageCover, ver.content_json);
+                            showToast(`Restored version ${ver.version_number}`);
                           }
                         }}
                       >
@@ -1529,7 +1718,173 @@ export default function ClickUpDocWorkspace({
         )}
       </div>
 
-      {/* SHARE MODAL */}
+      {/* COVER GALLERY MODAL */}
+      {showCoverGallery && (
+        <div className="doc-modal-backdrop" onClick={() => setShowCoverGallery(false)}>
+          <div className="doc-modal-dialog cover-gallery-modal" onClick={(e) => e.stopPropagation()} role="dialog">
+            <div className="modal-header">
+              <h3>Choose Cover Image</h3>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setShowCoverGallery(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modal-body">
+              {/* Category tabs */}
+              <div className="cover-tabs-nav">
+                {(Object.keys(COVER_CATEGORIES) as Array<keyof typeof COVER_CATEGORIES>).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`cover-tab-btn ${selectedCoverCategory === cat ? "active" : ""}`}
+                    onClick={() => setSelectedCoverCategory(cat)}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Gallery Grid */}
+              <div className="cover-gallery-grid">
+                {COVER_CATEGORIES[selectedCoverCategory].map((item) => (
+                  <div
+                    key={item.name}
+                    className={`cover-gallery-card ${pageCover === item.value ? "selected" : ""}`}
+                    style={{
+                      background: item.value.startsWith("url") || item.value.startsWith("linear-gradient") ? item.value : `url('${item.value}')`,
+                      backgroundSize: "cover",
+                    }}
+                    onClick={() => {
+                      setPageCover(item.value);
+                      triggerAutosave(pageTitle, pageIcon, item.value, blocks);
+                      setShowCoverGallery(false);
+                      showToast(`Cover set to ${item.name}`);
+                    }}
+                    title={item.name}
+                  />
+                ))}
+              </div>
+
+              {/* Custom Upload Box */}
+              <div style={{ marginTop: "16px" }}>
+                <input
+                  type="file"
+                  ref={coverFileInputRef}
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      showToast("Uploading cover image…");
+                      const url = await uploadImageFile(file);
+                      if (url) {
+                        setPageCover(url);
+                        triggerAutosave(pageTitle, pageIcon, url, blocks);
+                        setShowCoverGallery(false);
+                        showToast("Cover image uploaded!");
+                      }
+                    }
+                  }}
+                />
+                <div
+                  className="cover-upload-zone"
+                  onClick={() => coverFileInputRef.current?.click()}
+                >
+                  <UploadCloud size={24} />
+                  <span>Upload custom image file (PNG, JPG, WebP)</span>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              {pageCover && (
+                <button
+                  type="button"
+                  className="docs-btn-secondary danger"
+                  onClick={() => {
+                    setPageCover(null);
+                    triggerAutosave(pageTitle, pageIcon, null, blocks);
+                    setShowCoverGallery(false);
+                    showToast("Cover removed");
+                  }}
+                >
+                  Remove Cover
+                </button>
+              )}
+              <button
+                type="button"
+                className="docs-btn-secondary"
+                onClick={() => setShowCoverGallery(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DOCUMENT ICON PICKER MODAL */}
+      {showEmojiPicker && (
+        <div className="doc-modal-backdrop" onClick={() => setShowEmojiPicker(false)}>
+          <div className="doc-modal-dialog emoji-picker-modal" onClick={(e) => e.stopPropagation()} role="dialog">
+            <div className="modal-header">
+              <h3>Choose Icon</h3>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setShowEmojiPicker(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="emoji-search-box">
+                <Search size={14} />
+                <input
+                  type="text"
+                  placeholder="Search icons…"
+                  value={emojiSearch}
+                  onChange={(e) => setEmojiSearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="emoji-scroll-grid">
+                {Object.values(EMOJI_CATEGORIES)
+                  .flat()
+                  .filter((emo) => !emojiSearch.trim() || emo.includes(emojiSearch))
+                  .map((emo, idx) => (
+                    <button
+                      key={idx + emo}
+                      type="button"
+                      className="emoji-item-btn"
+                      onClick={() => {
+                        setPageIcon(emo);
+                        setShowEmojiPicker(false);
+                        triggerAutosave(pageTitle, emo, pageCover, blocks);
+                      }}
+                    >
+                      {emo}
+                    </button>
+                  ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="docs-btn-secondary"
+                onClick={() => setShowEmojiPicker(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SHARE / EXPORT MODAL */}
       {showShareModal && (
         <div className="doc-modal-backdrop" onClick={() => setShowShareModal(false)}>
           <div className="doc-modal-dialog" onClick={(e) => e.stopPropagation()} role="dialog">
@@ -1644,7 +1999,7 @@ export default function ClickUpDocWorkspace({
                 </label>
               </div>
 
-              {/* Export Links */}
+              {/* Export Options (SEPARATING DOWNLOAD PDF FROM PRINT) */}
               <div className="modal-export-section">
                 <strong>Export Options</strong>
                 <div className="export-btns-row">
@@ -1654,8 +2009,11 @@ export default function ClickUpDocWorkspace({
                   <button type="button" className="docs-btn-secondary" onClick={handleExportHtml}>
                     <Download size={14} /> HTML (.html)
                   </button>
-                  <button type="button" className="docs-btn-secondary" onClick={() => window.print()}>
-                    <Printer size={14} /> PDF / Print
+                  <button type="button" className="docs-btn-secondary" onClick={handleExportPdf}>
+                    <Download size={14} /> Download PDF (.pdf)
+                  </button>
+                  <button type="button" className="docs-btn-secondary" onClick={handlePrint}>
+                    <Printer size={14} /> Print Document
                   </button>
                 </div>
               </div>
@@ -1722,7 +2080,47 @@ export default function ClickUpDocWorkspace({
         </div>
       )}
 
-      {/* CONVERT COMMENT / SELECTION TO TASK MODAL */}
+      {/* EMBED PAGE PICKER MODAL */}
+      {showPagePicker && (
+        <div className="doc-modal-backdrop" onClick={() => setShowPagePicker(false)}>
+          <div className="doc-modal-dialog" onClick={(e) => e.stopPropagation()} role="dialog">
+            <div className="modal-header">
+              <h3>Mention a Page</h3>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setShowPagePicker(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="task-picker-list">
+                {pageTree.map((p) => (
+                  <div
+                    key={p.id}
+                    className="task-picker-item"
+                    onClick={() => {
+                      if (pagePickerBlockId) {
+                        updateBlockData(pagePickerBlockId, {
+                          pageId: p.id,
+                          pageTitle: p.title,
+                        });
+                      }
+                      setShowPagePicker(false);
+                    }}
+                  >
+                    <span>{p.icon || "📄"}</span>
+                    <strong>{p.title}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONVERT COMMENT TO TASK MODAL */}
       {convertTaskModal.open && (
         <div
           className="doc-modal-backdrop"
@@ -1792,7 +2190,6 @@ export default function ClickUpDocWorkspace({
                     if (res.ok) {
                       showToast("Task created and linked successfully!");
                       setConvertTaskModal({ open: false, title: "", description: "" });
-                      // Reload comments if it was from a comment
                       if (convertTaskModal.commentId) {
                         fetch(
                           `/api/workspaces/${workspaceId}/docs/${doc.id}/pages/${activePageId}/comments`
@@ -1914,19 +2311,35 @@ function PageTreeNodeItem({
 // ---------------------------------------------------------------------------
 function BlockRenderer({
   block,
-  findQuery,
+  isFocused,
+  isOnlyBlock,
+  projectId,
+  tasksInProject,
+  onFocus,
+  onBlur,
   onChange,
   onEnterPress,
   onBackspaceOnEmpty,
   onOpenSlashMenu,
+  onSwitchPage,
+  uploadImageFile,
 }: {
   block: DocBlock;
-  findQuery: string;
+  isFocused: boolean;
+  isOnlyBlock: boolean;
+  projectId?: string;
+  tasksInProject: Array<{ id: string; title: string; status?: string; priority?: string }>;
+  onFocus: () => void;
+  onBlur: () => void;
   onChange: (newData: any) => void;
   onEnterPress: () => void;
   onBackspaceOnEmpty: () => void;
   onOpenSlashMenu: () => void;
+  onSwitchPage: (pageId: string) => void;
+  uploadImageFile: (file: File) => Promise<string | null>;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -1949,8 +2362,10 @@ function BlockRenderer({
           id={block.id}
           type="text"
           className="block-input h1"
-          placeholder="Heading 1"
+          placeholder={isFocused ? "Heading 1" : ""}
           value={block.data.text || ""}
+          onFocus={onFocus}
+          onBlur={onBlur}
           onChange={(e) => onChange({ text: e.target.value })}
           onKeyDown={handleKeyDown}
         />
@@ -1962,8 +2377,10 @@ function BlockRenderer({
           id={block.id}
           type="text"
           className="block-input h2"
-          placeholder="Heading 2"
+          placeholder={isFocused ? "Heading 2" : ""}
           value={block.data.text || ""}
+          onFocus={onFocus}
+          onBlur={onBlur}
           onChange={(e) => onChange({ text: e.target.value })}
           onKeyDown={handleKeyDown}
         />
@@ -1975,8 +2392,25 @@ function BlockRenderer({
           id={block.id}
           type="text"
           className="block-input h3"
-          placeholder="Heading 3"
+          placeholder={isFocused ? "Heading 3" : ""}
           value={block.data.text || ""}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onChange={(e) => onChange({ text: e.target.value })}
+          onKeyDown={handleKeyDown}
+        />
+      );
+
+    case "heading_4":
+      return (
+        <input
+          id={block.id}
+          type="text"
+          className="block-input h4"
+          placeholder={isFocused ? "Heading 4" : ""}
+          value={block.data.text || ""}
+          onFocus={onFocus}
+          onBlur={onBlur}
           onChange={(e) => onChange({ text: e.target.value })}
           onKeyDown={handleKeyDown}
         />
@@ -1993,8 +2427,10 @@ function BlockRenderer({
           <input
             type="text"
             className={`block-input checklist-text ${block.data.checked ? "checked" : ""}`}
-            placeholder="To-do item…"
+            placeholder={isFocused ? "To-do item…" : ""}
             value={block.data.text || ""}
+            onFocus={onFocus}
+            onBlur={onBlur}
             onChange={(e) => onChange({ text: e.target.value })}
             onKeyDown={handleKeyDown}
           />
@@ -2008,8 +2444,10 @@ function BlockRenderer({
           <input
             type="text"
             className="block-input"
-            placeholder="List item…"
+            placeholder={isFocused ? "List item…" : ""}
             value={block.data.text || ""}
+            onFocus={onFocus}
+            onBlur={onBlur}
             onChange={(e) => onChange({ text: e.target.value })}
             onKeyDown={handleKeyDown}
           />
@@ -2023,8 +2461,10 @@ function BlockRenderer({
           <input
             type="text"
             className="block-input"
-            placeholder="Numbered list item…"
+            placeholder={isFocused ? "Numbered list item…" : ""}
             value={block.data.text || ""}
+            onFocus={onFocus}
+            onBlur={onBlur}
             onChange={(e) => onChange({ text: e.target.value })}
             onKeyDown={handleKeyDown}
           />
@@ -2036,38 +2476,158 @@ function BlockRenderer({
         <blockquote className="block-quote">
           <textarea
             className="block-textarea"
-            placeholder="Quote…"
-            rows={2}
+            placeholder={isFocused ? "Empty quote…" : ""}
+            rows={1}
             value={block.data.text || ""}
-            onChange={(e) => onChange({ text: e.target.value })}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            onChange={(e) => {
+              onChange({ text: e.target.value });
+              e.target.style.height = "auto";
+              e.target.style.height = `${e.target.scrollHeight}px`;
+            }}
             onKeyDown={handleKeyDown}
           />
         </blockquote>
       );
 
-    case "callout":
+    case "pull_quote":
       return (
-        <div className={`block-callout ${block.data.calloutType || "info"}`}>
-          <span className="callout-icon">{block.data.icon || "💡"}</span>
+        <div className="block-pull-quote">
+          <textarea
+            className="pull-quote-text"
+            placeholder="Large quote text…"
+            rows={2}
+            value={block.data.text || ""}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            onChange={(e) => onChange({ text: e.target.value })}
+          />
           <input
             type="text"
-            className="block-input callout-text"
-            placeholder="Callout text…"
-            value={block.data.text || ""}
-            onChange={(e) => onChange({ text: e.target.value })}
-            onKeyDown={handleKeyDown}
+            className="pull-quote-author"
+            placeholder="— Citation / Author"
+            value={block.data.author || ""}
+            onChange={(e) => onChange({ author: e.target.value })}
           />
         </div>
       );
 
+    case "callout":
+    case "banner": {
+      const bannerType = block.data.bannerType || block.data.calloutType || "info";
+      return (
+        <div className={`block-banner ${bannerType}`}>
+          <span
+            className="banner-icon-badge"
+            onClick={() => {
+              const types = ["info", "warning", "success", "danger", "neutral"];
+              const curIdx = types.indexOf(bannerType);
+              const nextType = types[(curIdx + 1) % types.length];
+              const icons = { info: "💡", warning: "⚠️", success: "✅", danger: "🚨", neutral: "📌" };
+              onChange({ bannerType: nextType, calloutType: nextType, icon: (icons as any)[nextType] });
+            }}
+            title="Click to cycle banner tone"
+          >
+            {block.data.icon || (bannerType === "warning" ? "⚠️" : bannerType === "success" ? "✅" : bannerType === "danger" ? "🚨" : "💡")}
+          </span>
+          <div className="banner-content-col">
+            <input
+              type="text"
+              className="banner-title-input"
+              placeholder="Banner Title…"
+              value={block.data.bannerTitle || ""}
+              onChange={(e) => onChange({ bannerTitle: e.target.value })}
+            />
+            <textarea
+              className="banner-body-input"
+              placeholder="Write callout description…"
+              rows={2}
+              value={block.data.text || ""}
+              onChange={(e) => onChange({ text: e.target.value })}
+            />
+            <div className="banner-type-picker-strip">
+              {(["info", "warning", "success", "danger", "neutral"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className="banner-type-chip"
+                  onClick={() => onChange({ bannerType: t, calloutType: t })}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     case "divider":
       return <hr className="block-divider-line" />;
+
+    case "columns":
+      return (
+        <div className="doc-columns-container cols-2">
+          <div className="doc-col-box">
+            <textarea
+              className="block-textarea"
+              placeholder="Column 1 text…"
+              rows={2}
+              value={block.data.colLeft || ""}
+              onChange={(e) => onChange({ colLeft: e.target.value })}
+            />
+          </div>
+          <div className="doc-col-box">
+            <textarea
+              className="block-textarea"
+              placeholder="Column 2 text…"
+              rows={2}
+              value={block.data.colRight || ""}
+              onChange={(e) => onChange({ colRight: e.target.value })}
+            />
+          </div>
+        </div>
+      );
+
+    case "columns_3":
+      return (
+        <div className="doc-columns-container cols-3">
+          <div className="doc-col-box">
+            <textarea
+              className="block-textarea"
+              placeholder="Col 1…"
+              rows={2}
+              value={block.data.col1 || ""}
+              onChange={(e) => onChange({ col1: e.target.value })}
+            />
+          </div>
+          <div className="doc-col-box">
+            <textarea
+              className="block-textarea"
+              placeholder="Col 2…"
+              rows={2}
+              value={block.data.col2 || ""}
+              onChange={(e) => onChange({ col2: e.target.value })}
+            />
+          </div>
+          <div className="doc-col-box">
+            <textarea
+              className="block-textarea"
+              placeholder="Col 3…"
+              rows={2}
+              value={block.data.col3 || ""}
+              onChange={(e) => onChange({ col3: e.target.value })}
+            />
+          </div>
+        </div>
+      );
 
     case "code":
       return (
         <div className="block-code-container">
           <div className="code-header">
-            <span className="code-lang-tag">{block.data.language || "code"}</span>
+            <span className="code-lang-tag">{block.data.language || "typescript"}</span>
             <button
               type="button"
               className="code-copy-btn"
@@ -2088,10 +2648,191 @@ function BlockRenderer({
         </div>
       );
 
+    case "image": {
+      const hasUrl = Boolean(block.data.url);
+      const align = block.data.align || "center";
+      const width = block.data.width || "100%";
+
+      return (
+        <div
+          className="block-image-container"
+          style={{
+            textAlign: align === "center" ? "center" : align === "right" ? "right" : "left",
+          }}
+        >
+          {hasUrl ? (
+            <div style={{ display: "inline-block", maxWidth: "100%", width }}>
+              {/* Image Toolbar on Hover */}
+              <div className="image-block-toolbar">
+                <button
+                  type="button"
+                  onClick={() => onChange({ align: "left" })}
+                  title="Align left"
+                >
+                  <AlignLeft size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange({ align: "center" })}
+                  title="Align center"
+                >
+                  <AlignCenter size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange({ align: "right" })}
+                  title="Align right"
+                >
+                  <AlignRight size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange({ width: "25%" })}
+                  title="25% width"
+                >
+                  25%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange({ width: "50%" })}
+                  title="50% width"
+                >
+                  50%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange({ width: "75%" })}
+                  title="75% width"
+                >
+                  75%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange({ width: "100%" })}
+                  title="100% width"
+                >
+                  100%
+                </button>
+                <a
+                  href={block.data.url}
+                  download={block.data.caption || "downloaded-image"}
+                  title="Download image"
+                >
+                  <Download size={12} />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => onChange({ url: "" })}
+                  title="Replace image"
+                >
+                  <Edit3 size={12} />
+                </button>
+              </div>
+
+              {/* Real Image Element */}
+              <img
+                src={block.data.url}
+                alt={block.data.altText || block.data.caption || "Document image"}
+                style={{
+                  width: "100%",
+                  borderRadius: "8px",
+                  display: "block",
+                }}
+              />
+
+              {/* Caption */}
+              <input
+                type="text"
+                className="image-caption-input"
+                placeholder="Write a caption…"
+                value={block.data.caption || ""}
+                onChange={(e) => onChange({ caption: e.target.value })}
+              />
+            </div>
+          ) : (
+            <div className="image-empty-card">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const uploadedUrl = await uploadImageFile(file);
+                    if (uploadedUrl) {
+                      onChange({
+                        url: uploadedUrl,
+                        caption: file.name,
+                        width: "100%",
+                        align: "center",
+                      });
+                    }
+                  }
+                }}
+              />
+              <ImageIcon size={28} />
+              <span>Upload or embed an image</span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Upload File
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const inputUrl = prompt("Enter Image URL:");
+                    if (inputUrl) {
+                      onChange({ url: inputUrl, width: "100%", align: "center" });
+                    }
+                  }}
+                >
+                  Embed via URL
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    case "video":
+      return (
+        <div className="block-media-card">
+          {block.data.url ? (
+            <div className="media-preview-container">
+              {block.data.url.includes("youtube.com") || block.data.url.includes("youtu.be") ? (
+                <iframe
+                  src={block.data.url.replace("watch?v=", "embed/")}
+                  title="Video"
+                  width="100%"
+                  height="360"
+                  allowFullScreen
+                />
+              ) : (
+                <video src={block.data.url} controls width="100%" />
+              )}
+            </div>
+          ) : (
+            <div className="media-url-input-box">
+              <Video size={20} />
+              <input
+                type="text"
+                placeholder="Enter YouTube, Vimeo, or MP4 URL…"
+                value={block.data.url || ""}
+                onChange={(e) => onChange({ url: e.target.value })}
+              />
+            </div>
+          )}
+        </div>
+      );
+
     case "table": {
       const rows = block.data.rows || [
-        ["Col 1", "Col 2"],
-        ["Cell", "Cell"],
+        ["Header 1", "Header 2", "Header 3"],
+        ["Cell 1", "Cell 2", "Cell 3"],
       ];
 
       const addRow = () => {
@@ -2103,7 +2844,7 @@ function BlockRenderer({
       const addCol = () => {
         const nextRows = rows.map((r: string[], i: number) => [
           ...r,
-          i === 0 ? `Col ${r.length + 1}` : "Cell",
+          i === 0 ? `Header ${r.length + 1}` : "Cell",
         ]);
         onChange({ rows: nextRows });
       };
@@ -2133,6 +2874,7 @@ function BlockRenderer({
                     <td key={cIdx}>
                       <input
                         type="text"
+                        className="table-cell-input"
                         value={cell}
                         onChange={(e) => updateCell(rIdx, cIdx, e.target.value)}
                       />
@@ -2142,6 +2884,113 @@ function BlockRenderer({
               ))}
             </tbody>
           </table>
+        </div>
+      );
+    }
+
+    case "clickup_list_table":
+      return (
+        <div className="block-clickup-tasks-view">
+          <div className="clickup-view-header">
+            <strong>
+              <ListFilter size={15} />
+              Connected Project Tasks (Table)
+            </strong>
+            <span className="task-count-chip">{tasksInProject.length} tasks</span>
+          </div>
+          <table className="doc-inline-table">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Status</th>
+                <th>Priority</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasksInProject.length === 0 ? (
+                <tr>
+                  <td colSpan={3} style={{ textAlign: "center", color: "#94a3b8" }}>
+                    No tasks in this project yet.
+                  </td>
+                </tr>
+              ) : (
+                tasksInProject.slice(0, 8).map((t) => (
+                  <tr key={t.id}>
+                    <td>
+                      <Link
+                        href={`/projects/${projectId}/tasks/${t.id}`}
+                        style={{ color: "inherit", textDecoration: "none", fontWeight: 500 }}
+                      >
+                        {t.title}
+                      </Link>
+                    </td>
+                    <td>
+                      <span className="task-status-pill">{t.status || "To Do"}</span>
+                    </td>
+                    <td>
+                      <span className="task-priority-tag">{t.priority || "Normal"}</span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      );
+
+    case "clickup_list_board": {
+      const todoTasks = tasksInProject.filter((t) => (t.status || "").toLowerCase().includes("to do") || (t.status || "").toLowerCase().includes("open") || !t.status);
+      const inProgTasks = tasksInProject.filter((t) => (t.status || "").toLowerCase().includes("progress") || (t.status || "").toLowerCase().includes("review"));
+      const doneTasks = tasksInProject.filter((t) => (t.status || "").toLowerCase().includes("done") || (t.status || "").toLowerCase().includes("complete"));
+
+      return (
+        <div className="block-clickup-tasks-view">
+          <div className="clickup-view-header">
+            <strong>
+              <Trello size={15} />
+              Connected Project Board
+            </strong>
+          </div>
+          <div className="clickup-view-board-grid">
+            <div className="board-column-box">
+              <div className="board-col-head">
+                <span>To Do</span>
+                <span>{todoTasks.length}</span>
+              </div>
+              {todoTasks.slice(0, 4).map((t) => (
+                <div key={t.id} className="board-card-item">
+                  <strong>{t.title}</strong>
+                  {t.priority && <span>{t.priority}</span>}
+                </div>
+              ))}
+            </div>
+
+            <div className="board-column-box">
+              <div className="board-col-head">
+                <span>In Progress</span>
+                <span>{inProgTasks.length}</span>
+              </div>
+              {inProgTasks.slice(0, 4).map((t) => (
+                <div key={t.id} className="board-card-item">
+                  <strong>{t.title}</strong>
+                  {t.priority && <span>{t.priority}</span>}
+                </div>
+              ))}
+            </div>
+
+            <div className="board-column-box">
+              <div className="board-col-head">
+                <span>Done</span>
+                <span>{doneTasks.length}</span>
+              </div>
+              {doneTasks.slice(0, 4).map((t) => (
+                <div key={t.id} className="board-card-item">
+                  <strong>{t.title}</strong>
+                  {t.priority && <span>{t.priority}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       );
     }
@@ -2156,20 +3005,80 @@ function BlockRenderer({
               <span className="task-chip">{block.data.taskStatus}</span>
             )}
           </div>
-          <ExternalLink size={13} className="task-link-out" />
+          {projectId && block.data.taskId && (
+            <Link href={`/projects/${projectId}/tasks/${block.data.taskId}`} target="_blank">
+              <ExternalLink size={13} className="task-link-out" />
+            </Link>
+          )}
         </div>
+      );
+
+    case "page_reference":
+      return (
+        <button
+          type="button"
+          className="doc-mention-pill"
+          onClick={() => block.data.pageId && onSwitchPage(block.data.pageId)}
+        >
+          <FileText size={13} />
+          <span>{block.data.pageTitle || "Referenced Page"}</span>
+        </button>
+      );
+
+    case "person_reference":
+      return (
+        <span className="doc-mention-pill">
+          <AtSign size={13} />
+          <span>{block.data.userName || "Teammate"}</span>
+        </span>
+      );
+
+    case "whiteboard_reference":
+      return (
+        <Link
+          href={`/projects/${projectId}?view=whiteboard`}
+          className="doc-mention-pill"
+        >
+          <PenTool size={13} />
+          <span>{block.data.whiteboardTitle || "Whiteboard Canvas"}</span>
+        </Link>
+      );
+
+    case "toggle":
+      return (
+        <details className="block-toggle-accordion" open={Boolean(block.data.open)}>
+          <summary>
+            <input
+              type="text"
+              className="block-input"
+              value={block.data.text || ""}
+              placeholder="Toggle Title…"
+              onChange={(e) => onChange({ text: e.target.value })}
+            />
+          </summary>
+          <div className="toggle-hidden-content">
+            <textarea
+              className="block-textarea"
+              placeholder="Collapsible content…"
+              rows={2}
+              value={block.data.content || ""}
+              onChange={(e) => onChange({ content: e.target.value })}
+            />
+          </div>
+        </details>
       );
 
     default:
       return (
         <textarea
           className="block-textarea paragraph"
-          placeholder="Write text or type '/' for commands…"
+          placeholder={isFocused || (isOnlyBlock && !block.data.text) ? "Write text or type '/' for commands…" : ""}
           rows={1}
           value={block.data.text || ""}
+          onFocus={onFocus}
+          onBlur={onBlur}
           onChange={(e) => {
             onChange({ text: e.target.value });
-            // Auto expand textarea height
             e.target.style.height = "auto";
             e.target.style.height = `${e.target.scrollHeight}px`;
           }}
