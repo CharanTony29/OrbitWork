@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { signOut } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
 import ClickUpDocWorkspace from "./ClickUpDocWorkspace";
+import DocumentsHome from "./DocumentsHome";
 
 export default async function ProjectDocumentsPage({
   params,
@@ -27,13 +28,9 @@ export default async function ProjectDocumentsPage({
 
   const { data: documents } = await supabase
     .from("project_documents")
-    .select("id, title, body_markdown, updated_at, created_by")
+    .select("id, title, body_markdown, updated_at, created_at, created_by")
     .eq("project_id", projectId)
     .order("updated_at", { ascending: false });
-
-  if (documents && documents.length > 0) {
-    redirect(`/projects/${projectId}/documents/${documents[0].id}`);
-  }
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -90,14 +87,7 @@ export default async function ProjectDocumentsPage({
         </Link>
       </div>
 
-      <ClickUpDocWorkspace
-        projectId={projectId}
-        projectName={project.name}
-        documents={[]}
-        currentUserName={currentUserName}
-        taskAttachments={taskAttachments}
-        favoriteDocIds={favoriteDocIds}
-      />
+      <DocumentsHome projectId={projectId} projectName={project.name} documents={documents ?? []} currentUserId={user.id} favoriteDocIds={favoriteDocIds} />
     </main>
   );
 }

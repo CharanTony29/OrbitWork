@@ -759,6 +759,29 @@ export default function ClickUpDocWorkspace({
 
   const subpagesOfCurrent = activeDoc ? getSubpages(activeDoc.id) : [];
 
+  const treeMatches = (doc: DocItem, query: string): boolean =>
+    doc.title.toLowerCase().includes(query.toLowerCase()) ||
+    getSubpages(doc.id).some((child) => treeMatches(child, query));
+
+  function renderTreeNode(doc: DocItem, depth = 0): React.ReactNode {
+    const children = getSubpages(doc.id);
+    const collapsed = collapsedParents[doc.id] ?? false;
+    const { meta: nodeMeta } = parseMeta(doc.body_markdown);
+    const selected = doc.id === activeDocId;
+    return (
+      <div key={doc.id} className="doc-tree-node">
+        <div className={`doc-tree-row${selected ? " is-active" : ""}`} style={{ paddingLeft: 8 + depth * 14 }}>
+          {children.length > 0 ? <button type="button" className="doc-tree-expand" aria-label={`${collapsed ? "Expand" : "Collapse"} ${doc.title}`} onClick={() => setCollapsedParents((prev) => ({ ...prev, [doc.id]: !collapsed }))}>{collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}</button> : <span className="doc-tree-spacer" />}
+          <Link href={`/projects/${projectId}/documents/${doc.id}`} className="doc-tree-link">
+            <span className="doc-tree-icon">{getDocIcon(doc.body_markdown, nodeMeta.icon)}</span><span className="doc-tree-label">{doc.title}</span>
+          </Link>
+          <button type="button" className="doc-tree-add-sub" onClick={() => handleAddPage(doc.id)} title={`Add subpage under ${doc.title}`}><Plus size={11} /></button>
+        </div>
+        {!collapsed && children.filter((child) => !searchQuery || treeMatches(child, searchQuery)).map((child) => renderTreeNode(child, depth + 1))}
+      </div>
+    );
+  }
+
   return (
     <div className="clickup-doc-layout">
       {/* Toast Notification */}
@@ -837,80 +860,8 @@ export default function ClickUpDocWorkspace({
 
         <nav className="doc-tree-nav">
           {rootDocs
-            .filter((d) => d.title.toLowerCase().includes(searchQuery.toLowerCase()))
-            .map((root) => {
-              const subpages = getSubpages(root.id);
-              const isCollapsed = collapsedParents[root.id] ?? false;
-              const { meta: rMeta } = parseMeta(root.body_markdown);
-              const isSelected = root.id === activeDocId;
-
-              return (
-                <div key={root.id} className="doc-tree-node">
-                  <div className={`doc-tree-row${isSelected ? " is-active" : ""}`}>
-                    {subpages.length > 0 ? (
-                      <button
-                        type="button"
-                        className="doc-tree-expand"
-                        onClick={() =>
-                          setCollapsedParents((prev) => ({
-                            ...prev,
-                            [root.id]: !isCollapsed,
-                          }))
-                        }
-                      >
-                        {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-                      </button>
-                    ) : (
-                      <span className="doc-tree-spacer" />
-                    )}
-
-                    <Link
-                      href={`/projects/${projectId}/documents/${root.id}`}
-                      className="doc-tree-link"
-                    >
-                      <span className="doc-tree-icon">{getDocIcon(root.body_markdown, rMeta.icon)}</span>
-                      <span className="doc-tree-label">{root.title}</span>
-                    </Link>
-
-                    <button
-                      type="button"
-                      className="doc-tree-add-sub"
-                      onClick={() => handleAddPage(root.id)}
-                      title="Add subpage"
-                    >
-                      <Plus size={11} />
-                    </button>
-                  </div>
-
-                  {/* Nested Subpages */}
-                  {!isCollapsed && subpages.length > 0 && (
-                    <div className="doc-tree-children">
-                      {subpages.map((sub) => {
-                        const { meta: sMeta } = parseMeta(sub.body_markdown);
-                        const isSubSelected = sub.id === activeDocId;
-                        return (
-                          <div
-                            key={sub.id}
-                            className={`doc-tree-row doc-subpage-row${
-                              isSubSelected ? " is-active" : ""
-                            }`}
-                          >
-                            <span className="doc-tree-spacer" />
-                            <Link
-                              href={`/projects/${projectId}/documents/${sub.id}`}
-                              className="doc-tree-link"
-                            >
-                              <span className="doc-tree-icon">{getDocIcon(sub.body_markdown, sMeta.icon)}</span>
-                              <span className="doc-tree-label">{sub.title}</span>
-                            </Link>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            .filter((doc) => !searchQuery || treeMatches(doc, searchQuery))
+            .map((root) => renderTreeNode(root))}
         </nav>
 
         <div className="doc-sidebar-footer">
