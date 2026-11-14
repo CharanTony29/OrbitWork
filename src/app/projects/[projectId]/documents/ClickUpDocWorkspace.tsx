@@ -160,7 +160,8 @@ interface SlashAnchor {
 
 interface MenuPlacement {
   left: number;
-  top: number;
+  top?: number;
+  bottom?: number;
   width: number;
   maxHeight: number;
   placement: "below" | "above";
@@ -469,7 +470,7 @@ export default function ClickUpDocWorkspace({
     triggerAutosave(pageTitle, pageIcon, pageCover, nextBlocks);
   };
 
-  const insertBlockAfter = (targetId: string | null, type: DocBlock["type"], data: any = {}) => {
+  const insertBlockAfter = (targetId: string | null, type: DocBlock["type"] = "paragraph", data: any = {}) => {
     const idx = targetId ? blocks.findIndex((b) => b.id === targetId) : -1;
     const newBlock: DocBlock = {
       id: `blk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -488,6 +489,17 @@ export default function ClickUpDocWorkspace({
     setFocusedBlockId(newBlock.id);
     triggerAutosave(pageTitle, pageIcon, pageCover, nextBlocks);
     return newBlock.id;
+  };
+
+  const handleInsertBelow = (blockId: string) => {
+    const newId = insertBlockAfter(blockId, "paragraph");
+    setTimeout(() => {
+      const el = document.getElementById(newId) || (document.querySelector(`[data-block-id="${newId}"]`) as HTMLElement);
+      if (el) {
+        el.focus();
+        handleOpenSlashMenu(newId, el, "");
+      }
+    }, 60);
   };
 
   const removeBlock = (blockId: string) => {
@@ -725,28 +737,27 @@ export default function ClickUpDocWorkspace({
       const spaceBelow = vh - anchor.bottom - margin;
       const spaceAbove = anchor.top - margin;
 
-      let placement: "below" | "above" = "below";
-      let top = 0;
-      let maxHeight = 380;
-
       if (spaceBelow >= 220 || spaceBelow >= spaceAbove) {
-        placement = "below";
-        top = anchor.bottom + 6;
-        maxHeight = Math.min(spaceBelow, 440);
+        const top = anchor.bottom + 6;
+        const maxHeight = Math.min(spaceBelow - 12, 420);
+        return {
+          left: Math.round(left),
+          top: Math.round(top),
+          width: Math.round(width),
+          maxHeight: Math.max(160, Math.round(maxHeight)),
+          placement: "below",
+        };
       } else {
-        placement = "above";
-        maxHeight = Math.min(spaceAbove, 440);
-        const effectiveHeight = Math.min(measuredHeight, maxHeight);
-        top = Math.max(margin, anchor.top - effectiveHeight - 6);
+        const bottom = vh - anchor.top + 6;
+        const maxHeight = Math.min(spaceAbove - 12, 420);
+        return {
+          left: Math.round(left),
+          bottom: Math.round(bottom),
+          width: Math.round(width),
+          maxHeight: Math.max(160, Math.round(maxHeight)),
+          placement: "above",
+        };
       }
-
-      return {
-        left: Math.round(left),
-        top: Math.round(top),
-        width: Math.round(width),
-        maxHeight: Math.max(160, Math.round(maxHeight)),
-        placement,
-      };
     },
     []
   );
@@ -832,11 +843,26 @@ export default function ClickUpDocWorkspace({
     const rect = element.getBoundingClientRect();
     triggerElementRef.current = element;
     setSlashTargetBlockId(blockId);
+
+    let top = rect.top;
+    let bottom = rect.bottom;
+    let height = rect.height;
+
+    if (element instanceof HTMLTextAreaElement) {
+      const val = element.value || "";
+      const slashIdx = val.lastIndexOf("/");
+      const lineIndex = slashIdx !== -1 ? val.slice(0, slashIdx).split("\n").length - 1 : 0;
+      const lineHeight = 24;
+      top = rect.top + lineIndex * lineHeight;
+      bottom = top + lineHeight;
+      height = lineHeight;
+    }
+
     setSlashAnchor({
       left: rect.left,
-      top: rect.top,
-      bottom: rect.bottom,
-      height: rect.height,
+      top,
+      bottom,
+      height,
       blockId,
     });
     setSlashQuery(query);
@@ -1536,8 +1562,8 @@ export default function ClickUpDocWorkspace({
                     <button
                       type="button"
                       className="gutter-btn"
-                      title="Insert block below"
-                      onClick={() => insertBlockAfter(block.id, "paragraph")}
+                      aria-label="Insert block below"
+                      onClick={() => handleInsertBelow(block.id)}
                     >
                       <Plus size={13} />
                     </button>
@@ -1606,9 +1632,23 @@ export default function ClickUpDocWorkspace({
                       projectId={projectId}
                       tasksInProject={tasksInProject}
                       onFocus={() => setFocusedBlockId(block.id)}
-                      onBlur={() => setFocusedBlockId(null)}
+                      onBlur={() => {
+                        if (focusedBlockId === block.id) setFocusedBlockId(null);
+                      }}
                       onChange={(newData) => updateBlockData(block.id, newData)}
-                      onEnterPress={() => insertBlockAfter(block.id, "paragraph")}
+                      onEnterPress={() => {
+                        if (["bullet_list", "numbered_list", "checklist"].includes(block.type)) {
+                          if (block.data.text && block.data.text.trim()) {
+                            insertBlockAfter(block.id, block.type);
+                          } else {
+                            setBlocks((prev) =>
+                              prev.map((b) => (b.id === block.id ? { ...b, type: "paragraph", data: { text: "" } } : b))
+                            );
+                          }
+                        } else {
+                          insertBlockAfter(block.id, "paragraph");
+                        }
+                      }}
                       onBackspaceOnEmpty={() => removeBlock(block.id)}
                       onOpenSlashMenu={(el, query) => handleOpenSlashMenu(block.id, el, query)}
                       onCloseSlashMenu={handleCloseSlashMenu}
@@ -1627,7 +1667,7 @@ export default function ClickUpDocWorkspace({
               className="editor-bottom-add"
               onClick={() => {
                 const lastId = blocks[blocks.length - 1]?.id || null;
-                insertBlockAfter(lastId, "paragraph");
+                handleInsertBelow(lastId || "");
               }}
             >
               <Plus size={14} />
@@ -1945,7 +1985,9 @@ export default function ClickUpDocWorkspace({
           style={{
             position: "fixed",
             left: `${slashPosition.left}px`,
-            top: `${slashPosition.top}px`,
+            ...(slashPosition.placement === "below"
+              ? { top: `${slashPosition.top}px` }
+              : { bottom: `${slashPosition.bottom}px` }),
             width: `${slashPosition.width}px`,
             maxHeight: `${slashPosition.maxHeight}px`,
             zIndex: 1000,
@@ -1959,7 +2001,6 @@ export default function ClickUpDocWorkspace({
               placeholder="Type a command or search…"
               value={slashQuery}
               onChange={(e) => setSlashQuery(e.target.value)}
-              autoFocus
               onKeyDown={(e) => {
                 if (e.key === "ArrowDown") {
                   e.preventDefault();
@@ -2002,6 +2043,7 @@ export default function ClickUpDocWorkspace({
                           type="button"
                           className={`slash-option-item ${isSelected ? "selected" : ""}`}
                           onMouseEnter={() => setSlashSelectedIndex(thisIdx)}
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => executeSlashCommand(cmd.type)}
                         >
                           <span className="cmd-icon">{cmd.icon}</span>
@@ -2644,6 +2686,20 @@ function BlockRenderer({
   uploadImageFile: (file: File) => Promise<string | null>;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const elementRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (isFocused && elementRef.current) {
+      elementRef.current.focus();
+    }
+  }, [isFocused]);
+
+  useEffect(() => {
+    if (elementRef.current && elementRef.current.tagName.toLowerCase() === "textarea") {
+      elementRef.current.style.height = "auto";
+      elementRef.current.style.height = `${elementRef.current.scrollHeight}px`;
+    }
+  }, [block.data.text]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -2690,10 +2746,23 @@ function BlockRenderer({
       }
     }
 
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      onEnterPress();
+    const isTextArea = e.currentTarget.tagName.toLowerCase() === "textarea";
+
+    // Enter key handling:
+    // In a multiline textarea (paragraph, quote, callout), Enter should naturally take the user to a new line!
+    // Shift+Enter also takes to a new line.
+    // For single-line inputs (headings, list items), Enter calls onEnterPress() to create the next block.
+    if (e.key === "Enter") {
+      if (isTextArea) {
+        // Natural newline in multiline textarea
+        return;
+      } else {
+        e.preventDefault();
+        onEnterPress();
+        return;
+      }
     }
+
     if (e.key === "Backspace" && !(e.target as any).value) {
       onBackspaceOnEmpty();
     }
@@ -2703,7 +2772,9 @@ function BlockRenderer({
     case "heading_1":
       return (
         <input
+          ref={elementRef as any}
           id={block.id}
+          data-block-id={block.id}
           type="text"
           className="block-input h1"
           placeholder={isFocused ? "Heading 1" : ""}
@@ -2718,7 +2789,9 @@ function BlockRenderer({
     case "heading_2":
       return (
         <input
+          ref={elementRef as any}
           id={block.id}
+          data-block-id={block.id}
           type="text"
           className="block-input h2"
           placeholder={isFocused ? "Heading 2" : ""}
@@ -2733,7 +2806,9 @@ function BlockRenderer({
     case "heading_3":
       return (
         <input
+          ref={elementRef as any}
           id={block.id}
+          data-block-id={block.id}
           type="text"
           className="block-input h3"
           placeholder={isFocused ? "Heading 3" : ""}
@@ -2748,7 +2823,9 @@ function BlockRenderer({
     case "heading_4":
       return (
         <input
+          ref={elementRef as any}
           id={block.id}
+          data-block-id={block.id}
           type="text"
           className="block-input h4"
           placeholder={isFocused ? "Heading 4" : ""}
@@ -2769,6 +2846,9 @@ function BlockRenderer({
             onChange={(e) => onChange({ checked: e.target.checked })}
           />
           <input
+            ref={elementRef as any}
+            id={block.id}
+            data-block-id={block.id}
             type="text"
             className={`block-input checklist-text ${block.data.checked ? "checked" : ""}`}
             placeholder={isFocused ? "To-do item…" : ""}
@@ -2786,6 +2866,9 @@ function BlockRenderer({
         <div className="block-list-item bullet">
           <span className="bullet-dot">•</span>
           <input
+            ref={elementRef as any}
+            id={block.id}
+            data-block-id={block.id}
             type="text"
             className="block-input"
             placeholder={isFocused ? "List item…" : ""}
@@ -2803,6 +2886,9 @@ function BlockRenderer({
         <div className="block-list-item numbered">
           <span className="number-label">1.</span>
           <input
+            ref={elementRef as any}
+            id={block.id}
+            data-block-id={block.id}
             type="text"
             className="block-input"
             placeholder={isFocused ? "Numbered list item…" : ""}
@@ -2819,6 +2905,9 @@ function BlockRenderer({
       return (
         <blockquote className="block-quote">
           <textarea
+            ref={elementRef as any}
+            id={block.id}
+            data-block-id={block.id}
             className="block-textarea"
             placeholder={isFocused ? "Empty quote…" : ""}
             rows={1}
@@ -3410,8 +3499,11 @@ function BlockRenderer({
     default:
       return (
         <textarea
+          ref={elementRef as any}
+          id={block.id}
+          data-block-id={block.id}
           className="block-textarea paragraph"
-          placeholder={isFocused || (isOnlyBlock && !block.data.text) ? "Write text or type '/' for commands…" : ""}
+          placeholder="Write text or type '/' for commands…"
           rows={1}
           value={block.data.text || ""}
           onFocus={onFocus}
