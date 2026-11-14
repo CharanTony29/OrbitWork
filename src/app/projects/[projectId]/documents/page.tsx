@@ -2,10 +2,9 @@ import Link from "next/link";
 import AppTopBar from "@/app/AppTopBar";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { signOut } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
-import ClickUpDocWorkspace from "./ClickUpDocWorkspace";
-import DocumentsHome from "./DocumentsHome";
+import DocumentsHub from "@/app/docs/DocumentsHub";
+import { getWorkspaceDocs } from "@/lib/docs/service";
 
 export default async function ProjectDocumentsPage({
   params,
@@ -21,51 +20,19 @@ export default async function ProjectDocumentsPage({
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name")
+    .select("id, name, workspace_id, workspaces(id, name, organization_id)")
     .eq("id", projectId)
     .maybeSingle();
+
   if (!project) notFound();
 
-  const { data: documents } = await supabase
-    .from("project_documents")
-    .select("id, title, body_markdown, updated_at, created_at, created_by")
-    .eq("project_id", projectId)
-    .order("updated_at", { ascending: false });
+  const workspaceId = project.workspace_id;
+  const workspaceName = (project.workspaces as any)?.name || "Workspace";
+  const organizationId = (project.workspaces as any)?.organization_id;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("display_name, email")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const currentUserName = profile?.display_name?.trim() || user.email || "Team member";
-
-  const { data: rawAttachments } = await supabase
-    .from("task_attachments")
-    .select(
-      "id, task_id, project_id, file_name, mime_type, file_size_bytes, storage_provider, external_file_id, created_at, tasks(id, title)"
-    )
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false });
-
-  const taskAttachments = (rawAttachments ?? [])
-    .filter((a) => {
-      const isCanvas =
-        a.mime_type.includes("whiteboard") ||
-        a.mime_type.includes("flowchart") ||
-        a.file_name.toLowerCase().endsWith(".whiteboard") ||
-        a.file_name.toLowerCase().endsWith(".flowchart");
-      return !isCanvas;
-    })
-    .map((a) => ({
-      id: a.id,
-      task_id: a.task_id,
-      task_title: (a.tasks as any)?.title || "Task",
-      file_name: a.file_name,
-      mime_type: a.mime_type,
-      file_size_bytes: a.file_size_bytes ?? undefined,
-      created_at: a.created_at,
-    }));
+  const result = await getWorkspaceDocs(workspaceId, {
+    projectId,
+  });
 
   let favoriteDocIds: string[] = [];
   const { data: favRows, error: favErr } = await supabase
@@ -79,7 +46,13 @@ export default async function ProjectDocumentsPage({
 
   return (
     <main className="app-shell clickup-doc-page-shell">
-      <AppTopBar email={user.email ?? ""} projectId={projectId} />
+      <AppTopBar
+        email={user.email ?? ""}
+        projectId={projectId}
+        workspaceId={workspaceId}
+        workspaceName={workspaceName}
+        organizationId={organizationId}
+      />
 
       <div className="doc-page-subbar">
         <Link className="back-link" href={`/projects/${projectId}`}>
@@ -87,7 +60,16 @@ export default async function ProjectDocumentsPage({
         </Link>
       </div>
 
-      <DocumentsHome projectId={projectId} projectName={project.name} documents={documents ?? []} currentUserId={user.id} favoriteDocIds={favoriteDocIds} />
+      <DocumentsHub
+        workspaceId={workspaceId}
+        projectId={projectId}
+        workspaceName={workspaceName}
+        projectName={project.name}
+        organizationId={organizationId}
+        initialDocs={result.docs}
+        currentUserId={user.id}
+        favoriteDocIds={favoriteDocIds}
+      />
     </main>
   );
 }

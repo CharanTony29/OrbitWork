@@ -2,16 +2,20 @@ import Link from "next/link";
 import AppTopBar from "@/app/AppTopBar";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { signOut } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
 import ClickUpDocWorkspace from "../ClickUpDocWorkspace";
+import { getDoc, getPageListing, getPage } from "@/lib/docs/service";
 
 export default async function ProjectDocumentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ projectId: string; documentId: string }>;
+  searchParams: Promise<{ pageId?: string }>;
 }) {
   const { projectId, documentId } = await params;
+  const { pageId } = await searchParams;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -20,19 +24,56 @@ export default async function ProjectDocumentPage({
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name")
+    .select("id, name, workspace_id, workspaces(id, name, organization_id)")
     .eq("id", projectId)
     .maybeSingle();
+
   if (!project) notFound();
 
-  const { data: allDocs } = await supabase
-    .from("project_documents")
-    .select("id, title, body_markdown, updated_at, created_by")
-    .eq("project_id", projectId)
-    .order("updated_at", { ascending: false });
+  const doc = await getDoc(documentId);
+  if (!doc) notFound();
 
-  const activeDocument = (allDocs ?? []).find((d) => d.id === documentId);
-  if (!activeDocument) notFound();
+  const pageTree = await getPageListing(documentId);
+
+  // Determine active page
+  const targetPageId = pageId || pageTree[0]?.id;
+  let activePage = targetPageId ? await getPage(documentId, targetPageId) : null;
+
+  if (!activePage) {
+    // Fallback: create a primary page if somehow none exists
+    const { data: fallback } = await supabase
+      .from("doc_pages")
+      .insert({
+        doc_id: documentId,
+        title: doc.title,
+        icon: doc.icon || "📄",
+        position: 1000.0,
+        content_json: [{ id: "b1", type: "paragraph", data: { text: "" } }],
+        created_by: user.id,
+        updated_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (fallback) {
+      activePage = {
+        id: fallback.id,
+        doc_id: fallback.doc_id,
+        parent_page_id: fallback.parent_page_id,
+        title: fallback.title,
+        icon: fallback.icon,
+        position: fallback.position,
+        content_json: fallback.content_json,
+        content_markdown: fallback.content_markdown || "",
+        page_type: fallback.page_type,
+        is_archived: fallback.is_archived,
+        created_at: fallback.created_at,
+        updated_at: fallback.updated_at,
+      };
+    }
+  }
+
+  if (!activePage) notFound();
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -42,32 +83,20 @@ export default async function ProjectDocumentPage({
 
   const currentUserName = profile?.display_name?.trim() || user.email || "Team member";
 
-  const { data: rawAttachments } = await supabase
-    .from("task_attachments")
-    .select(
-      "id, task_id, project_id, file_name, mime_type, file_size_bytes, storage_provider, external_file_id, created_at, tasks(id, title)"
-    )
+  // Load project tasks for live embedding
+  const { data: tasks } = await supabase
+    .from("tasks")
+    .select("id, title, priority, project_statuses(name)")
     .eq("project_id", projectId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(30);
 
-  const taskAttachments = (rawAttachments ?? [])
-    .filter((a) => {
-      const isCanvas =
-        a.mime_type.includes("whiteboard") ||
-        a.mime_type.includes("flowchart") ||
-        a.file_name.toLowerCase().endsWith(".whiteboard") ||
-        a.file_name.toLowerCase().endsWith(".flowchart");
-      return !isCanvas;
-    })
-    .map((a) => ({
-      id: a.id,
-      task_id: a.task_id,
-      task_title: (a.tasks as any)?.title || "Task",
-      file_name: a.file_name,
-      mime_type: a.mime_type,
-      file_size_bytes: a.file_size_bytes ?? undefined,
-      created_at: a.created_at,
-    }));
+  const tasksInProject = (tasks || []).map((t: any) => ({
+    id: t.id,
+    title: t.title,
+    status: t.project_statuses?.name || "To Do",
+    priority: t.priority,
+  }));
 
   let favoriteDocIds: string[] = [];
   const { data: favRows, error: favErr } = await supabase
@@ -79,24 +108,38 @@ export default async function ProjectDocumentPage({
     favoriteDocIds = favRows.map((f) => f.entity_id);
   }
 
+  const workspaceId = project.workspace_id;
+  const workspaceName = (project.workspaces as any)?.name || "Workspace";
+  const organizationId = (project.workspaces as any)?.organization_id;
+
   return (
     <main className="app-shell clickup-doc-page-shell">
-      <AppTopBar email={user.email ?? ""} projectId={projectId} />
+      <AppTopBar
+        email={user.email ?? ""}
+        projectId={projectId}
+        workspaceId={workspaceId}
+        workspaceName={workspaceName}
+        organizationId={organizationId}
+      />
 
       <div className="doc-page-subbar">
-        <Link className="back-link" href={`/projects/${projectId}`}>
-          <ArrowLeft size={15} /> Back to {project.name}
+        <Link className="back-link" href={`/projects/${projectId}/documents`}>
+          <ArrowLeft size={15} /> Back to Documents
         </Link>
       </div>
 
       <ClickUpDocWorkspace
+        workspaceId={workspaceId}
         projectId={projectId}
         projectName={project.name}
-        documents={allDocs ?? []}
-        currentDocId={documentId}
+        workspaceName={workspaceName}
+        doc={doc}
+        initialPages={pageTree}
+        initialActivePage={activePage}
+        currentUserId={user.id}
         currentUserName={currentUserName}
-        taskAttachments={taskAttachments}
         favoriteDocIds={favoriteDocIds}
+        tasksInProject={tasksInProject}
       />
     </main>
   );

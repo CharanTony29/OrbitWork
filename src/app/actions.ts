@@ -93,7 +93,13 @@ export async function signUp(formData: FormData) {
 
   if (!parsed.success) redirect(`/signup?error=invalid_input${returnQuery}`);
   const supabase = await createClient();
-  const appUrl = normalizeAppOrigin(process.env.NEXT_PUBLIC_APP_URL);
+  const rawEnvAppUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+  const isProd =
+    process.env.NODE_ENV === "production" ||
+    rawEnvAppUrl.includes("orbitwork.org");
+  const appUrl = isProd
+    ? "https://app.orbitwork.org"
+    : normalizeAppOrigin(rawEnvAppUrl);
   const { data, error } = await supabase.auth.signUp({
     ...parsed.data,
     options: { emailRedirectTo: `${appUrl}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}` },
@@ -121,8 +127,14 @@ export async function signInWithMagicLink(formData: FormData) {
 
   if (!email.success) redirect(`${fromSource}?error=invalid_input${returnQuery}`);
   const supabase = await createClient();
-  const appUrl = normalizeAppOrigin(process.env.NEXT_PUBLIC_APP_URL);
-  const emailRedirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}`;
+  const rawEnvAppUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+  const isProd =
+    process.env.NODE_ENV === "production" ||
+    rawEnvAppUrl.includes("orbitwork.org");
+  const authOrigin = isProd
+    ? "https://app.orbitwork.org"
+    : normalizeAppOrigin(rawEnvAppUrl);
+  const emailRedirectTo = `${authOrigin}/auth/callback?next=${encodeURIComponent(safeReturnUrl)}`;
 
   const { error } = await supabase.auth.signInWithOtp({
     email: email.data,
@@ -557,7 +569,13 @@ export async function inviteOrganizationMember(formData: FormData) {
     redirect(forbiddenRedirect);
   }
 
-  const appUrl = normalizeAppOrigin(process.env.NEXT_PUBLIC_APP_URL);
+  const rawEnvAppUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+  const isProd =
+    process.env.NODE_ENV === "production" ||
+    rawEnvAppUrl.includes("orbitwork.org");
+  const appUrl = isProd
+    ? "https://app.orbitwork.org"
+    : normalizeAppOrigin(rawEnvAppUrl);
 
   // Fetch organization and inviter profile once for all invitations
   const [{ data: org }, { data: inviterProfile }] = await Promise.all([
@@ -2125,6 +2143,39 @@ export async function quickCreateProjectDocument(formData: FormData) {
     .single();
 
   if (error || !document) return { ok: false, error: error?.message || "create_failed" };
+
+  try {
+    const { data: proj } = await supabase
+      .from("projects")
+      .select("workspace_id")
+      .eq("id", parsed.data.projectId)
+      .maybeSingle();
+
+    if (proj?.workspace_id) {
+      await supabase.from("docs").upsert({
+        id: document.id,
+        workspace_id: proj.workspace_id,
+        project_id: parsed.data.projectId,
+        title: parsed.data.title,
+        icon: "📄",
+        created_by: user.id,
+        updated_by: user.id,
+      });
+
+      await supabase.from("doc_pages").upsert({
+        id: document.id,
+        doc_id: document.id,
+        parent_page_id: null,
+        title: parsed.data.title,
+        icon: "📄",
+        position: 1000.0,
+        content_markdown: parsed.data.body ?? "",
+        created_by: user.id,
+        updated_by: user.id,
+      });
+    }
+  } catch {}
+
   revalidatePath(`/projects/${parsed.data.projectId}/documents`);
   return { ok: true, document };
 }
@@ -2162,6 +2213,28 @@ export async function quickSaveProjectDocument(formData: FormData) {
     .eq("project_id", parsed.data.projectId);
 
   if (error) return { ok: false, error: error.message };
+
+  try {
+    await supabase
+      .from("docs")
+      .update({
+        title: parsed.data.title,
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", parsed.data.documentId);
+
+    await supabase
+      .from("doc_pages")
+      .update({
+        title: parsed.data.title,
+        content_markdown: parsed.data.body,
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("doc_id", parsed.data.documentId)
+      .is("parent_page_id", null);
+  } catch {}
   revalidatePath(`/projects/${parsed.data.projectId}/documents`);
   return { ok: true };
 }

@@ -166,7 +166,7 @@ export default async function Home({
 }) {
   const params = await searchParams;
 
-  // 1. If auth exchange code or token_hash is in query, forward to callback route
+  // 1. If auth exchange code or token_hash is in query, forward to callback route on app.orbitwork.org
   if (params.code || params.token_hash) {
     const cbQuery = new URLSearchParams();
     if (params.code) cbQuery.set("code", params.code);
@@ -175,12 +175,20 @@ export default async function Home({
     if (params.next) cbQuery.set("next", params.next);
     if (params.error) cbQuery.set("error", params.error);
     if (params.error_description) cbQuery.set("error_description", params.error_description);
-    redirect(`/auth/callback?${cbQuery.toString()}`);
+    const targetOrigin =
+      process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_APP_URL?.includes("orbitwork.org")
+        ? "https://app.orbitwork.org"
+        : "";
+    redirect(`${targetOrigin}/auth/callback?${cbQuery.toString()}`);
   }
 
-  // 2. If recovery flow landed on home page, forward immediately to reset-password page
+  // 2. If recovery flow landed on home page, forward immediately to reset-password page on app.orbitwork.org
   if (params.type === "recovery" || params.next?.includes("reset-password")) {
-    redirect("/auth/reset-password");
+    const targetOrigin =
+      process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_APP_URL?.includes("orbitwork.org")
+        ? "https://app.orbitwork.org"
+        : "";
+    redirect(`${targetOrigin}/auth/reset-password`);
   }
 
   // 3. If an error happened during recovery

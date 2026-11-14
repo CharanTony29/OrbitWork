@@ -19,10 +19,17 @@ export default function SocialAuthButtons({
       setLoadingProvider(provider);
       setErrorMsg(null);
 
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      let callbackOrigin = typeof window !== "undefined" ? window.location.origin : "";
+      if (
+        typeof window !== "undefined" &&
+        (window.location.hostname === "orbitwork.org" ||
+          window.location.hostname.endsWith(".orbitwork.org"))
+      ) {
+        callbackOrigin = "https://app.orbitwork.org";
+      }
       const supabase = createClient();
       const safeNext = returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//") ? returnUrl : "/dashboard";
-      const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
+      const redirectTo = `${callbackOrigin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,

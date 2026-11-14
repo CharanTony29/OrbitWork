@@ -1,17 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
-import { normalizeAppOrigin } from "@/lib/seo";
-
-function getRedirectOrigin(request: NextRequest): string {
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
-  const requestOrigin = forwardedHost
-    ? `${forwardedProto}://${forwardedHost.split(",")[0].trim()}`
-    : request.nextUrl.origin;
-
-  return normalizeAppOrigin(requestOrigin);
-}
+import { getHostInfo, getSubdomainOrigin } from "@/lib/subdomain";
 
 function sanitizeErrorDetail(raw: string | null | undefined): string {
   if (!raw) return "";
@@ -22,7 +12,19 @@ function sanitizeErrorDetail(raw: string | null | undefined): string {
 }
 
 export async function GET(request: NextRequest) {
-  const origin = getRedirectOrigin(request);
+  const hostInfo = getHostInfo(request);
+  const appOrigin = getSubdomainOrigin("app", hostInfo);
+
+  // If callback lands on www.orbitwork.org or orbitwork.org in production, forward directly to app.orbitwork.org
+  // so the request executes in the origin holding the PKCE code verifier cookie.
+  if (hostInfo.isProduction && hostInfo.kind !== "app") {
+    const targetUrl = new URL(
+      `${request.nextUrl.pathname}${request.nextUrl.search}`,
+      "https://app.orbitwork.org"
+    );
+    return NextResponse.redirect(targetUrl, 307);
+  }
+
   const code = request.nextUrl.searchParams.get("code");
   const token_hash = request.nextUrl.searchParams.get("token_hash");
   const type = request.nextUrl.searchParams.get("type");
@@ -37,14 +39,14 @@ export async function GET(request: NextRequest) {
     errorDesc?.toLowerCase().includes("recovery") ||
     errorDesc?.toLowerCase().includes("password");
 
-  // 1. Handle error reported directly by OAuth provider or Auth service
+  // 1. Handle error reported directly by Auth provider
   if (error) {
     console.warn("[Auth Callback] Received error from Auth provider:", { error, errorDesc, isRecovery });
     if (isRecovery) {
-      return NextResponse.redirect(new URL("/reset-password?error=link_expired", origin));
+      return NextResponse.redirect(new URL("/reset-password?error=link_expired", appOrigin));
     }
     const detail = sanitizeErrorDetail(errorDesc || error);
-    const loginUrl = new URL("/login", origin);
+    const loginUrl = new URL("/login", appOrigin);
     loginUrl.searchParams.set("error", "oauth_failed");
     if (detail) loginUrl.searchParams.set("error_detail", detail);
     return NextResponse.redirect(loginUrl);
@@ -62,13 +64,13 @@ export async function GET(request: NextRequest) {
         await supabase.rpc("accept_user_pending_invitations");
       } catch {}
       const destination = isRecovery ? "/auth/reset-password" : safeNext ?? "/dashboard";
-      return NextResponse.redirect(new URL(destination, origin));
+      return NextResponse.redirect(new URL(destination, appOrigin));
     } else {
       console.error("[Auth Callback] verifyOtp error:", otpError);
       if (isRecovery) {
-        return NextResponse.redirect(new URL("/reset-password?error=link_expired", origin));
+        return NextResponse.redirect(new URL("/reset-password?error=link_expired", appOrigin));
       }
-      return NextResponse.redirect(new URL("/login?error=verification_failed", origin));
+      return NextResponse.redirect(new URL("/login?error=verification_failed", appOrigin));
     }
   }
 
@@ -81,11 +83,11 @@ export async function GET(request: NextRequest) {
       } catch {}
 
       const destination = isRecovery ? "/auth/reset-password" : safeNext ?? "/dashboard";
-      return NextResponse.redirect(new URL(destination, origin));
+      return NextResponse.redirect(new URL(destination, appOrigin));
     } else {
       console.error("[Auth Callback] Exchange code error:", exchangeError);
       if (isRecovery) {
-        return NextResponse.redirect(new URL("/reset-password?error=link_expired", origin));
+        return NextResponse.redirect(new URL("/reset-password?error=link_expired", appOrigin));
       }
 
       const rawMsg = exchangeError.message || "";
@@ -97,10 +99,10 @@ export async function GET(request: NextRequest) {
         lowerMsg.includes("pkce");
 
       if (type === "signup" || type === "magiclink" || type === "email") {
-        return NextResponse.redirect(new URL("/login?error=verification_failed", origin));
+        return NextResponse.redirect(new URL("/login?error=verification_failed", appOrigin));
       }
 
-      const loginUrl = new URL("/login", origin);
+      const loginUrl = new URL("/login", appOrigin);
       loginUrl.searchParams.set("error", isCookieOrPkce ? "oauth_cookie_blocked" : "oauth_failed");
       const detail = sanitizeErrorDetail(rawMsg);
       if (detail) loginUrl.searchParams.set("error_detail", detail);
@@ -110,12 +112,12 @@ export async function GET(request: NextRequest) {
 
   // 4. If recovery is explicitly specified without code or token
   if (isRecovery) {
-    return NextResponse.redirect(new URL("/auth/reset-password", origin));
+    return NextResponse.redirect(new URL("/auth/reset-password", appOrigin));
   }
 
   if (type === "signup" || type === "magiclink" || type === "email") {
-    return NextResponse.redirect(new URL("/login?error=verification_failed", origin));
+    return NextResponse.redirect(new URL("/login?error=verification_failed", appOrigin));
   }
 
-  return NextResponse.redirect(new URL("/login?error=oauth_missing_code", origin));
+  return NextResponse.redirect(new URL("/login?error=oauth_missing_code", appOrigin));
 }

@@ -57,6 +57,19 @@ export function isAppRoute(pathname: string): boolean {
 }
 
 /**
+ * Returns the cookie domain (e.g. '.orbitwork.org') for multi-subdomain session sharing.
+ * Returns undefined for localhost or preview environments so host-only cookies are used.
+ */
+export function getAuthCookieDomain(hostname?: string | null): string | undefined {
+  if (!hostname) return undefined;
+  const clean = hostname.split(",")[0].trim().split(":")[0].toLowerCase();
+  if (clean === "orbitwork.org" || clean.endsWith(".orbitwork.org")) {
+    return ".orbitwork.org";
+  }
+  return undefined;
+}
+
+/**
  * Extracts and classifies the requested hostname, environment, and subdomain target.
  */
 export function getHostInfo(request: NextRequest): HostInfo {

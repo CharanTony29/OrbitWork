@@ -4,6 +4,7 @@ import {
   getHostInfo,
   getSubdomainOrigin,
   isAppRoute,
+  getAuthCookieDomain,
   type HostInfo,
 } from "@/lib/subdomain";
 
@@ -11,19 +12,27 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
   const hostInfo = getHostInfo(request);
   const { pathname, search } = request.nextUrl;
 
-  // 1. Apex hostname redirect: orbitwork.org -> https://www.orbitwork.org
+  // 1. Auth callback routing: Ensure PKCE code exchange happens on app.orbitwork.org where cookies live
+  if (pathname.startsWith("/auth/callback")) {
+    if (hostInfo.isProduction && hostInfo.kind !== "app") {
+      const targetUrl = new URL(`${pathname}${search}`, "https://app.orbitwork.org");
+      return NextResponse.redirect(targetUrl, 307);
+    }
+  }
+
+  // 2. Apex hostname redirect: orbitwork.org -> https://www.orbitwork.org
   if (hostInfo.kind === "apex") {
     const targetUrl = new URL(`${pathname}${search}`, "https://www.orbitwork.org");
     return NextResponse.redirect(targetUrl, 308);
   }
 
-  // 2. HTTPS enforcement on production
+  // 3. HTTPS enforcement on production
   if (hostInfo.isProduction && hostInfo.protocol === "http") {
     const httpsUrl = new URL(`${pathname}${search}`, `https://${hostInfo.hostname}`);
     return NextResponse.redirect(httpsUrl, 308);
   }
 
-  // 3. Security: Reject unrecognized subdomains on production with explicit 404
+  // 4. Security: Reject unrecognized subdomains on production with explicit 404
   if (hostInfo.isProduction && hostInfo.kind === "unknown") {
     return new NextResponse("404 Not Found - Subdomain not recognized", {
       status: 404,
@@ -31,7 +40,7 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     });
   }
 
-  // 4. Subdomain routing logic
+  // 5. Subdomain routing logic
   switch (hostInfo.kind) {
     case "api": {
       // API host: Must NOT render marketing or app UI.
@@ -220,7 +229,8 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
 }
 
 /**
- * Refreshes Supabase session tokens if session cookies exist, preserving all cookies on the response.
+ * Refreshes Supabase session tokens if session cookies exist, preserving all cookies on the response
+ * and scoping them to .orbitwork.org across all subdomains.
  */
 async function handleSessionAndResponse(
   request: NextRequest,
@@ -247,14 +257,34 @@ async function handleSessionAndResponse(
     return response;
   }
 
+  const hostInfo = getHostInfo(request);
+  const domain = getAuthCookieDomain(hostInfo.hostname);
+
   try {
     const supabase = createServerClient(url, key, {
+      cookieOptions: domain
+        ? {
+            domain,
+            path: "/",
+            sameSite: "lax",
+            secure: hostInfo.isProduction,
+          }
+        : {
+            path: "/",
+            sameSite: "lax",
+          },
       cookies: {
         getAll: () => request.cookies.getAll(),
         setAll: ((cookiesToSet) => {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, {
+              ...options,
+              ...(domain ? { domain } : {}),
+              path: options?.path ?? "/",
+              sameSite: options?.sameSite ?? "lax",
+              secure: hostInfo.isProduction ? true : options?.secure,
+            })
           );
         }) satisfies SetAllCookies,
       },

@@ -3,7 +3,8 @@ import { createServerClient } from "@supabase/ssr";
 import type { SetAllCookies } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { getAuthCookieDomain } from "@/lib/subdomain";
 
 export function createAdminClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -16,6 +17,15 @@ export function createAdminClient(): SupabaseClient | null {
 
 export const createClient = cache(async () => {
   const cookieStore = await cookies();
+  let host: string | null = null;
+  try {
+    const headerStore = await headers();
+    host = headerStore.get("x-forwarded-host") || headerStore.get("host");
+  } catch {
+    // Invoked outside active request context
+  }
+
+  const domain = getAuthCookieDomain(host || process.env.NEXT_PUBLIC_APP_URL);
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
@@ -40,17 +50,38 @@ export const createClient = cache(async () => {
     url,
     key,
     {
+      cookieOptions: domain
+        ? {
+            domain,
+            path: "/",
+            sameSite: "lax",
+            secure: process.env.NODE_ENV === "production",
+          }
+        : {
+            path: "/",
+            sameSite: "lax",
+          },
       cookies: {
-        getAll() { return cookieStore.getAll(); },
+        getAll() {
+          return cookieStore.getAll();
+        },
         setAll: ((cookiesToSet) => {
           try {
-            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, {
+                ...options,
+                ...(domain ? { domain } : {}),
+                path: options?.path ?? "/",
+                sameSite: options?.sameSite ?? "lax",
+                secure: process.env.NODE_ENV === "production" ? true : options?.secure,
+              });
+            });
           } catch {
             // Server components cannot write cookies; middleware refreshes the session.
           }
         }) satisfies SetAllCookies,
       },
-    },
+    }
   );
 });
 

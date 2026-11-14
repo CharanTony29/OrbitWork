@@ -4,6 +4,7 @@ import {
   getHostInfo,
   getSubdomainOrigin,
   isAppRoute,
+  getAuthCookieDomain,
   type HostInfo,
 } from "../subdomain.ts";
 
@@ -143,4 +144,19 @@ test("isAppRoute correctly detects core application endpoints", () => {
   assert.equal(isAppRoute("/support"), false);
   assert.equal(isAppRoute("/status"), false);
   assert.equal(isAppRoute("/blog"), false);
+});
+
+test("getAuthCookieDomain returns .orbitwork.org for production and undefined for local/preview", () => {
+  assert.equal(getAuthCookieDomain("orbitwork.org"), ".orbitwork.org");
+  assert.equal(getAuthCookieDomain("www.orbitwork.org"), ".orbitwork.org");
+  assert.equal(getAuthCookieDomain("app.orbitwork.org"), ".orbitwork.org");
+  assert.equal(getAuthCookieDomain("app.orbitwork.org:443"), ".orbitwork.org");
+  assert.equal(getAuthCookieDomain("docs.orbitwork.org"), ".orbitwork.org");
+
+  // Local and other hosts should not set shared domain
+  assert.equal(getAuthCookieDomain("localhost"), undefined);
+  assert.equal(getAuthCookieDomain("app.localhost:3000"), undefined);
+  assert.equal(getAuthCookieDomain("127.0.0.1"), undefined);
+  assert.equal(getAuthCookieDomain("my-preview.vercel.app"), undefined);
+  assert.equal(getAuthCookieDomain(null), undefined);
 });
