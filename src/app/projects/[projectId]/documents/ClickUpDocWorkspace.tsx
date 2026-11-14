@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -93,6 +94,7 @@ import {
   DocVersion,
   DocActivity,
   DocMember,
+  DocBlockType,
 } from "@/lib/docs/types";
 import { blocksToMarkdown, markdownToBlocks } from "@/lib/docs/blocks";
 import { markdownToPdf } from "@/lib/pdf";
@@ -148,6 +150,32 @@ const EMOJI_CATEGORIES = {
   Nature: ["🌱", "🌲", "🌳", "🌴", "🍀", "🍁", "🍂", "🍃", "🍄", "🌸", "☀️", "🌤️", "⛅", "☁️", "🌧️", "⚡", "❄️", "🌊"],
 };
 
+interface SlashAnchor {
+  left: number;
+  top: number;
+  bottom: number;
+  height: number;
+  blockId: string;
+}
+
+interface MenuPlacement {
+  left: number;
+  top: number;
+  width: number;
+  maxHeight: number;
+  placement: "below" | "above";
+}
+
+interface SlashCommandDef {
+  type: DocBlockType;
+  label: string;
+  desc: string;
+  category: "SUGGESTIONS" | "TEXT" | "INLINE & REFERENCES" | "VIEWS & EMBEDS" | "BASIC CONTENT & MEDIA";
+  keywords: string[];
+  icon: React.ReactNode;
+  enabled?: boolean;
+}
+
 export default function ClickUpDocWorkspace({
   workspaceId,
   projectId,
@@ -162,6 +190,11 @@ export default function ClickUpDocWorkspace({
   tasksInProject = [],
 }: ClickUpDocWorkspaceProps) {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Document state
   const [doc, setDoc] = useState<DocItem>(initialDoc);
@@ -195,10 +228,15 @@ export default function ClickUpDocWorkspace({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiSearch, setEmojiSearch] = useState("");
 
-  // Slash menu state
+  // DYNAMIC SLASH MENU STATE
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState("");
   const [slashTargetBlockId, setSlashTargetBlockId] = useState<string | null>(null);
+  const [slashAnchor, setSlashAnchor] = useState<SlashAnchor | null>(null);
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+
+  const triggerElementRef = useRef<HTMLElement | null>(null);
+  const slashMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Floating formatting toolbar
   const [floatingToolbarPos, setFloatingToolbarPos] = useState<{ top: number; left: number } | null>(null);
@@ -564,82 +602,265 @@ export default function ClickUpDocWorkspace({
   };
 
   // ---------------------------------------------------------------------------
-  // SLASH COMMANDS REGISTRY
+  // FULLY DYNAMIC SLASH COMMANDS REGISTRY
   // ---------------------------------------------------------------------------
-  const SLASH_GROUPS = useMemo(
+  const ALL_SLASH_COMMANDS = useMemo<SlashCommandDef[]>(
     () => [
-      {
-        category: "SUGGESTIONS",
-        items: [
-          { type: "paragraph", label: "Text", desc: "Start writing plain text", icon: <Type size={15} /> },
-          { type: "heading_1", label: "Heading 1", desc: "Big section heading", icon: <Heading1 size={15} /> },
-          { type: "checklist", label: "Checklist", desc: "Interactive to-do list", icon: <CheckSquare size={15} /> },
-          { type: "bullet_list", label: "Bullet List", desc: "Standard bulleted list", icon: <List size={15} /> },
-          { type: "table", label: "Table", desc: "Spreadsheet-style data grid", icon: <Columns size={15} /> },
-        ],
-      },
-      {
-        category: "TEXT",
-        items: [
-          { type: "paragraph", label: "Normal text", desc: "Standard body paragraph", icon: <Type size={15} /> },
-          { type: "heading_1", label: "Heading 1", desc: "Top-level page section", icon: <Heading1 size={15} /> },
-          { type: "heading_2", label: "Heading 2", desc: "Medium subsection heading", icon: <Heading2 size={15} /> },
-          { type: "heading_3", label: "Heading 3", desc: "Small subsection heading", icon: <Heading3 size={15} /> },
-          { type: "heading_4", label: "Heading 4", desc: "Minor subheader", icon: <Heading4 size={15} /> },
-          { type: "checklist", label: "Checklist", desc: "Tasks with interactive checkboxes", icon: <CheckSquare size={15} /> },
-          { type: "bullet_list", label: "Bulleted list", desc: "Bulleted outline format", icon: <List size={15} /> },
-          { type: "numbered_list", label: "Numbered list", desc: "Sequential ordered list", icon: <ListOrdered size={15} /> },
-          { type: "toggle", label: "Toggle list", desc: "Collapsible accordion container", icon: <ChevronRight size={15} /> },
-          { type: "quote", label: "Block quote", desc: "Indented quotation block", icon: <Quote size={15} /> },
-          { type: "pull_quote", label: "Pull quote", desc: "Large emphasized editorial quote", icon: <Quote size={15} /> },
-          { type: "code", label: "Code block", desc: "Syntax highlighted code snippet", icon: <Code size={15} /> },
-        ],
-      },
-      {
-        category: "INLINE & REFERENCES",
-        items: [
-          { type: "person_reference", label: "Mention a Person", desc: "@teammate inside the document", icon: <AtSign size={15} /> },
-          { type: "page_reference", label: "Mention a Page", desc: "Link to another document page", icon: <FileText size={15} /> },
-          { type: "task_reference", label: "Mention a Task", desc: "Link to a project task item", icon: <CheckCircle2 size={15} /> },
-          { type: "whiteboard_reference", label: "Mention a Whiteboard", desc: "Link to project whiteboard canvas", icon: <PenTool size={15} /> },
-        ],
-      },
-      {
-        category: "VIEWS & EMBEDS",
-        items: [
-          { type: "clickup_list_table", label: "ClickUp List (Table)", desc: "Embed live project tasks in a table", icon: <ListFilter size={15} /> },
-          { type: "clickup_list_board", label: "ClickUp List (Board)", desc: "Embed live project Kanban board", icon: <Trello size={15} /> },
-        ],
-      },
-      {
-        category: "BASIC CONTENT & MEDIA",
-        items: [
-          { type: "divider", label: "Divider", desc: "Horizontal separation line", icon: <Minus size={15} /> },
-          { type: "banner", label: "Banner / Callout", desc: "Emphasized colored alert banner", icon: <Lightbulb size={15} /> },
-          { type: "columns", label: "2 Columns", desc: "Side-by-side 2-column layout", icon: <Columns2 size={15} /> },
-          { type: "columns_3", label: "3 Columns", desc: "Side-by-side 3-column layout", icon: <Columns3 size={15} /> },
-          { type: "table", label: "Table", desc: "Interactive customizable data table", icon: <Columns size={15} /> },
-          { type: "image", label: "Image", desc: "Upload, paste or embed image", icon: <ImageIcon size={15} /> },
-          { type: "video", label: "Video", desc: "Embed YouTube, Vimeo or MP4", icon: <Video size={15} /> },
-          { type: "audio", label: "Audio", desc: "Embed audio stream or player", icon: <Music size={15} /> },
-          { type: "file", label: "File Attachment", desc: "Upload downloadable file block", icon: <FileUp size={15} /> },
-          { type: "embed", label: "Web Bookmark / Embed", desc: "Interactive iframe or web page", icon: <Globe size={15} /> },
-        ],
-      },
+      // Suggestions
+      { type: "paragraph", label: "Text", desc: "Start writing plain text", category: "SUGGESTIONS", keywords: ["text", "paragraph", "p", "normal"], icon: <Type size={15} /> },
+      { type: "heading_1", label: "Heading 1", desc: "Big section heading", category: "SUGGESTIONS", keywords: ["h1", "heading", "title", "large"], icon: <Heading1 size={15} /> },
+      { type: "checklist", label: "Checklist", desc: "Interactive to-do list", category: "SUGGESTIONS", keywords: ["todo", "check", "task", "box"], icon: <CheckSquare size={15} /> },
+      { type: "bullet_list", label: "Bullet List", desc: "Standard bulleted list", category: "SUGGESTIONS", keywords: ["bullet", "list", "ul"], icon: <List size={15} /> },
+      { type: "table", label: "Table", desc: "Spreadsheet-style data grid", category: "SUGGESTIONS", keywords: ["table", "grid", "sheet", "rows"], icon: <Columns size={15} /> },
+
+      // Text
+      { type: "paragraph", label: "Normal text", desc: "Standard body paragraph", category: "TEXT", keywords: ["text", "paragraph", "p"], icon: <Type size={15} /> },
+      { type: "heading_1", label: "Heading 1", desc: "Top-level page section", category: "TEXT", keywords: ["h1", "heading", "title", "large"], icon: <Heading1 size={15} /> },
+      { type: "heading_2", label: "Heading 2", desc: "Medium subsection heading", category: "TEXT", keywords: ["h2", "heading", "medium"], icon: <Heading2 size={15} /> },
+      { type: "heading_3", label: "Heading 3", desc: "Small subsection heading", category: "TEXT", keywords: ["h3", "heading", "small"], icon: <Heading3 size={15} /> },
+      { type: "heading_4", label: "Heading 4", desc: "Minor subheader", category: "TEXT", keywords: ["h4", "subheading"], icon: <Heading4 size={15} /> },
+      { type: "checklist", label: "Checklist", desc: "Tasks with interactive checkboxes", category: "TEXT", keywords: ["checklist", "todo", "task"], icon: <CheckSquare size={15} /> },
+      { type: "bullet_list", label: "Bulleted list", desc: "Bulleted outline format", category: "TEXT", keywords: ["bullet", "list", "ul"], icon: <List size={15} /> },
+      { type: "numbered_list", label: "Numbered list", desc: "Sequential ordered list", category: "TEXT", keywords: ["numbered", "order", "ol", "1"], icon: <ListOrdered size={15} /> },
+      { type: "toggle", label: "Toggle list", desc: "Collapsible accordion container", category: "TEXT", keywords: ["toggle", "collapse", "accordion", "expand"], icon: <ChevronRight size={15} /> },
+      { type: "quote", label: "Block quote", desc: "Indented quotation block", category: "TEXT", keywords: ["quote", "blockquote", "citation"], icon: <Quote size={15} /> },
+      { type: "pull_quote", label: "Pull quote", desc: "Large emphasized editorial quote", category: "TEXT", keywords: ["pull", "quote", "emphasis", "large"], icon: <Quote size={15} /> },
+      { type: "code", label: "Code block", desc: "Syntax highlighted code snippet", category: "TEXT", keywords: ["code", "javascript", "typescript", "syntax"], icon: <Code size={15} /> },
+
+      // Inline & References
+      { type: "person_reference", label: "Mention a Person", desc: "@teammate inside the document", category: "INLINE & REFERENCES", keywords: ["person", "user", "member", "@", "mention"], icon: <AtSign size={15} /> },
+      { type: "page_reference", label: "Mention a Page", desc: "Link to another document page", category: "INLINE & REFERENCES", keywords: ["page", "doc", "link", "reference"], icon: <FileText size={15} /> },
+      { type: "task_reference", label: "Mention a Task", desc: "Link to a project task item", category: "INLINE & REFERENCES", keywords: ["task", "ticket", "issue", "link"], icon: <CheckCircle2 size={15} />, enabled: Boolean(projectId) },
+      { type: "whiteboard_reference", label: "Mention a Whiteboard", desc: "Link to project whiteboard canvas", category: "INLINE & REFERENCES", keywords: ["whiteboard", "canvas", "draw", "sketch"], icon: <PenTool size={15} />, enabled: Boolean(projectId) },
+
+      // Views & Embeds
+      { type: "clickup_list_table", label: "ClickUp List (Table)", desc: "Embed live project tasks in a table", category: "VIEWS & EMBEDS", keywords: ["clickup", "list", "table", "tasks", "view"], icon: <ListFilter size={15} />, enabled: Boolean(projectId) },
+      { type: "clickup_list_board", label: "ClickUp List (Board)", desc: "Embed live project Kanban board", category: "VIEWS & EMBEDS", keywords: ["clickup", "board", "kanban", "tasks", "cards"], icon: <Trello size={15} />, enabled: Boolean(projectId) },
+
+      // Basic Content & Media
+      { type: "divider", label: "Divider", desc: "Horizontal separation line", category: "BASIC CONTENT & MEDIA", keywords: ["divider", "hr", "line", "rule", "separator"], icon: <Minus size={15} /> },
+      { type: "banner", label: "Banner / Callout", desc: "Emphasized colored alert banner", category: "BASIC CONTENT & MEDIA", keywords: ["banner", "callout", "alert", "notice", "warning", "info"], icon: <Lightbulb size={15} /> },
+      { type: "columns", label: "2 Columns", desc: "Side-by-side 2-column layout", category: "BASIC CONTENT & MEDIA", keywords: ["columns", "2", "two", "layout", "grid"], icon: <Columns2 size={15} /> },
+      { type: "columns_3", label: "3 Columns", desc: "Side-by-side 3-column layout", category: "BASIC CONTENT & MEDIA", keywords: ["columns", "3", "three", "layout", "grid"], icon: <Columns3 size={15} /> },
+      { type: "table", label: "Table", desc: "Interactive customizable data table", category: "BASIC CONTENT & MEDIA", keywords: ["table", "grid", "rows", "spreadsheet"], icon: <Columns size={15} /> },
+      { type: "image", label: "Image", desc: "Upload, paste or embed image", category: "BASIC CONTENT & MEDIA", keywords: ["image", "img", "photo", "picture", "upload"], icon: <ImageIcon size={15} /> },
+      { type: "video", label: "Video", desc: "Embed YouTube, Vimeo or MP4", category: "BASIC CONTENT & MEDIA", keywords: ["video", "youtube", "vimeo", "movie", "embed"], icon: <Video size={15} /> },
+      { type: "audio", label: "Audio", desc: "Embed audio stream or player", category: "BASIC CONTENT & MEDIA", keywords: ["audio", "music", "sound", "podcast", "mp3"], icon: <Music size={15} /> },
+      { type: "file", label: "File Attachment", desc: "Upload downloadable file block", category: "BASIC CONTENT & MEDIA", keywords: ["file", "attach", "download", "pdf", "document"], icon: <FileUp size={15} /> },
+      { type: "embed", label: "Web Bookmark / Embed", desc: "Interactive iframe or web page", category: "BASIC CONTENT & MEDIA", keywords: ["embed", "bookmark", "iframe", "web", "url"], icon: <Globe size={15} /> },
     ],
-    []
+    [projectId]
   );
 
   const filteredGroups = useMemo(() => {
-    if (!slashQuery.trim()) return SLASH_GROUPS;
     const q = slashQuery.toLowerCase().trim();
-    return SLASH_GROUPS.map((g) => ({
-      ...g,
-      items: g.items.filter(
-        (item) => item.label.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q)
-      ),
-    })).filter((g) => g.items.length > 0);
-  }, [SLASH_GROUPS, slashQuery]);
+    const categories: Array<SlashCommandDef["category"]> = [
+      "SUGGESTIONS",
+      "TEXT",
+      "INLINE & REFERENCES",
+      "VIEWS & EMBEDS",
+      "BASIC CONTENT & MEDIA",
+    ];
+
+    return categories
+      .map((cat) => {
+        const items = ALL_SLASH_COMMANDS.filter((cmd) => {
+          if (cmd.category !== cat) return false;
+          if (cmd.enabled === false) return false;
+          if (!q) return true;
+          return (
+            cmd.label.toLowerCase().includes(q) ||
+            cmd.desc.toLowerCase().includes(q) ||
+            cmd.keywords.some((k) => k.toLowerCase().includes(q))
+          );
+        });
+        return { category: cat, items };
+      })
+      .filter((g) => g.items.length > 0);
+  }, [ALL_SLASH_COMMANDS, slashQuery]);
+
+  const flatFilteredCommands = useMemo(
+    () => filteredGroups.flatMap((g) => g.items),
+    [filteredGroups]
+  );
+
+  // Reset index when query changes
+  useEffect(() => {
+    setSlashSelectedIndex(0);
+  }, [slashQuery]);
+
+  // Scroll active item into view
+  useEffect(() => {
+    if (!slashMenuOpen) return;
+    const el = document.getElementById(`slash-opt-${slashSelectedIndex}`);
+    if (el) {
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [slashSelectedIndex, slashMenuOpen]);
+
+  // ---------------------------------------------------------------------------
+  // VIEWPORT-AWARE PLACEMENT ALGORITHM
+  // ---------------------------------------------------------------------------
+  const computePlacement = useCallback(
+    (anchor: SlashAnchor, measuredHeight = 360): MenuPlacement => {
+      if (typeof window === "undefined") {
+        return { left: 0, top: 0, width: 340, maxHeight: 400, placement: "below" };
+      }
+      const vh = window.innerHeight;
+      const vw = window.innerWidth;
+      const margin = 12;
+      const preferredWidth = 340;
+
+      // 1. Horizontal Position
+      const width = Math.min(preferredWidth, vw - margin * 2);
+      let left = anchor.left;
+      if (left + width > vw - margin) {
+        left = Math.max(margin, vw - width - margin);
+      }
+      if (left < margin) {
+        left = margin;
+      }
+
+      // 2. Vertical Position & Direction
+      const spaceBelow = vh - anchor.bottom - margin;
+      const spaceAbove = anchor.top - margin;
+
+      let placement: "below" | "above" = "below";
+      let top = 0;
+      let maxHeight = 380;
+
+      if (spaceBelow >= 220 || spaceBelow >= spaceAbove) {
+        placement = "below";
+        top = anchor.bottom + 6;
+        maxHeight = Math.min(spaceBelow, 440);
+      } else {
+        placement = "above";
+        maxHeight = Math.min(spaceAbove, 440);
+        const effectiveHeight = Math.min(measuredHeight, maxHeight);
+        top = Math.max(margin, anchor.top - effectiveHeight - 6);
+      }
+
+      return {
+        left: Math.round(left),
+        top: Math.round(top),
+        width: Math.round(width),
+        maxHeight: Math.max(160, Math.round(maxHeight)),
+        placement,
+      };
+    },
+    []
+  );
+
+  const slashPosition = useMemo(() => {
+    if (!slashAnchor) return null;
+    const measuredHeight = slashMenuRef.current?.offsetHeight || 360;
+    return computePlacement(slashAnchor, measuredHeight);
+  }, [slashAnchor, computePlacement]);
+
+  // Reposition on scroll or resize
+  useEffect(() => {
+    if (!slashMenuOpen || !triggerElementRef.current) return;
+
+    const updatePosition = () => {
+      if (!triggerElementRef.current) return;
+      const rect = triggerElementRef.current.getBoundingClientRect();
+      const vh = window.innerHeight;
+
+      // Closed if scrolled out of visible viewport
+      if (rect.bottom < 40 || rect.top > vh - 20) {
+        setSlashMenuOpen(false);
+        return;
+      }
+
+      setSlashAnchor({
+        left: rect.left,
+        top: rect.top,
+        bottom: rect.bottom,
+        height: rect.height,
+        blockId: slashTargetBlockId || "",
+      });
+    };
+
+    const scrollContainer = editorAreaRef.current;
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    if (scrollContainer) {
+      scrollContainer.addEventListener("scroll", updatePosition);
+    }
+
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+      if (scrollContainer) {
+        scrollContainer.removeEventListener("scroll", updatePosition);
+      }
+    };
+  }, [slashMenuOpen, slashTargetBlockId]);
+
+  // Click outside to close
+  useEffect(() => {
+    if (!slashMenuOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (slashMenuRef.current && slashMenuRef.current.contains(target)) {
+        return;
+      }
+      if (triggerElementRef.current && triggerElementRef.current.contains(target)) {
+        return;
+      }
+      setSlashMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [slashMenuOpen]);
+
+  // Consume wheel scroll inside the menu to avoid document scrolling
+  const handleMenuWheel = (e: React.WheelEvent) => {
+    e.stopPropagation();
+    const el = e.currentTarget;
+    const isAtTop = el.scrollTop <= 0;
+    const isAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+
+    if ((e.deltaY < 0 && isAtTop) || (e.deltaY > 0 && isAtBottom)) {
+      e.preventDefault();
+    }
+  };
+
+  const handleOpenSlashMenu = (blockId: string, element: HTMLElement, query = "") => {
+    const rect = element.getBoundingClientRect();
+    triggerElementRef.current = element;
+    setSlashTargetBlockId(blockId);
+    setSlashAnchor({
+      left: rect.left,
+      top: rect.top,
+      bottom: rect.bottom,
+      height: rect.height,
+      blockId,
+    });
+    setSlashQuery(query);
+    setSlashSelectedIndex(0);
+    setSlashMenuOpen(true);
+  };
+
+  const handleCloseSlashMenu = () => {
+    setSlashMenuOpen(false);
+    setSlashQuery("");
+    setSlashAnchor(null);
+    triggerElementRef.current = null;
+  };
+
+  const handleSlashNavigate = (direction: "up" | "down") => {
+    if (flatFilteredCommands.length === 0) return;
+    setSlashSelectedIndex((prev) => {
+      if (direction === "down") {
+        return (prev + 1) % flatFilteredCommands.length;
+      } else {
+        return (prev - 1 + flatFilteredCommands.length) % flatFilteredCommands.length;
+      }
+    });
+  };
 
   const executeSlashCommand = (type: any) => {
     if (!slashTargetBlockId) return;
@@ -647,22 +868,51 @@ export default function ClickUpDocWorkspace({
     if (type === "task_reference") {
       setTaskPickerBlockId(slashTargetBlockId);
       setShowTaskPicker(true);
-      setSlashMenuOpen(false);
+      handleCloseSlashMenu();
       return;
     }
     if (type === "page_reference") {
       setPagePickerBlockId(slashTargetBlockId);
       setShowPagePicker(true);
-      setSlashMenuOpen(false);
+      handleCloseSlashMenu();
       return;
     }
 
-    let defaultData: any = { text: "" };
-    if (type === "checklist") defaultData = { text: "", checked: false };
-    if (type === "callout" || type === "banner")
-      defaultData = { text: "Callout note or key instruction…", bannerType: "info", bannerTitle: "Important Note", icon: "💡" };
-    if (type === "pull_quote") defaultData = { text: "A great design is not just what it looks like and feels like. Design is how it works.", author: currentUserName };
-    if (type === "code") defaultData = { text: "", language: "typescript" };
+    const targetBlock = blocks.find((b) => b.id === slashTargetBlockId);
+    let cleanedText = "";
+    if (targetBlock?.data?.text) {
+      const slashIdx = targetBlock.data.text.lastIndexOf("/");
+      if (slashIdx !== -1) {
+        cleanedText = targetBlock.data.text.slice(0, slashIdx).trim();
+      } else {
+        cleanedText = targetBlock.data.text.trim();
+      }
+    }
+
+    let defaultData: any = { text: cleanedText };
+    if (type === "paragraph") defaultData = { text: cleanedText };
+    if (type === "heading_1" || type === "heading_2" || type === "heading_3" || type === "heading_4") {
+      defaultData = { text: cleanedText };
+    }
+    if (type === "checklist") defaultData = { text: cleanedText, checked: false };
+    if (type === "bullet_list") defaultData = { text: cleanedText };
+    if (type === "numbered_list") defaultData = { text: cleanedText };
+    if (type === "quote") defaultData = { text: cleanedText };
+    if (type === "pull_quote") {
+      defaultData = {
+        text: cleanedText || "A great design is not just what it looks like and feels like. Design is how it works.",
+        author: currentUserName,
+      };
+    }
+    if (type === "callout" || type === "banner") {
+      defaultData = {
+        text: cleanedText || "Important note or key instruction…",
+        bannerType: "info",
+        bannerTitle: "Important Note",
+        icon: "💡",
+      };
+    }
+    if (type === "code") defaultData = { text: cleanedText, language: "typescript" };
     if (type === "columns") defaultData = { colLeft: "Left column note…", colRight: "Right column note…" };
     if (type === "columns_3") defaultData = { col1: "First column", col2: "Second column", col3: "Third column" };
     if (type === "person_reference") defaultData = { userId: currentUserId, userName: currentUserName, userAvatar: currentUserName.charAt(0) };
@@ -677,20 +927,39 @@ export default function ClickUpDocWorkspace({
           ["Cell 4", "Cell 5", "Cell 6"],
         ],
       };
-    if (type === "toggle") defaultData = { text: "Toggle details", content: "Hidden expandable information…" };
+    if (type === "toggle") defaultData = { text: cleanedText || "Toggle details", content: "Hidden expandable information…" };
     if (type === "image") defaultData = { url: "", caption: "", width: "100%", align: "center" };
     if (type === "video") defaultData = { url: "", caption: "Project Demo Video" };
     if (type === "audio") defaultData = { url: "", caption: "Meeting Recording" };
     if (type === "file") defaultData = { url: "", fileName: "Attachment.pdf" };
     if (type === "embed") defaultData = { url: "https://orbitwork.org", caption: "Interactive Embed" };
 
-    const nextBlocks = blocks.map((b) =>
-      b.id === slashTargetBlockId ? { ...b, type, data: defaultData } : b
-    );
+    let nextBlocks = [...blocks];
+    if (cleanedText && !["paragraph", "heading_1", "heading_2", "heading_3", "heading_4", "checklist", "bullet_list", "numbered_list", "quote"].includes(type)) {
+      const idx = blocks.findIndex((b) => b.id === slashTargetBlockId);
+      nextBlocks[idx] = { ...targetBlock!, data: { ...targetBlock!.data, text: cleanedText } };
+      const newBlock: DocBlock = {
+        id: `blk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type,
+        data: defaultData,
+      };
+      nextBlocks.splice(idx + 1, 0, newBlock);
+      setFocusedBlockId(newBlock.id);
+    } else {
+      nextBlocks = blocks.map((b) =>
+        b.id === slashTargetBlockId ? { ...b, type, data: defaultData } : b
+      );
+    }
 
     setBlocks(nextBlocks);
     triggerAutosave(pageTitle, pageIcon, pageCover, nextBlocks);
-    setSlashMenuOpen(false);
+    handleCloseSlashMenu();
+  };
+
+  const handleSlashSelectCurrent = () => {
+    if (flatFilteredCommands[slashSelectedIndex]) {
+      executeSlashCommand(flatFilteredCommands[slashSelectedIndex].type);
+    }
   };
 
   // Headings outline calculation
@@ -802,9 +1071,7 @@ export default function ClickUpDocWorkspace({
     } catch {}
   };
 
-  // ---------------------------------------------------------------------------
-  // EXPORT HANDLERS (SEPARATING DOWNLOAD PDF FROM PRINT)
-  // ---------------------------------------------------------------------------
+  // Export handlers
   const handleExportMarkdown = () => {
     const md = `# ${pageTitle}\n\n${blocksToMarkdown(blocks)}`;
     const blob = new Blob([md], { type: "text/markdown" });
@@ -868,7 +1135,6 @@ export default function ClickUpDocWorkspace({
   };
 
   const handlePrint = () => {
-    // Close modal first so modal does not get printed
     setShowShareModal(false);
     setTimeout(() => {
       window.print();
@@ -1336,6 +1602,7 @@ export default function ClickUpDocWorkspace({
                       block={block}
                       isFocused={focusedBlockId === block.id}
                       isOnlyBlock={blocks.length === 1}
+                      isSlashActive={slashMenuOpen && slashTargetBlockId === block.id}
                       projectId={projectId}
                       tasksInProject={tasksInProject}
                       onFocus={() => setFocusedBlockId(block.id)}
@@ -1343,11 +1610,10 @@ export default function ClickUpDocWorkspace({
                       onChange={(newData) => updateBlockData(block.id, newData)}
                       onEnterPress={() => insertBlockAfter(block.id, "paragraph")}
                       onBackspaceOnEmpty={() => removeBlock(block.id)}
-                      onOpenSlashMenu={() => {
-                        setSlashTargetBlockId(block.id);
-                        setSlashQuery("");
-                        setSlashMenuOpen(true);
-                      }}
+                      onOpenSlashMenu={(el, query) => handleOpenSlashMenu(block.id, el, query)}
+                      onCloseSlashMenu={handleCloseSlashMenu}
+                      onSlashNavigate={handleSlashNavigate}
+                      onSlashSelectCurrent={handleSlashSelectCurrent}
                       onSwitchPage={switchPage}
                       uploadImageFile={uploadImageFile}
                     />
@@ -1369,49 +1635,6 @@ export default function ClickUpDocWorkspace({
             </div>
           </div>
         </main>
-
-        {/* SLASH COMMANDS DROPDOWN PALETTE */}
-        {slashMenuOpen && (
-          <div className="slash-menu-palette">
-            <div className="slash-search-head">
-              <Search size={14} />
-              <input
-                type="text"
-                placeholder="Filter commands…"
-                value={slashQuery}
-                onChange={(e) => setSlashQuery(e.target.value)}
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setSlashMenuOpen(false);
-                  if (e.key === "Enter" && filteredGroups[0]?.items[0]) {
-                    executeSlashCommand(filteredGroups[0].items[0].type);
-                  }
-                }}
-              />
-            </div>
-            <div className="slash-options-list">
-              {filteredGroups.map((group) => (
-                <div key={group.category} className="slash-group-section">
-                  <div className="slash-category-label">{group.category}</div>
-                  {group.items.map((cmd) => (
-                    <button
-                      key={cmd.label + cmd.type}
-                      type="button"
-                      className="slash-option-item"
-                      onClick={() => executeSlashCommand(cmd.type)}
-                    >
-                      <span className="cmd-icon">{cmd.icon}</span>
-                      <div className="cmd-text">
-                        <strong>{cmd.label}</strong>
-                        <span>{cmd.desc}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* RIGHT DRAWER: TABLE OF CONTENTS / OUTLINE */}
         {showOutline && (
@@ -1472,7 +1695,6 @@ export default function ClickUpDocWorkspace({
             </div>
 
             <div className="drawer-body">
-              {/* New Comment Box */}
               <div className="new-comment-box">
                 {selectedQuote && (
                   <div className="comment-quote-preview">
@@ -1500,7 +1722,6 @@ export default function ClickUpDocWorkspace({
                 </div>
               </div>
 
-              {/* Comments Feed */}
               <div className="comments-feed-list">
                 {comments.length === 0 ? (
                   <p className="drawer-empty-msg">No comments on this page yet.</p>
@@ -1567,7 +1788,6 @@ export default function ClickUpDocWorkspace({
                         </button>
                       </div>
 
-                      {/* Replies */}
                       {c.replies && c.replies.length > 0 && (
                         <div className="comment-replies-list">
                           {c.replies.map((rep) => (
@@ -1587,7 +1807,6 @@ export default function ClickUpDocWorkspace({
                         </div>
                       )}
 
-                      {/* Reply input */}
                       {replyingCommentId === c.id && (
                         <div className="reply-input-box">
                           <input
@@ -1718,6 +1937,90 @@ export default function ClickUpDocWorkspace({
         )}
       </div>
 
+      {/* DYNAMIC PORTAL SLASH COMMANDS PALETTE */}
+      {mounted && slashMenuOpen && slashPosition && createPortal(
+        <div
+          ref={slashMenuRef}
+          className="slash-menu-palette"
+          style={{
+            position: "fixed",
+            left: `${slashPosition.left}px`,
+            top: `${slashPosition.top}px`,
+            width: `${slashPosition.width}px`,
+            maxHeight: `${slashPosition.maxHeight}px`,
+            zIndex: 1000,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="slash-search-head">
+            <Search size={14} />
+            <input
+              type="text"
+              placeholder="Type a command or search…"
+              value={slashQuery}
+              onChange={(e) => setSlashQuery(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  handleSlashNavigate("down");
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  handleSlashNavigate("up");
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSlashSelectCurrent();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  handleCloseSlashMenu();
+                }
+              }}
+            />
+            {flatFilteredCommands.length > 0 && (
+              <span className="slash-search-count">{flatFilteredCommands.length}</span>
+            )}
+          </div>
+
+          <div className="slash-options-list" onWheel={handleMenuWheel}>
+            {filteredGroups.length === 0 ? (
+              <div style={{ padding: "16px", textAlign: "center", color: "#94a3b8", fontSize: "12px" }}>
+                No matching commands found.
+              </div>
+            ) : (
+              (() => {
+                let currentItemIndex = 0;
+                return filteredGroups.map((group) => (
+                  <div key={group.category} className="slash-group-section">
+                    <div className="slash-category-label">{group.category}</div>
+                    {group.items.map((cmd) => {
+                      const thisIdx = currentItemIndex++;
+                      const isSelected = slashSelectedIndex === thisIdx;
+                      return (
+                        <button
+                          key={cmd.category + cmd.label + cmd.type}
+                          id={`slash-opt-${thisIdx}`}
+                          type="button"
+                          className={`slash-option-item ${isSelected ? "selected" : ""}`}
+                          onMouseEnter={() => setSlashSelectedIndex(thisIdx)}
+                          onClick={() => executeSlashCommand(cmd.type)}
+                        >
+                          <span className="cmd-icon">{cmd.icon}</span>
+                          <div className="cmd-text">
+                            <strong>{cmd.label}</strong>
+                            <span>{cmd.desc}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ));
+              })()
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* COVER GALLERY MODAL */}
       {showCoverGallery && (
         <div className="doc-modal-backdrop" onClick={() => setShowCoverGallery(false)}>
@@ -1733,7 +2036,6 @@ export default function ClickUpDocWorkspace({
               </button>
             </div>
             <div className="modal-body">
-              {/* Category tabs */}
               <div className="cover-tabs-nav">
                 {(Object.keys(COVER_CATEGORIES) as Array<keyof typeof COVER_CATEGORIES>).map((cat) => (
                   <button
@@ -1747,7 +2049,6 @@ export default function ClickUpDocWorkspace({
                 ))}
               </div>
 
-              {/* Gallery Grid */}
               <div className="cover-gallery-grid">
                 {COVER_CATEGORIES[selectedCoverCategory].map((item) => (
                   <div
@@ -1768,7 +2069,6 @@ export default function ClickUpDocWorkspace({
                 ))}
               </div>
 
-              {/* Custom Upload Box */}
               <div style={{ marginTop: "16px" }}>
                 <input
                   type="file"
@@ -1899,7 +2199,6 @@ export default function ClickUpDocWorkspace({
               </button>
             </div>
             <div className="modal-body share-body">
-              {/* Public Publishing Section */}
               <div className="share-public-box">
                 <div className="share-public-info">
                   <Globe size={18} />
@@ -1954,7 +2253,6 @@ export default function ClickUpDocWorkspace({
                 </div>
               )}
 
-              {/* Protection & Wiki Toggles */}
               <div className="modal-toggle-options">
                 <label className="modal-checkbox-row">
                   <input
@@ -1999,7 +2297,6 @@ export default function ClickUpDocWorkspace({
                 </label>
               </div>
 
-              {/* Export Options (SEPARATING DOWNLOAD PDF FROM PRINT) */}
               <div className="modal-export-section">
                 <strong>Export Options</strong>
                 <div className="export-btns-row">
@@ -2313,6 +2610,7 @@ function BlockRenderer({
   block,
   isFocused,
   isOnlyBlock,
+  isSlashActive,
   projectId,
   tasksInProject,
   onFocus,
@@ -2321,12 +2619,16 @@ function BlockRenderer({
   onEnterPress,
   onBackspaceOnEmpty,
   onOpenSlashMenu,
+  onCloseSlashMenu,
+  onSlashNavigate,
+  onSlashSelectCurrent,
   onSwitchPage,
   uploadImageFile,
 }: {
   block: DocBlock;
   isFocused: boolean;
   isOnlyBlock: boolean;
+  isSlashActive: boolean;
   projectId?: string;
   tasksInProject: Array<{ id: string; title: string; status?: string; priority?: string }>;
   onFocus: () => void;
@@ -2334,24 +2636,66 @@ function BlockRenderer({
   onChange: (newData: any) => void;
   onEnterPress: () => void;
   onBackspaceOnEmpty: () => void;
-  onOpenSlashMenu: () => void;
+  onOpenSlashMenu: (el: HTMLElement, query: string) => void;
+  onCloseSlashMenu: () => void;
+  onSlashNavigate: (direction: "up" | "down") => void;
+  onSlashSelectCurrent: () => void;
   onSwitchPage: (pageId: string) => void;
   uploadImageFile: (file: File) => Promise<string | null>;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    onChange({ text: val });
+
+    if (e.target.tagName.toLowerCase() === "textarea") {
+      e.target.style.height = "auto";
+      e.target.style.height = `${e.target.scrollHeight}px`;
+    }
+
+    const slashIdx = val.lastIndexOf("/");
+    if (slashIdx !== -1) {
+      const query = val.slice(slashIdx + 1);
+      if (!query.includes(" ") && query.length <= 25) {
+        onOpenSlashMenu(e.currentTarget, query);
+        return;
+      }
+    }
+
+    onCloseSlashMenu();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (isSlashActive) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        onSlashNavigate("down");
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        onSlashNavigate("up");
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        onSlashSelectCurrent();
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCloseSlashMenu();
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       onEnterPress();
     }
     if (e.key === "Backspace" && !(e.target as any).value) {
       onBackspaceOnEmpty();
-    }
-    if (e.key === "/") {
-      if (!(e.target as any).value) {
-        onOpenSlashMenu();
-      }
     }
   };
 
@@ -2366,7 +2710,7 @@ function BlockRenderer({
           value={block.data.text || ""}
           onFocus={onFocus}
           onBlur={onBlur}
-          onChange={(e) => onChange({ text: e.target.value })}
+          onChange={handleTextChange}
           onKeyDown={handleKeyDown}
         />
       );
@@ -2381,7 +2725,7 @@ function BlockRenderer({
           value={block.data.text || ""}
           onFocus={onFocus}
           onBlur={onBlur}
-          onChange={(e) => onChange({ text: e.target.value })}
+          onChange={handleTextChange}
           onKeyDown={handleKeyDown}
         />
       );
@@ -2396,7 +2740,7 @@ function BlockRenderer({
           value={block.data.text || ""}
           onFocus={onFocus}
           onBlur={onBlur}
-          onChange={(e) => onChange({ text: e.target.value })}
+          onChange={handleTextChange}
           onKeyDown={handleKeyDown}
         />
       );
@@ -2411,7 +2755,7 @@ function BlockRenderer({
           value={block.data.text || ""}
           onFocus={onFocus}
           onBlur={onBlur}
-          onChange={(e) => onChange({ text: e.target.value })}
+          onChange={handleTextChange}
           onKeyDown={handleKeyDown}
         />
       );
@@ -2431,7 +2775,7 @@ function BlockRenderer({
             value={block.data.text || ""}
             onFocus={onFocus}
             onBlur={onBlur}
-            onChange={(e) => onChange({ text: e.target.value })}
+            onChange={handleTextChange}
             onKeyDown={handleKeyDown}
           />
         </div>
@@ -2448,7 +2792,7 @@ function BlockRenderer({
             value={block.data.text || ""}
             onFocus={onFocus}
             onBlur={onBlur}
-            onChange={(e) => onChange({ text: e.target.value })}
+            onChange={handleTextChange}
             onKeyDown={handleKeyDown}
           />
         </div>
@@ -2465,7 +2809,7 @@ function BlockRenderer({
             value={block.data.text || ""}
             onFocus={onFocus}
             onBlur={onBlur}
-            onChange={(e) => onChange({ text: e.target.value })}
+            onChange={handleTextChange}
             onKeyDown={handleKeyDown}
           />
         </div>
@@ -2481,11 +2825,7 @@ function BlockRenderer({
             value={block.data.text || ""}
             onFocus={onFocus}
             onBlur={onBlur}
-            onChange={(e) => {
-              onChange({ text: e.target.value });
-              e.target.style.height = "auto";
-              e.target.style.height = `${e.target.scrollHeight}px`;
-            }}
+            onChange={handleTextChange}
             onKeyDown={handleKeyDown}
           />
         </blockquote>
@@ -2501,7 +2841,8 @@ function BlockRenderer({
             value={block.data.text || ""}
             onFocus={onFocus}
             onBlur={onBlur}
-            onChange={(e) => onChange({ text: e.target.value })}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
           />
           <input
             type="text"
@@ -2544,7 +2885,8 @@ function BlockRenderer({
               placeholder="Write callout description…"
               rows={2}
               value={block.data.text || ""}
-              onChange={(e) => onChange({ text: e.target.value })}
+              onChange={handleTextChange}
+              onKeyDown={handleKeyDown}
             />
             <div className="banner-type-picker-strip">
               {(["info", "warning", "success", "danger", "neutral"] as const).map((t) => (
@@ -2662,7 +3004,6 @@ function BlockRenderer({
         >
           {hasUrl ? (
             <div style={{ display: "inline-block", maxWidth: "100%", width }}>
-              {/* Image Toolbar on Hover */}
               <div className="image-block-toolbar">
                 <button
                   type="button"
@@ -2729,7 +3070,6 @@ function BlockRenderer({
                 </button>
               </div>
 
-              {/* Real Image Element */}
               <img
                 src={block.data.url}
                 alt={block.data.altText || block.data.caption || "Document image"}
@@ -2740,7 +3080,6 @@ function BlockRenderer({
                 }}
               />
 
-              {/* Caption */}
               <input
                 type="text"
                 className="image-caption-input"
@@ -3077,11 +3416,7 @@ function BlockRenderer({
           value={block.data.text || ""}
           onFocus={onFocus}
           onBlur={onBlur}
-          onChange={(e) => {
-            onChange({ text: e.target.value });
-            e.target.style.height = "auto";
-            e.target.style.height = `${e.target.scrollHeight}px`;
-          }}
+          onChange={handleTextChange}
           onKeyDown={handleKeyDown}
         />
       );
