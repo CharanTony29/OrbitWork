@@ -126,6 +126,7 @@ create or replace function public.can_access_doc(target_doc uuid)
 returns boolean language plpgsql security definer set search_path = '' as $$
 declare
   v_workspace_id uuid;
+  v_project_id uuid;
   v_created_by uuid;
   v_is_private boolean;
   v_uid uuid := (select auth.uid());
@@ -134,8 +135,8 @@ begin
     return false;
   end if;
 
-  select workspace_id, created_by, is_private
-    into v_workspace_id, v_created_by, v_is_private
+  select workspace_id, project_id, created_by, is_private
+    into v_workspace_id, v_project_id, v_created_by, v_is_private
   from public.docs where id = target_doc;
 
   if v_workspace_id is null then
@@ -150,7 +151,10 @@ begin
     return true;
   end if;
 
-  if not v_is_private and public.can_access_workspace(v_workspace_id) then
+  if not v_is_private and (
+    public.can_access_workspace(v_workspace_id)
+    or (v_project_id is not null and public.can_edit_project_tasks(v_project_id))
+  ) then
     return true;
   end if;
 
@@ -162,6 +166,7 @@ create or replace function public.can_edit_doc(target_doc uuid)
 returns boolean language plpgsql security definer set search_path = '' as $$
 declare
   v_workspace_id uuid;
+  v_project_id uuid;
   v_created_by uuid;
   v_is_private boolean;
   v_is_protected boolean;
@@ -172,8 +177,8 @@ begin
     return false;
   end if;
 
-  select workspace_id, created_by, is_private, is_protected
-    into v_workspace_id, v_created_by, v_is_private, v_is_protected
+  select workspace_id, project_id, created_by, is_private, is_protected
+    into v_workspace_id, v_project_id, v_created_by, v_is_private, v_is_protected
   from public.docs where id = target_doc;
 
   if v_workspace_id is null then
@@ -196,7 +201,10 @@ begin
     return false;
   end if;
 
-  return public.can_access_workspace(v_workspace_id);
+  return (
+    public.can_access_workspace(v_workspace_id)
+    or (v_project_id is not null and public.can_edit_project_tasks(v_project_id))
+  );
 end;
 $$;
 
@@ -212,20 +220,71 @@ alter table public.doc_linked_tasks enable row level security;
 -- Policies on docs
 drop policy if exists "docs_select" on public.docs;
 create policy "docs_select" on public.docs for select to authenticated
-using (public.can_access_doc(id));
+using (
+  created_by = (select auth.uid())
+  or exists (
+    select 1 from public.doc_members dm
+    where dm.doc_id = docs.id and dm.user_id = (select auth.uid())
+  )
+  or (
+    not is_private and (
+      public.can_access_workspace(workspace_id)
+      or (project_id is not null and public.can_edit_project_tasks(project_id))
+    )
+  )
+);
 
 drop policy if exists "docs_insert" on public.docs;
 create policy "docs_insert" on public.docs for insert to authenticated
-with check (public.can_access_workspace(workspace_id));
+with check (
+  (created_by = (select auth.uid()) or created_by is null)
+  and (
+    public.can_access_workspace(workspace_id)
+    or (project_id is not null and public.can_edit_project_tasks(project_id))
+  )
+);
 
 drop policy if exists "docs_update" on public.docs;
 create policy "docs_update" on public.docs for update to authenticated
-using (public.can_edit_doc(id))
-with check (public.can_edit_doc(id));
+using (
+  created_by = (select auth.uid())
+  or exists (
+    select 1 from public.doc_members dm
+    where dm.doc_id = docs.id and dm.user_id = (select auth.uid()) and dm.role in ('owner', 'editor')
+  )
+  or (
+    not is_protected and not is_private and (
+      public.can_access_workspace(workspace_id)
+      or (project_id is not null and public.can_edit_project_tasks(project_id))
+    )
+  )
+  or public.can_manage_workspace(workspace_id)
+)
+with check (
+  created_by = (select auth.uid())
+  or exists (
+    select 1 from public.doc_members dm
+    where dm.doc_id = docs.id and dm.user_id = (select auth.uid()) and dm.role in ('owner', 'editor')
+  )
+  or (
+    not is_protected and not is_private and (
+      public.can_access_workspace(workspace_id)
+      or (project_id is not null and public.can_edit_project_tasks(project_id))
+    )
+  )
+  or public.can_manage_workspace(workspace_id)
+);
 
 drop policy if exists "docs_delete" on public.docs;
 create policy "docs_delete" on public.docs for delete to authenticated
-using (created_by = (select auth.uid()) or public.can_manage_workspace(workspace_id));
+using (
+  created_by = (select auth.uid())
+  or exists (
+    select 1 from public.doc_members dm
+    where dm.doc_id = docs.id and dm.user_id = (select auth.uid()) and dm.role = 'owner'
+  )
+  or public.can_manage_workspace(workspace_id)
+);
 
 -- Policies on doc_pages
 drop policy if exists "doc_pages_select" on public.doc_pages;

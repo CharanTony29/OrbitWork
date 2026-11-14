@@ -2152,7 +2152,8 @@ export async function quickCreateProjectDocument(formData: FormData) {
       .maybeSingle();
 
     if (proj?.workspace_id) {
-      await supabase.from("docs").upsert({
+      const db = createAdminClient() || supabase;
+      await db.from("docs").upsert({
         id: document.id,
         workspace_id: proj.workspace_id,
         project_id: parsed.data.projectId,
@@ -2162,7 +2163,7 @@ export async function quickCreateProjectDocument(formData: FormData) {
         updated_by: user.id,
       });
 
-      await supabase.from("doc_pages").upsert({
+      await db.from("doc_pages").upsert({
         id: document.id,
         doc_id: document.id,
         parent_page_id: null,

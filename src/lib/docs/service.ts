@@ -292,12 +292,14 @@ export async function createDoc(params: {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Unauthorized" };
 
+  const db = createAdminClient() || supabase;
+
   const template = params.templateId ? DOC_TEMPLATES.find((t) => t.id === params.templateId) : null;
   const title = params.title.trim() || template?.title || "Untitled Document";
   const icon = params.icon || template?.icon || "📄";
 
   // Insert doc container
-  const { data: newDoc, error: docErr } = await supabase
+  const { data: newDoc, error: docErr } = await db
     .from("docs")
     .insert({
       workspace_id: params.workspaceId,
@@ -320,7 +322,7 @@ export async function createDoc(params: {
   }
 
   // Also maintain owner membership
-  await supabase.from("doc_members").insert({
+  await db.from("doc_members").insert({
     doc_id: newDoc.id,
     user_id: user.id,
     role: "owner",
@@ -342,7 +344,7 @@ export async function createDoc(params: {
 
   const primaryMarkdown = blocksToMarkdown(primaryBlocks);
 
-  const { data: rootPage, error: pageErr } = await supabase
+  const { data: rootPage, error: pageErr } = await db
     .from("doc_pages")
     .insert({
       doc_id: newDoc.id,
@@ -367,7 +369,7 @@ export async function createDoc(params: {
   if (template && template.initialPages[0]?.subpages && rootPage) {
     for (let i = 0; i < template.initialPages[0].subpages.length; i++) {
       const sp = template.initialPages[0].subpages[i];
-      await supabase.from("doc_pages").insert({
+      await db.from("doc_pages").insert({
         doc_id: newDoc.id,
         parent_page_id: rootPage.id,
         title: sp.title,
@@ -700,13 +702,15 @@ export async function createPage(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Unauthorized" };
 
+  const db = createAdminClient() || supabase;
+
   const title = params.title?.trim() || "Untitled Page";
   const icon = params.icon || "📄";
 
   let pos = params.position;
   if (pos === undefined) {
     // Find max position in parent
-    const { data: siblings } = await supabase
+    const { data: siblings } = await db
       .from("doc_pages")
       .select("position")
       .eq("doc_id", docId)
@@ -720,7 +724,7 @@ export async function createPage(
   const blocks = params.contentJson || [{ id: "b1", type: "paragraph", data: { text: "" } }];
   const markdown = params.contentMarkdown || blocksToMarkdown(blocks);
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("doc_pages")
     .insert({
       doc_id: docId,
