@@ -410,10 +410,10 @@ export default async function WorkspaceTimesheetsPage({
                         <div
                           key={entry.id}
                           className="day-task-item"
-                          title={`${task?.generated_key}: ${task?.title} [${projName}] (${durationH}h ${durationM}m)`}
+                          title={`${task?.title ?? "Task"} [${projName}] (${durationH}h ${durationM}m)`}
                         >
                           <span className="day-task-key">
-                            {task?.generated_key ?? "Task"}
+                            {task?.title ?? "Task"}
                           </span>
                           <span style={{ fontSize: 9, color: "var(--muted)", fontWeight: 600, maxWidth: 50, overflow: "hidden", textOverflow: "ellipsis" }}>
                             {projName}
@@ -457,7 +457,7 @@ export default async function WorkspaceTimesheetsPage({
               <div className="timesheet-entry" key={entry.id}>
                 <div>
                   <Link href={`/projects/${entry.project_id}/tasks/${entry.task_id}`}>
-                    {task?.generated_key ?? "Task"}: {task?.title ?? "Logged work"}
+                    {task?.title ?? "Logged work"}
                   </Link>
                   <span style={{ marginLeft: 8, fontSize: 10, color: "var(--green, #167c58)", fontWeight: 600 }}>
                     [{projName}]

@@ -265,7 +265,6 @@ export default function TaskCommentsModal({
         {/* Header */}
         <div className="comments-modal-header">
           <div className="comments-header-info">
-            <span className="comments-task-key">{taskKey}</span>
             <h3 className="comments-task-title">{taskTitle}</h3>
           </div>
           <button

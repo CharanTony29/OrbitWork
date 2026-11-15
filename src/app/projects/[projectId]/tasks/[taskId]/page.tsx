@@ -164,7 +164,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
   return <main className="app-shell">
     <AppTopBar email={user.email ?? ""} />
     <div className="task-detail-page">
-      <div className="task-detail-nav"><BackButton fallbackHref={`/projects/${projectId}`} label={project.name}/><span className="task-key">{task.generated_key}</span></div>
+      <div className="task-detail-nav"><BackButton fallbackHref={`/projects/${projectId}`} label={project.name}/></div>
       <div className="task-detail-heading">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -550,7 +550,6 @@ export default async function TaskDetailPage({ params, searchParams }: {
                         </span>
                         {linked ? (
                           <Link href={`/projects/${projectId}/tasks/${linked.id}`} className="dependency-task-link">
-                            <span className="dependency-task-key">{linked.generated_key}</span>
                             <span className="dependency-task-title">{linked.title}</span>
                           </Link>
                         ) : (
@@ -584,7 +583,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
                       <select name="linkedTaskId" required defaultValue="" className="dependency-task-select">
                         <option value="" disabled>Choose a task to link…</option>
                         {projectTasks?.filter((item) => item.id !== taskId && !(dependencies ?? []).some((dependency) => dependency.linked_task_id === item.id)).map((item) => (
-                          <option key={item.id} value={item.id}>{item.generated_key} · {item.title}</option>
+                          <option key={item.id} value={item.id}>{item.title}</option>
                         ))}
                       </select>
                       <select name="relation" defaultValue="related" className="dependency-type-select">

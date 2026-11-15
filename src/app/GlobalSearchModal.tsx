@@ -426,7 +426,6 @@ export default function GlobalSearchModal({
                   </div>
                   <div className="search-item-info">
                     <div className="search-item-header">
-                      <span className="search-item-key">{task.generatedKey}</span>
                       <strong className="search-item-title">{task.title}</strong>
                     </div>
                     {task.description && (
@@ -499,7 +498,6 @@ export default function GlobalSearchModal({
                   </div>
                   <div className="search-item-info">
                     <div className="search-item-header">
-                      <span className="search-item-key">{disc.taskKey}</span>
                       <strong className="search-item-title">{disc.taskTitle}</strong>
                     </div>
                     <p className="search-item-snippet">&ldquo;{disc.bodySnippet}&rdquo;</p>

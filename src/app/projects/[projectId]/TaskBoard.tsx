@@ -67,10 +67,9 @@ export default function TaskBoard({
                 onDragEnd={() => setDragging(null)}
               >
                 <div className="kanban-card-heading">
-                  <span className="task-key">{task.generated_key}</span>
+                  <Link href={`/projects/${projectId}/tasks/${task.id}`} className="kanban-card-title">{task.title}</Link>
                   <span className="task-type-badge">{(task.task_type ?? "task").replaceAll("_", " ")}</span>
                 </div>
-                <Link href={`/projects/${projectId}/tasks/${task.id}`}>{task.title}</Link>
                 <div className="kanban-card-meta">
                   <span className={`priority priority-${task.priority}`}>{task.priority}</span>
                   <span>{task.due_date ? new Date(`${task.due_date}T00:00:00`).toLocaleDateString() : "No due date"}</span>

@@ -591,17 +591,34 @@ body:has(.project-app-shell) {
 
 .kanban-card-heading {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
 }
 
-.kanban-card-heading .task-key {
+.kanban-card-heading .kanban-card-title,
+.kanban-card-heading a,
+.kanban-card > a:not(.task-key) {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--ink, #17231f);
+  text-decoration: none;
+  line-height: 1.35;
+  flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+}
+
+.kanban-card-heading .kanban-card-title:hover,
+.kanban-card-heading a:hover,
+.kanban-card > a:not(.task-key):hover {
+  color: var(--green, #167c58);
+}
+
+.kanban-card-heading .task-type-badge {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 /* Non-overlapping column reorder safety when Task column moves from first position */

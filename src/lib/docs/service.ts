@@ -1155,7 +1155,7 @@ export async function convertCommentToTask(
       is_resolved: true,
       resolved_by: user.id,
       resolved_at: new Date().toISOString(),
-      content: `${comment.content}\n\n*(Converted to Task #${newTask.id.slice(0, 8)})*`,
+      content: `${comment.content}\n\n*(Converted to Task: ${taskTitle})*`,
     })
     .eq("id", commentId);
 

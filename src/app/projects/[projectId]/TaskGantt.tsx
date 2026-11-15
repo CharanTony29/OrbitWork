@@ -55,7 +55,7 @@ export default function TaskGantt({ projectId, tasks, month, events = [] }: { pr
       const planned = task.status_category === "not_started";
       const progress = task.progress > 0 ? task.progress : task.status_category === "active" || task.status_category === "completed" ? 100 : 0;
       return <div className="gantt-row" key={task.id} style={{ gridTemplateColumns: columns }}>
-        <Link className="gantt-task-name" href={`/projects/${projectId}/tasks/${task.id}`}><span>{task.generated_key}</span>{task.title}</Link>
+        <Link className="gantt-task-name" href={`/projects/${projectId}/tasks/${task.id}`}>{task.title}</Link>
         {Array.from({ length: days }, (_, index) => { const hLabels = holidayByDay.get(index + 1); return <span className={`gantt-cell${hLabels ? " is-holiday" : ""}`} key={index} title={hLabels ? `Holiday: ${hLabels.join(", ")}` : undefined}/>; })}
         {visible && <Link className={`gantt-bar${planned ? " is-planned" : ""}${late ? " is-overdue" : ""}`} href={`/projects/${projectId}/tasks/${task.id}`} style={{ gridColumn: `${clampedStart + 1} / ${clampedEnd + 2}`, left: 0, "--bar-progress": `${Math.max(0, Math.min(100, progress))}%` } as React.CSSProperties} title={`${start} to ${task.due_date ?? end}${late ? " · Overdue" : ""}`}/>}
         {!visible && <span className="gantt-unscheduled">No schedule</span>}

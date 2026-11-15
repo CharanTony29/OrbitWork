@@ -2596,7 +2596,7 @@ export async function createLeaveRequest(formData: FormData) {
         task_id: dt.id,
         organization_id: parsed.data.organizationId,
         event_type: "task_delegated",
-        message: `You were assigned ${dt.priority} priority task ${dt.key}: ${dt.title} on behalf of ${requesterName} (Out of Office).`.slice(0, 490),
+        message: `You were assigned ${dt.priority} priority task "${dt.title}" on behalf of ${requesterName} (Out of Office).`.slice(0, 490),
         action_url: `/projects/${dt.projectId}/tasks/${dt.id}`,
       });
     }

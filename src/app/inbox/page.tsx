@@ -232,7 +232,6 @@ export default async function InboxPage() {
                           title={`Status: ${status.name}`}
                         />
                       )}
-                      <span className="inbox-task-key">{task.generated_key}</span>
                       <Link
                         className="inbox-task-title"
                         href={`/projects/${task.project_id}/tasks/${task.id}`}

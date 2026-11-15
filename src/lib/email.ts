@@ -722,7 +722,7 @@ export async function notifyAssigneesOnTask({
       const missingRecipients = targetUserIds.filter((uid) => !alreadyNotified.has(uid));
 
       if (missingRecipients.length > 0) {
-        const message = `${assignerName} assigned you to task ${task.generated_key || "TASK"}: ${task.title}`;
+        const message = `${assignerName} assigned you to task "${task.title}"`;
         const extRows = missingRecipients.map((uid) => ({
           recipient_id: uid,
           actor_id: actorId,

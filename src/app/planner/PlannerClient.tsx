@@ -887,7 +887,6 @@ export default function PlannerClient({
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {t.generated_key ? `${t.generated_key} · ` : ""}
                         {t.title}
                       </div>
                       <div className="muted" style={{ fontSize: "11.5px" }}>

@@ -351,10 +351,10 @@ export default async function ProjectTimesheetsPage({
                               key={entry.id}
                               href={`/projects/${projectId}/tasks/${entry.task_id}`}
                               className="day-task-item"
-                              title={`${task?.generated_key ?? "TASK"}: ${task?.title ?? "Task"}`}
+                              title={task?.title ?? "Task"}
                             >
                               <span className="day-task-key">
-                                {task?.generated_key ?? "TASK"}
+                                {task?.title ?? "Task"}
                               </span>
                               <span className="day-task-time">
                                 {eHours > 0 ? `${eHours}h ${eMins}m` : `${eMins}m`}
@@ -425,7 +425,7 @@ export default async function ProjectTimesheetsPage({
                   return (
                     <div className="timesheet-entry" key={entry.id}>
                       <Link href={`/projects/${projectId}/tasks/${entry.task_id}`}>
-                        {task?.generated_key} · {task?.title ?? "Task"}
+                        {task?.title ?? "Task"}
                       </Link>
                       <span>
                         {Math.floor((entry.duration_minutes ?? 0) / 60)}h {(entry.duration_minutes ?? 0) % 60}m
