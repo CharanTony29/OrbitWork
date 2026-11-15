@@ -134,7 +134,26 @@ export default async function ProjectPage({ params, searchParams }: {
     supabase.from("organization_holidays").select("id, name, holiday_date, location").eq("organization_id", orgId).gte("holiday_date", monthStart).lte("holiday_date", monthEnd),
     supabase.from("leave_requests").select("id, user_id, start_date, end_date, leave_type").eq("organization_id", orgId).eq("status", "approved").lte("start_date", monthEnd).gte("end_date", monthStart),
   ]) : [{ data: [] }, { data: [] }];
-  const calendarEvents = [...(holidayResult.data ?? []).map((item) => ({ id: item.id, label: item.name, start: item.holiday_date, kind: "holiday" as const })), ...(leaveResult.data ?? []).map((item) => ({ id: item.id, label: `${item.leave_type[0]?.toUpperCase() ?? ""}${item.leave_type.slice(1)} leave`, start: item.start_date, end: item.end_date, kind: "leave" as const, userId: item.user_id }))];
+  const calendarEvents = [
+    ...(holidayResult.data ?? []).map((item) => ({
+      id: item.id,
+      label: item.name ?? "Holiday",
+      start: item.holiday_date,
+      kind: "holiday" as const,
+    })),
+    ...(leaveResult.data ?? []).map((item) => {
+      const rawType = typeof item.leave_type === "string" ? item.leave_type.trim() : "";
+      const typeLabel = rawType ? `${rawType.charAt(0).toUpperCase()}${rawType.slice(1)}` : "Sick";
+      return {
+        id: item.id,
+        label: `${typeLabel} leave`,
+        start: item.start_date,
+        end: item.end_date,
+        kind: "leave" as const,
+        userId: item.user_id,
+      };
+    }),
+  ];
   const taskIds = (tasks ?? []).map((task) => task.id);
   const customFieldIds = (customFields ?? []).map((field) => field.id);
   const needsProjectDocs = view === "list" || view === "whiteboard" || view === "flowchart";

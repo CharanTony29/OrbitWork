@@ -52,9 +52,6 @@ export default function TaskWorkload({
                       src={avatar}
                       alt={name}
                       style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
                     />
                   ) : (
                     (id ? people.get(id) ?? "T" : "?")[0].toUpperCase()
