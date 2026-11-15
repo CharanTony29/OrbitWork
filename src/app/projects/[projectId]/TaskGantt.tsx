@@ -43,6 +43,7 @@ function getAvatarColor(id?: string | null) {
 }
 
 const TASK_COL_WIDTH = 280;
+const DAY_COL_WIDTH = 38;
 
 export default function TaskGantt({
   projectId,
@@ -72,7 +73,9 @@ export default function TaskGantt({
     const next = new Date(Date.UTC(year, monthNumber, 1));
     const fmt = (date: Date) =>
       `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
-    const columns = `${TASK_COL_WIDTH}px repeat(${days}, minmax(34px, 1fr))`;
+    
+    // Fixed day column widths so items never expand or distort the grid
+    const columns = `${TASK_COL_WIDTH}px repeat(${days}, ${DAY_COL_WIDTH}px)`;
 
     // Map day-of-month (1..days) -> holiday names for vertical column highlights
     const holidayByDay = new Map<number, string[]>();
@@ -215,6 +218,7 @@ export default function TaskGantt({
                   const sDay = Number(l.start.slice(8, 10));
                   const eDay = l.end ? Number(l.end.slice(8, 10)) : sDay;
                   const dateText = sDay === eDay ? `${sDay}` : `${sDay}–${eDay}`;
+                  const isSick = l.label.toLowerCase().includes("sick");
                   return (
                     <span
                       key={`pill-leave-${l.id}`}
@@ -224,13 +228,13 @@ export default function TaskGantt({
                         fontSize: 11,
                         padding: "2px 8px",
                         borderRadius: 6,
-                        background: "#eff6ff",
-                        color: "#1e40af",
-                        border: "1px solid #bfdbfe",
+                        background: isSick ? "#eff6ff" : "#f5f3ff",
+                        color: isSick ? "#1e40af" : "#6d28d9",
+                        border: isSick ? "1px solid #bfdbfe" : "1px solid #ddd6fe",
                         fontWeight: 600,
                       }}
                     >
-                      🏖️ {dateText} {first.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })} ·{" "}
+                      {isSick ? "🤒" : "🏖️"} {dateText} {first.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })} ·{" "}
                       {l.person || "Team member"} ({l.label})
                     </span>
                   );
@@ -253,9 +257,14 @@ export default function TaskGantt({
               fontWeight: 700,
               fontSize: 11,
               color: "#334155",
+              position: "sticky",
+              left: 0,
+              zIndex: 6,
+              background: "#f7f9f7",
+              borderRight: "2px solid #cbd5e1",
             }}
           >
-            Task Name
+            Task / Member
           </span>
           {Array.from({ length: days }, (_, index) => {
             const d = index + 1;
@@ -276,6 +285,10 @@ export default function TaskGantt({
                     : undefined
                 }
                 style={{
+                  width: DAY_COL_WIDTH,
+                  minWidth: DAY_COL_WIDTH,
+                  maxWidth: DAY_COL_WIDTH,
+                  boxSizing: "border-box",
                   fontWeight: isToday ? 700 : 500,
                   color: isToday ? "#167c58" : undefined,
                 }}
@@ -288,21 +301,50 @@ export default function TaskGantt({
 
         {/* Team Leave Rows placed right at the TOP of the grid (above tasks) */}
         {monthLeaves.length > 0 && (
-          <div className="gantt-leaves-group" style={{ borderBottom: "2px solid #cbd5e1" }}>
+          <div className="gantt-leaves-container">
+            {/* Section Banner */}
             <div
+              className="gantt-row"
               style={{
-                padding: "6px 12px",
-                fontSize: 10,
-                fontWeight: 700,
-                color: "#1d4ed8",
+                gridTemplateColumns: columns,
                 background: "#f0f7ff",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                borderBottom: "1px solid #dbeafe",
+                borderBottom: "1px solid #bfdbfe",
+                minHeight: 28,
               }}
             >
-              🏖️ Team Availability & Leaves ({monthLeaves.length})
+              <div
+                style={{
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 5,
+                  background: "#f0f7ff",
+                  padding: "4px 12px",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#1d4ed8",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  borderRight: "2px solid #cbd5e1",
+                  width: TASK_COL_WIDTH,
+                  minWidth: TASK_COL_WIDTH,
+                  maxWidth: TASK_COL_WIDTH,
+                  boxSizing: "border-box",
+                }}
+              >
+                🏖️ Team Time Off ({monthLeaves.length})
+              </div>
+              {Array.from({ length: days }, (_, i) => (
+                <span
+                  key={`leave-head-${i}`}
+                  style={{
+                    width: DAY_COL_WIDTH,
+                    borderRight: "1px solid #e0e7ff",
+                    height: "100%",
+                  }}
+                />
+              ))}
             </div>
+
             {monthLeaves.map((event) => {
               const end = event.end ?? event.start;
               const startDay = event.start.startsWith(key)
@@ -319,13 +361,20 @@ export default function TaskGantt({
               const from = Math.max(1, startDay);
               const to = Math.max(from, Math.min(days, endDay));
               const personName = event.person || "Team member";
+              const isSick = event.label.toLowerCase().includes("sick");
+              const spanDays = to - from + 1;
 
               return (
                 <div
                   className="gantt-row gantt-event-row"
                   key={`event-${event.id}`}
-                  style={{ gridTemplateColumns: columns, background: "#fafcff" }}
+                  style={{
+                    gridTemplateColumns: columns,
+                    background: "#fafcff",
+                    borderBottom: "1px solid #e2e8f0",
+                  }}
                 >
+                  {/* Sticky Person Info Column */}
                   <div
                     className="gantt-task-name"
                     style={{
@@ -338,8 +387,11 @@ export default function TaskGantt({
                       alignItems: "center",
                       gap: 6,
                       overflow: "hidden",
-                      borderBottom: "1px solid #e2e8f0",
-                      background: "transparent",
+                      background: "#fafcff",
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 5,
+                      borderRight: "2px solid #cbd5e1",
                     }}
                   >
                     <span
@@ -352,7 +404,7 @@ export default function TaskGantt({
                         alignItems: "center",
                         justifyContent: "center",
                         flexShrink: 0,
-                        backgroundColor: "#3b82f6",
+                        backgroundColor: isSick ? "#3b82f6" : "#8b5cf6",
                         color: "#ffffff",
                         fontSize: 9,
                         fontWeight: 700,
@@ -372,24 +424,44 @@ export default function TaskGantt({
                       style={{
                         fontSize: 11,
                         fontWeight: 650,
-                        color: "#1e40af",
+                        color: isSick ? "#1e40af" : "#6d28d9",
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                       }}
                       title={`${personName} · ${event.label}`}
                     >
-                      🏖️ {personName}
-                      <span style={{ fontSize: 10, color: "#64748b", fontWeight: 500, marginLeft: 4 }}>
+                      {isSick ? "🤒" : "🏖️"} {personName}
+                      <span
+                        style={{
+                          fontSize: 10,
+                          color: "#64748b",
+                          fontWeight: 500,
+                          marginLeft: 4,
+                        }}
+                      >
                         ({event.label})
                       </span>
                     </span>
                   </div>
 
-                  {Array.from({ length: days }, (_, index) => (
-                    <span className="gantt-cell" key={index} style={{ background: "transparent" }} />
-                  ))}
+                  {/* Empty Day Grid Cells */}
+                  {Array.from({ length: days }, (_, index) => {
+                    const hLabels = holidayByDay.get(index + 1);
+                    return (
+                      <span
+                        className={`gantt-cell${hLabels ? " is-holiday" : ""}`}
+                        key={index}
+                        style={{
+                          width: DAY_COL_WIDTH,
+                          boxSizing: "border-box",
+                          background: hLabels ? "rgba(245,158,11,0.06)" : "transparent",
+                        }}
+                      />
+                    );
+                  })}
 
+                  {/* Sick Leave / Holiday Timeline Bar exactly at [from+1 / to+2] */}
                   <span
                     className="gantt-event-bar gantt-event-leave"
                     style={{
@@ -400,20 +472,31 @@ export default function TaskGantt({
                       borderRadius: 6,
                       display: "inline-flex",
                       alignItems: "center",
-                      gap: 6,
-                      padding: "0 8px",
+                      gap: 4,
+                      padding: "0 6px",
                       overflow: "hidden",
+                      minWidth: 0,
                       color: "#ffffff",
-                      fontSize: 10.5,
+                      fontSize: 10,
                       fontWeight: 650,
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
                       zIndex: 3,
-                      background: "linear-gradient(135deg, #60a5fa, #2563eb)",
+                      background: isSick
+                        ? "linear-gradient(135deg, #3b82f6, #1d4ed8)"
+                        : "linear-gradient(135deg, #8b5cf6, #6d28d9)",
                     }}
                     title={`${personName} · ${event.label} (${event.start}${event.end ? ` to ${event.end}` : ""})`}
                   >
-                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      🏖️ {personName}: {event.label}
+                    <span style={{ flexShrink: 0, fontSize: 10 }}>{isSick ? "🤒" : "🏖️"}</span>
+                    <span
+                      style={{
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        fontSize: 10,
+                      }}
+                    >
+                      {spanDays > 1 ? `${personName}: ${event.label}` : event.label.replace(" leave", "")}
                     </span>
                   </span>
                 </div>
@@ -421,6 +504,50 @@ export default function TaskGantt({
             })}
           </div>
         )}
+
+        {/* Section Banner for Tasks */}
+        <div
+          className="gantt-row"
+          style={{
+            gridTemplateColumns: columns,
+            background: "#f8fafc",
+            borderBottom: "1px solid #cbd5e1",
+            minHeight: 28,
+            marginTop: monthLeaves.length > 0 ? 8 : 0,
+          }}
+        >
+          <div
+            style={{
+              position: "sticky",
+              left: 0,
+              zIndex: 5,
+              background: "#f8fafc",
+              padding: "4px 12px",
+              fontSize: 10,
+              fontWeight: 700,
+              color: "#475569",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              borderRight: "2px solid #cbd5e1",
+              width: TASK_COL_WIDTH,
+              minWidth: TASK_COL_WIDTH,
+              maxWidth: TASK_COL_WIDTH,
+              boxSizing: "border-box",
+            }}
+          >
+            📋 Tasks ({tasks.length})
+          </div>
+          {Array.from({ length: days }, (_, i) => (
+            <span
+              key={`task-head-${i}`}
+              style={{
+                width: DAY_COL_WIDTH,
+                borderRight: "1px solid #f1f5f9",
+                height: "100%",
+              }}
+            />
+          ))}
+        </div>
 
         {/* Task Rows in Hierarchical Order */}
         {hierarchicalList.map(({ task, depth }) => {
@@ -466,9 +593,10 @@ export default function TaskGantt({
               style={{
                 gridTemplateColumns: columns,
                 background: isSubtask ? "#fafbfa" : "#ffffff",
+                borderBottom: "1px solid var(--line, #e2e8f0)",
               }}
             >
-              {/* Constant Column Width Task Name with Hierarchy Tree Indentation & Avatars */}
+              {/* Sticky Task Name Column with Hierarchy Tree Indentation & Avatars */}
               <div
                 className="gantt-task-name"
                 style={{
@@ -482,8 +610,11 @@ export default function TaskGantt({
                   alignItems: "center",
                   gap: 6,
                   overflow: "hidden",
-                  borderBottom: "1px solid var(--line, #e2e8f0)",
                   background: isSubtask ? "#f8faf8" : "#ffffff",
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 5,
+                  borderRight: "2px solid #cbd5e1",
                 }}
               >
                 {isSubtask && (
@@ -590,6 +721,10 @@ export default function TaskGantt({
                     className={`gantt-cell${hLabels ? " is-holiday" : ""}`}
                     key={index}
                     title={hLabels ? `Holiday: ${hLabels.join(", ")}` : undefined}
+                    style={{
+                      width: DAY_COL_WIDTH,
+                      boxSizing: "border-box",
+                    }}
                   />
                 );
               })}
@@ -611,6 +746,7 @@ export default function TaskGantt({
                       gap: 6,
                       padding: "0 8px",
                       overflow: "hidden",
+                      minWidth: 0,
                       zIndex: 3,
                       textDecoration: "none",
                       boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
@@ -672,17 +808,19 @@ export default function TaskGantt({
                 </Link>
               )}
 
-              {/* Unscheduled Indicator */}
+              {/* Unscheduled Indicator aligned cleanly to Day 1 column */}
               {!visible && (
                 <span
                   className="gantt-unscheduled"
                   style={{
-                    position: "absolute",
-                    left: TASK_COL_WIDTH + 14,
+                    gridColumn: "2 / 6",
                     gridRow: 1,
+                    zIndex: 2,
                     color: "#94a3b8",
                     fontSize: 10,
                     fontStyle: "italic",
+                    paddingLeft: 8,
+                    whiteSpace: "nowrap",
                   }}
                 >
                   No schedule
