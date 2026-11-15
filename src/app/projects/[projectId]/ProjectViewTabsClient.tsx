@@ -11,6 +11,7 @@ import {
   RotateCcw,
   SlidersHorizontal,
   Target,
+  Bot,
 } from "lucide-react";
 import {
   DEFAULT_PROJECT_TAB_ORDER,
@@ -161,11 +162,12 @@ export default function ProjectViewTabsClient({
               }}
               className={`${isSelected ? "selected" : ""}${
                 isDropTarget ? " is-tab-drop-target" : ""
-              }${key === "channel" ? " view-tab-channel" : ""}${key === "goals" ? " view-tab-channel" : ""}`}
+              }${key === "channel" ? " view-tab-channel" : ""}${key === "goals" ? " view-tab-channel" : ""}${key === "agents" ? " view-tab-channel view-tab-agents" : ""}`}
               title={`Open ${PROJECT_TAB_LABELS[key]} view (drag to reorder tabs)`}
             >
               {key === "channel" && <MessageSquare size={12} />}
               {key === "goals" && <Target size={12} />}
+              {key === "agents" && <Bot size={13} style={{ color: isSelected ? "inherit" : "#8b5cf6" }} />}
               <span>{PROJECT_TAB_LABELS[key]}</span>
             </Link>
           );

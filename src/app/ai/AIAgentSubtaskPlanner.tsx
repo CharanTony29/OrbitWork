@@ -16,8 +16,12 @@ import {
   Lightbulb,
   Copy,
   Check,
+  Bot,
+  Play,
+  ExternalLink,
 } from "lucide-react";
 import type { SuggestedSubtask } from "@/lib/ai/agent/planner";
+import type { CustomAIAgent } from "@/lib/ai/agent/custom-agent-types";
 import { markdownToSafeHtml } from "@/lib/markdown";
 
 interface AIAgentSubtaskPlannerProps {
@@ -39,7 +43,7 @@ export default function AIAgentSubtaskPlanner({
 }: AIAgentSubtaskPlannerProps) {
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<"subtasks" | "diagnose">("subtasks");
+  const [activeTab, setActiveTab] = useState<"subtasks" | "diagnose" | "custom">("subtasks");
   const [isPlanning, setIsPlanning] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [autoAssign, setAutoAssign] = useState(true);
@@ -53,6 +57,55 @@ export default function AIAgentSubtaskPlanner({
   const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [diagnosis, setDiagnosis] = useState<string | null>(null);
   const [copiedDiagnosis, setCopiedDiagnosis] = useState(false);
+
+  // Custom Agents state
+  const [customAgents, setCustomAgents] = useState<CustomAIAgent[]>([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [runningAgentId, setRunningAgentId] = useState<string | null>(null);
+  const [agentRunResult, setAgentRunResult] = useState<string | null>(null);
+
+  const fetchCustomAgents = async () => {
+    setLoadingAgents(true);
+    try {
+      const res = await fetch(`/api/ai/agent/custom?projectId=${projectId}`);
+      const data = await res.json();
+      if (data.agents) {
+        setCustomAgents(data.agents);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingAgents(false);
+    }
+  };
+
+  const handleRunCustomAgent = async (agentId: string) => {
+    setRunningAgentId(agentId);
+    setError(null);
+    setAgentRunResult(null);
+
+    try {
+      const res = await fetch("/api/ai/agent/custom/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId,
+          taskId,
+          projectId,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Agent execution failed");
+
+      setAgentRunResult(data.summary || "Agent executed successfully!");
+      router.refresh();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Agent failed to run");
+    } finally {
+      setRunningAgentId(null);
+    }
+  };
 
   if (!canEdit) return null;
 
@@ -213,6 +266,19 @@ export default function AIAgentSubtaskPlanner({
             >
               <Lightbulb size={13} />
               <span>Diagnose & Solution Ideas</span>
+            </button>
+            <button
+              type="button"
+              className={`ai-agent-tab ${activeTab === "custom" ? "is-active" : ""}`}
+              onClick={() => {
+                setActiveTab("custom");
+                if (customAgents.length === 0) {
+                  void fetchCustomAgents();
+                }
+              }}
+            >
+              <Bot size={13} />
+              <span>Custom Agents & Automations</span>
             </button>
           </div>
 
@@ -411,6 +477,125 @@ export default function AIAgentSubtaskPlanner({
                       __html: markdownToSafeHtml(diagnosis),
                     }}
                   />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: CUSTOM AUTOMATION AGENTS */}
+          {activeTab === "custom" && (
+            <div className="ai-custom-agents-tab" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {agentRunResult && (
+                <div className="ai-agent-success" role="status">
+                  <CheckCircle2 size={16} />
+                  <span>{agentRunResult}</span>
+                </div>
+              )}
+
+              {loadingAgents && (
+                <div className="ai-agent-loading-state">
+                  <Loader2 size={18} className="spin text-purple-600" />
+                  <span>Loading declared AI automation agents…</span>
+                </div>
+              )}
+
+              {!loadingAgents && customAgents.length === 0 && (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "20px 14px",
+                    background: "rgba(139, 92, 246, 0.04)",
+                    borderRadius: "8px",
+                    border: "1px dashed rgba(139, 92, 246, 0.25)",
+                  }}
+                >
+                  <Bot size={26} style={{ color: "#8b5cf6", margin: "0 auto 8px" }} />
+                  <div style={{ fontWeight: 600, fontSize: "13px", color: "var(--ink, #1e293b)", marginBottom: "4px" }}>
+                    No Custom Agents Configured Yet
+                  </div>
+                  <div style={{ fontSize: "11.5px", color: "var(--muted, #64748b)", marginBottom: "12px", maxWidth: "360px", margin: "0 auto 12px", lineHeight: "1.5" }}>
+                    Declare autonomous AI agents inside your project to auto-inherit parent assignees on subtask creation, generate acceptance checklists, or run custom prompts.
+                  </div>
+                  <a
+                    href={`/projects/${projectId}?view=agents`}
+                    className="ai-agent-btn-primary"
+                    style={{ textDecoration: "none", display: "inline-flex" }}
+                  >
+                    <Zap size={13} />
+                    <span>Open AI Agents Hub</span>
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
+              )}
+
+              {!loadingAgents && customAgents.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "2px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      Active Agents for this project
+                    </span>
+                    <a
+                      href={`/projects/${projectId}?view=agents`}
+                      style={{ fontSize: "11px", color: "#7c3aed", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "3px" }}
+                    >
+                      <span>Manage All</span>
+                      <ExternalLink size={11} />
+                    </a>
+                  </div>
+
+                  {customAgents.map((agent) => (
+                    <div
+                      key={agent.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "10px 14px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--line, #e2e8f0)",
+                        background: agent.enabled ? "var(--surface, #ffffff)" : "rgba(0,0,0,0.02)",
+                        opacity: agent.enabled ? 1 : 0.65,
+                      }}
+                    >
+                      <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <Bot size={14} style={{ color: "#7c3aed" }} />
+                          <strong style={{ fontSize: "12.5px", color: "var(--ink, #1e293b)" }}>
+                            {agent.name}
+                          </strong>
+                          {!agent.enabled && (
+                            <span style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "4px", background: "#f1f5f9", color: "#64748b" }}>
+                              Disabled
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: "11px", color: "var(--muted, #64748b)" }}>
+                          {agent.description || "Custom task automation agent"}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="ai-agent-btn-primary"
+                        style={{ padding: "6px 12px", fontSize: "11.5px" }}
+                        disabled={runningAgentId === agent.id || !agent.enabled}
+                        onClick={() => handleRunCustomAgent(agent.id)}
+                        title={agent.enabled ? "Execute this agent now on this task" : "Enable agent in Project Settings first"}
+                      >
+                        {runningAgentId === agent.id ? (
+                          <>
+                            <Loader2 size={12} className="spin" />
+                            <span>Running…</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play size={12} />
+                            <span>Run on Task</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

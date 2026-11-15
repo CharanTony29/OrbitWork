@@ -8,6 +8,7 @@ export const DEFAULT_PROJECT_TAB_ORDER = [
   "flowchart",
   "channel",
   "goals",
+  "agents",
 ] as const;
 
 export type ProjectTabKey = (typeof DEFAULT_PROJECT_TAB_ORDER)[number];
@@ -22,6 +23,7 @@ export const PROJECT_TAB_LABELS: Record<ProjectTabKey, string> = {
   flowchart: "Flowchart",
   channel: "Channel",
   goals: "Goals",
+  agents: "AI Agents",
 };
 
 export const BASE_TABLE_COLUMN_ORDER = [

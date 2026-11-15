@@ -1789,6 +1789,18 @@ export async function createTaskSubtask(formData: FormData) {
     title: parsed.data.title,
   });
 
+  try {
+    const { triggerAgentsForEvent } = await import("@/lib/ai/agent/custom-agents.ts");
+    await triggerAgentsForEvent({
+      triggerType: "on_subtask_created",
+      projectId: parsed.data.projectId,
+      taskId: newSubtask.id,
+      userId: user.id,
+    });
+  } catch (agentErr) {
+    console.warn("Custom agent trigger warning:", agentErr);
+  }
+
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.parentTaskId}`);
   revalidatePath("/dashboard");
