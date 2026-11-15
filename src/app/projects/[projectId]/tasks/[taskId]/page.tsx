@@ -18,6 +18,7 @@ import SubtaskCreateForm from "./SubtaskCreateForm";
 import SubtaskStatusPicker from "./SubtaskStatusPicker";
 import TaskChecklistsSection from "./TaskChecklistsSection";
 import AssigneePicker from "../../AssigneePicker";
+import { resolveProfileAvatarSrc } from "@/lib/chat";
 import MultiValueFieldInput from "@/app/MultiValueFieldInput";
 import TaskCommentForm from "./TaskCommentForm";
 import FavoriteButton from "@/app/FavoriteButton";
@@ -136,7 +137,11 @@ export default async function TaskDetailPage({ params, searchParams }: {
     }
     subtaskAssigneesMap.set(s.id, [...ids]);
   }
-  const members = (orgMembers ?? []).map((member) => ({ id: member.user_id, label: profileLabel(member.user_id) }));
+  const members = (orgMembers ?? []).map((member) => ({
+    id: member.user_id,
+    label: profileLabel(member.user_id),
+    avatarUrl: resolveProfileAvatarSrc(member.user_id, profileById.get(member.user_id)?.avatar_url),
+  }));
   const taskInitialAssignees = [
     ...new Set([
       ...(task.primary_assignee_id ? [task.primary_assignee_id] : []),

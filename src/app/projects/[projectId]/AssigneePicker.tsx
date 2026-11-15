@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { User, UserPlus, Check, X } from "lucide-react";
 import { setTaskAssignees } from "@/app/actions";
 
-type Member = { id: string; label: string };
+type Member = { id: string; label: string; avatarUrl?: string | null };
 
 const AVATAR_COLORS = [
   "#167c58", // Green
@@ -124,9 +124,23 @@ export default function AssigneePicker({
                   border: "1.5px solid var(--paper, #ffffff)",
                   boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                   zIndex: 3 - idx,
+                  overflow: "hidden",
+                  flexShrink: 0,
                 }}
+                title={m.label}
               >
-                {m.label.charAt(0).toUpperCase()}
+                {m.avatarUrl ? (
+                  <img
+                    src={m.avatarUrl}
+                    alt={m.label}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                ) : (
+                  m.label.charAt(0).toUpperCase()
+                )}
               </span>
             ))}
             {assignedMembers.length > 3 && (
@@ -239,9 +253,22 @@ export default function AssigneePicker({
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
+                        overflow: "hidden",
+                        flexShrink: 0,
                       }}
                     >
-                      {member.label.charAt(0).toUpperCase()}
+                      {member.avatarUrl ? (
+                        <img
+                          src={member.avatarUrl}
+                          alt={member.label}
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        member.label.charAt(0).toUpperCase()
+                      )}
                     </span>
                     <span style={{ fontWeight: isAssigned ? 600 : 400 }}>{member.label}</span>
                   </div>

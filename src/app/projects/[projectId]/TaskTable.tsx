@@ -43,7 +43,7 @@ type TaskRow = {
 };
 
 type WorkflowStatus = { id: string; name: string; color: string };
-type Person = { id: string; label: string };
+type Person = { id: string; label: string; avatarUrl?: string | null };
 type CustomField = { id: string; name: string; field_type: string };
 
 const AVATAR_COLORS = [
@@ -73,24 +73,27 @@ const PRIORITY_META: Record<string, { label: string; color: string }> = {
 };
 
 function getStatusColor(status?: { name?: string; color?: string; category?: string }) {
-  if (status?.color && status.color !== "#87938b" && status.color !== "#526057") return status.color;
   const name = (status?.name ?? "").toLowerCase();
-  if (name.includes("complete") || name.includes("done") || name.includes("closed") || status?.category === "completed") {
-    return "#167c58";
+  if (name.includes("new") || name.includes("to do") || name.includes("todo") || name.includes("backlog") || status?.category === "not_started") {
+    return "#0284c7"; // Vibrant Sky / Cyan Blue for New
   }
-  if (name.includes("progress") || name.includes("doing") || status?.category === "in_progress") {
-    return "#2563eb";
+  if (name.includes("progress") || name.includes("doing") || name.includes("active") || status?.category === "in_progress") {
+    return "#2563eb"; // Electric Royal Blue
   }
   if (name.includes("hold") || name.includes("block") || name.includes("wait")) {
-    return "#d97706";
-  }
-  if (name.includes("reject") || name.includes("cancel") || status?.category === "cancelled") {
-    return "#dc2626";
+    return "#d97706"; // Amber
   }
   if (name.includes("review") || name.includes("qa") || name.includes("test")) {
-    return "#9333ea";
+    return "#9333ea"; // Purple
   }
-  return "#64748b"; // New / Default slate
+  if (name.includes("complete") || name.includes("done") || name.includes("closed") || status?.category === "completed") {
+    return "#167c58"; // Emerald Green
+  }
+  if (name.includes("reject") || name.includes("cancel") || status?.category === "cancelled") {
+    return "#dc2626"; // Crimson Red
+  }
+  if (status?.color && status.color !== "#87938b" && status.color !== "#526057" && status.color !== "#64748b") return status.color;
+  return "#0284c7";
 }
 
 function PriorityPickerCell({
@@ -1155,10 +1158,23 @@ export default function TaskTable({
                           justifyContent: "center",
                           marginLeft: idx > 0 ? -6 : 0,
                           border: "1.5px solid var(--paper, #ffffff)",
+                          overflow: "hidden",
+                          flexShrink: 0,
                         }}
                         title={m?.label ?? "Team member"}
                       >
-                        {(m?.label ?? "T").charAt(0).toUpperCase()}
+                        {m?.avatarUrl ? (
+                          <img
+                            src={m.avatarUrl}
+                            alt={m.label}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          (m?.label ?? "T").charAt(0).toUpperCase()
+                        )}
                       </span>
                     );
                   })

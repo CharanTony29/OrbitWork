@@ -20,6 +20,7 @@ import ProjectChannelView from "./ProjectChannelView";
 import ProjectGoalsView, { type ProjectGoalRecord } from "./ProjectGoalsView";
 import ProjectAIAgentsHub from "@/app/ai/ProjectAIAgentsHub";
 import FavoriteButton from "@/app/FavoriteButton";
+import { resolveProfileAvatarSrc } from "@/lib/chat";
 import {
   DEFAULT_PROJECT_TAB_ORDER,
   normalizeTabOrder,
@@ -134,8 +135,6 @@ export default async function ProjectPage({ params, searchParams }: {
     supabase.from("leave_requests").select("id, user_id, start_date, end_date, leave_type").eq("organization_id", orgId).eq("status", "approved").lte("start_date", monthEnd).gte("end_date", monthStart),
   ]) : [{ data: [] }, { data: [] }];
   const calendarEvents = [...(holidayResult.data ?? []).map((item) => ({ id: item.id, label: item.name, start: item.holiday_date, kind: "holiday" as const })), ...(leaveResult.data ?? []).map((item) => ({ id: item.id, label: `${item.leave_type[0]?.toUpperCase() ?? ""}${item.leave_type.slice(1)} leave`, start: item.start_date, end: item.end_date, kind: "leave" as const, userId: item.user_id }))];
-  const peopleIds = [...new Set([...(orgMembers ?? []).map((member) => member.user_id), ...(projectMembers ?? []).map((member) => member.user_id), ...(tasks ?? []).map((task) => task.created_by), ...(tasks ?? []).flatMap((task) => [task.primary_assignee_id, task.secondary_assignee_id].filter((id): id is string => Boolean(id))), ...calendarEvents.flatMap((event) => "userId" in event ? [event.userId] : [])])];
-  const { data: profiles } = peopleIds.length ? await supabase.from("profiles").select("id, display_name, email").in("id", peopleIds) : { data: [] };
   const taskIds = (tasks ?? []).map((task) => task.id);
   const customFieldIds = (customFields ?? []).map((field) => field.id);
   const needsProjectDocs = view === "list" || view === "whiteboard" || view === "flowchart";
@@ -155,6 +154,27 @@ export default async function ProjectPage({ params, searchParams }: {
   ]);
   const { data: fieldValues } = fieldValuesResult;
   const { data: taskAssigneeRows } = taskAssigneesResult;
+
+  const peopleIds = [
+    ...new Set([
+      ...(orgMembers ?? []).map((member) => member.user_id),
+      ...(projectMembers ?? []).map((member) => member.user_id),
+      ...(tasks ?? []).map((task) => task.created_by),
+      ...(tasks ?? []).flatMap((task) => [task.primary_assignee_id, task.secondary_assignee_id].filter((id): id is string => Boolean(id))),
+      ...(taskAssigneeRows ?? []).map((row) => row.user_id),
+      ...calendarEvents.flatMap((event) => ("userId" in event && event.userId ? [event.userId] : [])),
+    ]),
+  ];
+  const { data: profiles } = peopleIds.length
+    ? await supabase.from("profiles").select("id, display_name, email, avatar_url").in("id", peopleIds)
+    : { data: [] };
+
+  const profileAvatars = new Map(
+    (profiles ?? []).map((p) => [p.id, resolveProfileAvatarSrc(p.id, p.avatar_url)])
+  );
+  const people = new Map(
+    (profiles ?? []).map((profile) => [profile.id, profile.display_name?.trim() || profile.email || "Team member"])
+  );
   const rawProjectDocs = projectDocsResult.data ?? [];
   const projectDocs =
     view === "list"
@@ -185,8 +205,6 @@ export default async function ProjectPage({ params, searchParams }: {
     attachmentsMap.set(att.task_id, list);
   }
 
-  const people = new Map((profiles ?? []).map((profile) => [profile.id, profile.display_name?.trim() || profile.email || "Team member"]));
-
   const runningTimerMap = new Map<string, { id: string; started_at: string; billable?: boolean; user_id?: string; user_name?: string; is_current_user?: boolean }>();
   for (const rt of runningTimersResult.data ?? []) {
     if (rt.task_id) {
@@ -205,6 +223,7 @@ export default async function ProjectPage({ params, searchParams }: {
   for (const c of commentRows) {
     commentCounts.set(c.task_id, (commentCounts.get(c.task_id) ?? 0) + 1);
   }
+
   // Build ordered assignee map: taskId -> [userId in order]
   const taskAssigneeMap = new Map<string, string[]>();
   for (const row of taskAssigneeRows ?? []) {
@@ -213,7 +232,27 @@ export default async function ProjectPage({ params, searchParams }: {
     taskAssigneeMap.set(row.task_id, list);
   }
   const createdBy = new Map((tasks ?? []).map((task) => [task.created_by, people.get(task.created_by) ?? "Team member"]));
-  const members = (orgMembers ?? []).map((member) => ({ id: member.user_id, label: people.get(member.user_id) ?? "Team member" }));
+  const members = (orgMembers ?? []).map((member) => ({
+    id: member.user_id,
+    label: people.get(member.user_id) ?? "Team member",
+    avatarUrl: profileAvatars.get(member.user_id) ?? null,
+  }));
+
+  const getTaskAssignees = (task: { id: string; primary_assignee_id?: string | null; secondary_assignee_id?: string | null }) => {
+    const fromMap = taskAssigneeMap.get(task.id) ?? [];
+    const direct = [task.primary_assignee_id, task.secondary_assignee_id].filter((id): id is string => Boolean(id));
+    return [...new Set([...fromMap, ...direct])];
+  };
+
+  const enrichedCalendarEvents = calendarEvents.map((event) => ({
+    id: event.id,
+    label: event.label,
+    start: event.start,
+    end: "end" in event ? event.end : undefined,
+    kind: event.kind,
+    person: "userId" in event && event.userId ? people.get(event.userId) : undefined,
+    avatarUrl: "userId" in event && event.userId ? profileAvatars.get(event.userId) : undefined,
+  }));
   const projectMemberIds = new Set((projectMembers ?? []).map((member) => member.user_id));
   const availableMembers = members.filter((member) => !projectMemberIds.has(member.id));
   const customValues = new Map<string, Map<string, string>>();
@@ -299,7 +338,101 @@ export default async function ProjectPage({ params, searchParams }: {
             }}
           />
         )}
-        {view === "list" ? <TaskTable projectId={project.id} canEdit={canEdit} initialColumnOrder={userColumnOrder} tasks={(tasks ?? []).map((task) => ({ ...task, assigneeIds: taskAssigneeMap.get(task.id) ?? [], billable_minutes: billableMinutesMap.get(task.id) ?? 0 }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} members={members} createdBy={createdBy} customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))} customValues={customValues} attachmentsMap={attachmentsMap} projectDocuments={(projectDocs ?? []).map(({ id, title, body_markdown }) => ({ id, title, body_markdown }))} commentCounts={commentCounts} runningTimerMap={runningTimerMap} initialGroupBy={(filters.group as "status" | "priority" | "due_date" | "none") || "status"} /> : view === "board" ? <TaskBoard projectId={project.id} canEdit={canEdit} tasks={tasks ?? []} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} people={people}/> : view === "calendar" ? <TaskCalendar projectId={project.id} tasks={(tasks ?? []).map((task) => ({ ...task, status_category: statuses?.find((status) => status.id === task.status_id)?.category }))} statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "gantt" ? <TaskGantt projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, start_date, due_date, progress, created_at, status_id }) => ({ id, generated_key, title, start_date, due_date, progress, created_at, status_category: statuses?.find((status) => status.id === status_id)?.category }))} events={calendarEvents.map((event) => ({ id: event.id, label: event.label, start: event.start, end: "end" in event ? event.end : undefined, kind: event.kind, person: "userId" in event ? people.get(event.userId) : undefined }))} month={filters.month}/> : view === "whiteboard" ? <ProjectWhiteboardView projectId={project.id} documents={projectDocs ?? []}/> : view === "flowchart" ? <ProjectFlowchartView projectId={project.id} documents={projectDocs ?? []}/> : view === "channel" ? <ProjectChannelView projectId={project.id} projectName={project.name}/> : view === "goals" ? <ProjectGoalsView projectId={project.id} projectName={project.name} canEdit={canEdit} members={members} initialGoals={((projectGoalsResult.data ?? []) as ProjectGoalRecord[])} schemaMissing={Boolean(projectGoalsResult.error)}/> : view === "agents" ? <ProjectAIAgentsHub projectId={project.id} projectName={project.name} /> : <TaskWorkload projectId={project.id} tasks={(tasks ?? []).map(({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }) => ({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }))} people={people}/>}
+        {view === "list" ? (
+          <TaskTable
+            projectId={project.id}
+            canEdit={canEdit}
+            initialColumnOrder={userColumnOrder}
+            tasks={(tasks ?? []).map((task) => ({
+              ...task,
+              assigneeIds: getTaskAssignees(task),
+              billable_minutes: billableMinutesMap.get(task.id) ?? 0,
+            }))}
+            statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))}
+            members={members}
+            createdBy={createdBy}
+            customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))}
+            customValues={customValues}
+            attachmentsMap={attachmentsMap}
+            projectDocuments={(projectDocs ?? []).map(({ id, title, body_markdown }) => ({ id, title, body_markdown }))}
+            commentCounts={commentCounts}
+            runningTimerMap={runningTimerMap}
+            initialGroupBy={(filters.group as "status" | "priority" | "due_date" | "none") || "status"}
+          />
+        ) : view === "board" ? (
+          <TaskBoard
+            projectId={project.id}
+            canEdit={canEdit}
+            tasks={tasks ?? []}
+            statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
+            people={people}
+            profileAvatars={profileAvatars}
+          />
+        ) : view === "calendar" ? (
+          <TaskCalendar
+            projectId={project.id}
+            tasks={(tasks ?? []).map((task) => ({
+              ...task,
+              status_category: statuses?.find((status) => status.id === task.status_id)?.category,
+            }))}
+            statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))}
+            events={enrichedCalendarEvents}
+            month={filters.month}
+          />
+        ) : view === "gantt" ? (
+          <TaskGantt
+            projectId={project.id}
+            tasks={(tasks ?? []).map((task) => ({
+              id: task.id,
+              generated_key: task.generated_key,
+              title: task.title,
+              start_date: task.start_date,
+              due_date: task.due_date,
+              progress: task.progress,
+              created_at: task.created_at,
+              parent_task_id: task.parent_task_id,
+              status_id: task.status_id,
+              status_category: statuses?.find((status) => status.id === task.status_id)?.category,
+              assigneeIds: getTaskAssignees(task),
+            }))}
+            events={enrichedCalendarEvents}
+            people={people}
+            profileAvatars={profileAvatars}
+            month={filters.month}
+          />
+        ) : view === "whiteboard" ? (
+          <ProjectWhiteboardView projectId={project.id} documents={projectDocs ?? []} />
+        ) : view === "flowchart" ? (
+          <ProjectFlowchartView projectId={project.id} documents={projectDocs ?? []} />
+        ) : view === "channel" ? (
+          <ProjectChannelView projectId={project.id} projectName={project.name} />
+        ) : view === "goals" ? (
+          <ProjectGoalsView
+            projectId={project.id}
+            projectName={project.name}
+            canEdit={canEdit}
+            members={members}
+            initialGoals={((projectGoalsResult.data ?? []) as ProjectGoalRecord[])}
+            schemaMissing={Boolean(projectGoalsResult.error)}
+          />
+        ) : view === "agents" ? (
+          <ProjectAIAgentsHub projectId={project.id} projectName={project.name} />
+        ) : (
+          <TaskWorkload
+            projectId={project.id}
+            tasks={(tasks ?? []).map(({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }) => ({
+              id,
+              generated_key,
+              title,
+              estimate_minutes,
+              primary_assignee_id,
+              secondary_assignee_id,
+              due_date,
+            }))}
+            people={people}
+            profileAvatars={profileAvatars}
+          />
+        )}
         {view !== "channel" && view !== "goals" && view !== "agents" && (taskCount ?? 0) > 100 && (
           <div className="task-pagination">
             {page > 1 && <Link href={pageHref(page - 1)}>Previous</Link>}

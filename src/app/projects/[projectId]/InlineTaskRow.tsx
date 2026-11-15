@@ -12,7 +12,7 @@ import { quickCreateTask } from "@/app/actions";
 import DateInput from "@/app/DateInput";
 
 type WorkflowStatus = { id: string; name: string; color: string; category?: string };
-type Member = { id: string; label: string };
+type Member = { id: string; label: string; avatarUrl?: string | null };
 
 export default function InlineTaskRow({
   projectId,
@@ -218,8 +218,12 @@ export default function InlineTaskRow({
                 title={assignedMember ? `Assigned: ${assignedMember.label}` : "Assign member"}
               >
                 {assignedMember ? (
-                  <span className="inline-assigned-avatar">
-                    {assignedMember.label.charAt(0).toUpperCase()}
+                  <span className="inline-assigned-avatar" style={{ overflow: "hidden", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                    {assignedMember.avatarUrl ? (
+                      <img src={assignedMember.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                    ) : (
+                      assignedMember.label.charAt(0).toUpperCase()
+                    )}
                   </span>
                 ) : (
                   <UserPlus size={13} />
@@ -248,8 +252,12 @@ export default function InlineTaskRow({
                         setActiveMenu(null);
                       }}
                     >
-                      <span className="assignee-avatar">
-                        {m.label.charAt(0).toUpperCase()}
+                      <span className="assignee-avatar" style={{ overflow: "hidden", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                        {m.avatarUrl ? (
+                          <img src={m.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                        ) : (
+                          m.label.charAt(0).toUpperCase()
+                        )}
                       </span>
                       <span>{m.label}</span>
                     </button>

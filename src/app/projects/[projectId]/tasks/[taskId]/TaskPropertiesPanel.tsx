@@ -14,6 +14,7 @@ type StatusOption = {
 type MemberOption = {
   id: string;
   label: string;
+  avatarUrl?: string | null;
 };
 
 type Props = {

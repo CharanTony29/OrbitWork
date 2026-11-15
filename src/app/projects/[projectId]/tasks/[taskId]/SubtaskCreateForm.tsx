@@ -7,6 +7,7 @@ import { createTaskSubtask } from "@/app/actions";
 type Member = {
   id: string;
   label: string;
+  avatarUrl?: string | null;
 };
 
 type Props = {
@@ -135,6 +136,29 @@ export default function SubtaskCreateForm({
                       >
                         <span className="subtask-assignee-check">
                           {checked && <Check size={11} />}
+                        </span>
+                        <span
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: "50%",
+                            backgroundColor: "#64748b",
+                            color: "#fff",
+                            fontSize: 8.5,
+                            fontWeight: 700,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            overflow: "hidden",
+                            flexShrink: 0,
+                            marginLeft: 4,
+                          }}
+                        >
+                          {member.avatarUrl ? (
+                            <img src={member.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                          ) : (
+                            member.label.charAt(0).toUpperCase()
+                          )}
                         </span>
                         <span className="subtask-assignee-name">{member.label}</span>
                       </button>
