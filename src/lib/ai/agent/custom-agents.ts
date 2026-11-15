@@ -49,7 +49,7 @@ export async function executeCustomAgent({
   // 1. Fetch task details
   const { data: task } = await supabase
     .from("tasks")
-    .select("id, project_id, parent_task_id, title, description, priority, estimate_minutes, primary_assignee_id")
+    .select("id, project_id, parent_task_id, status_id, title, description, priority, estimate_minutes, primary_assignee_id")
     .eq("id", taskId)
     .single();
 
@@ -200,22 +200,151 @@ Where priority is one of: "urgent", "high", "normal", "low".
     case "custom_agent":
     default: {
       const prompt = `
-Task Title: "${task.title}"
-${task.description ? `Description: "${task.description.slice(0, 1000)}"` : ""}
+You are an autonomous AI Task Agent named "${agent.name}" for a project management system.
+Your job is to read the task details and execute the following rules/instructions precisely:
 
-Execute instructions:
+User Instructions / Rules:
+"""
 ${agent.system_instructions}
+"""
 
-Provide a concise action summary.
+Target Task Details:
+- Title: "${task.title}"
+- Description: "${task.description ? task.description.slice(0, 2000) : "No description provided."}"
+- Current Priority: "${task.priority || "normal"}"
+- Current Estimate: ${task.estimate_minutes ? `${task.estimate_minutes}m` : "None"}
+- Is Subtask: ${Boolean(task.parent_task_id)}
+
+Analyze the task requirements against the instructions.
+1. If the instructions ask to create subtasks or decompose work, provide an array of concrete, actionable subtask titles (limit to 3-7 subtasks).
+2. If the instructions ask to create a checklist or acceptance criteria, provide an array of checklist items (limit to 3-6 items).
+3. If the instructions ask to set/adjust estimate or priority, specify them.
+4. If the instructions ask to write an analysis or note, provide comment text.
+
+Respond with ONLY valid JSON strictly following this schema:
+{
+  "summary": "Brief 1-sentence description of the action taken (max 150 chars)",
+  "subtasks": [
+    { "title": "Subtask title", "estimateMinutes": 30 }
+  ],
+  "checklist": [
+    "Checklist item 1",
+    "Checklist item 2"
+  ],
+  "priority": "low" | "normal" | "high" | "urgent" | null,
+  "estimateMinutes": number | null,
+  "comment": "Optional comment or note to add to the task, or null"
+}
 `.trim();
 
       const aiRes = await generateTextWithFallback({
         prompt,
         system: AGENT_SYSTEM_PROMPT,
-        temperature: 0.3,
+        temperature: 0.2,
       });
 
-      summary = aiRes.text.slice(0, 300);
+      const cleanJson = aiRes.text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+      let parsed: {
+        summary?: string;
+        subtasks?: Array<{ title: string; estimateMinutes?: number }>;
+        checklist?: string[];
+        priority?: string | null;
+        estimateMinutes?: number | null;
+        comment?: string | null;
+      } = {};
+
+      try {
+        parsed = JSON.parse(cleanJson);
+      } catch (parseErr) {
+        console.warn("[Custom Agent] JSON parse failed, treating as raw summary:", parseErr);
+        summary = aiRes.text.slice(0, 300);
+      }
+
+      const actionsExecuted: string[] = [];
+
+      // 1. Create subtasks if specified and not already a subtask
+      if (Array.isArray(parsed.subtasks) && parsed.subtasks.length > 0 && !task.parent_task_id) {
+        let createdSubtaskCount = 0;
+        for (const st of parsed.subtasks) {
+          if (!st.title || typeof st.title !== "string" || !st.title.trim()) continue;
+          const { error: stErr } = await supabase.from("tasks").insert({
+            project_id: projectId,
+            parent_task_id: taskId,
+            status_id: task.status_id,
+            title: st.title.trim().slice(0, 240),
+            estimate_minutes: typeof st.estimateMinutes === "number" ? st.estimateMinutes : null,
+            primary_assignee_id: task.primary_assignee_id ?? null,
+            created_by: userId,
+          });
+          if (!stErr) createdSubtaskCount++;
+        }
+        if (createdSubtaskCount > 0) {
+          actionsExecuted.push(`Created ${createdSubtaskCount} subtasks`);
+        }
+      }
+
+      // 2. Create checklist items if specified
+      if (Array.isArray(parsed.checklist) && parsed.checklist.length > 0) {
+        const validItems = parsed.checklist
+          .map((item) => (typeof item === "string" ? item.trim() : ""))
+          .filter((item) => item.length > 0);
+
+        if (validItems.length > 0) {
+          const { data: cl } = await supabase
+            .from("task_checklists")
+            .insert({
+              project_id: projectId,
+              task_id: taskId,
+              title: "Acceptance Criteria",
+              created_by: userId,
+            })
+            .select("id")
+            .single();
+
+          if (cl) {
+            let itemCount = 0;
+            for (let i = 0; i < validItems.length; i++) {
+              await supabase.from("checklist_items").insert({
+                checklist_id: cl.id,
+                title: validItems[i].slice(0, 240),
+                position: (i + 1) * 1000.0,
+                created_by: userId,
+              });
+              itemCount++;
+            }
+            if (itemCount > 0) {
+              actionsExecuted.push(`Added ${itemCount} checklist items`);
+            }
+          }
+        }
+      }
+
+      // 3. Update task priority or estimate if specified
+      const taskUpdates: Record<string, unknown> = {};
+      if (parsed.priority && ["low", "normal", "high", "urgent"].includes(parsed.priority)) {
+        taskUpdates.priority = parsed.priority;
+        actionsExecuted.push(`Set priority to ${parsed.priority}`);
+      }
+      if (typeof parsed.estimateMinutes === "number" && parsed.estimateMinutes > 0) {
+        taskUpdates.estimate_minutes = parsed.estimateMinutes;
+        actionsExecuted.push(`Estimated ${parsed.estimateMinutes}m`);
+      }
+      if (Object.keys(taskUpdates).length > 0) {
+        await supabase.from("tasks").update(taskUpdates).eq("id", taskId);
+      }
+
+      // 4. Add comment if specified
+      if (parsed.comment && typeof parsed.comment === "string" && parsed.comment.trim().length > 0) {
+        await supabase.from("task_comments").insert({
+          project_id: projectId,
+          task_id: taskId,
+          author_id: userId,
+          body: `🤖 **AI Agent (${agent.name})**:\n\n${parsed.comment.trim()}`,
+        });
+        actionsExecuted.push("Posted analysis note");
+      }
+
+      summary = parsed.summary || actionsExecuted.join(", ") || "Executed custom agent actions.";
       break;
     }
   }

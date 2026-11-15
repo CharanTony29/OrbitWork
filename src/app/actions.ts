@@ -936,6 +936,20 @@ export async function createTask(formData: FormData) {
       actorId: user.id,
     });
   }
+
+  // Trigger on_task_created agents automatically
+  try {
+    const { triggerAgentsForEvent } = await import("@/lib/ai/agent/custom-agents");
+    await triggerAgentsForEvent({
+      triggerType: "on_task_created",
+      projectId: parsed.data.projectId,
+      taskId: newTask.id,
+      userId: user.id,
+    });
+  } catch (agentErr) {
+    console.warn("AI Agent on_task_created trigger warning:", agentErr);
+  }
+
   revalidatePath(`/projects/${parsed.data.projectId}`);
   redirect(`/projects/${parsed.data.projectId}`);
 }
@@ -1011,6 +1025,19 @@ export async function quickCreateTask(formData: FormData) {
     });
   }
 
+  // Trigger on_task_created agents automatically
+  try {
+    const { triggerAgentsForEvent } = await import("@/lib/ai/agent/custom-agents");
+    await triggerAgentsForEvent({
+      triggerType: "on_task_created",
+      projectId: parsed.data.projectId,
+      taskId: newTask.id,
+      userId: user.id,
+    });
+  } catch (agentErr) {
+    console.warn("AI Agent quickCreateTask trigger warning:", agentErr);
+  }
+
   revalidatePath(`/projects/${parsed.data.projectId}`);
   return { ok: true, taskId: newTask.id };
 }
@@ -1038,6 +1065,20 @@ export async function updateTaskStatus(formData: FormData) {
     previousStatusId: prevTask?.status_id ?? null,
     actorId: user.id,
   });
+
+  // Trigger on_status_change agents automatically
+  try {
+    const { triggerAgentsForEvent } = await import("@/lib/ai/agent/custom-agents");
+    await triggerAgentsForEvent({
+      triggerType: "on_status_change",
+      projectId: parsed.data.projectId,
+      taskId: parsed.data.taskId,
+      userId: user.id,
+    });
+  } catch (agentErr) {
+    console.warn("AI Agent on_status_change trigger warning:", agentErr);
+  }
+
   revalidatePath(`/projects/${parsed.data.projectId}`);
   revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
   if (prevTask?.parent_task_id) {

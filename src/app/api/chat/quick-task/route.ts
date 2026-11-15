@@ -68,6 +68,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Trigger on_task_created agents automatically
+    try {
+      const { triggerAgentsForEvent } = await import("@/lib/ai/agent/custom-agents");
+      await triggerAgentsForEvent({
+        triggerType: "on_task_created",
+        projectId,
+        taskId: newTask.id,
+        userId: user.id,
+      });
+    } catch (agentErr) {
+      console.warn("AI Agent chat quick-task trigger warning:", agentErr);
+    }
+
     return noStoreJson(
       {
         ok: true,

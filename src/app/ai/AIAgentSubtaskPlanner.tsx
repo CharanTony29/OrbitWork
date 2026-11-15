@@ -530,7 +530,11 @@ export default function AIAgentSubtaskPlanner({
 
               {!loadingAgents && customAgents.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "2px" }}>
+                  <div style={{ fontSize: "11px", color: "var(--muted, #64748b)", background: "rgba(139, 92, 246, 0.05)", padding: "7px 11px", borderRadius: "6px", border: "1px solid rgba(139, 92, 246, 0.15)", lineHeight: "1.4" }}>
+                    💡 <strong>Automations run automatically!</strong> Enabled agents fire autonomously when their trigger event happens (e.g. creating a task). You can also run them anytime on-demand below.
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "2px" }}>
                     <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted, #64748b)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                       Active Agents for this project
                     </span>
@@ -543,59 +547,73 @@ export default function AIAgentSubtaskPlanner({
                     </a>
                   </div>
 
-                  {customAgents.map((agent) => (
-                    <div
-                      key={agent.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "10px 14px",
-                        borderRadius: "8px",
-                        border: "1px solid var(--line, #e2e8f0)",
-                        background: agent.enabled ? "var(--surface, #ffffff)" : "rgba(0,0,0,0.02)",
-                        opacity: agent.enabled ? 1 : 0.65,
-                      }}
-                    >
-                      <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <Bot size={14} style={{ color: "#7c3aed" }} />
-                          <strong style={{ fontSize: "12.5px", color: "var(--ink, #1e293b)" }}>
-                            {agent.name}
-                          </strong>
-                          {!agent.enabled && (
-                            <span style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "4px", background: "#f1f5f9", color: "#64748b" }}>
-                              Disabled
-                            </span>
-                          )}
-                        </div>
-                        <span style={{ fontSize: "11px", color: "var(--muted, #64748b)" }}>
-                          {agent.description || "Custom task automation agent"}
-                        </span>
-                      </div>
+                  {customAgents.map((agent) => {
+                    const triggerLabel =
+                      agent.trigger_type === "on_task_created"
+                        ? "⚡ Auto: On Task Created"
+                        : agent.trigger_type === "on_subtask_created"
+                        ? "🔄 Auto: On Subtask Created"
+                        : agent.trigger_type === "on_status_change"
+                        ? "🏷️ Auto: On Status Change"
+                        : "⚡ Manual / On Demand";
 
-                      <button
-                        type="button"
-                        className="ai-agent-btn-primary"
-                        style={{ padding: "6px 12px", fontSize: "11.5px" }}
-                        disabled={runningAgentId === agent.id || !agent.enabled}
-                        onClick={() => handleRunCustomAgent(agent.id)}
-                        title={agent.enabled ? "Execute this agent now on this task" : "Enable agent in Project Settings first"}
+                    return (
+                      <div
+                        key={agent.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "10px 14px",
+                          borderRadius: "8px",
+                          border: "1px solid var(--line, #e2e8f0)",
+                          background: agent.enabled ? "var(--surface, #ffffff)" : "rgba(0,0,0,0.02)",
+                          opacity: agent.enabled ? 1 : 0.65,
+                        }}
                       >
-                        {runningAgentId === agent.id ? (
-                          <>
-                            <Loader2 size={12} className="spin" />
-                            <span>Running…</span>
-                          </>
-                        ) : (
-                          <>
-                            <Play size={12} />
-                            <span>Run on Task</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  ))}
+                        <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                            <Bot size={14} style={{ color: "#7c3aed" }} />
+                            <strong style={{ fontSize: "12.5px", color: "var(--ink, #1e293b)" }}>
+                              {agent.name}
+                            </strong>
+                            <span style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "4px", background: "rgba(139, 92, 246, 0.1)", color: "#7c3aed", fontWeight: 600 }}>
+                              {triggerLabel}
+                            </span>
+                            {!agent.enabled && (
+                              <span style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "4px", background: "#f1f5f9", color: "#64748b" }}>
+                                Disabled
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: "11px", color: "var(--muted, #64748b)" }}>
+                            {agent.description || "Custom task automation agent"}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="ai-agent-btn-primary"
+                          style={{ padding: "6px 12px", fontSize: "11.5px", flexShrink: 0 }}
+                          disabled={runningAgentId === agent.id || !agent.enabled}
+                          onClick={() => handleRunCustomAgent(agent.id)}
+                          title={agent.enabled ? "Execute this agent now on this task" : "Enable agent in Project Settings first"}
+                        >
+                          {runningAgentId === agent.id ? (
+                            <>
+                              <Loader2 size={12} className="spin" />
+                              <span>Running…</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play size={12} />
+                              <span>Run on Task</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
