@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       userContextString,
       contextLines.length > 0 ? "\n--- Currently Viewed Page Context ---" : "",
       ...contextLines,
-      "\nProvide crisp, helpful answers formatted in clean markdown (bullet points, numbered lists, checklists, bold text, clickable markdown links).",
+      "\nProvide crisp, helpful answers formatted in clean markdown (bullet points, numbered lists, checklists, bold text). When listing or referring to tasks, ALWAYS output ONLY the clean Task Name in bold (e.g., **Task Name**). NEVER output task IDs, keys, UUIDs, or raw URL links (do not output /projects/.../tasks/...).",
     ]
       .filter(Boolean)
       .join("\n");

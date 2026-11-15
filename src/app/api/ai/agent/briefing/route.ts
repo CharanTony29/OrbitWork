@@ -41,14 +41,14 @@ Analyze the following REAL tasks assigned to them:
 ${liveContext.formattedPromptContext}
 
 Structure your response with these exact sections:
-1. 🎯 **Primary Focus Today**: 1 to 3 highest priority or due-today tasks they should tackle first (with direct links like [Task Title](Link)).
+1. 🎯 **Primary Focus Today**: 1 to 3 highest priority or due-today tasks they should tackle first (using the clean Task Name in bold: **Task Name**).
 2. ⏳ **Deadlines & Overdue Watch**: Clearly highlight any overdue tasks or tasks due in the next 48 hours. If none are overdue, mention that everything is on track!
 3. 🚀 **Quick Wins & Next Steps**: 1 or 2 smaller tasks to knock out for immediate momentum.
 4. 💡 **Productivity Tip**: A single punchy sentence on execution strategy for today.
 
 Rules:
 - Base this strictly on the real tasks provided above. NEVER invent fake task names.
-- Always include clickable markdown links for every task mentioned: [Task Key: Task Title](Link).
+- Mention tasks ONLY by their clean Task Name in bold (**Task Name**). NEVER output raw task IDs, keys, or UUID URLs.
 - Keep it concise, motivational, and easy to scan in 30 seconds.
 `.trim();
 
