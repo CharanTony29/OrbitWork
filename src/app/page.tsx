@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
   ArrowRight,
+  Bot,
   Building2,
   Calendar,
   Clock,
@@ -142,7 +143,15 @@ const STRUCTURED_DATA = {
           name: "Can users customize project view tabs, table columns, and chat alerts?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Yes. Every user can reorder project view tabs (List, Board, Calendar, Timeline, Workload, Whiteboard, Flowchart, Channel) and customize table column layouts independently without affecting teammates, while receiving real-time team chat messages, notifications, and email alerts.",
+            text: "Yes. Every user can reorder project view tabs (List, Board, Calendar, Timeline, Workload, Whiteboard, Flowchart, Channel, Goals, AI Agents) and customize table column layouts independently without affecting teammates, while receiving real-time team chat messages, notifications, and email alerts.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "How do Autonomous AI Agents and the Subtask Planner work in Orbitwork?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Orbitwork integrates specialized AI agents directly into your workspace. The AI Subtask Planner decomposes complex tickets into sequenced tasks with time estimates, while agents like QA Architect and Scope Refiner audit requirements for missing edge cases and draft acceptance criteria—freeing your engineers and managers from repetitive administrative overhead.",
           },
         },
       ],
@@ -290,8 +299,8 @@ export default async function Home({
           <div className="hp-hero-glow" />
           <div className="hp-container hp-hero-content">
             <div className="hp-pill-badge">
-              <Sparkles size={14} />
-              <span>All-in-One Project &amp; Work Management Platform</span>
+              <Bot size={14} style={{ color: "#8b5cf6" }} />
+              <span>All-in-One Project Platform · Powered by Autonomous AI</span>
             </div>
 
             <h1 className="hp-hero-title">
@@ -303,7 +312,7 @@ export default async function Home({
 
             <p className="hp-hero-subtitle">
               Unify agile Kanban boards, interactive task spreadsheets, Gantt
-              timelines, collaborative Markdown docs, real-time team chat, built-in
+              timelines, autonomous AI agents, collaborative Markdown docs, real-time team chat, built-in
               time tracking, and multi-cloud storage inside one calm, distraction-free
               workspace.
             </p>
@@ -331,10 +340,10 @@ export default async function Home({
             </div>
 
             <ul className="hp-hero-checklist">
-              <li>Kanban, List, Gantt &amp; Calendar Views</li>
+              <li>10 Synchronized Views (Kanban, Sheet, Gantt &amp; more)</li>
+              <li>Autonomous AI Agents &amp; Subtask Planner</li>
               <li>Built-in Timers &amp; Weekly Timesheets</li>
-              <li>Team Chat, Mentions &amp; Docs</li>
-              <li>Multi-Tenant Organization Hierarchy</li>
+              <li>Multi-Cloud Storage &amp; Team Chat</li>
             </ul>
 
             {/* Product Hero Mockup Preview */}
@@ -504,6 +513,106 @@ export default async function Home({
           </div>
         </section>
 
+        {/* Autonomous AI Agents & Intelligence Showcase */}
+        <section
+          className="hp-container"
+          id="ai"
+          style={{ padding: "48px 24px 24px" }}
+        >
+          <div className="hp-section-header">
+            <span
+              className="hp-section-tag"
+              style={{
+                background: "rgba(139, 92, 246, 0.12)",
+                color: "#8b5cf6",
+                borderColor: "rgba(139, 92, 246, 0.25)",
+              }}
+            >
+              ✨ Autonomous Project Intelligence
+            </span>
+            <h2 className="hp-section-title">
+              Autonomous AI Agents &amp; Subtask Decomposition built into every workflow
+            </h2>
+            <p className="hp-section-desc">
+              Eliminate project ambiguity and manual ticket busywork. Orbitwork pairs deep workspace context with specialized autonomous agents to break down requirements, draft test suites, and summarize sprint progress instantly.
+            </p>
+          </div>
+
+          <div className="hp-two-col-grid">
+            <article className="hp-info-card" style={{ borderLeft: "3px solid #8b5cf6" }}>
+              <div
+                className="hp-feature-icon-wrap"
+                style={{ background: "rgba(139, 92, 246, 0.1)", color: "#8b5cf6" }}
+              >
+                <Bot size={24} />
+              </div>
+              <h3>Project AI Agents Hub</h3>
+              <p>
+                Deploy specialized autonomous agents across your projects: QA Architect for test coverage and regression checks, Scope Refiner to catch missing edge cases, and Release Coordinator to flag critical blockers.
+              </p>
+              <div style={{ marginTop: 12 }}>
+                <span className="hp-tag hp-tag-purple" style={{ fontSize: 11 }}>
+                  QA Architect · Scope Refiner · Custom Prompts
+                </span>
+              </div>
+            </article>
+
+            <article className="hp-info-card" style={{ borderLeft: "3px solid #167c58" }}>
+              <div
+                className="hp-feature-icon-wrap"
+                style={{ background: "rgba(22, 124, 88, 0.1)", color: "#167c58" }}
+              >
+                <Sparkles size={24} />
+              </div>
+              <h3>1-Click AI Subtask Planner</h3>
+              <p>
+                Transform complex epics into sequenced, assignable subtasks in seconds. The planner automatically estimates execution time, recommends assignees based on domain expertise, and drafts step-by-step checklists.
+              </p>
+              <div style={{ marginTop: 12 }}>
+                <span className="hp-tag hp-tag-green" style={{ fontSize: 11 }}>
+                  Automatic Checklists &amp; Effort Estimates
+                </span>
+              </div>
+            </article>
+
+            <article className="hp-info-card" style={{ borderLeft: "3px solid #2563eb" }}>
+              <div
+                className="hp-feature-icon-wrap"
+                style={{ background: "rgba(37, 99, 235, 0.1)", color: "#2563eb" }}
+              >
+                <MessageSquare size={24} />
+              </div>
+              <h3>Context-Aware AI Assistant</h3>
+              <p>
+                A floating assistant that knows your active sprint. Ask &quot;What are our blockers for release?&quot;, draft executive status updates, or generate new project tasks straight from conversation threads.
+              </p>
+              <div style={{ marginTop: 12 }}>
+                <span className="hp-tag hp-tag-blue" style={{ fontSize: 11 }}>
+                  Live Workspace RAG &amp; Sprint Summaries
+                </span>
+              </div>
+            </article>
+
+            <article className="hp-info-card" style={{ borderLeft: "3px solid #d97706" }}>
+              <div
+                className="hp-feature-icon-wrap"
+                style={{ background: "rgba(217, 119, 6, 0.1)", color: "#d97706" }}
+              >
+                <ShieldCheck size={24} />
+              </div>
+              <h3>Description Polish &amp; Ticket Diagnostics</h3>
+              <p>
+                Clean up rough draft notes with one click. Orbitwork AI structures descriptions into User Stories, Acceptance Criteria (Gherkin style), and technical prerequisites while scoring clarity before work begins.
+              </p>
+              <div style={{ marginTop: 12 }}>
+                <span className="hp-tag hp-tag-amber" style={{ fontSize: 11 }}>
+                  Acceptance Criteria &amp; Clarity Scoring
+                </span>
+              </div>
+            </article>
+          </div>
+        </section>
+
         {/* Interactive Workspace Tabs Showcase */}
         <div className="hp-container">
           <HomeInteractiveTabs isUserLoggedIn={!!user} />
@@ -531,11 +640,11 @@ export default async function Home({
               <div className="hp-feature-icon-wrap">
                 <Kanban size={26} />
               </div>
-              <h3>8 Synchronized Project Views</h3>
+              <h3>10 Synchronized Project Views</h3>
               <p>
                 Switch effortlessly between List, Board, Calendar, Gantt
-                Timeline, Workload, Whiteboard, Flowchart, and Project Channel
-                tabs arranged in your preferred order.
+                Timeline, Workload, Whiteboard, Flowchart, Project Channel, Goals,
+                and AI Agents Hub tabs arranged in your preferred order.
               </p>
               <ul className="hp-feature-bullets">
                 <li>Per-user custom tab &amp; column ordering</li>
@@ -678,14 +787,28 @@ export default async function Home({
                     </td>
                     <td className="hp-compare-highlight-col">
                       <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
-                        8 Flexible Views
+                        10 Flexible Views
                       </span>{" "}
                       — List, Board, Calendar, Timeline, Workload, Flowchart,
-                      Whiteboard &amp; Channel
+                      Whiteboard, Channel, Goals &amp; AI Agents
                     </td>
                     <td>
                       Every teammate views live project state in the format that
                       fits their role best.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>AI Project Intelligence</strong>
+                    </td>
+                    <td className="hp-compare-highlight-col">
+                      <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
+                        Autonomous AI Agents
+                      </span>{" "}
+                      — Subtask Planner, QA Architect, Scope Refiner &amp; floating AI Assistant
+                    </td>
+                    <td>
+                      Saves hours weekly per engineer in scoping, ticket formatting, and sprint status tracking.
                     </td>
                   </tr>
                   <tr>

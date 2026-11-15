@@ -23,7 +23,8 @@ import {
   Briefcase,
   UsersRound,
   Check,
-  ExternalLink
+  ExternalLink,
+  Bot
 } from "lucide-react";
 import Link from "next/link";
 
@@ -95,6 +96,72 @@ export function HomeInteractiveTabs({ isUserLoggedIn }: { isUserLoggedIn: boolea
                 <span style={{ fontSize: 10, color: "var(--muted)" }}>Lead dev</span>
               </div>
             </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: "ai",
+      label: "Autonomous AI",
+      icon: Bot,
+      title: "Autonomous AI Agents & Subtask Decomposition",
+      description:
+        "Supercharge your team with autonomous project AI agents. Decompose complex epics into structured subtasks with accurate estimates, polish vague task descriptions into actionable acceptance criteria, and chat with an AI assistant that understands your full project context.",
+      highlights: [
+        "Autonomous Project AI Agents Hub (QA Architect, Scope Refiner, Release Coordinator)",
+        "1-click AI Subtask Planner with automatic checklists & effort estimates",
+        "Context-aware AI Assistant connected to all accessible project tasks & docs",
+        "AI Description Polish to turn rough notes into professional requirements"
+      ],
+      ctaLabel: isUserLoggedIn ? "Open AI Agents Hub" : "Try AI Project Intelligence",
+      ctaHref: isUserLoggedIn ? "/dashboard" : "/signup",
+      preview: (
+        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10, textAlign: "left" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: "10px 12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 6, background: "rgba(139, 92, 246, 0.12)", color: "#8b5cf6", display: "grid", placeItems: "center" }}>
+                <Bot size={16} />
+              </div>
+              <div>
+                <strong style={{ fontSize: 12.5, display: "block" }}>AI Subtask Planner</strong>
+                <span style={{ fontSize: 10, color: "var(--muted)" }}>Plan: &quot;Implement OAuth2 Authentication Flow&quot;</span>
+              </div>
+            </div>
+            <span className="hp-tag hp-tag-purple" style={{ fontSize: 9.5 }}>4 Subtasks Generated</span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 7, padding: "8px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <CheckCircle2 size={13} color="var(--green)" />
+                <span style={{ fontSize: 11, fontWeight: 650 }}>1. Configure Google OAuth Client &amp; Scopes</span>
+              </div>
+              <span style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 600 }}>60 min · Security</span>
+            </div>
+
+            <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 7, padding: "8px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <CheckCircle2 size={13} color="var(--green)" />
+                <span style={{ fontSize: 11, fontWeight: 650 }}>2. Implement PKCE Token Exchange Handler</span>
+              </div>
+              <span style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 600 }}>90 min · Backend</span>
+            </div>
+
+            <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 7, padding: "8px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <CheckCircle2 size={13} color="var(--green)" />
+                <span style={{ fontSize: 11, fontWeight: 650 }}>3. Session Refresh &amp; CSRF Cookie Guard</span>
+              </div>
+              <span style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 600 }}>45 min · Auth</span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(139, 92, 246, 0.05)", border: "1px dashed rgba(139, 92, 246, 0.3)", borderRadius: 7, padding: "7px 10px", fontSize: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Sparkles size={12} color="#8b5cf6" />
+              <span><strong>AI QA Check:</strong> 3 test cases automatically drafted</span>
+            </div>
+            <span style={{ color: "#8b5cf6", fontWeight: 700 }}>Ready to commit</span>
           </div>
         </div>
       )
@@ -531,6 +598,10 @@ export function HomeFaqAccordion() {
     {
       q: "Can users customize project view tabs, table columns, and chat alerts?",
       a: "Yes. Every user can reorder project view tabs (List, Board, Calendar, Timeline, Workload, Whiteboard, Flowchart, Channel) and customize table column layouts independently without affecting teammates, while receiving real-time team chat messages, notifications, and email alerts."
+    },
+    {
+      q: "How do Autonomous AI Agents and the Subtask Planner help our team?",
+      a: "Orbitwork integrates specialized AI agents directly into your workspace. The AI Subtask Planner decomposes complex tickets into sequenced tasks with time estimates, while agents like QA Architect and Scope Refiner audit requirements for missing edge cases and draft acceptance criteria—freeing your engineers and managers from repetitive administrative overhead."
     }
   ];
 

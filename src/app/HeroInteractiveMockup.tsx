@@ -15,11 +15,12 @@ import {
   ArrowRight,
   Sparkles,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Bot
 } from "lucide-react";
 
 export function HeroInteractiveMockup() {
-  const [activeView, setActiveView] = useState<"board" | "sheet" | "gantt" | "docs">("board");
+  const [activeView, setActiveView] = useState<"board" | "sheet" | "gantt" | "docs" | "ai">("board");
   const [isTimerRunning, setIsTimerRunning] = useState(true);
   const [timerSeconds, setTimerSeconds] = useState(6135); // 01:42:15
 
@@ -53,7 +54,7 @@ export function HeroInteractiveMockup() {
         </div>
         <div className="hp-mockup-address">
           <Lock size={11} />
-          <span>app.orbitwork.com/workspaces/engineering/{activeView}</span>
+          <span>app.orbitwork.org/workspaces/engineering/{activeView}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 10, color: "var(--green)", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
@@ -111,6 +112,15 @@ export function HeroInteractiveMockup() {
               <FileText size={13} />
               <span>Project Specs</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveView("ai")}
+              className={`hp-mini-nav-item ${activeView === "ai" ? "active" : ""}`}
+              style={{ border: "none", background: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
+            >
+              <Bot size={13} style={{ color: activeView === "ai" ? "inherit" : "#8b5cf6" }} />
+              <span>AI Agents Hub</span>
+            </button>
           </div>
 
           <div className="hp-mini-badge">
@@ -145,7 +155,7 @@ export function HeroInteractiveMockup() {
         </aside>
 
         {/* Mockup Main Canvas */}
-        <div className="hp-mockup-content">
+        <div className="hp-mockup-content" style={{ position: "relative" }}>
           <div className="hp-mockup-content-header">
             <div className="hp-mockup-project-info">
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -191,6 +201,15 @@ export function HeroInteractiveMockup() {
               >
                 <FileText size={12} />
                 <span>Docs</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveView("ai")}
+                className={`hp-mockup-view-tab ${activeView === "ai" ? "active" : ""}`}
+                style={{ border: "none", background: "none", cursor: "pointer" }}
+              >
+                <Bot size={12} style={{ color: activeView === "ai" ? "inherit" : "#8b5cf6" }} />
+                <span>AI Agents</span>
               </button>
             </div>
           </div>
@@ -390,6 +409,79 @@ export function HeroInteractiveMockup() {
               </div>
             </div>
           )}
+
+          {/* VIEW: AI AGENTS HUB */}
+          {activeView === "ai" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, textAlign: "left" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: "10px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 6, background: "rgba(139, 92, 246, 0.12)", color: "#8b5cf6", display: "grid", placeItems: "center" }}>
+                    <Bot size={15} />
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: 12, display: "block" }}>Autonomous Project AI Agents</strong>
+                    <span style={{ fontSize: 9.5, color: "var(--muted)" }}>4 active specialized agents on Engineering workspace</span>
+                  </div>
+                </div>
+                <span className="hp-tag hp-tag-purple" style={{ fontSize: 9, fontWeight: 700 }}>AI Connected</span>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <strong style={{ fontSize: 11.5, color: "#8b5cf6" }}>QA Architect Agent</strong>
+                    <span className="hp-tag hp-tag-green" style={{ fontSize: 8 }}>Active</span>
+                  </div>
+                  <p style={{ fontSize: 10, color: "var(--muted)", margin: 0, lineHeight: 1.4 }}>
+                    Analyzes task test coverage, flags boundary conditions, and generates edge-case checklists.
+                  </p>
+                </div>
+
+                <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <strong style={{ fontSize: 11.5, color: "var(--green)" }}>Subtask Planner Agent</strong>
+                    <span className="hp-tag hp-tag-blue" style={{ fontSize: 8 }}>Ready</span>
+                  </div>
+                  <p style={{ fontSize: 10, color: "var(--muted)", margin: 0, lineHeight: 1.4 }}>
+                    Decomposes requirements into structured subtasks with estimated effort and assignees.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ background: "rgba(139, 92, 246, 0.04)", border: "1px dashed rgba(139, 92, 246, 0.35)", borderRadius: 8, padding: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <Sparkles size={12} color="#8b5cf6" />
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink)" }}>Last Automated Insight:</span>
+                </div>
+                <div style={{ fontSize: 10, color: "var(--muted)", lineHeight: 1.4 }}>
+                  &ldquo;Token Refresh Rotation requires PostgreSQL RLS migration to complete first. Dependency linked automatically.&rdquo;
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Real AI Assistant Floating Button in Mockup */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: 12,
+              right: 14,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              background: "var(--green, #167c58)",
+              color: "#fff",
+              padding: "4px 9px",
+              borderRadius: 999,
+              fontSize: 9.5,
+              fontWeight: 700,
+              boxShadow: "0 3px 10px rgba(22, 124, 88, 0.35)",
+              pointerEvents: "none",
+            }}
+          >
+            <Sparkles size={11} />
+            <span>AI Assistant</span>
+          </div>
         </div>
       </div>
     </div>

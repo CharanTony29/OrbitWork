@@ -75,8 +75,8 @@ export default function AboutPage() {
 
           <div className="hp-metric-strip">
             <div className="hp-metric-box">
-              <strong>8 Views</strong>
-              <span>List, Board, Calendar, Gantt, Workload, Whiteboard, Flowchart &amp; Channel</span>
+              <strong>10 Views</strong>
+              <span>List, Board, Calendar, Gantt, Workload, Whiteboard, Flowchart, Channel, Goals &amp; AI Agents</span>
             </div>
             <div className="hp-metric-box">
               <strong>Real-Time</strong>

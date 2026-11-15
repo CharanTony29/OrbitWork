@@ -12,6 +12,13 @@ import {
   SlidersHorizontal,
   Target,
   Bot,
+  ListTodo,
+  Kanban,
+  CalendarDays,
+  GanttChart,
+  Users,
+  Presentation,
+  Workflow,
 } from "lucide-react";
 import {
   DEFAULT_PROJECT_TAB_ORDER,
@@ -37,6 +44,33 @@ type Props = {
 };
 
 const STORAGE_KEY = "orbitwork_project_tab_order_v1";
+
+function renderTabIcon(key: ProjectTabKey, isSelected: boolean) {
+  switch (key) {
+    case "list":
+      return <ListTodo size={13} />;
+    case "board":
+      return <Kanban size={13} />;
+    case "calendar":
+      return <CalendarDays size={13} />;
+    case "gantt":
+      return <GanttChart size={13} />;
+    case "workload":
+      return <Users size={13} />;
+    case "whiteboard":
+      return <Presentation size={13} />;
+    case "flowchart":
+      return <Workflow size={13} />;
+    case "channel":
+      return <MessageSquare size={13} />;
+    case "goals":
+      return <Target size={13} />;
+    case "agents":
+      return <Bot size={13} style={{ color: isSelected ? "inherit" : "#8b5cf6" }} />;
+    default:
+      return null;
+  }
+}
 
 export default function ProjectViewTabsClient({
   projectId,
@@ -165,9 +199,7 @@ export default function ProjectViewTabsClient({
               }${key === "channel" ? " view-tab-channel" : ""}${key === "goals" ? " view-tab-channel" : ""}${key === "agents" ? " view-tab-channel view-tab-agents" : ""}`}
               title={`Open ${PROJECT_TAB_LABELS[key]} view (drag to reorder tabs)`}
             >
-              {key === "channel" && <MessageSquare size={12} />}
-              {key === "goals" && <Target size={12} />}
-              {key === "agents" && <Bot size={13} style={{ color: isSelected ? "inherit" : "#8b5cf6" }} />}
+              {renderTabIcon(key, isSelected)}
               <span>{PROJECT_TAB_LABELS[key]}</span>
             </Link>
           );
@@ -233,6 +265,7 @@ export default function ProjectViewTabsClient({
                   <GripVertical size={13} />
                 </span>
                 <span className="view-tabs-item-name">
+                  {renderTabIcon(key, false)}
                   {PROJECT_TAB_LABELS[key]}
                   {idx === 0 && (
                     <span className="view-tabs-default-badge">Default</span>
