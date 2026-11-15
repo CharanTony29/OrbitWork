@@ -19,6 +19,7 @@ import {
   Users,
   Presentation,
   Workflow,
+  Brain,
 } from "lucide-react";
 import {
   DEFAULT_PROJECT_TAB_ORDER,
@@ -67,6 +68,8 @@ function renderTabIcon(key: ProjectTabKey, isSelected: boolean) {
       return <Target size={13} />;
     case "agents":
       return <Bot size={13} style={{ color: isSelected ? "inherit" : "#8b5cf6" }} />;
+    case "brain":
+      return <Brain size={13} style={{ color: isSelected ? "inherit" : "#16a34a" }} />;
     default:
       return null;
   }

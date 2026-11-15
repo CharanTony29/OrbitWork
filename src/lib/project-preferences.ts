@@ -9,6 +9,7 @@ export const DEFAULT_PROJECT_TAB_ORDER = [
   "channel",
   "goals",
   "agents",
+  "brain",
 ] as const;
 
 export type ProjectTabKey = (typeof DEFAULT_PROJECT_TAB_ORDER)[number];
@@ -24,6 +25,7 @@ export const PROJECT_TAB_LABELS: Record<ProjectTabKey, string> = {
   channel: "Channel",
   goals: "Goals",
   agents: "AI Agents",
+  brain: "🧠 Project Brain",
 };
 
 export const BASE_TABLE_COLUMN_ORDER = [

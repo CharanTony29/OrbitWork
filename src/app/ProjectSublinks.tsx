@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Clock3, FileText, BarChart3, Paperclip } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Clock3, FileText, BarChart3, Paperclip, Brain } from "lucide-react";
 
 export default function ProjectSublinks({ projectId }: { projectId: string }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
+  const isBrain = pathname === `/projects/${projectId}` && searchParams.get("view") === "brain";
   const isDocs = pathname.includes(`/projects/${projectId}/documents`);
   const isTimesheets = pathname.includes(`/projects/${projectId}/timesheets`);
   const isReports = pathname.includes(`/projects/${projectId}/reports`);
@@ -14,6 +16,14 @@ export default function ProjectSublinks({ projectId }: { projectId: string }) {
 
   return (
     <div className="hierarchy-project-sublinks">
+      <Link
+        className={`hierarchy-sublink${isBrain ? " is-current" : ""}`}
+        href={`/projects/${projectId}?view=brain`}
+        prefetch={false}
+      >
+        <Brain size={12} style={{ color: "var(--green)" }} />
+        <span>Project Brain</span>
+      </Link>
       <Link
         className={`hierarchy-sublink${isDocs ? " is-current" : ""}`}
         href={`/projects/${projectId}/documents`}

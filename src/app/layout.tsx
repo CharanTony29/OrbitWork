@@ -7,6 +7,7 @@ import "./homepage.css";
 import "./ai/ai-polish.css";
 import "./ai/ai-chat.css";
 import "./ai/ai-agent.css";
+import "./projects/[projectId]/brain/brain.css";
 import ThemePicker from "./ThemePicker";
 import ChatNotificationListener from "./ChatNotificationListener";
 import AuthRecoveryListener from "./AuthRecoveryListener";
