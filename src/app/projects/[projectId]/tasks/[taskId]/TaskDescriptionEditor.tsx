@@ -11,12 +11,14 @@ import {
   Trash2,
 } from "lucide-react";
 import { markdownToSafeHtml } from "@/lib/markdown";
+import AIPolishButton from "@/app/ai/AIPolishButton";
 
 type Props = {
   projectId: string;
   taskId: string;
   initialValue: string;
   canEdit: boolean;
+  taskTitle?: string;
 };
 
 type SelectedOverlay = {
@@ -134,6 +136,7 @@ export default function TaskDescriptionEditor({
   taskId,
   initialValue,
   canEdit,
+  taskTitle,
 }: Props) {
   const [serialized, setSerialized] = useState(initialValue);
   const [uploading, setUploading] = useState(false);
@@ -247,6 +250,53 @@ export default function TaskDescriptionEditor({
       sel.addRange(savedRangeRef.current);
     }
   };
+
+  const getEditorTextForPolish = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return "";
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (editor.contains(range.commonAncestorContainer)) {
+        const text = range.toString().trim();
+        if (text) {
+          savedRangeRef.current = range.cloneRange();
+          return text;
+        }
+      }
+    }
+    return htmlToMarkdown(editor);
+  }, []);
+
+  const handleApplyPolishedText = useCallback(
+    (newMarkdown: string) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+
+      if (
+        savedRangeRef.current &&
+        editor.contains(savedRangeRef.current.commonAncestorContainer) &&
+        savedRangeRef.current.toString().trim()
+      ) {
+        restoreSelection();
+        const range = savedRangeRef.current;
+        range.deleteContents();
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = markdownToSafeHtml(newMarkdown);
+        const frag = document.createDocumentFragment();
+        while (tempDiv.firstChild) {
+          frag.appendChild(tempDiv.firstChild);
+        }
+        range.insertNode(frag);
+        savedRangeRef.current = null;
+        syncFromEditor();
+      } else {
+        editor.innerHTML = newMarkdown.trim() ? markdownToSafeHtml(newMarkdown) : "";
+        syncFromEditor();
+      }
+    },
+    [syncFromEditor]
+  );
 
   const insertImageNode = (url: string, altText: string) => {
     const editor = editorRef.current;
@@ -508,6 +558,13 @@ export default function TaskDescriptionEditor({
             >
               <List size={14} />
             </button>
+            <span className="task-desc-sep" />
+            <AIPolishButton
+              getText={getEditorTextForPolish}
+              onPolished={handleApplyPolishedText}
+              contextTitle={taskTitle}
+              target="task"
+            />
             <span className="task-desc-sep" />
             <button
               type="button"

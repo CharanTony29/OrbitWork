@@ -13,6 +13,7 @@ import TaskDetailProgress from "./TaskDetailProgress";
 import TaskHeaderTimer from "./TaskHeaderTimer";
 import TaskDescriptionEditor from "./TaskDescriptionEditor";
 import TaskPropertiesPanel from "./TaskPropertiesPanel";
+import AIAgentSubtaskPlanner from "@/app/ai/AIAgentSubtaskPlanner";
 import SubtaskCreateForm from "./SubtaskCreateForm";
 import SubtaskStatusPicker from "./SubtaskStatusPicker";
 import TaskChecklistsSection from "./TaskChecklistsSection";
@@ -277,6 +278,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
                   taskId={taskId}
                   initialValue={task.description}
                   canEdit={canEdit}
+                  taskTitle={task.title}
                 />
                 <div className="detail-save-row">
                   <span>Last updated {new Date(task.updated_at).toLocaleString()}</span>
@@ -373,11 +375,23 @@ export default async function TaskDetailPage({ params, searchParams }: {
                       )}
                     </div>
                     {canEdit && (
-                      <SubtaskCreateForm
-                        projectId={projectId}
-                        parentTaskId={taskId}
-                        members={members}
-                      />
+                      <>
+                        <AIAgentSubtaskPlanner
+                          projectId={projectId}
+                          taskId={taskId}
+                          taskTitle={task.title}
+                          taskDescription={task.description}
+                          parentAssigneeName={
+                            members.find((m) => m.id === task.primary_assignee_id)?.label
+                          }
+                          canEdit={canEdit}
+                        />
+                        <SubtaskCreateForm
+                          projectId={projectId}
+                          parentTaskId={taskId}
+                          members={members}
+                        />
+                      </>
                     )}
                   </section>
                 );

@@ -4,11 +4,15 @@ import "./globals.css";
 import "./theme.css";
 import "./responsive-layout.css";
 import "./homepage.css";
+import "./ai/ai-polish.css";
+import "./ai/ai-chat.css";
+import "./ai/ai-agent.css";
 import ThemePicker from "./ThemePicker";
 import ChatNotificationListener from "./ChatNotificationListener";
 import AuthRecoveryListener from "./AuthRecoveryListener";
 import TopProgressBar from "./TopProgressBar";
 import GlobalMobileDrawer from "./GlobalMobileDrawer";
+import AIChatDrawer from "./ai/AIChatDrawer";
 
 export const metadata: Metadata = {
   metadataBase: new URL(CANONICAL_ORIGIN),
@@ -40,6 +44,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ThemePicker />
         <ChatNotificationListener />
         <AuthRecoveryListener />
+        <AIChatDrawer />
       </body>
     </html>
   );

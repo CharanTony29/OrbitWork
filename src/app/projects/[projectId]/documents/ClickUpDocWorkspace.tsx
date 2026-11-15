@@ -99,6 +99,7 @@ import {
 import { blocksToMarkdown, markdownToBlocks } from "@/lib/docs/blocks";
 import { markdownToPdf } from "@/lib/pdf";
 import FavoriteButton from "@/app/FavoriteButton";
+import AIPolishButton from "@/app/ai/AIPolishButton";
 
 interface ClickUpDocWorkspaceProps {
   workspaceId: string;
@@ -354,6 +355,24 @@ export default function ClickUpDocWorkspace({
       performSave(nextTitle, nextIcon, nextCover, nextBlocks);
     }, 1200);
   };
+
+  const getPageMarkdownForPolish = useCallback(() => {
+    const sel = typeof window !== "undefined" ? window.getSelection() : null;
+    const selText = sel ? sel.toString().trim() : "";
+    if (selText) return selText;
+    return blocksToMarkdown(blocks);
+  }, [blocks]);
+
+  const handlePagePolished = useCallback(
+    (newMarkdown: string) => {
+      const newBlocks = markdownToBlocks(newMarkdown);
+      if (newBlocks && newBlocks.length > 0) {
+        setBlocks(newBlocks);
+        triggerAutosave(pageTitle, pageIcon, pageCover, newBlocks);
+      }
+    },
+    [pageTitle, pageIcon, pageCover, triggerAutosave]
+  );
 
   // Keyboard shortcut Ctrl+S / Cmd+S & Find
   useEffect(() => {
@@ -1325,6 +1344,15 @@ export default function ClickUpDocWorkspace({
             initialFavorited={doc.is_favorited || favoriteDocIds.includes(doc.id)}
             compact
             label=""
+          />
+
+          {/* AI Polish */}
+          <AIPolishButton
+            getText={getPageMarkdownForPolish}
+            onPolished={handlePagePolished}
+            contextTitle={`${doc.title} - ${pageTitle}`}
+            target="document"
+            buttonLabel="Polish with AI"
           />
 
           {/* Export Menu */}
