@@ -79,6 +79,16 @@ export async function POST(req: NextRequest) {
   }
 }
 
+const updateAgentSchema = z.object({
+  agentId: z.string().uuid(),
+  name: z.string().trim().min(2).max(100).optional(),
+  description: z.string().max(300).optional(),
+  trigger_type: z.enum(["on_subtask_created", "on_task_created", "on_status_change", "manual"]).optional(),
+  action_type: z.enum(["auto_assign_parent", "generate_checklist", "estimate_time", "custom_agent"]).optional(),
+  system_instructions: z.string().max(2000).optional(),
+  enabled: z.boolean().optional(),
+});
+
 export async function PATCH(req: NextRequest) {
   try {
     const supabase = await createClient();
@@ -86,14 +96,21 @@ export async function PATCH(req: NextRequest) {
     if (!user || authError) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const { agentId, enabled } = body;
-    if (!agentId || typeof enabled !== "boolean") {
-      return NextResponse.json({ error: "Invalid patch payload" }, { status: 400 });
+    const parsed = updateAgentSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid patch payload", details: parsed.error.format() }, { status: 400 });
     }
+
+    const { agentId, ...fieldsToUpdate } = parsed.data;
+
+    const updates: Record<string, unknown> = {
+      ...fieldsToUpdate,
+      updated_at: new Date().toISOString(),
+    };
 
     const { data, error } = await supabase
       .from("custom_ai_agents")
-      .update({ enabled, updated_at: new Date().toISOString() })
+      .update(updates)
       .eq("id", agentId)
       .select("*")
       .single();

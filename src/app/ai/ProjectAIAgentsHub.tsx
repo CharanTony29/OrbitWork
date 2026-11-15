@@ -14,6 +14,7 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
+  Pencil,
 } from "lucide-react";
 import type { CustomAIAgent } from "@/lib/ai/agent/custom-agent-types";
 import CustomAgentBuilderModal from "./CustomAgentBuilderModal";
@@ -46,6 +47,7 @@ export default function ProjectAIAgentsHub({
   const [agents, setAgents] = useState<CustomAIAgent[]>(initialAgents);
   const [isLoading, setIsLoading] = useState(initialAgents.length === 0);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<CustomAIAgent | null>(null);
   const [togglePendingId, setTogglePendingId] = useState<string | null>(null);
 
   // Fetch agents on mount if not preloaded
@@ -110,6 +112,12 @@ export default function ProjectAIAgentsHub({
     setAgents((prev) => [newAgent, ...prev]);
   };
 
+  const handleAgentUpdated = (updatedAgent: CustomAIAgent) => {
+    setAgents((prev) =>
+      prev.map((a) => (a.id === updatedAgent.id ? updatedAgent : a))
+    );
+  };
+
   const activeCount = agents.filter((a) => a.enabled).length;
 
   return (
@@ -136,7 +144,10 @@ export default function ProjectAIAgentsHub({
         <button
           type="button"
           className="ai-hub-btn-new"
-          onClick={() => setModalOpen(true)}
+          onClick={() => {
+            setEditingAgent(null);
+            setModalOpen(true);
+          }}
         >
           <Plus size={15} />
           <span>Declare New AI Agent</span>
@@ -160,7 +171,10 @@ export default function ProjectAIAgentsHub({
           <button
             type="button"
             className="ai-hub-btn-new"
-            onClick={() => setModalOpen(true)}
+            onClick={() => {
+              setEditingAgent(null);
+              setModalOpen(true);
+            }}
           >
             <Plus size={15} />
             <span>Declare Your First Agent</span>
@@ -207,8 +221,21 @@ export default function ProjectAIAgentsHub({
                 </div>
 
                 {agent.system_instructions && (
-                  <div className="ai-card-instructions">
-                    <span className="ai-instructions-label">Rules:</span>
+                  <div
+                    className="ai-card-instructions"
+                    onClick={() => {
+                      setEditingAgent(agent);
+                      setModalOpen(true);
+                    }}
+                    style={{ cursor: "pointer" }}
+                    title="Click to modify this agent's rules & instructions"
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span className="ai-instructions-label">Rules:</span>
+                      <span style={{ fontSize: "11px", color: "#7c3aed", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                        <Pencil size={10} /> Edit
+                      </span>
+                    </div>
                     <p>{agent.system_instructions}</p>
                   </div>
                 )}
@@ -226,14 +253,42 @@ export default function ProjectAIAgentsHub({
                     )}
                   </div>
 
-                  <button
-                    type="button"
-                    className="ai-card-btn-delete"
-                    onClick={() => handleDelete(agent.id)}
-                    title="Delete Agent"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <button
+                      type="button"
+                      className="ai-card-btn-edit"
+                      onClick={() => {
+                        setEditingAgent(agent);
+                        setModalOpen(true);
+                      }}
+                      title="Modify Agent Rules & Instructions"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "5px 10px",
+                        fontSize: "11.5px",
+                        fontWeight: 600,
+                        color: "#7c3aed",
+                        background: "rgba(139, 92, 246, 0.08)",
+                        border: "1px solid rgba(139, 92, 246, 0.22)",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Pencil size={11} />
+                      <span>Modify Rule</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="ai-card-btn-delete"
+                      onClick={() => handleDelete(agent.id)}
+                      title="Delete Agent"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -241,12 +296,17 @@ export default function ProjectAIAgentsHub({
         </div>
       )}
 
-      {/* Modal to declare new agent */}
+      {/* Modal to declare or edit agent */}
       <CustomAgentBuilderModal
         projectId={projectId}
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false);
+          setEditingAgent(null);
+        }}
         onAgentCreated={handleAgentCreated}
+        agentToEdit={editingAgent}
+        onAgentUpdated={handleAgentUpdated}
       />
     </div>
   );
