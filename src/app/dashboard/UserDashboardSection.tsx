@@ -15,6 +15,7 @@ import FavoritesCardClient, {
 import AssignedTasksCardClient, {
   DashboardAssignedTaskItem,
 } from "./AssignedTasksCardClient";
+import AIDashboardBriefing from "@/app/ai/AIDashboardBriefing";
 
 function isStatusInProgress(cat?: string, name?: string) {
   const nameLower = (name ?? "").toLowerCase();
@@ -267,6 +268,8 @@ export default async function UserDashboardSection({
 
   return (
     <section className="user-dashboard-wrap" aria-label="My personal dashboard">
+      <AIDashboardBriefing />
+
       <div className="user-kpi-grid">
         <article className="user-kpi-card">
           <div className="user-kpi-icon is-green">

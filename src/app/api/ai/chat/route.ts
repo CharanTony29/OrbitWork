@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { streamTextWithFallback } from "@/lib/ai/client.ts";
 import { CHATBOT_SYSTEM_PROMPT } from "@/lib/ai/chatbot/index.ts";
+import { getUserLiveAIContext } from "@/lib/ai/data/user-context.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,17 @@ export async function POST(req: NextRequest) {
 
     const { messages, context } = parsed.data;
 
+    // 3. Fetch real live user data (tasks, projects, overdue status)
+    let userContextString = "";
+    try {
+      const liveContext = await getUserLiveAIContext(user.id);
+      if (liveContext?.formattedPromptContext) {
+        userContextString = `\n${liveContext.formattedPromptContext}\n`;
+      }
+    } catch (dataErr) {
+      console.warn("[AI Chat] Failed to load user live context:", dataErr);
+    }
+
     const contextLines: string[] = [];
     if (context?.workspaceName) contextLines.push(`Workspace: ${context.workspaceName}`);
     if (context?.projectTitle) contextLines.push(`Current Project: ${context.projectTitle}`);
@@ -57,9 +69,10 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = [
       CHATBOT_SYSTEM_PROMPT,
-      contextLines.length > 0 ? "\n--- Current User Context ---" : "",
+      userContextString,
+      contextLines.length > 0 ? "\n--- Currently Viewed Page Context ---" : "",
       ...contextLines,
-      "\nProvide crisp, helpful answers formatted in clean markdown (bullet points, numbered lists, checklists, bold text, code blocks).",
+      "\nProvide crisp, helpful answers formatted in clean markdown (bullet points, numbered lists, checklists, bold text, clickable markdown links).",
     ]
       .filter(Boolean)
       .join("\n");
