@@ -28,6 +28,10 @@ import {
   UserCheck,
   Users,
   Zap,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Move,
 } from "lucide-react";
 import type {
   ActionableRecommendation,
@@ -120,6 +124,85 @@ export default function ProjectBrainView({
   const [selectedTaskIndices, setSelectedTaskIndices] = useState<Set<number>>(new Set());
   const [creatingTasks, setCreatingTasks] = useState(false);
   const [taskCreateSuccess, setTaskCreateSuccess] = useState<string | null>(null);
+
+  // Interactive Smart Graph Pan & Zoom State
+  const [graphZoom, setGraphZoom] = useState(1);
+  const [graphPan, setGraphPan] = useState({ x: 0, y: 0 });
+  const [isGraphDragging, setIsGraphDragging] = useState(false);
+  const graphDragStartRef = React.useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const graphHasMovedRef = React.useRef(false);
+
+  const handleGraphMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    setIsGraphDragging(true);
+    graphHasMovedRef.current = false;
+    graphDragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      panX: graphPan.x,
+      panY: graphPan.y,
+    };
+  };
+
+  const handleGraphMouseMove = (e: React.MouseEvent) => {
+    if (!isGraphDragging) return;
+    const dx = e.clientX - graphDragStartRef.current.x;
+    const dy = e.clientY - graphDragStartRef.current.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      graphHasMovedRef.current = true;
+    }
+    setGraphPan({
+      x: graphDragStartRef.current.panX + dx,
+      y: graphDragStartRef.current.panY + dy,
+    });
+  };
+
+  const handleGraphMouseUp = () => {
+    setIsGraphDragging(false);
+  };
+
+  const handleGraphWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY < 0 ? 1.12 : 0.88;
+    setGraphZoom((prev) => Math.max(0.3, Math.min(2.5, Number((prev * zoomFactor).toFixed(2)))));
+  };
+
+  const handleGraphTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setIsGraphDragging(true);
+      graphHasMovedRef.current = false;
+      graphDragStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        panX: graphPan.x,
+        panY: graphPan.y,
+      };
+    }
+  };
+
+  const handleGraphTouchMove = (e: React.TouchEvent) => {
+    if (!isGraphDragging || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - graphDragStartRef.current.x;
+    const dy = e.touches[0].clientY - graphDragStartRef.current.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      graphHasMovedRef.current = true;
+    }
+    setGraphPan({
+      x: graphDragStartRef.current.panX + dx,
+      y: graphDragStartRef.current.panY + dy,
+    });
+  };
+
+  const handleGraphTouchEnd = () => {
+    setIsGraphDragging(false);
+  };
+
+  const zoomInGraph = () => setGraphZoom((prev) => Math.min(2.5, Number((prev + 0.15).toFixed(2))));
+  const zoomOutGraph = () => setGraphZoom((prev) => Math.max(0.3, Number((prev - 0.15).toFixed(2))));
+  const resetGraphView = () => {
+    setGraphZoom(1);
+    setGraphPan({ x: 0, y: 0 });
+  };
 
   // Initial Fetch
   const fetchBrainData = async (forceRefresh = false) => {
@@ -1417,9 +1500,58 @@ export default function ProjectBrainView({
             to open it directly.
           </p>
 
-          <div className="graph-viewport">
+          <div
+            className={`graph-viewport ${isGraphDragging ? "is-dragging" : ""}`}
+            onMouseDown={handleGraphMouseDown}
+            onMouseMove={handleGraphMouseMove}
+            onMouseUp={handleGraphMouseUp}
+            onMouseLeave={handleGraphMouseUp}
+            onWheel={handleGraphWheel}
+            onTouchStart={handleGraphTouchStart}
+            onTouchMove={handleGraphTouchMove}
+            onTouchEnd={handleGraphTouchEnd}
+          >
+            {/* Floating Zoom & Pan Controls */}
+            <div className="graph-controls-toolbar">
+              <button
+                type="button"
+                className="graph-ctrl-btn"
+                onClick={zoomInGraph}
+                title="Zoom In (+)"
+              >
+                <ZoomIn size={14} />
+              </button>
+              <span className="graph-zoom-badge">
+                {Math.round(graphZoom * 100)}%
+              </span>
+              <button
+                type="button"
+                className="graph-ctrl-btn"
+                onClick={zoomOutGraph}
+                title="Zoom Out (-)"
+              >
+                <ZoomOut size={14} />
+              </button>
+              <button
+                type="button"
+                className="graph-ctrl-btn"
+                onClick={resetGraphView}
+                title="Reset View (100% Fit)"
+              >
+                <RotateCcw size={13} />
+              </button>
+            </div>
+
+            {/* Hint Badge */}
+            <div className="graph-hint-badge">
+              <Move size={12} /> Drag to move · Scroll wheel to zoom
+            </div>
+
             <svg className="graph-svg">
               <defs>
+                <pattern id="graph-grid-dots" width="28" height="28" patternUnits="userSpaceOnUse">
+                  <circle cx="2" cy="2" r="1.2" fill="var(--line, #cbd5e1)" opacity="0.6" />
+                </pattern>
                 <marker
                   id="arrowhead"
                   markerWidth="8"
@@ -1432,97 +1564,105 @@ export default function ProjectBrainView({
                 </marker>
               </defs>
 
-              {/* Render edges */}
-              {smartGraph.edges.map((edge) => {
-                const sIdx = smartGraph.nodes.findIndex((n) => n.id === edge.source);
-                const tIdx = smartGraph.nodes.findIndex((n) => n.id === edge.target);
-                if (sIdx < 0 || tIdx < 0) return null;
+              {/* Background Grid Pattern */}
+              <rect width="100%" height="100%" fill="url(#graph-grid-dots)" />
 
-                const sx = 100 + (sIdx % 5) * 220;
-                const sy = 60 + Math.floor(sIdx / 5) * 110;
-                const tx = 100 + (tIdx % 5) * 220;
-                const ty = 60 + Math.floor(tIdx / 5) * 110;
+              {/* Pannable and Zoomable Scene */}
+              <g transform={`translate(${graphPan.x}, ${graphPan.y}) scale(${graphZoom})`}>
+                {/* Render edges */}
+                {smartGraph.edges.map((edge) => {
+                  const sIdx = smartGraph.nodes.findIndex((n) => n.id === edge.source);
+                  const tIdx = smartGraph.nodes.findIndex((n) => n.id === edge.target);
+                  if (sIdx < 0 || tIdx < 0) return null;
 
-                return (
-                  <line
-                    key={edge.id}
-                    x1={sx + 70}
-                    y1={sy + 20}
-                    x2={tx + 70}
-                    y2={ty + 20}
-                    stroke={edge.relation === "blocks" ? "#dc2626" : "var(--line)"}
-                    strokeWidth={edge.relation === "blocks" ? 2 : 1}
-                    strokeDasharray={edge.relation === "blocks" ? "4,4" : undefined}
-                    markerEnd="url(#arrowhead)"
-                  />
-                );
-              })}
+                  const sx = 100 + (sIdx % 5) * 220;
+                  const sy = 60 + Math.floor(sIdx / 5) * 110;
+                  const tx = 100 + (tIdx % 5) * 220;
+                  const ty = 60 + Math.floor(tIdx / 5) * 110;
 
-              {/* Render nodes */}
-              {smartGraph.nodes.map((node, idx) => {
-                const nx = 100 + (idx % 5) * 220;
-                const ny = 60 + Math.floor(idx / 5) * 110;
-
-                const isTask = node.type === "task";
-                const isGoal = node.type === "goal";
-                const isProject = node.type === "project";
-
-                return (
-                  <g
-                    key={node.id}
-                    className="graph-node"
-                    transform={`translate(${nx}, ${ny})`}
-                    onClick={() => {
-                      if (node.linkUrl) router.push(node.linkUrl);
-                    }}
-                  >
-                    <rect
-                      width="150"
-                      height="46"
-                      rx="8"
-                      fill={
-                        isProject
-                          ? "rgba(22, 124, 88, 0.15)"
-                          : isGoal
-                          ? "rgba(139, 92, 246, 0.12)"
-                          : node.isOverdue
-                          ? "rgba(220, 38, 38, 0.12)"
-                          : "var(--surface-subtle)"
-                      }
-                      stroke={
-                        isProject
-                          ? "var(--green)"
-                          : isGoal
-                          ? "#8b5cf6"
-                          : node.isOverdue
-                          ? "#dc2626"
-                          : "var(--line)"
-                      }
-                      strokeWidth="1.5"
+                  return (
+                    <line
+                      key={edge.id}
+                      x1={sx + 75}
+                      y1={sy + 23}
+                      x2={tx + 75}
+                      y2={ty + 23}
+                      stroke={edge.relation === "blocks" ? "#dc2626" : "var(--line, #cbd5e1)"}
+                      strokeWidth={edge.relation === "blocks" ? 2 : 1.2}
+                      strokeDasharray={edge.relation === "blocks" ? "4,4" : undefined}
+                      markerEnd="url(#arrowhead)"
                     />
-                    <text
-                      x="10"
-                      y="18"
-                      fontSize="9"
-                      fontWeight="700"
-                      fill="var(--muted)"
-                      textAnchor="start"
+                  );
+                })}
+
+                {/* Render nodes */}
+                {smartGraph.nodes.map((node, idx) => {
+                  const nx = 100 + (idx % 5) * 220;
+                  const ny = 60 + Math.floor(idx / 5) * 110;
+
+                  const isTask = node.type === "task";
+                  const isGoal = node.type === "goal";
+                  const isProject = node.type === "project";
+
+                  return (
+                    <g
+                      key={node.id}
+                      className="graph-node"
+                      transform={`translate(${nx}, ${ny})`}
+                      onClick={() => {
+                        if (!graphHasMovedRef.current && node.linkUrl) {
+                          router.push(node.linkUrl);
+                        }
+                      }}
                     >
-                      {node.type.toUpperCase()}
-                    </text>
-                    <text
-                      x="10"
-                      y="33"
-                      fontSize="11"
-                      fontWeight="600"
-                      fill="var(--ink)"
-                      textAnchor="start"
-                    >
-                      {node.label.length > 18 ? `${node.label.slice(0, 16)}...` : node.label}
-                    </text>
-                  </g>
-                );
-              })}
+                      <rect
+                        width="150"
+                        height="46"
+                        rx="8"
+                        fill={
+                          isProject
+                            ? "rgba(22, 124, 88, 0.15)"
+                            : isGoal
+                            ? "rgba(139, 92, 246, 0.12)"
+                            : node.isOverdue
+                            ? "rgba(220, 38, 38, 0.12)"
+                            : "var(--surface-subtle)"
+                        }
+                        stroke={
+                          isProject
+                            ? "var(--green)"
+                            : isGoal
+                            ? "#8b5cf6"
+                            : node.isOverdue
+                            ? "#dc2626"
+                            : "var(--line)"
+                        }
+                        strokeWidth="1.5"
+                      />
+                      <text
+                        x="10"
+                        y="18"
+                        fontSize="9"
+                        fontWeight="700"
+                        fill="var(--muted)"
+                        textAnchor="start"
+                      >
+                        {node.type.toUpperCase()}
+                      </text>
+                      <text
+                        x="10"
+                        y="33"
+                        fontSize="11"
+                        fontWeight="600"
+                        fill="var(--ink)"
+                        textAnchor="start"
+                      >
+                        {node.label.length > 18 ? `${node.label.slice(0, 16)}...` : node.label}
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
             </svg>
           </div>
         </div>
