@@ -344,7 +344,7 @@ export default async function ProjectPage({ params, searchParams }: {
             )}
           </div>
         </nav>
-        {view !== "channel" && view !== "goals" && view !== "agents" && view !== "brain" && (
+        {view !== "channel" && view !== "goals" && view !== "agents" && (
           <TaskFilterToolbar
             projectId={project.id}
             projectName={project.name}
@@ -462,7 +462,7 @@ export default async function ProjectPage({ params, searchParams }: {
             profileAvatars={profileAvatars}
           />
         )}
-        {view !== "channel" && view !== "goals" && view !== "agents" && view !== "brain" && (taskCount ?? 0) > 100 && (
+        {view !== "channel" && view !== "goals" && view !== "agents" && (taskCount ?? 0) > 100 && (
           <div className="task-pagination">
             {page > 1 && <Link href={pageHref(page - 1)}>Previous</Link>}
             <span>Page {page} of {Math.ceil((taskCount ?? 0) / 100)}</span>

@@ -125,10 +125,19 @@ export default function TaskGantt({
   const containerRef = useRef<HTMLDivElement>(null);
   const hasInitializedScroll = useRef(false);
 
-  // Determine current year and initial target month
+  // Time metrics for "Current Time Line" (e.g., at 12:00 PM it sits precisely at the middle 18px of the 36px cell)
   const now = useMemo(() => new Date(), []);
   const todayStr = useMemo(() => {
     return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+  }, [now]);
+
+  const { timeOffsetPx, timeLabel, timeFraction } = useMemo(() => {
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const fraction = (hours + minutes / 60) / 24;
+    const offsetPx = Math.max(1, Math.min(DAY_COL_WIDTH - 1, Math.round(fraction * DAY_COL_WIDTH)));
+    const label = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return { timeOffsetPx: offsetPx, timeLabel: label, timeFraction: fraction };
   }, [now]);
 
   const [year, initialTargetMonth] = useMemo(() => {
@@ -141,8 +150,8 @@ export default function TaskGantt({
 
   const [visibleMonthIndex, setVisibleMonthIndex] = useState<number>(initialTargetMonth);
 
-  // Generate continuous year metadata: 12 months, 365 or 366 days
-  const { months, days, totalDays, dateToDayIndex, holidayByDayIndex } = useMemo(() => {
+  // Generate continuous year metadata: strictly 12 months, 365 or 366 days, ending at 31st December
+  const { months, days, totalDays, dateToDayIndex, holidayByDayIndex, todayDayIndex } = useMemo(() => {
     const monthsMeta: MonthMetadata[] = [];
     const daysMeta: DayMetadata[] = [];
     const dateMap = new Map<string, number>();
@@ -219,6 +228,7 @@ export default function TaskGantt({
       totalDays: runningDayIndex,
       dateToDayIndex: dateMap,
       holidayByDayIndex: holidayMap,
+      todayDayIndex: dateMap.get(todayStr),
     };
   }, [year, now, todayStr, events]);
 
@@ -273,7 +283,7 @@ export default function TaskGantt({
     return result;
   }, [tasks]);
 
-  // CSS Grid columns: 1 sticky Task/Member column + all days of the year
+  // CSS Grid columns: 1 sticky Task/Member column + exactly 365 or 366 days ending on 31st December
   const gridColumns = useMemo(() => {
     return `${TASK_COL_WIDTH}px repeat(${totalDays}, ${DAY_COL_WIDTH}px)`;
   }, [totalDays]);
@@ -296,17 +306,15 @@ export default function TaskGantt({
   // Jump to today
   const scrollToToday = useCallback(() => {
     if (!containerRef.current) return;
-    const todayIndex = dateToDayIndex.get(todayStr);
-    if (todayIndex !== undefined) {
-      // Center today slightly
-      const targetLeft = Math.max(0, (todayIndex - 2) * DAY_COL_WIDTH);
+    if (todayDayIndex !== undefined) {
+      const targetLeft = Math.max(0, (todayDayIndex - 2) * DAY_COL_WIDTH);
       containerRef.current.scrollTo({ left: targetLeft, behavior: "smooth" });
-      const mIdx = days[todayIndex]?.monthIndex ?? now.getMonth();
+      const mIdx = days[todayDayIndex]?.monthIndex ?? now.getMonth();
       setVisibleMonthIndex(mIdx);
     } else {
       scrollToMonth(now.getMonth(), true);
     }
-  }, [dateToDayIndex, todayStr, days, now, scrollToMonth]);
+  }, [todayDayIndex, days, now, scrollToMonth]);
 
   // Initial mount positioning: automatically scroll to current/target month!
   useEffect(() => {
@@ -315,11 +323,8 @@ export default function TaskGantt({
 
     const timer = setTimeout(() => {
       if (!containerRef.current) return;
-      const todayIndex = dateToDayIndex.get(todayStr);
-
-      if (initialTargetMonth === now.getMonth() && todayIndex !== undefined) {
-        // Position at today minus 2 days so current context is immediately visible
-        const targetLeft = Math.max(0, (todayIndex - 2) * DAY_COL_WIDTH);
+      if (initialTargetMonth === now.getMonth() && todayDayIndex !== undefined) {
+        const targetLeft = Math.max(0, (todayDayIndex - 2) * DAY_COL_WIDTH);
         containerRef.current.scrollLeft = targetLeft;
       } else if (months[initialTargetMonth]) {
         containerRef.current.scrollLeft = months[initialTargetMonth].startDayIndex * DAY_COL_WIDTH;
@@ -327,7 +332,7 @@ export default function TaskGantt({
     }, 40);
 
     return () => clearTimeout(timer);
-  }, [initialTargetMonth, months, now, todayStr, dateToDayIndex]);
+  }, [initialTargetMonth, months, now, todayDayIndex]);
 
   // Update visible month pill dynamically as user scrolls horizontally
   const handleScroll = useCallback(() => {
@@ -374,7 +379,7 @@ export default function TaskGantt({
           background: "var(--surface, #ffffff)",
           border: "1px solid var(--line, #e2e8f0)",
           borderRadius: 10,
-          marginBottom: 12,
+          marginBottom: 10,
           flexShrink: 0,
         }}
       >
@@ -422,7 +427,7 @@ export default function TaskGantt({
                   borderRadius: 9999,
                 }}
               >
-                Continuous 12 Months
+                Jan 1 → Dec 31
               </span>
             </h3>
 
@@ -452,7 +457,7 @@ export default function TaskGantt({
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: 4,
+              gap: 5,
               height: 26,
               padding: "0 10px",
               border: "1px solid #16a34a",
@@ -464,10 +469,10 @@ export default function TaskGantt({
               cursor: "pointer",
               transition: "all 0.15s ease",
             }}
-            title="Jump directly to today's date in the timeline"
+            title={`Jump to Today (${todayStr} · ${timeLabel})`}
           >
             <Clock size={12} />
-            Today
+            Today ({timeLabel})
           </button>
         </div>
 
@@ -539,6 +544,10 @@ export default function TaskGantt({
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
             <span style={{ width: 8, height: 8, borderRadius: 2, background: "#8b5cf6" }} />
             Time Off
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 8, height: 2, background: "#16a34a" }} />
+            Today Line
           </span>
         </div>
       </header>
@@ -686,6 +695,8 @@ export default function TaskGantt({
             {/* Sticky Top-Left Corner: Month Header */}
             <div
               style={{
+                gridColumn: 1,
+                gridRow: 1,
                 width: TASK_COL_WIDTH,
                 minWidth: TASK_COL_WIDTH,
                 maxWidth: TASK_COL_WIDTH,
@@ -711,75 +722,80 @@ export default function TaskGantt({
             </div>
 
             {/* Continuous 12 Months Banners */}
-            {months.map((m) => (
-              <div
-                key={`m-hdr-${m.key}`}
-                style={{
-                  gridColumn: `${m.startDayIndex + 2} / ${m.endDayIndex + 3}`,
-                  gridRow: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "0 10px",
-                  background: m.isCurrentMonth
-                    ? "#f0fdf4"
-                    : m.index % 2 === 0
-                    ? "var(--surface, #ffffff)"
-                    : "var(--app-bg, #f8fafc)",
-                  borderRight: "2px solid var(--line, #94a3b8)",
-                  borderLeft: m.index > 0 ? "1px solid var(--line-light, #e2e8f0)" : "none",
-                  height: 32,
-                  boxSizing: "border-box",
-                  position: "relative",
-                }}
-              >
-                {/* Sticky Month Name inside its cell so it stays in view while scrolling the month */}
-                <span
+            {months.map((m) => {
+              const isLastMonth = m.index === 11;
+              return (
+                <div
+                  key={`m-hdr-${m.key}`}
                   style={{
-                    position: "sticky",
-                    left: TASK_COL_WIDTH + 8,
-                    display: "inline-flex",
+                    gridColumn: `${m.startDayIndex + 2} / ${m.endDayIndex + 3}`,
+                    gridRow: 1,
+                    display: "flex",
                     alignItems: "center",
-                    gap: 6,
-                    whiteSpace: "nowrap",
-                    fontWeight: 700,
-                    fontSize: 12,
-                    color: m.isCurrentMonth ? "#166534" : "var(--ink, #1e293b)",
-                    zIndex: 2,
+                    justifyContent: "space-between",
+                    padding: "0 10px",
+                    background: m.isCurrentMonth
+                      ? "#f0fdf4"
+                      : m.index % 2 === 0
+                      ? "var(--surface, #ffffff)"
+                      : "var(--app-bg, #f8fafc)",
+                    borderRight: isLastMonth
+                      ? "2px solid #64748b"
+                      : "2px solid var(--line, #94a3b8)",
+                    borderLeft: m.index > 0 ? "1px solid var(--line-light, #e2e8f0)" : "none",
+                    height: 32,
+                    boxSizing: "border-box",
+                    position: "relative",
                   }}
                 >
-                  <span>{m.name}</span>
-                  <span style={{ fontSize: 10, color: "var(--muted, #64748b)", fontWeight: 500 }}>
-                    {year}
-                  </span>
-                  {m.isCurrentMonth && (
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        background: "#dcfce7",
-                        color: "#166534",
-                        padding: "1px 5px",
-                        borderRadius: 4,
-                      }}
-                    >
-                      Current
+                  {/* Sticky Month Name inside its cell so it stays in view while scrolling the month */}
+                  <span
+                    style={{
+                      position: "sticky",
+                      left: TASK_COL_WIDTH + 8,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      whiteSpace: "nowrap",
+                      fontWeight: 700,
+                      fontSize: 12,
+                      color: m.isCurrentMonth ? "#166534" : "var(--ink, #1e293b)",
+                      zIndex: 2,
+                    }}
+                  >
+                    <span>{m.name}</span>
+                    <span style={{ fontSize: 10, color: "var(--muted, #64748b)", fontWeight: 500 }}>
+                      {year}
                     </span>
-                  )}
-                </span>
+                    {m.isCurrentMonth && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          background: "#dcfce7",
+                          color: "#166534",
+                          padding: "1px 5px",
+                          borderRadius: 4,
+                        }}
+                      >
+                        Current
+                      </span>
+                    )}
+                  </span>
 
-                <span
-                  style={{
-                    fontSize: 9.5,
-                    color: "var(--muted, #64748b)",
-                    fontWeight: 500,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {m.daysCount}d
-                </span>
-              </div>
-            ))}
+                  <span
+                    style={{
+                      fontSize: 9.5,
+                      color: "var(--muted, #64748b)",
+                      fontWeight: 500,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {m.daysCount}d
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
           {/* ======================================================== */}
@@ -802,6 +818,8 @@ export default function TaskGantt({
             {/* Sticky "Task / Member" Header Column */}
             <div
               style={{
+                gridColumn: 1,
+                gridRow: 1,
                 width: TASK_COL_WIDTH,
                 minWidth: TASK_COL_WIDTH,
                 maxWidth: TASK_COL_WIDTH,
@@ -824,12 +842,17 @@ export default function TaskGantt({
               Task / Member
             </div>
 
-            {/* Continuous Day Columns */}
+            {/* Continuous Day Columns with Column Highlight & Current Time Line */}
             {days.map((day) => {
+              const isTodayCell = day.dayIndex === todayDayIndex;
+              const isLastDay = day.dayIndex === totalDays - 1;
+
               return (
                 <div
                   key={`day-col-${day.dayIndex}`}
                   style={{
+                    gridColumn: day.dayIndex + 2,
+                    gridRow: 1,
                     width: DAY_COL_WIDTH,
                     minWidth: DAY_COL_WIDTH,
                     maxWidth: DAY_COL_WIDTH,
@@ -839,29 +862,32 @@ export default function TaskGantt({
                     alignItems: "center",
                     justifyContent: "center",
                     height: 34,
-                    borderRight: day.isLastDayOfMonth
+                    position: "relative",
+                    borderRight: isLastDay
+                      ? "2px solid #64748b"
+                      : day.isLastDayOfMonth
                       ? "2px solid var(--line, #94a3b8)"
                       : "1px solid var(--line-light, #f1f5f9)",
-                    background: day.isToday
-                      ? "#ecfdf5"
+                    background: isTodayCell
+                      ? "#dcfce7"
                       : day.holidayLabels
                       ? "#fffbeb"
                       : day.isWeekend
                       ? "var(--app-bg, #f8fafc)"
                       : "transparent",
-                    color: day.isToday
+                    color: isTodayCell
                       ? "#166534"
                       : day.isWeekend
                       ? "#94a3b8"
                       : "var(--ink, #334155)",
                     fontSize: 10,
-                    fontWeight: day.isToday ? 700 : 500,
+                    fontWeight: isTodayCell ? 700 : 500,
                   }}
                   title={
-                    day.holidayLabels
+                    isTodayCell
+                      ? `📍 Today (${day.dateStr}) · Current Time: ${timeLabel}`
+                      : day.holidayLabels
                       ? `🎉 Holiday: ${day.holidayLabels.join(", ")} (${day.dateStr})`
-                      : day.isToday
-                      ? `📍 Today (${day.dateStr})`
                       : day.dateStr
                   }
                 >
@@ -873,19 +899,38 @@ export default function TaskGantt({
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      width: day.isToday ? 18 : "auto",
-                      height: day.isToday ? 18 : "auto",
-                      borderRadius: day.isToday ? "50%" : 0,
-                      background: day.isToday ? "#16a34a" : "transparent",
-                      color: day.isToday ? "#ffffff" : "inherit",
+                      width: isTodayCell ? 18 : "auto",
+                      height: isTodayCell ? 18 : "auto",
+                      borderRadius: isTodayCell ? "50%" : 0,
+                      background: isTodayCell ? "#16a34a" : "transparent",
+                      color: isTodayCell ? "#ffffff" : "inherit",
                       fontSize: 10,
-                      fontWeight: day.isToday ? 700 : 500,
+                      fontWeight: isTodayCell ? 700 : 500,
                       lineHeight: 1,
                       marginTop: 2,
                     }}
                   >
                     {day.dayOfMonth}
                   </span>
+
+                  {/* Current Time Indicator on Today's Day Header */}
+                  {isTodayCell && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: timeOffsetPx,
+                        bottom: 0,
+                        transform: "translateX(-50%)",
+                        width: 0,
+                        height: 0,
+                        borderLeft: "4px solid transparent",
+                        borderRight: "4px solid transparent",
+                        borderTop: "5px solid #16a34a",
+                        zIndex: 10,
+                      }}
+                      title={`Current Time Marker (${timeLabel} · ${Math.round(timeFraction * 100)}% of day completed)`}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -910,6 +955,8 @@ export default function TaskGantt({
               >
                 <div
                   style={{
+                    gridColumn: 1,
+                    gridRow: 1,
                     position: "sticky",
                     left: 0,
                     zIndex: 15,
@@ -931,18 +978,47 @@ export default function TaskGantt({
                   🏖️ Team Time Off ({yearLeaves.length})
                 </div>
 
-                {days.map((day) => (
-                  <span
-                    key={`leave-bg-${day.dayIndex}`}
-                    style={{
-                      width: DAY_COL_WIDTH,
-                      borderRight: day.isLastDayOfMonth
-                        ? "2px solid var(--line, #94a3b8)"
-                        : "1px solid #e0e7ff",
-                      height: "100%",
-                    }}
-                  />
-                ))}
+                {/* Explicitly Placed Cells (Never Auto-Placed) */}
+                {days.map((day) => {
+                  const isTodayCell = day.dayIndex === todayDayIndex;
+                  const isLastDay = day.dayIndex === totalDays - 1;
+
+                  return (
+                    <span
+                      key={`leave-bg-${day.dayIndex}`}
+                      style={{
+                        gridColumn: day.dayIndex + 2,
+                        gridRow: 1,
+                        width: DAY_COL_WIDTH,
+                        height: "100%",
+                        position: "relative",
+                        borderRight: isLastDay
+                          ? "2px solid #64748b"
+                          : day.isLastDayOfMonth
+                          ? "2px solid var(--line, #94a3b8)"
+                          : "1px solid #e0e7ff",
+                        background: isTodayCell ? "rgba(22, 163, 74, 0.09)" : "transparent",
+                      }}
+                    >
+                      {/* Vertical Time Line on Today Cell */}
+                      {isTodayCell && (
+                        <span
+                          style={{
+                            position: "absolute",
+                            left: timeOffsetPx,
+                            top: 0,
+                            bottom: 0,
+                            width: 2,
+                            background: "#16a34a",
+                            opacity: 0.8,
+                            pointerEvents: "none",
+                            zIndex: 2,
+                          }}
+                        />
+                      )}
+                    </span>
+                  );
+                })}
               </div>
 
               {/* Individual Leave Rows */}
@@ -980,6 +1056,8 @@ export default function TaskGantt({
                     <div
                       className="gantt-task-name"
                       style={{
+                        gridColumn: 1,
+                        gridRow: 1,
                         width: TASK_COL_WIDTH,
                         minWidth: TASK_COL_WIDTH,
                         maxWidth: TASK_COL_WIDTH,
@@ -1042,26 +1120,55 @@ export default function TaskGantt({
                       </span>
                     </div>
 
-                    {/* Day Grid Background Cells */}
-                    {days.map((day) => (
-                      <span
-                        key={`cell-leave-${event.id}-${day.dayIndex}`}
-                        style={{
-                          width: DAY_COL_WIDTH,
-                          height: "100%",
-                          borderRight: day.isLastDayOfMonth
-                            ? "2px solid var(--line, #94a3b8)"
-                            : "1px solid var(--line-light, #eff1ef)",
-                          background: day.holidayLabels
-                            ? "rgba(245,158,11,0.06)"
-                            : day.isWeekend
-                            ? "var(--app-bg, #f8fafc)"
-                            : "transparent",
-                        }}
-                      />
-                    ))}
+                    {/* Explicitly Placed Day Grid Background Cells */}
+                    {days.map((day) => {
+                      const isTodayCell = day.dayIndex === todayDayIndex;
+                      const isLastDay = day.dayIndex === totalDays - 1;
 
-                    {/* Continuous Leave Bar across months */}
+                      return (
+                        <span
+                          key={`cell-leave-${event.id}-${day.dayIndex}`}
+                          style={{
+                            gridColumn: day.dayIndex + 2,
+                            gridRow: 1,
+                            width: DAY_COL_WIDTH,
+                            height: "100%",
+                            position: "relative",
+                            borderRight: isLastDay
+                              ? "2px solid #64748b"
+                              : day.isLastDayOfMonth
+                              ? "2px solid var(--line, #94a3b8)"
+                              : "1px solid var(--line-light, #eff1ef)",
+                            background: isTodayCell
+                              ? "rgba(22, 163, 74, 0.09)"
+                              : day.holidayLabels
+                              ? "rgba(245,158,11,0.06)"
+                              : day.isWeekend
+                              ? "var(--app-bg, #f8fafc)"
+                              : "transparent",
+                          }}
+                        >
+                          {/* Vertical Time Line on Today Cell */}
+                          {isTodayCell && (
+                            <span
+                              style={{
+                                position: "absolute",
+                                left: timeOffsetPx,
+                                top: 0,
+                                bottom: 0,
+                                width: 2,
+                                background: "#16a34a",
+                                opacity: 0.8,
+                                pointerEvents: "none",
+                                zIndex: 2,
+                              }}
+                            />
+                          )}
+                        </span>
+                      );
+                    })}
+
+                    {/* Continuous Leave Bar across months sitting cleanly on top of cells */}
                     <span
                       className="gantt-event-bar gantt-event-leave"
                       style={{
@@ -1080,7 +1187,8 @@ export default function TaskGantt({
                         fontSize: 10,
                         fontWeight: 650,
                         boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                        zIndex: 5,
+                        zIndex: 4,
+                        margin: "0 1px",
                         background: isSick
                           ? "linear-gradient(135deg, #3b82f6, #1d4ed8)"
                           : "linear-gradient(135deg, #8b5cf6, #6d28d9)",
@@ -1122,6 +1230,8 @@ export default function TaskGantt({
           >
             <div
               style={{
+                gridColumn: 1,
+                gridRow: 1,
                 position: "sticky",
                 left: 0,
                 zIndex: 15,
@@ -1143,22 +1253,51 @@ export default function TaskGantt({
               📋 Tasks ({tasks.length})
             </div>
 
-            {days.map((day) => (
-              <span
-                key={`task-head-bg-${day.dayIndex}`}
-                style={{
-                  width: DAY_COL_WIDTH,
-                  borderRight: day.isLastDayOfMonth
-                    ? "2px solid var(--line, #94a3b8)"
-                    : "1px solid var(--line-light, #f1f5f9)",
-                  height: "100%",
-                }}
-              />
-            ))}
+            {/* Explicitly Placed Cells */}
+            {days.map((day) => {
+              const isTodayCell = day.dayIndex === todayDayIndex;
+              const isLastDay = day.dayIndex === totalDays - 1;
+
+              return (
+                <span
+                  key={`task-head-bg-${day.dayIndex}`}
+                  style={{
+                    gridColumn: day.dayIndex + 2,
+                    gridRow: 1,
+                    width: DAY_COL_WIDTH,
+                    height: "100%",
+                    position: "relative",
+                    borderRight: isLastDay
+                      ? "2px solid #64748b"
+                      : day.isLastDayOfMonth
+                      ? "2px solid var(--line, #94a3b8)"
+                      : "1px solid var(--line-light, #f1f5f9)",
+                    background: isTodayCell ? "rgba(22, 163, 74, 0.09)" : "transparent",
+                  }}
+                >
+                  {/* Vertical Time Line on Today Cell */}
+                  {isTodayCell && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: timeOffsetPx,
+                        top: 0,
+                        bottom: 0,
+                        width: 2,
+                        background: "#16a34a",
+                        opacity: 0.8,
+                        pointerEvents: "none",
+                        zIndex: 2,
+                      }}
+                    />
+                  )}
+                </span>
+              );
+            })}
           </div>
 
           {/* ======================================================== */}
-          {/* SECTION: CONTINUOUS TASK ROWS (Spanning Across Months)   */}
+          {/* SECTION: CONTINUOUS TASK ROWS (Placed Over Grid Cells)   */}
           {/* ======================================================== */}
           {hierarchicalTasks.map(({ task, depth }) => {
             const isSubtask = depth > 0;
@@ -1230,6 +1369,8 @@ export default function TaskGantt({
                 <div
                   className="gantt-task-name"
                   style={{
+                    gridColumn: 1,
+                    gridRow: 1,
                     width: TASK_COL_WIDTH,
                     minWidth: TASK_COL_WIDTH,
                     maxWidth: TASK_COL_WIDTH,
@@ -1346,29 +1487,64 @@ export default function TaskGantt({
                   )}
                 </div>
 
-                {/* Day Grid Background Cells */}
-                {days.map((day) => (
-                  <span
-                    key={`cell-bg-${task.id}-${day.dayIndex}`}
-                    className={`gantt-cell${day.holidayLabels ? " is-holiday" : ""}`}
-                    title={day.holidayLabels ? `Holiday: ${day.holidayLabels.join(", ")}` : undefined}
-                    style={{
-                      width: DAY_COL_WIDTH,
-                      height: "100%",
-                      boxSizing: "border-box",
-                      borderRight: day.isLastDayOfMonth
-                        ? "2px solid var(--line, #94a3b8)"
-                        : "1px solid var(--line-light, #eff1ef)",
-                      background: day.holidayLabels
-                        ? "rgba(245,158,11,0.06)"
-                        : day.isWeekend
-                        ? "var(--app-bg, #f8fafc)"
-                        : "transparent",
-                    }}
-                  />
-                ))}
+                {/* Explicitly Placed Day Grid Background Cells (Never pushed by tasks!) */}
+                {days.map((day) => {
+                  const isTodayCell = day.dayIndex === todayDayIndex;
+                  const isLastDay = day.dayIndex === totalDays - 1;
 
-                {/* Continuous Task Bar across Months */}
+                  return (
+                    <span
+                      key={`cell-bg-${task.id}-${day.dayIndex}`}
+                      className={`gantt-cell${day.holidayLabels ? " is-holiday" : ""}${isTodayCell ? " is-today" : ""}`}
+                      title={
+                        isTodayCell
+                          ? `Today (${day.dateStr}) · Time: ${timeLabel}`
+                          : day.holidayLabels
+                          ? `Holiday: ${day.holidayLabels.join(", ")}`
+                          : undefined
+                      }
+                      style={{
+                        gridColumn: day.dayIndex + 2,
+                        gridRow: 1,
+                        width: DAY_COL_WIDTH,
+                        height: "100%",
+                        boxSizing: "border-box",
+                        position: "relative",
+                        borderRight: isLastDay
+                          ? "2px solid #64748b"
+                          : day.isLastDayOfMonth
+                          ? "2px solid var(--line, #94a3b8)"
+                          : "1px solid var(--line-light, #eff1ef)",
+                        background: isTodayCell
+                          ? "rgba(22, 163, 74, 0.09)"
+                          : day.holidayLabels
+                          ? "rgba(245,158,11,0.06)"
+                          : day.isWeekend
+                          ? "var(--app-bg, #f8fafc)"
+                          : "transparent",
+                      }}
+                    >
+                      {/* Vertical Current Time Line on Today Cell */}
+                      {isTodayCell && (
+                        <span
+                          style={{
+                            position: "absolute",
+                            left: timeOffsetPx,
+                            top: 0,
+                            bottom: 0,
+                            width: 2,
+                            background: "#16a34a",
+                            opacity: 0.8,
+                            pointerEvents: "none",
+                            zIndex: 2,
+                          }}
+                        />
+                      )}
+                    </span>
+                  );
+                })}
+
+                {/* Continuous Task Bar Filling Inside the Cells directly OVER background */}
                 {visible && (
                   <Link
                     className={`gantt-bar${isLate ? " is-overdue" : ""}`}
@@ -1388,6 +1564,7 @@ export default function TaskGantt({
                         zIndex: 4,
                         textDecoration: "none",
                         boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                        margin: "0 1px",
                         background: isDone
                           ? "linear-gradient(135deg, #167c58, #10b981)"
                           : isLate
@@ -1461,6 +1638,7 @@ export default function TaskGantt({
                       fontStyle: "italic",
                       paddingLeft: 8,
                       whiteSpace: "nowrap",
+                      pointerEvents: "none",
                     }}
                   >
                     No schedule
