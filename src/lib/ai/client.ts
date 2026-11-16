@@ -20,7 +20,7 @@ export function getGroqModel(modelName = "qwen/qwen3.8-27b"): LanguageModel | nu
     baseURL: "https://api.groq.com/openai/v1",
     apiKey,
   });
-  return provider(modelName);
+  return provider.chat(modelName);
 }
 
 export function getOpenRouterModel(modelName = "nvidia/nemotron-3.5-lightning:free"): LanguageModel | null {
@@ -30,7 +30,7 @@ export function getOpenRouterModel(modelName = "nvidia/nemotron-3.5-lightning:fr
     baseURL: "https://openrouter.ai/api/v1",
     apiKey,
   });
-  return provider(modelName);
+  return provider.chat(modelName);
 }
 
 export interface ModelEntry {

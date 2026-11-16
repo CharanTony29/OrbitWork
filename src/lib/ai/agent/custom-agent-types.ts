@@ -5,6 +5,7 @@ export type AgentTriggerType =
   | "manual";
 
 export type AgentActionType =
+  | "auto_assign"
   | "auto_assign_parent"
   | "generate_checklist"
   | "estimate_time"
