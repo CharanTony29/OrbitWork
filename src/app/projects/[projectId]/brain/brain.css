@@ -2,10 +2,19 @@
 /* Orbitwork Project Brain Design System & Styles */
 
 .brain-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  height: 100%;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 20px 24px 60px;
+  padding: 20px 24px 80px;
   background: var(--app-bg);
   color: var(--ink);
   font-family: inherit;

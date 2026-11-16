@@ -355,14 +355,23 @@ body:has(.project-app-shell) {
 
 .project-app-shell .task-panel > .calendar-wrap,
 .project-app-shell .task-panel > .workload-view,
-.project-app-shell .task-panel > .gantt-view,
 .project-app-shell .task-panel > .kanban-board,
-.project-app-shell .task-panel > .project-goals-view {
+.project-app-shell .task-panel > .project-goals-view,
+.project-app-shell .task-panel > .brain-container {
   flex: 1 1 auto !important;
   min-height: 0 !important;
   overflow-y: auto !important;
   overflow-x: auto !important;
   padding-bottom: 36px;
+}
+
+.project-app-shell .task-panel > .gantt-view {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 10px 14px 16px !important;
 }
 
 .project-app-shell .task-panel > .calendar-wrap .calendar-grid {

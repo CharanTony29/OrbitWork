@@ -129,11 +129,14 @@ export default async function ProjectPage({ params, searchParams }: {
   const orgId = workspace?.organization_id;
   const { data: orgMembers } = orgId ? await supabase.from("organization_members").select("user_id").eq("organization_id", orgId).eq("status", "active") : { data: [] };
   const monthKey = filters.month && /^\d{4}-\d{2}$/.test(filters.month) ? filters.month : today.slice(0, 7);
-  const monthStart = `${monthKey}-01`;
-  const monthEnd = new Date(Date.UTC(Number(monthKey.slice(0, 4)), Number(monthKey.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const currentYear = Number(monthKey.slice(0, 4));
+  const rangeStart = view === "gantt" ? `${currentYear}-01-01` : `${monthKey}-01`;
+  const rangeEnd = view === "gantt"
+    ? `${currentYear}-12-31`
+    : new Date(Date.UTC(currentYear, Number(monthKey.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const [holidayResult, leaveResult] = orgId ? await Promise.all([
-    supabase.from("organization_holidays").select("id, name, holiday_date, location").eq("organization_id", orgId).gte("holiday_date", monthStart).lte("holiday_date", monthEnd),
-    supabase.from("leave_requests").select("id, user_id, start_date, end_date, leave_type").eq("organization_id", orgId).eq("status", "approved").lte("start_date", monthEnd).gte("end_date", monthStart),
+    supabase.from("organization_holidays").select("id, name, holiday_date, location").eq("organization_id", orgId).gte("holiday_date", rangeStart).lte("holiday_date", rangeEnd),
+    supabase.from("leave_requests").select("id, user_id, start_date, end_date, leave_type").eq("organization_id", orgId).eq("status", "approved").lte("start_date", rangeEnd).gte("end_date", rangeStart),
   ]) : [{ data: [] }, { data: [] }];
   const calendarEvents = [
     ...(holidayResult.data ?? []).map((item) => ({
@@ -341,7 +344,7 @@ export default async function ProjectPage({ params, searchParams }: {
             )}
           </div>
         </nav>
-        {view !== "channel" && view !== "goals" && view !== "agents" && (
+        {view !== "channel" && view !== "goals" && view !== "agents" && view !== "brain" && (
           <TaskFilterToolbar
             projectId={project.id}
             projectName={project.name}

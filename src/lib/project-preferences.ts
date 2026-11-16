@@ -25,7 +25,7 @@ export const PROJECT_TAB_LABELS: Record<ProjectTabKey, string> = {
   channel: "Channel",
   goals: "Goals",
   agents: "AI Agents",
-  brain: "🧠 Project Brain",
+  brain: "Project Brain",
 };
 
 export const BASE_TABLE_COLUMN_ORDER = [
