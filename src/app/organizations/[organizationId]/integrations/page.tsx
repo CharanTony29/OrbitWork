@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AppTopBar from "@/app/AppTopBar";
+import AppRailLayout from "@/app/AppRailLayout";
 import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft,
@@ -99,10 +100,11 @@ export default async function OrganizationIntegrationsPage({
   const isSuccess = (filters.drive === "connected" || filters.storage?.includes("connected")) && filters.storage !== "save_failed";
 
   return (
-    <main className="app-shell">
-      <AppTopBar email={user.email ?? ""} organizationId={organizationId} />
+    <AppRailLayout organizationId={organizationId}>
+      <main className="app-shell">
+        <AppTopBar email={user.email ?? ""} organizationId={organizationId} />
 
-      <section className="integrations-page">
+        <section className="integrations-page">
         <Link className="back-link" href="/dashboard">
           <ArrowLeft size={15} />
           {organization.name}
@@ -373,5 +375,6 @@ export default async function OrganizationIntegrationsPage({
         </section>
       </section>
     </main>
+    </AppRailLayout>
   );
 }

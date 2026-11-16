@@ -1,5 +1,6 @@
 import AppTopBar from "@/app/AppTopBar";
 import BackButton from "@/app/BackButton";
+import AppRailLayout from "@/app/AppRailLayout";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CalendarDays, Trash2 } from "lucide-react";
@@ -111,9 +112,10 @@ export default async function OrganizationCalendarPage({ params, searchParams }:
     .map((m) => ({ id: m.user_id, label: people.get(m.user_id) ?? "Teammate" }));
 
   return (
-    <main className="app-shell">
-      <AppTopBar email={user.email ?? ""} organizationId={organizationId} />
-      <section className="people-calendar-page">
+    <AppRailLayout organizationId={organizationId}>
+      <main className="app-shell">
+        <AppTopBar email={user.email ?? ""} organizationId={organizationId} />
+        <section className="people-calendar-page">
         <BackButton fallbackHref="/dashboard" label="Dashboard" />
         <div className="people-calendar-heading">
           <div>
@@ -291,5 +293,6 @@ export default async function OrganizationCalendarPage({ params, searchParams }:
         </section>
       </section>
     </main>
+    </AppRailLayout>
   );
 }

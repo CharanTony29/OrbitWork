@@ -351,6 +351,7 @@ export default async function ProjectPage({ params, searchParams }: {
             projectName={project.name}
             statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
             members={members}
+            customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))}
             currentFilters={{
               q: filters.q,
               status: filters.status,
@@ -394,7 +395,7 @@ export default async function ProjectPage({ params, searchParams }: {
             projectDocuments={(projectDocs ?? []).map(({ id, title, body_markdown }) => ({ id, title, body_markdown }))}
             commentCounts={commentCounts}
             runningTimerMap={runningTimerMap}
-            initialGroupBy={(filters.group as "status" | "priority" | "due_date" | "none") || "status"}
+            initialGroupBy={filters.group || "status"}
           />
         ) : view === "board" ? (
           <TaskBoard

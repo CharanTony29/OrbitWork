@@ -228,13 +228,24 @@
 .hierarchy-sidebar-heading{display:grid;gap:5px;padding:2px 8px 15px;border-bottom:1px solid var(--nav-line)}
 .hierarchy-sidebar-heading span{color:var(--nav-muted);font-size:10px;font-weight:750;letter-spacing:0.9px}
 .hierarchy-sidebar-heading strong{color:var(--nav-strong);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.work-icon-rail{height:100vh;position:sticky;top:0;z-index:5;display:flex;flex-direction:column;align-items:center;gap:7px;padding:9px 5px;background:var(--rail-bg);border-right:1px solid var(--rail-line)}
+.work-icon-rail{width:var(--nav-rail-width, 58px);flex-shrink:0;height:100vh;position:sticky;top:0;z-index:5;display:flex;flex-direction:column;align-items:center;gap:7px;padding:9px 5px;background:var(--rail-bg);border-right:1px solid var(--rail-line)}
 .work-icon-rail>a{width:46px;min-height:47px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border-radius:8px;color:var(--rail-ink);font-size:8px;font-weight:650}
 .work-icon-rail>a:hover,.work-icon-rail>a:focus-visible{background:var(--rail-hover);color:var(--rail-strong)}
+.work-icon-rail>a.is-active{background:var(--rail-hover);color:var(--rail-strong);font-weight:750}
+.work-icon-rail>a.is-active>svg{color:var(--rail-strong)}
 .work-icon-rail>a>svg{color:var(--rail-icon)}
 .work-icon-rail .work-rail-logo{min-height:35px;margin-bottom:3px}
 .work-rail-logo span{width:27px;height:27px;border-radius:8px;display:grid;place-items:center;background:#fff;border:1px solid var(--rail-line);padding:2px;margin-right:0;overflow:hidden}
 .work-icon-rail .work-rail-more{margin-top:auto;margin-bottom:4px}
+
+/* App Rail persistent layout container */
+.app-rail-layout{display:flex;flex-direction:row;min-height:100vh;width:100%;background:var(--app-bg,#f7f9f7)}
+.app-rail-content{flex:1;min-width:0;display:flex;flex-direction:column}
+@media (max-width: 767px) {
+  .app-rail-layout > .work-icon-rail {
+    display: none !important;
+  }
+}
 @media (max-width: 1023px) {
   .hierarchy-layout {
     grid-template-columns: var(--nav-rail-width) 220px minmax(0, 1fr);

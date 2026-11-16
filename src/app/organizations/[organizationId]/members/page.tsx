@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AppTopBar from "@/app/AppTopBar";
+import AppRailLayout from "@/app/AppRailLayout";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, GitBranch, UsersRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -113,7 +114,20 @@ export default async function OrganizationMembersPage({
     );
   }
 
-  return <main className="app-shell"><AppTopBar email={user.email ?? ""} organizationId={organizationId}/><section className="organization-members-page"><Link className="back-link" href="/dashboard"><ArrowLeft size={15}/>{organization.name}</Link><header className="organization-members-heading"><div><p className="eyebrow">ORGANIZATION DIRECTORY</p><h1>Members, roles &amp; hierarchy</h1><p className="muted">People with access to {organization.name}, workspace roles, and reporting lines for leave approvals.</p></div><span className="organization-members-count"><UsersRound size={16}/>{memberships.length} members</span></header>
+  return (
+    <AppRailLayout organizationId={organizationId}>
+      <main className="app-shell">
+        <AppTopBar email={user.email ?? ""} organizationId={organizationId} />
+        <section className="organization-members-page">
+          <Link className="back-link" href="/dashboard"><ArrowLeft size={15}/>{organization.name}</Link>
+          <header className="organization-members-heading">
+            <div>
+              <p className="eyebrow">ORGANIZATION DIRECTORY</p>
+              <h1>Members, roles &amp; hierarchy</h1>
+              <p className="muted">People with access to {organization.name}, workspace roles, and reporting lines for leave approvals.</p>
+            </div>
+            <span className="organization-members-count"><UsersRound size={16}/>{memberships.length} members</span>
+          </header>
   {sp.error && <p className="error" role="alert">Hierarchy or role update could not be saved ({sp.error}). Check permissions and avoid circular reporting.</p>}
   {(sp.hierarchy_updated || sp.member_updated) && <p className="notice" role="status">Organization member settings updated.</p>}
   {!hierarchySupported && <p className="error" role="alert">Run <code>supabase/migrations/202611120003_platform_enhancements.sql</code> in Supabase to enable reporting hierarchy management.</p>}
@@ -178,5 +192,7 @@ export default async function OrganizationMembersPage({
     </header>
     {topLevelMembers.length > 0 ? renderHierarchyNodes(topLevelMembers) : <p className="muted small">No active members in hierarchy.</p>}
   </section>
-  </section></main>;
+  </section></main>
+  </AppRailLayout>
+  );
 }

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import AppTopBar from "@/app/AppTopBar";
 import PrimarySpaceLeftSlot from "@/app/PrimarySpaceLeftSlot";
+import AppRailLayout from "@/app/AppRailLayout";
 import type { ChatConversationType } from "@/lib/chat";
 import { fetchProfilesMap } from "@/lib/chat-server";
 import { createClient } from "@/lib/supabase/server";
@@ -140,29 +141,35 @@ export default async function ChatPage({ searchParams }: PageProps) {
   const initialSelection = resolveInitialSelection(resolvedParams);
 
   return (
-    <div className="ov-shell chat-page-shell">
-      <AppTopBar
-        email={space.user.email ?? ""}
-        organizationId={primaryOrgId ?? undefined}
-        leftSlot={
-          <PrimarySpaceLeftSlot
-            activeNav="chat"
-            assignedTaskCount={space.assignedTaskCount}
-          />
-        }
-      />
+    <AppRailLayout
+      organizationId={primaryOrgId ?? space.organizations[0]?.id}
+      workspaceId={space.workspaces[0]?.id}
+      projectId={accessibleProjects[0]?.id}
+    >
+      <div className="ov-shell chat-page-shell">
+        <AppTopBar
+          email={space.user.email ?? ""}
+          organizationId={primaryOrgId ?? undefined}
+          leftSlot={
+            <PrimarySpaceLeftSlot
+              activeNav="chat"
+              assignedTaskCount={space.assignedTaskCount}
+            />
+          }
+        />
 
-      <ChatWorkspace
-        currentUserId={space.user.id}
-        currentUserName={ownProfile?.name ?? space.displayName}
-        currentUserEmail={space.user.email ?? ""}
-        currentUserAvatarUrl={ownProfile?.avatarUrl ?? null}
-        primaryOrgId={primaryOrgId}
-        initialMembers={initialMembers}
-        accessibleProjects={accessibleProjects}
-        linkableItems={linkableItems}
-        initialSelection={initialSelection}
-      />
-    </div>
+        <ChatWorkspace
+          currentUserId={space.user.id}
+          currentUserName={ownProfile?.name ?? space.displayName}
+          currentUserEmail={space.user.email ?? ""}
+          currentUserAvatarUrl={ownProfile?.avatarUrl ?? null}
+          primaryOrgId={primaryOrgId}
+          initialMembers={initialMembers}
+          accessibleProjects={accessibleProjects}
+          linkableItems={linkableItems}
+          initialSelection={initialSelection}
+        />
+      </div>
+    </AppRailLayout>
   );
 }

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import AppTopBar from "@/app/AppTopBar";
 import PrimarySpaceLeftSlot from "@/app/PrimarySpaceLeftSlot";
+import AppRailLayout from "@/app/AppRailLayout";
 import { getUserSpaceData } from "@/lib/workspace-space";
 import OverviewCommandCenter from "./OverviewCommandCenter";
 
@@ -80,27 +81,33 @@ export default async function Dashboard({
   );
 
   return (
-    <main className="app-shell ov-shell ov-fullpage-shell">
-      <AppTopBar
-        email={user.email ?? ""}
-        leftSlot={
-          <PrimarySpaceLeftSlot
-            activeNav="overview"
-            assignedTaskCount={assignedTaskCount}
-          />
-        }
-      />
-      <section className="ov-fullpage-content">
-        <OverviewCommandCenter
-          displayName={displayName}
-          organizations={organizations}
-          workspaces={workspaces}
-          projects={projects}
-          organizationMembers={organizationMembers}
-          banner={banner}
-          refreshKey={JSON.stringify(params)}
+    <AppRailLayout
+      organizationId={organizations[0]?.id}
+      workspaceId={workspaces[0]?.id}
+      projectId={projects[0]?.id}
+    >
+      <main className="app-shell ov-shell ov-fullpage-shell">
+        <AppTopBar
+          email={user.email ?? ""}
+          leftSlot={
+            <PrimarySpaceLeftSlot
+              activeNav="overview"
+              assignedTaskCount={assignedTaskCount}
+            />
+          }
         />
-      </section>
-    </main>
+        <section className="ov-fullpage-content">
+          <OverviewCommandCenter
+            displayName={displayName}
+            organizations={organizations}
+            workspaces={workspaces}
+            projects={projects}
+            organizationMembers={organizationMembers}
+            banner={banner}
+            refreshKey={JSON.stringify(params)}
+          />
+        </section>
+      </main>
+    </AppRailLayout>
   );
 }

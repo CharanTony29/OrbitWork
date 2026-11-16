@@ -15,6 +15,8 @@ import {
   ArrowRight,
   ShieldCheck,
   Pencil,
+  AlertCircle,
+  X,
 } from "lucide-react";
 import type { CustomAIAgent } from "@/lib/ai/agent/custom-agent-types";
 import CustomAgentBuilderModal from "./CustomAgentBuilderModal";
@@ -49,6 +51,9 @@ export default function ProjectAIAgentsHub({
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<CustomAIAgent | null>(null);
   const [togglePendingId, setTogglePendingId] = useState<string | null>(null);
+  const [runningAgentId, setRunningAgentId] = useState<string | null>(null);
+  const [isRunningAll, setIsRunningAll] = useState(false);
+  const [runFeedback, setRunFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Fetch agents on mount if not preloaded
   useEffect(() => {
@@ -118,6 +123,92 @@ export default function ProjectAIAgentsHub({
     );
   };
 
+  const handleRunOnProject = async (agent: CustomAIAgent) => {
+    setRunningAgentId(agent.id);
+    setRunFeedback(null);
+    try {
+      const res = await fetch("/api/ai/agent/custom/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          agentId: agent.id,
+          runAllTasks: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Execution failed");
+      setRunFeedback({
+        type: "success",
+        text: data.summary || `Successfully executed "${agent.name}" on ${data.processedCount || 0} tasks! Past data has been updated.`,
+      });
+      setAgents((prev) =>
+        prev.map((a) =>
+          a.id === agent.id
+            ? {
+                ...a,
+                runs_count: (a.runs_count || 0) + (data.processedCount || 1),
+                last_run_at: new Date().toISOString(),
+              }
+            : a
+        )
+      );
+    } catch (err: unknown) {
+      setRunFeedback({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to run agent on project",
+      });
+    } finally {
+      setRunningAgentId(null);
+    }
+  };
+
+  const handleRunAllOnProject = async () => {
+    if (activeCount === 0) {
+      setRunFeedback({
+        type: "error",
+        text: "No active agents enabled to run. Enable at least one agent first.",
+      });
+      return;
+    }
+    setIsRunningAll(true);
+    setRunFeedback(null);
+    try {
+      const res = await fetch("/api/ai/agent/custom/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          runAllAgents: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Batch execution failed");
+      setRunFeedback({
+        type: "success",
+        text: data.summary || `Ran ${data.agentsCount} agents on ${data.processedCount} tasks. Project data updated!`,
+      });
+      setAgents((prev) =>
+        prev.map((a) =>
+          a.enabled
+            ? {
+                ...a,
+                runs_count: (a.runs_count || 0) + (data.processedCount || 1),
+                last_run_at: new Date().toISOString(),
+              }
+            : a
+        )
+      );
+    } catch (err: unknown) {
+      setRunFeedback({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to run agents across project",
+      });
+    } finally {
+      setIsRunningAll(false);
+    }
+  };
+
   const activeCount = agents.filter((a) => a.enabled).length;
 
   return (
@@ -141,18 +232,100 @@ export default function ProjectAIAgentsHub({
           </div>
         </div>
 
-        <button
-          type="button"
-          className="ai-hub-btn-new"
-          onClick={() => {
-            setEditingAgent(null);
-            setModalOpen(true);
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          {agents.length > 0 && (
+            <button
+              type="button"
+              onClick={handleRunAllOnProject}
+              disabled={isRunningAll || activeCount === 0}
+              title="Run all enabled agents across all tasks in this project to update existing data"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "7px",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                background: "#0f172a",
+                color: "#ffffff",
+                border: "0",
+                fontSize: "12.5px",
+                fontWeight: 700,
+                cursor: activeCount === 0 || isRunningAll ? "not-allowed" : "pointer",
+                opacity: activeCount === 0 ? 0.6 : 1,
+                boxShadow: "0 2px 6px rgba(15,23,42,0.18)",
+                transition: "all 0.15s ease",
+              }}
+            >
+              {isRunningAll ? <Loader2 size={14} className="spin" /> : <Play size={13} fill="currentColor" />}
+              <span>{isRunningAll ? "Running across project…" : "Run All on Project"}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="ai-hub-btn-new"
+            onClick={() => {
+              setEditingAgent(null);
+              setModalOpen(true);
+            }}
+          >
+            <Plus size={15} />
+            <span>Declare New AI Agent</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Instructional helper card explaining how to run complete project */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "12px",
+          padding: "12px 18px",
+          background: "var(--surface, #ffffff)",
+          border: "1px solid var(--line, #e7ebe7)",
+          borderRadius: "8px",
+          margin: "14px 0 6px",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+        }}
+      >
+        <Sparkles size={18} style={{ color: "#7c3aed", flexShrink: 0, marginTop: "2px" }} />
+        <div style={{ fontSize: "12.5px", color: "var(--ink, #17231f)", lineHeight: 1.5 }}>
+          <strong>Running Project Automations:</strong> Active agents automatically execute when events happen (such as creating a task or subtask). To update <em>existing/past tasks</em> right now, click <strong>"Run All on Project"</strong> above or <strong>"Run on Project"</strong> on any individual agent card below.
+        </div>
+      </div>
+
+      {/* Run Feedback Banner */}
+      {runFeedback && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "10px",
+            padding: "10px 16px",
+            borderRadius: "8px",
+            fontSize: "13px",
+            fontWeight: 600,
+            margin: "10px 0",
+            background: runFeedback.type === "success" ? "rgba(22, 163, 74, 0.12)" : "rgba(220, 38, 38, 0.12)",
+            color: runFeedback.type === "success" ? "#15803d" : "#b91c1c",
+            border: `1px solid ${runFeedback.type === "success" ? "rgba(22, 163, 74, 0.3)" : "rgba(220, 38, 38, 0.3)"}`,
           }}
         >
-          <Plus size={15} />
-          <span>Declare New AI Agent</span>
-        </button>
-      </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {runFeedback.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+            <span>{runFeedback.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRunFeedback(null)}
+            style={{ background: "none", border: 0, cursor: "pointer", color: "inherit", padding: 4 }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="ai-hub-loading">
@@ -184,6 +357,7 @@ export default function ProjectAIAgentsHub({
         <div className="ai-agents-grid">
           {agents.map((agent) => {
             const isToggling = togglePendingId === agent.id;
+            const isRunningThis = runningAgentId === agent.id;
             return (
               <div
                 key={agent.id}
@@ -254,6 +428,35 @@ export default function ProjectAIAgentsHub({
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <button
+                      type="button"
+                      className="ai-card-btn-run"
+                      onClick={() => handleRunOnProject(agent)}
+                      disabled={isRunningThis || isRunningAll}
+                      title="Run this agent across project tasks now to update existing data"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "5px 10px",
+                        fontSize: "11.5px",
+                        fontWeight: 700,
+                        color: "#15803d",
+                        background: "rgba(22, 163, 74, 0.1)",
+                        border: "1px solid rgba(22, 163, 74, 0.3)",
+                        borderRadius: "6px",
+                        cursor: isRunningThis || isRunningAll ? "not-allowed" : "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {isRunningThis ? (
+                        <Loader2 size={11} className="spin" />
+                      ) : (
+                        <Play size={10} fill="currentColor" />
+                      )}
+                      <span>{isRunningThis ? "Running…" : "Run on Project"}</span>
+                    </button>
+
                     <button
                       type="button"
                       className="ai-card-btn-edit"

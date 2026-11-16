@@ -7,28 +7,19 @@ import { markdownToSafeHtml } from "@/lib/markdown";
 export default function AIDashboardBriefing() {
   const [briefing, setBriefing] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [lastGeneratedTime, setLastGeneratedTime] = useState<string | null>(null);
 
   const todayKey = `orbitwork_ai_briefing_${new Date().toISOString().split("T")[0]}`;
 
-  useEffect(() => {
-    // Check localStorage cache for today's briefing
-    const cached = localStorage.getItem(todayKey);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        setBriefing(parsed.briefing);
-        setLastGeneratedTime(parsed.time);
-      } catch {
-        // ignore
-      }
+  const handleGenerate = async (silent = false) => {
+    if (silent) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
     }
-  }, [todayKey]);
-
-  const handleGenerate = async () => {
-    setIsLoading(true);
     setError(null);
 
     try {
@@ -53,11 +44,36 @@ export default function AIDashboardBriefing() {
         })
       );
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to generate briefing");
+      // If we already have a briefing, don't wipe it out on silent background error
+      if (!silent || !briefing) {
+        setError(err instanceof Error ? err.message : "Failed to generate briefing");
+      }
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    // Check localStorage cache for today's briefing
+    const cached = localStorage.getItem(todayKey);
+    let hasCached = false;
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed.briefing) {
+          setBriefing(parsed.briefing);
+          setLastGeneratedTime(parsed.time);
+          hasCached = true;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Automatically generate or refresh whenever user logs in or lands on Dashboard
+    handleGenerate(hasCached);
+  }, [todayKey]);
 
   return (
     <div className="ai-briefing-card">
@@ -69,11 +85,13 @@ export default function AIDashboardBriefing() {
           <div>
             <div className="ai-briefing-title">
               <span>AI Daily Standup & Briefing</span>
-              <span className="ai-briefing-pill">Live Workspace Data</span>
+              <span className={`ai-briefing-pill ${isRefreshing ? "is-refreshing" : ""}`}>
+                {isRefreshing ? "Updating live data…" : "Live Workspace Data"}
+              </span>
             </div>
             <div className="ai-briefing-sub">
               {lastGeneratedTime
-                ? `Generated today at ${lastGeneratedTime}`
+                ? `Generated today at ${lastGeneratedTime}${isRefreshing ? " (updating…)" : ""}`
                 : "AI analysis of your active priorities, deadlines, and risks"}
             </div>
           </div>
@@ -84,12 +102,12 @@ export default function AIDashboardBriefing() {
             <button
               type="button"
               className="ai-briefing-btn-refresh"
-              onClick={handleGenerate}
-              disabled={isLoading}
+              onClick={() => handleGenerate(false)}
+              disabled={isLoading || isRefreshing}
               title="Refresh Briefing"
             >
-              <RefreshCw size={13} className={isLoading ? "spin" : ""} />
-              <span>Refresh</span>
+              <RefreshCw size={13} className={isLoading || isRefreshing ? "spin" : ""} />
+              <span>{isRefreshing ? "Refreshing…" : "Refresh"}</span>
             </button>
           )}
 
@@ -112,7 +130,7 @@ export default function AIDashboardBriefing() {
           <button
             type="button"
             className="ai-briefing-generate-btn"
-            onClick={handleGenerate}
+            onClick={() => handleGenerate(false)}
             disabled={isLoading}
           >
             <Sparkles size={14} />

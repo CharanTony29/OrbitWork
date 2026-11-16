@@ -23,6 +23,7 @@ import {
 import { createCustomFieldFromComposer, createTask, quickCreateProjectDocument } from "@/app/actions";
 import DateInput from "@/app/DateInput";
 import MultiValueFieldInput from "@/app/MultiValueFieldInput";
+import AIPolishButton from "@/app/ai/AIPolishButton";
 
 type StatusItem = { id: string; name: string; color: string; category?: string };
 type MemberItem = { id: string; label: string };
@@ -78,6 +79,32 @@ export default function UniversalCreateModal({
   // Task form state
   const [taskName, setTaskName] = useState("");
   const [taskDesc, setTaskDesc] = useState("");
+  const [isAiGeneratingDesc, setIsAiGeneratingDesc] = useState(false);
+
+  const handleAutoFillDescription = async () => {
+    if (!taskName.trim()) return;
+    setIsAiGeneratingDesc(true);
+    try {
+      const res = await fetch("/api/ai/polish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: `Task: ${taskName.trim()}`,
+          mode: "expand",
+          contextTitle: taskName.trim(),
+          target: "task",
+        }),
+      });
+      const data = await res.json();
+      if (data.polishedText) {
+        setTaskDesc(data.polishedText);
+      }
+    } catch (err) {
+      console.error("AI description generation failed:", err);
+    } finally {
+      setIsAiGeneratingDesc(false);
+    }
+  };
   const [selectedStatusId, setSelectedStatusId] = useState(statuses[0]?.id || "");
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState("");
@@ -404,6 +431,50 @@ export default function UniversalCreateModal({
                 }}
               />
 
+              {/* Automatic AI Prompt to Fill Description based on Task Name */}
+              {taskName.trim().length >= 3 && !taskDesc.trim() && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "6px 12px",
+                    margin: "4px 0 8px",
+                    background: "rgba(124, 58, 237, 0.08)",
+                    border: "1px dashed rgba(124, 58, 237, 0.32)",
+                    borderRadius: "8px",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "#7c3aed", fontWeight: 600 }}>
+                    <Sparkles size={14} className={isAiGeneratingDesc ? "spin" : ""} />
+                    <span>Auto-fill description with AI based on task name?</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAutoFillDescription}
+                    disabled={isAiGeneratingDesc}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      background: "#7c3aed",
+                      color: "#ffffff",
+                      border: 0,
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      cursor: isAiGeneratingDesc ? "not-allowed" : "pointer",
+                      boxShadow: "0 1px 4px rgba(124, 58, 237, 0.25)",
+                    }}
+                  >
+                    {isAiGeneratingDesc ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />}
+                    <span>{isAiGeneratingDesc ? "Writing with AI…" : "Generate with AI"}</span>
+                  </button>
+                </div>
+              )}
+
               {/* Task Description Input */}
               <textarea
                 className="composer-minimal-input"
@@ -422,6 +493,57 @@ export default function UniversalCreateModal({
                   lineHeight: 1.6,
                 }}
               />
+
+              {/* AI Writing Assistant Toolbar & Polish with AI */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginTop: 2,
+                  marginBottom: 6,
+                  padding: "0 2px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={handleAutoFillDescription}
+                    disabled={isAiGeneratingDesc || !taskName.trim()}
+                    title={!taskName.trim() ? "Enter a task name first" : "Generate a structured description from task name"}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "4px 9px",
+                      borderRadius: 6,
+                      border: "1px solid rgba(124, 58, 237, 0.25)",
+                      background: "rgba(124, 58, 237, 0.06)",
+                      color: "#7c3aed",
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      cursor: isAiGeneratingDesc || !taskName.trim() ? "not-allowed" : "pointer",
+                      opacity: !taskName.trim() ? 0.6 : 1,
+                    }}
+                  >
+                    {isAiGeneratingDesc ? <Loader2 size={11} className="spin" /> : <Sparkles size={11} />}
+                    <span>{isAiGeneratingDesc ? "Writing…" : "Write with AI"}</span>
+                  </button>
+
+                  <AIPolishButton
+                    getText={() => taskDesc}
+                    onPolished={(polished) => setTaskDesc(polished)}
+                    contextTitle={taskName}
+                    target="task"
+                    buttonLabel="Polish with AI"
+                    compact
+                    disabled={!taskDesc.trim()}
+                  />
+                </div>
+                <span style={{ fontSize: 10.5, color: "var(--muted)" }}>
+                  {taskDesc ? `${taskDesc.length} chars` : ""}
+                </span>
+              </div>
 
               {/* Quick Attribute Pills (TO DO, Assignee, Due date, Priority, Tags) */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginTop: 8 }}>

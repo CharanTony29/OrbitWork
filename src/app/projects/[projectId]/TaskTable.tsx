@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquare, ExternalLink, ChevronDown, ChevronRight, Flag, Calendar, Layers, List, Check, GripVertical, Columns3, RotateCcw, ChevronLeft } from "lucide-react";
+import { MessageSquare, ExternalLink, ChevronDown, ChevronRight, Flag, Calendar, Layers, List, Check, GripVertical, Columns3, RotateCcw, ChevronLeft, User, Tag, SlidersHorizontal } from "lucide-react";
 import { useTransition, useRef, useState, useCallback, useEffect, useMemo, Fragment } from "react";
 import { updateTaskField, updateTaskStatus } from "@/app/actions";
 import {
@@ -872,10 +872,10 @@ export default function TaskTable({
   projectDocuments?: AvailableProjectDoc[];
   commentCounts?: Map<string, number>;
   runningTimerMap?: Map<string, { id: string; started_at: string; billable?: boolean }>;
-  initialGroupBy?: "status" | "priority" | "due_date" | "none";
+  initialGroupBy?: string;
   initialColumnOrder?: string[];
 }) {
-  const [groupBy, setGroupBy] = useState<"status" | "priority" | "due_date" | "none">(initialGroupBy);
+  const [groupBy, setGroupBy] = useState<string>(initialGroupBy || "status");
   const [activeCommentsTask, setActiveCommentsTask] = useState<{
     id: string;
     key: string;
@@ -1636,6 +1636,334 @@ export default function TaskTable({
         </Fragment>
       );
     });
+  };
+
+  // --- Render Assignee Groups ---
+  const renderAssigneeGroups = () => {
+    const tasksByAssignee = new Map<string, TaskRow[]>();
+    const unassignedTasks: TaskRow[] = [];
+
+    parentTasks.forEach((task) => {
+      const assignedId = task.assigneeIds && task.assigneeIds.length > 0 ? task.assigneeIds[0] : null;
+      if (!assignedId) {
+        unassignedTasks.push(task);
+      } else {
+        const list = tasksByAssignee.get(assignedId) ?? [];
+        list.push(task);
+        tasksByAssignee.set(assignedId, list);
+      }
+    });
+
+    return (
+      <>
+        {members.map((m) => {
+          const groupTasks = tasksByAssignee.get(m.id) ?? [];
+          if (groupTasks.length === 0) return null;
+          const isCollapsed = collapsedGroups.has(m.id);
+          return (
+            <Fragment key={m.id}>
+              <tr className="status-group-tr">
+                <td colSpan={colSpanCount} className="status-group-td">
+                  <div className="status-group-header" onClick={() => toggleGroup(m.id)}>
+                    <button type="button" className="status-group-caret-btn" aria-label="Toggle group">
+                      {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                    </button>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "12px" }}>
+                      <User size={13} style={{ color: "#167c58" }} />
+                      <span style={{ color: "var(--ink, #1e293b)" }}>{m.label}</span>
+                    </span>
+                    <span className="status-group-count">{groupTasks.length}</span>
+                  </div>
+                </td>
+              </tr>
+              {!isCollapsed &&
+                groupTasks.map((parentTask) => {
+                  const children = subtasksByParent.get(parentTask.id) ?? [];
+                  const isExpanded = expandedTaskIds.has(parentTask.id);
+                  return (
+                    <Fragment key={parentTask.id}>
+                      {renderTaskRow(parentTask, false, children)}
+                      {isExpanded && children.map((subtask) => renderTaskRow(subtask, true))}
+                    </Fragment>
+                  );
+                })}
+              {!isCollapsed && canEdit && (
+                <InlineTaskRow
+                  projectId={projectId}
+                  statuses={statuses}
+                  members={members}
+                  colSpan={colSpanCount}
+                  nameColIndex={nameColIndex}
+                />
+              )}
+            </Fragment>
+          );
+        })}
+
+        {unassignedTasks.length > 0 && (
+          <Fragment key="unassigned">
+            <tr className="status-group-tr">
+              <td colSpan={colSpanCount} className="status-group-td">
+                <div className="status-group-header" onClick={() => toggleGroup("unassigned")}>
+                  <button type="button" className="status-group-caret-btn" aria-label="Toggle group">
+                    {collapsedGroups.has("unassigned") ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                  </button>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "12px" }}>
+                    <User size={13} style={{ color: "#94a3b8" }} />
+                    <span style={{ color: "var(--muted, #64748b)" }}>Unassigned</span>
+                  </span>
+                  <span className="status-group-count">{unassignedTasks.length}</span>
+                </div>
+              </td>
+            </tr>
+            {!collapsedGroups.has("unassigned") &&
+              unassignedTasks.map((parentTask) => {
+                const children = subtasksByParent.get(parentTask.id) ?? [];
+                const isExpanded = expandedTaskIds.has(parentTask.id);
+                return (
+                  <Fragment key={parentTask.id}>
+                    {renderTaskRow(parentTask, false, children)}
+                    {isExpanded && children.map((subtask) => renderTaskRow(subtask, true))}
+                  </Fragment>
+                );
+              })}
+            {!collapsedGroups.has("unassigned") && canEdit && (
+              <InlineTaskRow
+                projectId={projectId}
+                statuses={statuses}
+                members={members}
+                colSpan={colSpanCount}
+                nameColIndex={nameColIndex}
+              />
+            )}
+          </Fragment>
+        )}
+      </>
+    );
+  };
+
+  // --- Render Tag Groups ---
+  const renderTagGroups = () => {
+    const tasksByTag = new Map<string, TaskRow[]>();
+    const noTagTasks: TaskRow[] = [];
+
+    parentTasks.forEach((task) => {
+      if (!task.tags || task.tags.length === 0) {
+        noTagTasks.push(task);
+      } else {
+        task.tags.forEach((tag) => {
+          const list = tasksByTag.get(tag) ?? [];
+          list.push(task);
+          tasksByTag.set(tag, list);
+        });
+      }
+    });
+
+    const tagList = Array.from(tasksByTag.keys()).sort();
+
+    return (
+      <>
+        {tagList.map((tag) => {
+          const groupTasks = tasksByTag.get(tag) ?? [];
+          const isCollapsed = collapsedGroups.has(`tag_${tag}`);
+          return (
+            <Fragment key={tag}>
+              <tr className="status-group-tr">
+                <td colSpan={colSpanCount} className="status-group-td">
+                  <div className="status-group-header" onClick={() => toggleGroup(`tag_${tag}`)}>
+                    <button type="button" className="status-group-caret-btn" aria-label="Toggle group">
+                      {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                    </button>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "12px" }}>
+                      <Tag size={13} style={{ color: "#6366f1" }} />
+                      <span style={{ color: "var(--ink, #1e293b)" }}>#{tag}</span>
+                    </span>
+                    <span className="status-group-count">{groupTasks.length}</span>
+                  </div>
+                </td>
+              </tr>
+              {!isCollapsed &&
+                groupTasks.map((parentTask) => {
+                  const children = subtasksByParent.get(parentTask.id) ?? [];
+                  const isExpanded = expandedTaskIds.has(parentTask.id);
+                  return (
+                    <Fragment key={parentTask.id}>
+                      {renderTaskRow(parentTask, false, children)}
+                      {isExpanded && children.map((subtask) => renderTaskRow(subtask, true))}
+                    </Fragment>
+                  );
+                })}
+              {!isCollapsed && canEdit && (
+                <InlineTaskRow
+                  projectId={projectId}
+                  statuses={statuses}
+                  members={members}
+                  colSpan={colSpanCount}
+                  nameColIndex={nameColIndex}
+                />
+              )}
+            </Fragment>
+          );
+        })}
+
+        {noTagTasks.length > 0 && (
+          <Fragment key="no_tags">
+            <tr className="status-group-tr">
+              <td colSpan={colSpanCount} className="status-group-td">
+                <div className="status-group-header" onClick={() => toggleGroup("no_tags")}>
+                  <button type="button" className="status-group-caret-btn" aria-label="Toggle group">
+                    {collapsedGroups.has("no_tags") ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                  </button>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "12px" }}>
+                    <Tag size={13} style={{ color: "#94a3b8" }} />
+                    <span style={{ color: "var(--muted, #64748b)" }}>No tags</span>
+                  </span>
+                  <span className="status-group-count">{noTagTasks.length}</span>
+                </div>
+              </td>
+            </tr>
+            {!collapsedGroups.has("no_tags") &&
+              noTagTasks.map((parentTask) => {
+                const children = subtasksByParent.get(parentTask.id) ?? [];
+                const isExpanded = expandedTaskIds.has(parentTask.id);
+                return (
+                  <Fragment key={parentTask.id}>
+                    {renderTaskRow(parentTask, false, children)}
+                    {isExpanded && children.map((subtask) => renderTaskRow(subtask, true))}
+                  </Fragment>
+                );
+              })}
+            {!collapsedGroups.has("no_tags") && canEdit && (
+              <InlineTaskRow
+                projectId={projectId}
+                statuses={statuses}
+                members={members}
+                colSpan={colSpanCount}
+                nameColIndex={nameColIndex}
+              />
+            )}
+          </Fragment>
+        )}
+      </>
+    );
+  };
+
+  // --- Render Custom Field Groups ---
+  const renderCustomFieldGroups = (fieldId: string) => {
+    const fieldObj = customFieldMap.get(fieldId);
+    const fieldName = fieldObj?.name || "Custom Field";
+    const tasksByVal = new Map<string, TaskRow[]>();
+    const unsetTasks: TaskRow[] = [];
+
+    parentTasks.forEach((task) => {
+      const val = customValues.get(task.id)?.get(fieldId)?.trim();
+      if (!val) {
+        unsetTasks.push(task);
+      } else {
+        const list = tasksByVal.get(val) ?? [];
+        list.push(task);
+        tasksByVal.set(val, list);
+      }
+    });
+
+    const valList = Array.from(tasksByVal.keys()).sort();
+
+    return (
+      <>
+        {valList.map((val) => {
+          const groupTasks = tasksByVal.get(val) ?? [];
+          const isCollapsed = collapsedGroups.has(`cf_${fieldId}_${val}`);
+          return (
+            <Fragment key={val}>
+              <tr className="status-group-tr">
+                <td colSpan={colSpanCount} className="status-group-td">
+                  <div className="status-group-header" onClick={() => toggleGroup(`cf_${fieldId}_${val}`)}>
+                    <button type="button" className="status-group-caret-btn" aria-label="Toggle group">
+                      {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                    </button>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "12px" }}>
+                      <SlidersHorizontal size={13} style={{ color: "#0891b2" }} />
+                      <span style={{ color: "var(--ink, #1e293b)" }}>{fieldName}: {val}</span>
+                    </span>
+                    <span className="status-group-count">{groupTasks.length}</span>
+                  </div>
+                </td>
+              </tr>
+              {!isCollapsed &&
+                groupTasks.map((parentTask) => {
+                  const children = subtasksByParent.get(parentTask.id) ?? [];
+                  const isExpanded = expandedTaskIds.has(parentTask.id);
+                  return (
+                    <Fragment key={parentTask.id}>
+                      {renderTaskRow(parentTask, false, children)}
+                      {isExpanded && children.map((subtask) => renderTaskRow(subtask, true))}
+                    </Fragment>
+                  );
+                })}
+              {!isCollapsed && canEdit && (
+                <InlineTaskRow
+                  projectId={projectId}
+                  statuses={statuses}
+                  members={members}
+                  colSpan={colSpanCount}
+                  nameColIndex={nameColIndex}
+                />
+              )}
+            </Fragment>
+          );
+        })}
+
+        {unsetTasks.length > 0 && (
+          <Fragment key="unset">
+            <tr className="status-group-tr">
+              <td colSpan={colSpanCount} className="status-group-td">
+                <div className="status-group-header" onClick={() => toggleGroup(`cf_${fieldId}_unset`)}>
+                  <button type="button" className="status-group-caret-btn" aria-label="Toggle group">
+                    {collapsedGroups.has(`cf_${fieldId}_unset`) ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                  </button>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "12px" }}>
+                    <SlidersHorizontal size={13} style={{ color: "#94a3b8" }} />
+                    <span style={{ color: "var(--muted, #64748b)" }}>{fieldName}: Not set</span>
+                  </span>
+                  <span className="status-group-count">{unsetTasks.length}</span>
+                </div>
+              </td>
+            </tr>
+            {!collapsedGroups.has(`cf_${fieldId}_unset`) &&
+              unsetTasks.map((parentTask) => {
+                const children = subtasksByParent.get(parentTask.id) ?? [];
+                const isExpanded = expandedTaskIds.has(parentTask.id);
+                return (
+                  <Fragment key={parentTask.id}>
+                    {renderTaskRow(parentTask, false, children)}
+                    {isExpanded && children.map((subtask) => renderTaskRow(subtask, true))}
+                  </Fragment>
+                );
+              })}
+            {!collapsedGroups.has(`cf_${fieldId}_unset`) && canEdit && (
+              <InlineTaskRow
+                projectId={projectId}
+                statuses={statuses}
+                members={members}
+                colSpan={colSpanCount}
+                nameColIndex={nameColIndex}
+              />
+            )}
+          </Fragment>
+        )}
+      </>
+    );
+  };
+
+  // --- Render Generic Custom Grouping ---
+  const renderGenericCustomGroup = (propName: string) => {
+    // If propName matches a custom field by name
+    const matchedField = customFields.find((f) => f.name.toLowerCase() === propName.toLowerCase());
+    if (matchedField) {
+      return renderCustomFieldGroups(matchedField.id);
+    }
+    // Fallback: group by task_type or flat
+    return renderFlatList();
   };
 
   // --- Render Flat List (No Grouping) ---

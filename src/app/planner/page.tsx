@@ -2,6 +2,7 @@ import "./planner.css";
 import { redirect } from "next/navigation";
 import AppTopBar from "@/app/AppTopBar";
 import PrimarySpaceLeftSlot from "@/app/PrimarySpaceLeftSlot";
+import AppRailLayout from "@/app/AppRailLayout";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 import { isSchemaMissingError } from "@/lib/chat";
 import PlannerClient, {
@@ -45,24 +46,26 @@ export default async function PlannerPage({
 
   if (orgIds.length === 0) {
     return (
-      <div className="planner-shell">
-        <AppTopBar
-          email={user.email ?? ""}
-          leftSlot={<PrimarySpaceLeftSlot activeNav="planner" />}
-        />
-        <PlannerClient
-          currentUserId={user.id}
-          initialOrgId=""
-          initialRoomCode={initialRoomCode ?? null}
-          organizations={[]}
-          projects={[]}
-          members={[]}
-          initialMeetings={[]}
-          tasks={[]}
-          holidays={[]}
-          schemaMissing={false}
-        />
-      </div>
+      <AppRailLayout>
+        <div className="planner-shell">
+          <AppTopBar
+            email={user.email ?? ""}
+            leftSlot={<PrimarySpaceLeftSlot activeNav="planner" />}
+          />
+          <PlannerClient
+            currentUserId={user.id}
+            initialOrgId=""
+            initialRoomCode={initialRoomCode ?? null}
+            organizations={[]}
+            projects={[]}
+            members={[]}
+            initialMeetings={[]}
+            tasks={[]}
+            holidays={[]}
+            schemaMissing={false}
+          />
+        </div>
+      </AppRailLayout>
     );
   }
 
@@ -199,24 +202,29 @@ export default async function PlannerPage({
   const holidays: PlannerHoliday[] = (holidaysRes.data ?? []) as PlannerHoliday[];
 
   return (
-    <div className="planner-shell">
-      <AppTopBar
-        email={user.email ?? ""}
-        organizationId={initialOrgId}
-        leftSlot={<PrimarySpaceLeftSlot activeNav="planner" />}
-      />
-      <PlannerClient
-        currentUserId={user.id}
-        initialOrgId={initialOrgId}
-        initialRoomCode={initialRoomCode ?? null}
-        organizations={organizations}
-        projects={projects}
-        members={members}
-        initialMeetings={initialMeetings}
-        tasks={tasks}
-        holidays={holidays}
-        schemaMissing={schemaMissing}
-      />
-    </div>
+    <AppRailLayout
+      organizationId={initialOrgId}
+      projectId={projects[0]?.id}
+    >
+      <div className="planner-shell">
+        <AppTopBar
+          email={user.email ?? ""}
+          organizationId={initialOrgId}
+          leftSlot={<PrimarySpaceLeftSlot activeNav="planner" />}
+        />
+        <PlannerClient
+          currentUserId={user.id}
+          initialOrgId={initialOrgId}
+          initialRoomCode={initialRoomCode ?? null}
+          organizations={organizations}
+          projects={projects}
+          members={members}
+          initialMeetings={initialMeetings}
+          tasks={tasks}
+          holidays={holidays}
+          schemaMissing={schemaMissing}
+        />
+      </div>
+    </AppRailLayout>
   );
 }

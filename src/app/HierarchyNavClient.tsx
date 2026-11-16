@@ -153,15 +153,30 @@ export default function HierarchyNavClient({
             {isCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
           </button>
 
-          <Link href="/dashboard" prefetch={false} title="Overview">
+          <Link
+            href="/dashboard"
+            prefetch={false}
+            title="Overview"
+            className={pathname === "/dashboard" ? "is-active" : undefined}
+          >
             <House size={18} />
             <span>Home</span>
           </Link>
-          <Link href="/my-dashboard" prefetch={false} title="Dashboard">
+          <Link
+            href="/my-dashboard"
+            prefetch={false}
+            title="Dashboard"
+            className={pathname === "/my-dashboard" ? "is-active" : undefined}
+          >
             <LayoutDashboard size={17} />
             <span>Dashboard</span>
           </Link>
-          <Link href="/inbox" prefetch={false} title="Inbox">
+          <Link
+            href="/inbox"
+            prefetch={false}
+            title="Inbox"
+            className={pathname.startsWith("/inbox") ? "is-active" : undefined}
+          >
             <Bell size={17} />
             <span>Inbox</span>
           </Link>
@@ -169,6 +184,7 @@ export default function HierarchyNavClient({
             href={organizationId ? `/planner?org=${organizationId}` : "/planner"}
             prefetch={false}
             title="Planner & Meeting Rooms"
+            className={pathname.startsWith("/planner") ? "is-active" : undefined}
           >
             <CalendarDays size={17} />
             <span>Planner</span>
@@ -181,6 +197,11 @@ export default function HierarchyNavClient({
             }
             prefetch={false}
             title="Docs & Attachments"
+            className={
+              pathname.includes("/docs") || pathname.includes("/documents")
+                ? "is-active"
+                : undefined
+            }
           >
             <FileText size={17} />
             <span>Docs</span>
@@ -189,11 +210,17 @@ export default function HierarchyNavClient({
             href={`/workspaces/${currentWorkspaceId}/timesheets`}
             prefetch={false}
             title="Workspace Timesheets"
+            className={pathname.includes("/timesheets") ? "is-active" : undefined}
           >
             <Clock3 size={17} />
             <span>Time</span>
           </Link>
-          <Link href="/chat" prefetch={false} title="Team & Personal Chat">
+          <Link
+            href="/chat"
+            prefetch={false}
+            title="Team & Personal Chat"
+            className={pathname.startsWith("/chat") ? "is-active" : undefined}
+          >
             <MessageSquare size={17} />
             <span>Chat</span>
           </Link>
@@ -201,12 +228,13 @@ export default function HierarchyNavClient({
             href={`/organizations/${organizationId}/members`}
             prefetch={false}
             title="Members"
+            className={pathname.includes("/members") ? "is-active" : undefined}
           >
             <UsersRound size={17} />
             <span>People</span>
           </Link>
           <Link
-            className="work-rail-more"
+            className={`work-rail-more${pathname.includes("/calendar") ? " is-active" : ""}`}
             href={`/organizations/${organizationId}/calendar`}
             prefetch={false}
             title="Holidays and leave"

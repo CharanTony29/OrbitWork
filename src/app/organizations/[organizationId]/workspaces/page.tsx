@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AppTopBar from "@/app/AppTopBar";
+import AppRailLayout from "@/app/AppRailLayout";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, FolderKanban, Layers3 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -62,9 +63,10 @@ export default async function OrganizationWorkspacesPage({
   }
 
   return (
-    <main className="app-shell">
-      <AppTopBar email={user.email ?? ""} organizationId={organizationId} />
-      <section className="organization-members-page">
+    <AppRailLayout organizationId={organizationId}>
+      <main className="app-shell">
+        <AppTopBar email={user.email ?? ""} organizationId={organizationId} />
+        <section className="organization-members-page">
         <Link className="back-link" href="/dashboard">
           <ArrowLeft size={15} />
           {organization.name}
@@ -153,5 +155,6 @@ export default async function OrganizationWorkspacesPage({
         </div>
       </section>
     </main>
+    </AppRailLayout>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AppTopBar from "@/app/AppTopBar";
 import PrimarySpaceLeftSlot from "@/app/PrimarySpaceLeftSlot";
+import AppRailLayout from "@/app/AppRailLayout";
 import { redirect } from "next/navigation";
 import {
   Bell,
@@ -135,18 +136,19 @@ export default async function InboxPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <main className="app-shell ov-shell ov-fullpage-shell">
-      <AppTopBar
-        email={user.email ?? ""}
-        leftSlot={
-          <PrimarySpaceLeftSlot
-            activeNav="inbox"
-            assignedTaskCount={assignedTaskCount}
-          />
-        }
-      />
+    <AppRailLayout>
+      <main className="app-shell ov-shell ov-fullpage-shell">
+        <AppTopBar
+          email={user.email ?? ""}
+          leftSlot={
+            <PrimarySpaceLeftSlot
+              activeNav="inbox"
+              assignedTaskCount={assignedTaskCount}
+            />
+          }
+        />
 
-      <section className="ov-fullpage-content">
+        <section className="ov-fullpage-content">
         <section className="inbox-page ov-command-wrap ov-full-wrap">
           <div className="inbox-heading">
           <div>
@@ -386,5 +388,6 @@ export default async function InboxPage() {
         </section>
       </section>
     </main>
+    </AppRailLayout>
   );
 }

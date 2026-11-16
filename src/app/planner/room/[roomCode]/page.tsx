@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import AppTopBar from "@/app/AppTopBar";
 import PrimarySpaceLeftSlot from "@/app/PrimarySpaceLeftSlot";
+import AppRailLayout from "@/app/AppRailLayout";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 import type { NativeRoomMeeting } from "../../NativeMeetingRoom";
 import StandaloneRoomClient from "./StandaloneRoomClient";
@@ -84,18 +85,24 @@ export default async function StandaloneMeetingRoomPage({
   if (!memberMap.has(user.id)) memberMap.set(user.id, currentUserName);
 
   return (
-    <div className="planner-shell">
-      <AppTopBar
-        email={user.email ?? ""}
-        organizationId={meeting.organization_id}
-        leftSlot={<PrimarySpaceLeftSlot activeNav="planner" />}
-      />
-      <StandaloneRoomClient
-        initialMeeting={meeting as unknown as NativeRoomMeeting}
-        currentUserId={user.id}
-        currentUserName={currentUserName}
-        memberEntries={Array.from(memberMap.entries())}
-      />
-    </div>
+    <AppRailLayout
+      organizationId={meeting.organization_id}
+      workspaceId={meeting.workspace_id ?? undefined}
+      projectId={meeting.project_id ?? undefined}
+    >
+      <div className="planner-shell">
+        <AppTopBar
+          email={user.email ?? ""}
+          organizationId={meeting.organization_id}
+          leftSlot={<PrimarySpaceLeftSlot activeNav="planner" />}
+        />
+        <StandaloneRoomClient
+          initialMeeting={meeting as unknown as NativeRoomMeeting}
+          currentUserId={user.id}
+          currentUserName={currentUserName}
+          memberEntries={Array.from(memberMap.entries())}
+        />
+      </div>
+    </AppRailLayout>
   );
 }

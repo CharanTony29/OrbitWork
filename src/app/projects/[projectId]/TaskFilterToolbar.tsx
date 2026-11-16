@@ -17,23 +17,27 @@ import {
   Calendar,
   Flag,
   List,
+  Tag,
 } from "lucide-react";
 import UniversalCreateModal from "@/app/UniversalCreateModal";
 
 type WorkflowStatus = { id: string; name: string; color: string; category?: string };
 type Member = { id: string; label: string };
+type CustomField = { id: string; name: string; field_type: string };
 
 export default function TaskFilterToolbar({
   projectId,
   projectName = "OrbitWork Application",
   statuses,
   members,
+  customFields = [],
   currentFilters,
 }: {
   projectId: string;
   projectName?: string;
   statuses: WorkflowStatus[];
   members: Member[];
+  customFields?: CustomField[];
   currentFilters: {
     q?: string;
     status?: string;
@@ -53,6 +57,8 @@ export default function TaskFilterToolbar({
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [assigneeMenuOpen, setAssigneeMenuOpen] = useState(false);
   const [groupMenuOpen, setGroupMenuOpen] = useState(false);
+  const [showAddGroupInput, setShowAddGroupInput] = useState(false);
+  const [customGroupValue, setCustomGroupValue] = useState("");
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [isUniversalCreateOpen, setIsUniversalCreateOpen] = useState(false);
 
@@ -148,15 +154,31 @@ export default function TaskFilterToolbar({
     <div className="task-toolbar-container">
       {/* Left side pills */}
       <div className="task-toolbar-left">
-        {/* Grouping pill (ClickUp style matching Image 1) */}
+        {/* Grouping pill (ClickUp style matching Image 1 & Image 6) */}
         {(() => {
           const currentGroup = searchParams.get("group") || currentFilters.group || "status";
           const groupLabels: Record<string, string> = {
             status: "Status",
             priority: "Priority",
             due_date: "Due date",
+            assignee: "Assignee",
+            tags: "Tags",
             none: "None",
           };
+          customFields.forEach((cf) => {
+            groupLabels[`cf_${cf.id}`] = cf.name;
+            groupLabels[cf.name.toLowerCase()] = cf.name;
+          });
+
+          const handleApplyCustomGroup = (val?: string) => {
+            const target = (val || customGroupValue).trim().toLowerCase();
+            if (!target) return;
+            updateParam("group", target);
+            setCustomGroupValue("");
+            setShowAddGroupInput(false);
+            setGroupMenuOpen(false);
+          };
+
           return (
             <div className="toolbar-popover-wrap" ref={groupRef}>
               <button
@@ -166,11 +188,11 @@ export default function TaskFilterToolbar({
                 aria-expanded={groupMenuOpen}
               >
                 <Layers size={13} className="pill-icon" />
-                <span>Group: {groupLabels[currentGroup] || "Status"}</span>
+                <span>Group: {groupLabels[currentGroup] || currentGroup.charAt(0).toUpperCase() + currentGroup.slice(1)}</span>
                 <ChevronDown size={11} className="pill-chevron" />
               </button>
               {groupMenuOpen && (
-                <div className="toolbar-dropdown">
+                <div className="toolbar-dropdown" style={{ minWidth: 220 }}>
                   <span className="toolbar-dropdown-title">Grouping</span>
                   <button
                     type="button"
@@ -204,6 +226,50 @@ export default function TaskFilterToolbar({
                   </button>
                   <button
                     type="button"
+                    className={`toolbar-dropdown-item${currentGroup === "assignee" ? " is-active" : ""}`}
+                    onClick={() => {
+                      updateParam("group", "assignee");
+                      setGroupMenuOpen(false);
+                    }}
+                  >
+                    <User size={13} /> Assignee
+                  </button>
+                  <button
+                    type="button"
+                    className={`toolbar-dropdown-item${currentGroup === "tags" ? " is-active" : ""}`}
+                    onClick={() => {
+                      updateParam("group", "tags");
+                      setGroupMenuOpen(false);
+                    }}
+                  >
+                    <Tag size={13} /> Tags
+                  </button>
+
+                  {customFields.length > 0 && (
+                    <>
+                      <div style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />
+                      <span className="toolbar-dropdown-title" style={{ fontSize: 10 }}>Custom Fields</span>
+                      {customFields.map((cf) => {
+                        const cfKey = `cf_${cf.id}`;
+                        return (
+                          <button
+                            key={cf.id}
+                            type="button"
+                            className={`toolbar-dropdown-item${currentGroup === cfKey ? " is-active" : ""}`}
+                            onClick={() => {
+                              updateParam("group", cfKey);
+                              setGroupMenuOpen(false);
+                            }}
+                          >
+                            <SlidersHorizontal size={12} /> {cf.name}
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  <button
+                    type="button"
                     className={`toolbar-dropdown-item${currentGroup === "none" ? " is-active" : ""}`}
                     onClick={() => {
                       updateParam("group", "none");
@@ -212,6 +278,80 @@ export default function TaskFilterToolbar({
                   >
                     <List size={13} /> None
                   </button>
+
+                  <div style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />
+
+                  {/* Add Grouping Property / Field with + Icon (Image 6 feature) */}
+                  {!showAddGroupInput ? (
+                    <button
+                      type="button"
+                      className="toolbar-dropdown-item"
+                      onClick={() => setShowAddGroupInput(true)}
+                      style={{ color: "var(--green)", fontWeight: 700, gap: 6 }}
+                    >
+                      <Plus size={13} />
+                      <span>Add Grouping Property</span>
+                    </button>
+                  ) : (
+                    <div style={{ padding: "6px 8px", display: "grid", gap: 6 }}>
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Property / field name..."
+                        value={customGroupValue}
+                        onChange={(e) => setCustomGroupValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleApplyCustomGroup();
+                          if (e.key === "Escape") setShowAddGroupInput(false);
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "6px 8px",
+                          borderRadius: 6,
+                          border: "1px solid var(--line)",
+                          fontSize: 12,
+                          background: "var(--surface)",
+                          color: "var(--ink)",
+                          outline: "none",
+                        }}
+                      />
+                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddGroupInput(false)}
+                          style={{
+                            padding: "3px 8px",
+                            fontSize: 11,
+                            borderRadius: 4,
+                            border: "1px solid var(--line)",
+                            background: "transparent",
+                            cursor: "pointer",
+                            color: "var(--muted)",
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleApplyCustomGroup()}
+                          disabled={!customGroupValue.trim()}
+                          style={{
+                            padding: "3px 10px",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            borderRadius: 4,
+                            border: 0,
+                            background: "var(--green)",
+                            color: "#fff",
+                            cursor: customGroupValue.trim() ? "pointer" : "not-allowed",
+                            opacity: customGroupValue.trim() ? 1 : 0.6,
+                          }}
+                        >
+                          Group
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
