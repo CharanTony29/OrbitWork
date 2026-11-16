@@ -372,7 +372,7 @@ export function analyzeWorkload(ctx: AnalyticsContext): WorkloadAnalysis {
     }
   }
 
-  // Calculate percentages relative to project team
+  // Calculate statistical workload metrics relative to team
   const members: MemberWorkloadInfo[] = [];
   let overloadedCount = 0;
   let underutilizedCount = 0;
@@ -382,6 +382,9 @@ export function analyzeWorkload(ctx: AnalyticsContext): WorkloadAnalysis {
     .filter(([_, s]) => s.activeCount > 0 || ctx.profiles.length <= 8)
     .map(([uid]) => uid);
 
+  const effectiveTeamSize = Math.max(1, relevantUserIds.length);
+  const totalActiveTasksAssigned = [...userStats.values()].reduce((acc, s) => acc + s.activeCount, 0);
+  const teamMean = totalActiveTasksAssigned / effectiveTeamSize;
   const maxTasks = Math.max(...[...userStats.values()].map((s) => s.activeCount), 1);
 
   for (const uid of relevantUserIds) {
@@ -389,14 +392,37 @@ export function analyzeWorkload(ctx: AnalyticsContext): WorkloadAnalysis {
     const s = userStats.get(uid)!;
 
     // Workload score based on active tasks and overdue pressure
-    // 100% is roughly 6 active tasks with time pressure
-    const rawScore = Math.min(100, Math.round((s.activeCount / Math.max(maxTasks, 5)) * 100));
+    // Benchmark represents healthy upper bound of capacity (1.4x team mean or at least 7 tasks)
+    const capacityBenchmark = Math.max(teamMean * 1.4, 7);
+    const rawScore = Math.min(
+      100,
+      Math.max(
+        0,
+        Math.round((s.activeCount / capacityBenchmark) * 75) + Math.min(25, s.overdueCount * 8)
+      )
+    );
 
     let status: MemberWorkloadInfo["status"] = "balanced";
-    if (rawScore >= 80 || s.activeCount >= 6 || s.overdueCount >= 3) {
+
+    // A member is only overloaded if they have high overdue pressure OR are a statistical outlier
+    // carrying significantly higher task volume than the team average
+    const isOutlier =
+      (effectiveTeamSize > 1 &&
+        s.activeCount >= 7 &&
+        s.activeCount >= Math.round(teamMean * 1.35) &&
+        s.activeCount - teamMean >= 2.5) ||
+      s.overdueCount >= 3 ||
+      (effectiveTeamSize === 1 && s.activeCount >= 18);
+
+    if (isOutlier) {
       status = "overloaded";
       overloadedCount++;
-    } else if (s.activeCount <= 1 && maxTasks >= 4) {
+    } else if (
+      effectiveTeamSize > 1 &&
+      totalActiveTasksAssigned >= 6 &&
+      s.activeCount <= Math.max(1, Math.floor(teamMean * 0.4)) &&
+      teamMean - s.activeCount >= 2.5
+    ) {
       status = "underutilized";
       underutilizedCount++;
     }
@@ -530,15 +556,13 @@ export function computeProjectHealth(
     };
   }
 
-  // 1. Task Completion Score
+  // 1. Task Execution & Completion Score
   const completedTasks = ctx.tasks.filter((t) => {
     const s = statusMap.get(t.status_id);
     return s?.category === "completed";
   }).length;
-  const completionRatio = Math.round((completedTasks / totalTasks) * 100);
-  const taskCompletionScore = Math.min(100, Math.max(10, completionRatio + 20));
 
-  // 2. Schedule Score
+  // 2. Schedule Score & Active Tasks
   const activeTasks = ctx.tasks.filter((t) => {
     const s = statusMap.get(t.status_id);
     return s?.category !== "completed" && s?.category !== "cancelled";
@@ -548,6 +572,20 @@ export function computeProjectHealth(
     return Boolean(d && d < todayStr);
   });
   const overdueRatio = activeTasks.length > 0 ? overdueTasks.length / activeTasks.length : 0;
+
+  const completionRatio = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+  // Non-overdue active tasks represent deliverables progressing smoothly on schedule
+  const onScheduleActiveTasks = Math.max(0, activeTasks.length - overdueTasks.length);
+  const healthyExecutionRatio = totalTasks > 0 ? (completedTasks + onScheduleActiveTasks) / totalTasks : 1;
+  const overduePenaltyRatio = activeTasks.length > 0 ? (overdueTasks.length / activeTasks.length) * 50 : 0;
+
+  const taskCompletionScore = Math.min(
+    100,
+    Math.max(
+      20,
+      Math.round(55 + healthyExecutionRatio * 35 + completionRatio * 0.1 - overduePenaltyRatio)
+    )
+  );
 
   // Check project deadline
   let projectDeadlineOverdue = false;
@@ -574,11 +612,38 @@ export function computeProjectHealth(
   blockerScore -= Math.min(60, deps.blockedTaskCount * 15);
   blockerScore = Math.max(15, blockerScore);
 
-  // 5. Workload Score
-  let workloadScore = 100;
-  workloadScore -= Math.min(40, workload.overloadedCount * 20);
-  if (workload.unassignedTaskCount > 3) workloadScore -= 15;
-  workloadScore = Math.max(20, workloadScore);
+  // 5. Workload Score: Continuous Mean Absolute Deviation (MAD) & Imbalance Ratio
+  const assignedCounts = workload.members.map((m) => m.activeTaskCount);
+  const totalActiveAssigned = assignedCounts.reduce((acc, c) => acc + c, 0);
+  const memberCount = assignedCounts.length;
+  const meanLoad = memberCount > 0 ? totalActiveAssigned / memberCount : 0;
+
+  // Mean Absolute Deviation from the team average
+  const mad =
+    memberCount > 0
+      ? assignedCounts.reduce((acc, c) => acc + Math.abs(c - meanLoad), 0) / memberCount
+      : 0;
+
+  // Imbalance ratio: 0.0 is perfectly balanced, >0.8 is heavy single-person concentration
+  const imbalanceRatio = meanLoad > 0 ? Math.min(1.5, mad / meanLoad) : 0;
+
+  // Base score from workload balance:
+  // Perfectly balanced (imbalanceRatio = 0) -> 100
+  // Mild spread (imbalanceRatio = 0.3) -> 88
+  // Moderate imbalance (imbalanceRatio = 0.6) -> 76
+  // Severe bottleneck (imbalanceRatio >= 1.0) -> 60
+  let workloadScore = Math.max(30, Math.round(100 - imbalanceRatio * 40));
+
+  // Deduct for overdue pressure on team members
+  const totalOverdueOnTeam = workload.members.reduce((acc, m) => acc + m.overdueTaskCount, 0);
+  if (totalOverdueOnTeam > 0) {
+    workloadScore = Math.max(20, workloadScore - Math.min(25, totalOverdueOnTeam * 6));
+  }
+
+  // Deduct for unassigned tasks
+  if (workload.unassignedTaskCount > 0) {
+    workloadScore = Math.max(20, workloadScore - Math.min(15, workload.unassignedTaskCount * 3));
+  }
 
   // 6. Milestones Score
   let milestoneScore = 85;
@@ -821,7 +886,7 @@ export function detectRisks(
 
   // Risk 3: Overloaded Key Performers
   for (const m of workload.members) {
-    if (m.status === "overloaded" && m.activeTaskCount >= 5) {
+    if (m.status === "overloaded" && (m.activeTaskCount >= 6 || m.overdueTaskCount >= 2)) {
       risks.push({
         id: `risk-workload-${m.userId}`,
         title: `Workload Concentration: ${m.name}`,
@@ -1215,7 +1280,18 @@ export function generateDeterministicRecommendations(
   }
 
   // 2. Preventive Measure: Balance Overloaded Contributors & Mitigate Workload Risks
-  const overloadedMembers = workload.members.filter((m) => m.status === "overloaded" || m.activeTaskCount >= 6);
+  const activeAssignedTotal = workload.members.reduce((acc, m) => acc + m.activeTaskCount, 0);
+  const teamMean = workload.members.length > 0 ? activeAssignedTotal / workload.members.length : 0;
+
+  // Only consider true outliers that are noticeably above team mean (or carrying multiple overdue tasks)
+  const overloadedMembers = workload.members
+    .filter(
+      (m) =>
+        m.status === "overloaded" &&
+        (m.activeTaskCount > teamMean + 2 || m.overdueTaskCount >= 2)
+    )
+    .sort((a, b) => b.activeTaskCount - a.activeTaskCount)
+    .slice(0, 2); // At most top 2 bottlenecks to prevent recommendation flood
 
   for (const srcMember of overloadedMembers) {
     // Collect active tasks assigned to this member
@@ -1231,7 +1307,7 @@ export function generateDeterministicRecommendations(
 
     // Find best target teammate to receive this task:
     // First: underutilized members
-    // Second: any teammate with fewer active tasks than srcMember
+    // Second: any teammate strictly below team average with at least 3 fewer tasks
     // Third: any profile with 0 tasks
     let targetMember = workload.members.find(
       (m) => m.status === "underutilized" && m.userId !== srcMember.userId
@@ -1239,13 +1315,23 @@ export function generateDeterministicRecommendations(
 
     if (!targetMember) {
       const candidates = workload.members
-        .filter((m) => m.userId !== srcMember.userId && m.activeTaskCount < srcMember.activeTaskCount)
+        .filter(
+          (m) =>
+            m.userId !== srcMember.userId &&
+            m.status !== "overloaded" &&
+            m.activeTaskCount < teamMean && // Must be below average so we never create new overloaded members
+            srcMember.activeTaskCount - m.activeTaskCount >= 3
+        )
         .sort((a, b) => a.activeTaskCount - b.activeTaskCount);
 
       if (candidates.length > 0) {
         targetMember = candidates[0];
       } else {
-        const unassignedProfile = ctx.profiles.find((p) => p.id !== srcMember.userId);
+        const unassignedProfile = ctx.profiles.find(
+          (p) =>
+            p.id !== srcMember.userId &&
+            !workload.members.some((m) => m.userId === p.id && m.activeTaskCount >= teamMean)
+        );
         if (unassignedProfile) {
           targetMember = {
             userId: unassignedProfile.id,
@@ -1265,7 +1351,10 @@ export function generateDeterministicRecommendations(
     }
 
     if (targetMember && taskToReassign) {
-      const reductionPercent = Math.min(60, Math.max(30, Math.round((2 / Math.max(1, srcMember.activeTaskCount)) * 100) + 20));
+      const reductionPercent = Math.min(
+        60,
+        Math.max(30, Math.round((2 / Math.max(1, srcMember.activeTaskCount)) * 100) + 20)
+      );
       recommendations.push({
         id: `rec-reassign-${srcMember.userId}-${taskToReassign.id}`,
         projectId: ctx.projectId,
@@ -1292,22 +1381,33 @@ export function generateDeterministicRecommendations(
       });
     }
 
-    // Schedule Staggering Preventive Option: If contributor has multiple tasks, stagger dates to prevent collision
-    if (memberTasks.length >= 2) {
-      const secondTask = memberTasks[1];
+    // Schedule Staggering: ONLY if contributor has multiple tasks colliding on the EXACT same deadline
+    const deadlineBuckets = new Map<string, RawTaskItem[]>();
+    for (const t of memberTasks) {
+      if (t.due_date) {
+        const dStr = String(t.due_date).split("T")[0];
+        const list = deadlineBuckets.get(dStr) || [];
+        list.push(t);
+        deadlineBuckets.set(dStr, list);
+      }
+    }
+
+    const collision = [...deadlineBuckets.entries()].find(([_, list]) => list.length >= 2);
+    if (collision) {
+      const collidingTask = collision[1][1];
       const nextDue = new Date(Date.now() + 5 * 86400000).toISOString().split("T")[0];
       recommendations.push({
-        id: `rec-stagger-${srcMember.userId}-${secondTask.id}`,
+        id: `rec-stagger-${srcMember.userId}-${collidingTask.id}`,
         projectId: ctx.projectId,
-        title: `Prevent bottleneck: Stagger deadline for "${secondTask.title}" (+5 days)`,
-        description: `Spreads out ${srcMember.name}'s delivery commitments to prevent concurrent deadline collisions across ${srcMember.activeTaskCount} tasks.`,
+        title: `Prevent bottleneck: Stagger deadline for "${collidingTask.title}" (+5 days)`,
+        description: `Spreads out ${srcMember.name}'s delivery commitments to prevent concurrent deadline collisions on ${collision[0]}.`,
         whyRecommended: "Concurrent delivery dates on an overloaded contributor frequently trigger schedule slippage.",
-        affectsDescription: `Reschedules due date of "${secondTask.title}" to ${nextDue}.`,
+        affectsDescription: `Reschedules due date of "${collidingTask.title}" to ${nextDue}.`,
         expectedBenefit: "Provides breathing room for focused execution and decreases concurrency pressure.",
         possibleRisk: "Ensure downstream milestones are updated if linked.",
         actionType: "reschedule_task",
         actionPayload: {
-          taskId: secondTask.id,
+          taskId: collidingTask.id,
           newDueDate: nextDue,
         },
         status: "pending",
@@ -1413,7 +1513,8 @@ export function generateDeterministicRecommendations(
     }
   }
 
-  return recommendations;
+  // Return focused list of highest-impact recommendations (max 4 items)
+  return recommendations.slice(0, 4);
 }
 
 /**

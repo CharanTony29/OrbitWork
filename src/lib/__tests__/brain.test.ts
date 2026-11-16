@@ -378,3 +378,81 @@ test("Project Brain: generates actionable preventive measures for workload conce
   assert.ok(rebalanceRec.riskReductionScore && rebalanceRec.riskReductionScore > 0);
   assert.ok(rebalanceRec.healthImpactLabel);
 });
+
+test("Project Brain: health score increases and recommendations decrease to 0 when workload is rebalanced", () => {
+  // Balanced state: u1 has 4 tasks, u2 has 4 tasks, no overdue tasks
+  const balancedTasks: RawTaskItem[] = [];
+  for (let i = 1; i <= 4; i++) {
+    balancedTasks.push({
+      id: `task-u1-${i}`,
+      project_id: "p-workload",
+      generated_key: `T-1-${i}`,
+      title: `Task A-${i}`,
+      description: null,
+      priority: "normal",
+      status_id: "s-progress",
+      start_date: null,
+      due_date: "2026-12-10",
+      estimate_minutes: 60,
+      progress: 0,
+      parent_task_id: null,
+      created_at: new Date().toISOString(),
+      created_by: "u1",
+      primary_assignee_id: "u1",
+      secondary_assignee_id: null,
+    });
+    balancedTasks.push({
+      id: `task-u2-${i}`,
+      project_id: "p-workload",
+      generated_key: `T-2-${i}`,
+      title: `Task B-${i}`,
+      description: null,
+      priority: "normal",
+      status_id: "s-progress",
+      start_date: null,
+      due_date: "2026-12-11",
+      estimate_minutes: 60,
+      progress: 0,
+      parent_task_id: null,
+      created_at: new Date().toISOString(),
+      created_by: "u2",
+      primary_assignee_id: "u2",
+      secondary_assignee_id: null,
+    });
+  }
+
+  const ctx: AnalyticsContext = {
+    projectId: "p-workload",
+    projectName: "Workload Test Project",
+    projectDueDate: "2026-12-25",
+    tasks: balancedTasks,
+    statuses: mockStatuses,
+    dependencies: [],
+    goals: [],
+    documents: [],
+    activity: [],
+    profiles: [
+      { id: "u1", display_name: "Leela Lead", email: "leela@example.com", avatar_url: null },
+      { id: "u2", display_name: "Lavanya Dev", email: "lavanya@example.com", avatar_url: null },
+    ],
+    taskAssignees: [],
+    checklists: [],
+    checklistItems: [],
+  };
+
+  const deps = analyzeDependencies(ctx);
+  const workload = analyzeWorkload(ctx);
+  const health = computeProjectHealth(ctx, deps, workload);
+  const risks = detectRisks(ctx, deps, workload);
+  const recommendations = generateDeterministicRecommendations(ctx, health, risks, deps, workload);
+
+  // When balanced, 0 members are overloaded
+  assert.equal(workload.overloadedCount, 0, "No members should be overloaded when tasks are balanced evenly");
+  // Workload category score should be high (>= 90)
+  assert.ok(health.categories.workload.score >= 90, `Workload score should be >= 90, got ${health.categories.workload.score}`);
+  // Overall health score should be high (>= 90)
+  assert.ok(health.overallScore >= 90, `Health score should be >= 90, got ${health.overallScore}`);
+  // Workload recommendations should be 0 because all deliverables are aligned
+  const workloadRecs = recommendations.filter((r) => r.actionType === "reassign_task");
+  assert.equal(workloadRecs.length, 0, "No workload reassignments should be generated when balanced");
+});

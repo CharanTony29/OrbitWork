@@ -220,6 +220,13 @@ export async function POST(
         // Non-blocking
       }
 
+      // Invalidate cached snapshots so next fetch calculates fresh metrics immediately
+      try {
+        await supabase.from("project_brain_snapshots").delete().eq("project_id", projectId);
+      } catch {
+        // Non-blocking
+      }
+
       return NextResponse.json({
         success: true,
         batch: true,
@@ -229,6 +236,14 @@ export async function POST(
       });
     } else {
       const summary = await executeRecommendationItem(supabase, projectId, user.id, parsed.data);
+
+      // Invalidate cached snapshots so next fetch calculates fresh metrics immediately
+      try {
+        await supabase.from("project_brain_snapshots").delete().eq("project_id", projectId);
+      } catch {
+        // Non-blocking
+      }
+
       return NextResponse.json({
         success: true,
         changeSummary: summary,
