@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       try {
         await supabase.rpc("accept_user_pending_invitations");
       } catch {}
-      const destination = isRecovery ? "/auth/reset-password" : safeNext ?? "/dashboard";
+      const destination = isRecovery ? "/auth/reset-password" : safeNext ?? "/my-dashboard";
       return NextResponse.redirect(new URL(destination, appOrigin));
     } else {
       console.error("[Auth Callback] verifyOtp error:", otpError);
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
         await supabase.rpc("accept_user_pending_invitations");
       } catch {}
 
-      const destination = isRecovery ? "/auth/reset-password" : safeNext ?? "/dashboard";
+      const destination = isRecovery ? "/auth/reset-password" : safeNext ?? "/my-dashboard";
       return NextResponse.redirect(new URL(destination, appOrigin));
     } else {
       console.error("[Auth Callback] Exchange code error:", exchangeError);

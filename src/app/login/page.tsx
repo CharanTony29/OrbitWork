@@ -25,7 +25,11 @@ export default async function LoginPage({
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
     if (data?.user) {
-      redirect("/dashboard");
+      const returnUrl =
+        params.returnUrl && params.returnUrl.startsWith("/") && !params.returnUrl.startsWith("//")
+          ? params.returnUrl
+          : "/my-dashboard";
+      redirect(returnUrl);
     }
   } catch {}
 

@@ -102,7 +102,7 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
         const hasSession = request.cookies
           .getAll()
           .some(({ name }) => name.startsWith("sb-"));
-        const targetPath = hasSession ? "/dashboard" : "/login";
+        const targetPath = hasSession ? "/my-dashboard" : "/login";
         const targetOrigin = getSubdomainOrigin("app", hostInfo);
         return NextResponse.redirect(new URL(`${targetPath}${search}`, targetOrigin), 307);
       }

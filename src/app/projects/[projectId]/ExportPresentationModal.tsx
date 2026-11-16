@@ -3,16 +3,9 @@
 import { useState } from "react";
 import {
   Presentation,
-  Calendar,
-  CalendarDays,
-  Clock,
   Download,
   X,
   CheckCircle2,
-  AlertCircle,
-  FileSpreadsheet,
-  Layers,
-  ChevronDown,
   Loader2,
 } from "lucide-react";
 
@@ -86,7 +79,16 @@ export default function ExportPresentationModal({
       <div
         className="canvas-modal-container"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: 640, borderRadius: 14, overflow: "hidden", padding: 0 }}
+        style={{
+          maxWidth: 640,
+          borderRadius: 14,
+          overflow: "hidden",
+          padding: 0,
+          background: "var(--surface, #ffffff)",
+          color: "var(--ink, #17231f)",
+          border: "1px solid var(--line, #e2e8f0)",
+          boxShadow: "0 20px 45px rgba(0, 0, 0, 0.35)",
+        }}
         role="dialog"
         aria-modal="true"
       >
@@ -95,7 +97,7 @@ export default function ExportPresentationModal({
           style={{
             background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
             padding: "24px 28px",
-            color: "#fff",
+            color: "#ffffff",
             position: "relative",
           }}
         >
@@ -105,14 +107,14 @@ export default function ExportPresentationModal({
               position: "absolute",
               top: 18,
               right: 18,
-              background: "rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.12)",
               border: 0,
               borderRadius: 8,
               width: 32,
               height: 32,
               display: "grid",
               placeItems: "center",
-              color: "#fff",
+              color: "#ffffff",
               cursor: "pointer",
             }}
             title="Close"
@@ -140,7 +142,7 @@ export default function ExportPresentationModal({
             <span style={{ fontSize: 12, color: "#94a3b8" }}>{projectName}</span>
           </div>
 
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#fff" }}>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#ffffff" }}>
             Export Professional Presentation (PPT)
           </h2>
           <p style={{ margin: "6px 0 0", fontSize: 13, color: "#94a3b8", lineHeight: 1.5 }}>
@@ -157,7 +159,7 @@ export default function ExportPresentationModal({
               style={{
                 fontSize: 12,
                 fontWeight: 700,
-                color: "#334155",
+                color: "var(--ink, #334155)",
                 marginBottom: 8,
                 display: "block",
               }}
@@ -169,9 +171,10 @@ export default function ExportPresentationModal({
                 display: "grid",
                 gridTemplateColumns: "repeat(5, 1fr)",
                 gap: 6,
-                background: "#f1f5f9",
+                background: "var(--app-bg, #f1f5f9)",
                 padding: 4,
                 borderRadius: 10,
+                border: "1px solid var(--line, #e2e8f0)",
               }}
             >
               {(
@@ -193,10 +196,10 @@ export default function ExportPresentationModal({
                     padding: "9px 6px",
                     fontSize: 12,
                     fontWeight: period === tab.id ? 700 : 500,
-                    color: period === tab.id ? "#0f172a" : "#64748b",
-                    background: period === tab.id ? "#ffffff" : "transparent",
+                    color: period === tab.id ? "var(--ink, #0f172a)" : "var(--muted, #64748b)",
+                    background: period === tab.id ? "var(--surface, #ffffff)" : "transparent",
                     boxShadow:
-                      period === tab.id ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+                      period === tab.id ? "0 2px 6px rgba(0,0,0,0.12)" : "none",
                     cursor: "pointer",
                     transition: "all 0.15s ease",
                   }}
@@ -210,18 +213,18 @@ export default function ExportPresentationModal({
           {/* Conditional Date Pickers based on Period */}
           <div
             style={{
-              background: "#f8fafc",
-              border: "1px solid #e2e8f0",
+              background: "var(--surface-subtle, #f8fafc)",
+              border: "1px solid var(--line, #e2e8f0)",
               borderRadius: 10,
               padding: "16px 18px",
             }}
           >
             {period === "weekly" && (
               <div>
-                <p style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 600, color: "#1e293b" }}>
+                <p style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 600, color: "var(--ink, #1e293b)" }}>
                   Current Week Overview
                 </p>
-                <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
+                <p style={{ margin: 0, fontSize: 12, color: "var(--muted, #64748b)" }}>
                   Includes deliverables active, scheduled, or delivered during the current work
                   week (Monday through Sunday).
                 </p>
@@ -230,7 +233,7 @@ export default function ExportPresentationModal({
 
             {period === "monthly" && (
               <div style={{ display: "grid", gap: 8 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#1e293b" }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink, #1e293b)" }}>
                   Select Month
                 </label>
                 <input
@@ -240,12 +243,14 @@ export default function ExportPresentationModal({
                   style={{
                     padding: "8px 12px",
                     borderRadius: 8,
-                    border: "1px solid #cbd5e1",
+                    border: "1px solid var(--line, #cbd5e1)",
                     fontSize: 13,
                     maxWidth: 220,
+                    background: "var(--surface, #ffffff)",
+                    color: "var(--ink, #17231f)",
                   }}
                 />
-                <span style={{ fontSize: 11, color: "#64748b" }}>
+                <span style={{ fontSize: 11, color: "var(--muted, #64748b)" }}>
                   Generates an executive monthly review for the selected calendar month.
                 </span>
               </div>
@@ -253,7 +258,7 @@ export default function ExportPresentationModal({
 
             {period === "yearly" && (
               <div style={{ display: "grid", gap: 8 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#1e293b" }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink, #1e293b)" }}>
                   Select Year
                 </label>
                 <select
@@ -262,17 +267,18 @@ export default function ExportPresentationModal({
                   style={{
                     padding: "8px 12px",
                     borderRadius: 8,
-                    border: "1px solid #cbd5e1",
+                    border: "1px solid var(--line, #cbd5e1)",
                     fontSize: 13,
                     maxWidth: 220,
-                    background: "#fff",
+                    background: "var(--surface, #ffffff)",
+                    color: "var(--ink, #17231f)",
                   }}
                 >
                   <option value="2026">2026 (Current Year)</option>
                   <option value="2025">2025</option>
                   <option value="2024">2024</option>
                 </select>
-                <span style={{ fontSize: 11, color: "#64748b" }}>
+                <span style={{ fontSize: 11, color: "var(--muted, #64748b)" }}>
                   Consolidates full-year milestone execution, completed deliveries, and annual velocity.
                 </span>
               </div>
@@ -280,7 +286,7 @@ export default function ExportPresentationModal({
 
             {period === "custom" && (
               <div style={{ display: "grid", gap: 12 }}>
-                <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#1e293b" }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "var(--ink, #1e293b)" }}>
                   Specify Date Range
                 </p>
                 <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
@@ -288,7 +294,7 @@ export default function ExportPresentationModal({
                     <label
                       style={{
                         fontSize: 11,
-                        color: "#64748b",
+                        color: "var(--muted, #64748b)",
                         display: "block",
                         marginBottom: 4,
                       }}
@@ -303,17 +309,19 @@ export default function ExportPresentationModal({
                         width: "100%",
                         padding: "8px 10px",
                         borderRadius: 8,
-                        border: "1px solid #cbd5e1",
+                        border: "1px solid var(--line, #cbd5e1)",
                         fontSize: 13,
+                        background: "var(--surface, #ffffff)",
+                        color: "var(--ink, #17231f)",
                       }}
                     />
                   </div>
-                  <span style={{ color: "#94a3b8", marginTop: 16 }}>→</span>
+                  <span style={{ color: "var(--muted, #94a3b8)", marginTop: 16 }}>→</span>
                   <div style={{ flex: 1 }}>
                     <label
                       style={{
                         fontSize: 11,
-                        color: "#64748b",
+                        color: "var(--muted, #64748b)",
                         display: "block",
                         marginBottom: 4,
                       }}
@@ -328,8 +336,10 @@ export default function ExportPresentationModal({
                         width: "100%",
                         padding: "8px 10px",
                         borderRadius: 8,
-                        border: "1px solid #cbd5e1",
+                        border: "1px solid var(--line, #cbd5e1)",
                         fontSize: 13,
+                        background: "var(--surface, #ffffff)",
+                        color: "var(--ink, #17231f)",
                       }}
                     />
                   </div>
@@ -339,10 +349,10 @@ export default function ExportPresentationModal({
 
             {period === "all" && (
               <div>
-                <p style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 600, color: "#1e293b" }}>
+                <p style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 600, color: "var(--ink, #1e293b)" }}>
                   Full Project Lifecycle Snapshot
                 </p>
-                <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
+                <p style={{ margin: 0, fontSize: 12, color: "var(--muted, #64748b)" }}>
                   Includes all tasks, deliverables, and team assignments across the entire project history.
                 </p>
               </div>
@@ -355,7 +365,7 @@ export default function ExportPresentationModal({
               style={{
                 fontSize: 12,
                 fontWeight: 700,
-                color: "#334155",
+                color: "var(--ink, #334155)",
                 marginBottom: 8,
                 display: "block",
               }}
@@ -368,7 +378,7 @@ export default function ExportPresentationModal({
                 gridTemplateColumns: "1fr 1fr",
                 gap: 8,
                 fontSize: 12,
-                color: "#334155",
+                color: "var(--ink, #334155)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
@@ -405,7 +415,7 @@ export default function ExportPresentationModal({
               alignItems: "center",
               gap: 10,
               fontSize: 13,
-              color: "#1e293b",
+              color: "var(--ink, #1e293b)",
               cursor: "pointer",
             }}
           >
@@ -423,8 +433,8 @@ export default function ExportPresentationModal({
         <div
           style={{
             padding: "16px 28px",
-            background: "#f8fafc",
-            borderTop: "1px solid #e2e8f0",
+            background: "var(--surface-subtle, #f8fafc)",
+            borderTop: "1px solid var(--line, #e2e8f0)",
             display: "flex",
             justifyContent: "flex-end",
             alignItems: "center",
@@ -447,7 +457,7 @@ export default function ExportPresentationModal({
             style={{
               minHeight: 38,
               background: "#0f172a",
-              color: "#fff",
+              color: "#ffffff",
               display: "inline-flex",
               alignItems: "center",
               gap: 8,

@@ -15,6 +15,12 @@ function applyTheme(theme: Theme) {
     document.documentElement.dataset.theme = theme;
     document.documentElement.dataset.colorScheme = dark ? "dark" : "light";
     document.documentElement.setAttribute("data-color-scheme", dark ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+    if (dark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
   }
 }
 

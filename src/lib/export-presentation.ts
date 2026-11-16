@@ -60,7 +60,9 @@ export function buildPresentationDeck(
   resources: ResourceMetric[]
 ): PptxGenJS {
   const pptx = new PptxGenJS();
-  pptx.layout = "LAYOUT_16x9";
+
+  // Modern Office 365 / Google Slides 16:9 widescreen format (13.333" x 7.5")
+  pptx.layout = "LAYOUT_WIDE";
   pptx.title = `${options.projectName} - Project Status Report`;
   pptx.author = "Orbitwork Project Management";
   pptx.company = options.organizationName || "Orbitwork Enterprise";
@@ -99,7 +101,7 @@ export function buildPresentationDeck(
 
   // Decorative top accent stripes
   slide1.addShape(pptx.ShapeType.rect, {
-    x: 0.8,
+    x: 0.7,
     y: 0.8,
     w: 1.2,
     h: 0.08,
@@ -107,7 +109,7 @@ export function buildPresentationDeck(
     line: { color: C_GOLD },
   });
   slide1.addShape(pptx.ShapeType.rect, {
-    x: 2.1,
+    x: 2.0,
     y: 0.8,
     w: 2.5,
     h: 0.08,
@@ -119,10 +121,10 @@ export function buildPresentationDeck(
   slide1.addText(
     `${(options.organizationName || "PROJECT MANAGEMENT").toUpperCase()} • EXECUTIVE REPORT`,
     {
-      x: 0.8,
+      x: 0.7,
       y: 1.1,
-      w: 11,
-      h: 0.4,
+      w: 11.5,
+      h: 0.35,
       fontSize: 11,
       bold: true,
       color: C_GOLD,
@@ -132,11 +134,11 @@ export function buildPresentationDeck(
 
   // Main Title
   slide1.addText("PROJECT STATUS & EXECUTION REPORT", {
-    x: 0.8,
-    y: 1.6,
-    w: 11.5,
-    h: 1.2,
-    fontSize: 34,
+    x: 0.7,
+    y: 1.55,
+    w: 11.8,
+    h: 1.1,
+    fontSize: 32,
     bold: true,
     color: C_WHITE,
     fontFace: "Calibri",
@@ -146,11 +148,11 @@ export function buildPresentationDeck(
   slide1.addText(
     `Project: ${options.projectName}${options.workspaceName ? `  |  Workspace: ${options.workspaceName}` : ""}`,
     {
-      x: 0.8,
-      y: 2.8,
-      w: 11,
-      h: 0.5,
-      fontSize: 18,
+      x: 0.7,
+      y: 2.75,
+      w: 11.8,
+      h: 0.45,
+      fontSize: 16,
       color: "94A3B8",
       fontFace: "Calibri",
     }
@@ -158,19 +160,19 @@ export function buildPresentationDeck(
 
   // Period Badge Card
   slide1.addShape(pptx.ShapeType.roundRect, {
-    x: 0.8,
-    y: 3.7,
-    w: 5.5,
-    h: 1.3,
+    x: 0.7,
+    y: 3.65,
+    w: 5.6,
+    h: 1.35,
     fill: { color: C_DARK_SLATE },
     line: { color: "334155", width: 1 },
     rectRadius: 0.1,
   });
 
   slide1.addText("REPORTING TIMEFRAME", {
-    x: 1.0,
-    y: 3.9,
-    w: 5.0,
+    x: 0.9,
+    y: 3.85,
+    w: 5.2,
     h: 0.3,
     fontSize: 10,
     bold: true,
@@ -179,11 +181,11 @@ export function buildPresentationDeck(
   });
 
   slide1.addText(options.periodLabel, {
-    x: 1.0,
-    y: 4.25,
-    w: 5.0,
+    x: 0.9,
+    y: 4.2,
+    w: 5.2,
     h: 0.5,
-    fontSize: 16,
+    fontSize: 15,
     bold: true,
     color: C_WHITE,
     fontFace: "Calibri",
@@ -192,9 +194,9 @@ export function buildPresentationDeck(
   // Summary Metrics Quick Strip on Cover
   slide1.addShape(pptx.ShapeType.roundRect, {
     x: 6.6,
-    y: 3.7,
-    w: 5.8,
-    h: 1.3,
+    y: 3.65,
+    w: 5.95,
+    h: 1.35,
     fill: { color: C_DARK_SLATE },
     line: { color: "334155", width: 1 },
     rectRadius: 0.1,
@@ -202,8 +204,8 @@ export function buildPresentationDeck(
 
   slide1.addText("PROJECT EXECUTION AT A GLANCE", {
     x: 6.8,
-    y: 3.9,
-    w: 5.4,
+    y: 3.85,
+    w: 5.5,
     h: 0.3,
     fontSize: 10,
     bold: true,
@@ -212,11 +214,11 @@ export function buildPresentationDeck(
   });
 
   slide1.addText(
-    `${totalTasks} Total Tasks    •    ${completionRate}% Completed    •    ${inProgressTasks.length} In Process    •    ${holdTasks.length} On Hold`,
+    `${totalTasks} Total Tasks   •   ${completionRate}% Completed   •   ${inProgressTasks.length} In Process   •   ${holdTasks.length} On Hold`,
     {
       x: 6.8,
-      y: 4.25,
-      w: 5.4,
+      y: 4.2,
+      w: 5.5,
       h: 0.5,
       fontSize: 13,
       bold: true,
@@ -234,11 +236,11 @@ export function buildPresentationDeck(
   slide1.addText(
     `Prepared for Management & Stakeholders  •  Generated on ${todayDate}  •  Confidential & Proprietary`,
     {
-      x: 0.8,
-      y: 6.3,
-      w: 11.5,
+      x: 0.7,
+      y: 6.6,
+      w: 11.9,
       h: 0.4,
-      fontSize: 10,
+      fontSize: 9.5,
       color: "64748B",
       fontFace: "Calibri",
     }
@@ -252,7 +254,7 @@ export function buildPresentationDeck(
     slide.addShape(pptx.ShapeType.rect, {
       x: 0,
       y: 0,
-      w: 13.33,
+      w: 13.333,
       h: 0.08,
       fill: { color: C_BLUE },
       line: { color: C_BLUE },
@@ -260,11 +262,11 @@ export function buildPresentationDeck(
 
     // Header Title
     slide.addText(title, {
-      x: 0.8,
+      x: 0.7,
       y: 0.4,
-      w: 9.5,
+      w: 9.2,
       h: 0.45,
-      fontSize: 20,
+      fontSize: 19,
       bold: true,
       color: C_NAVY,
       fontFace: "Calibri",
@@ -272,11 +274,11 @@ export function buildPresentationDeck(
 
     // Subtitle
     slide.addText(subtitle, {
-      x: 0.8,
+      x: 0.7,
       y: 0.85,
-      w: 9.5,
+      w: 9.2,
       h: 0.3,
-      fontSize: 11,
+      fontSize: 10.5,
       color: C_SLATE,
       fontFace: "Calibri",
     });
@@ -284,28 +286,28 @@ export function buildPresentationDeck(
     // Right-hand project chip
     slide.addShape(pptx.ShapeType.roundRect, {
       x: 10.2,
-      y: 0.4,
-      w: 2.3,
-      h: 0.65,
+      y: 0.35,
+      w: 2.4,
+      h: 0.7,
       fill: { color: C_WHITE },
       line: { color: C_BORDER, width: 1 },
       rectRadius: 0.06,
     });
-    slide.addText(options.projectName.slice(0, 20), {
-      x: 10.3,
-      y: 0.45,
-      w: 2.1,
-      h: 0.28,
-      fontSize: 9,
+    slide.addText(options.projectName.slice(0, 22), {
+      x: 10.25,
+      y: 0.4,
+      w: 2.3,
+      h: 0.3,
+      fontSize: 9.5,
       bold: true,
       align: "center",
       color: C_NAVY,
       fontFace: "Calibri",
     });
-    slide.addText(options.periodLabel.slice(0, 24), {
-      x: 10.3,
-      y: 0.72,
-      w: 2.1,
+    slide.addText(options.periodLabel.slice(0, 26), {
+      x: 10.25,
+      y: 0.7,
+      w: 2.3,
       h: 0.25,
       fontSize: 8,
       align: "center",
@@ -319,21 +321,21 @@ export function buildPresentationDeck(
     slide.addText(
       `Orbitwork Project Management  |  ${options.projectName}  |  ${options.periodLabel}`,
       {
-        x: 0.8,
-        y: 7.0,
-        w: 10,
+        x: 0.7,
+        y: 6.95,
+        w: 10.5,
         h: 0.3,
-        fontSize: 9,
+        fontSize: 8.5,
         color: "94A3B8",
         fontFace: "Calibri",
       }
     );
     slide.addText(slideNumber, {
-      x: 11.2,
-      y: 7.0,
+      x: 11.3,
+      y: 6.95,
       w: 1.3,
       h: 0.3,
-      fontSize: 9,
+      fontSize: 8.5,
       bold: true,
       align: "right",
       color: "94A3B8",
@@ -390,18 +392,18 @@ export function buildPresentationDeck(
     },
   ];
 
-  const cardW = 2.22;
+  const cardW = 2.25;
   const cardGap = 0.16;
-  const startX = 0.8;
+  const startX = 0.7;
 
   kpiCards.forEach((kpi, idx) => {
     const xPos = startX + idx * (cardW + cardGap);
     // Background card
     slide2.addShape(pptx.ShapeType.roundRect, {
       x: xPos,
-      y: 1.45,
+      y: 1.4,
       w: cardW,
-      h: 1.6,
+      h: 1.55,
       fill: { color: C_WHITE },
       line: { color: C_BORDER, width: 1 },
       rectRadius: 0.08,
@@ -409,7 +411,7 @@ export function buildPresentationDeck(
     // Top colored indicator line
     slide2.addShape(pptx.ShapeType.rect, {
       x: xPos + 0.15,
-      y: 1.55,
+      y: 1.5,
       w: cardW - 0.3,
       h: 0.05,
       fill: { color: kpi.accent },
@@ -418,10 +420,10 @@ export function buildPresentationDeck(
     // Label
     slide2.addText(kpi.label, {
       x: xPos + 0.15,
-      y: 1.7,
+      y: 1.62,
       w: cardW - 0.3,
       h: 0.25,
-      fontSize: 9,
+      fontSize: 8.5,
       bold: true,
       color: C_SLATE,
       fontFace: "Calibri",
@@ -429,10 +431,10 @@ export function buildPresentationDeck(
     // Large Value
     slide2.addText(kpi.value, {
       x: xPos + 0.15,
-      y: 1.95,
+      y: 1.88,
       w: cardW - 0.3,
-      h: 0.65,
-      fontSize: 26,
+      h: 0.6,
+      fontSize: 24,
       bold: true,
       color: kpi.color,
       fontFace: "Calibri",
@@ -440,10 +442,10 @@ export function buildPresentationDeck(
     // Subtext
     slide2.addText(kpi.sub, {
       x: xPos + 0.15,
-      y: 2.65,
+      y: 2.55,
       w: cardW - 0.3,
       h: 0.25,
-      fontSize: 9.5,
+      fontSize: 9,
       color: C_SLATE,
       fontFace: "Calibri",
     });
@@ -452,20 +454,20 @@ export function buildPresentationDeck(
   // Executive Insights Section below Cards (Two big analysis panels)
   // Left Panel: Delivery & Health Assessment
   slide2.addShape(pptx.ShapeType.roundRect, {
-    x: 0.8,
-    y: 3.3,
-    w: 5.75,
-    h: 3.4,
+    x: 0.7,
+    y: 3.25,
+    w: 5.85,
+    h: 3.45,
     fill: { color: C_WHITE },
     line: { color: C_BORDER, width: 1 },
     rectRadius: 0.08,
   });
   slide2.addText("DELIVERY VELOCITY & MILESTONE HEALTH", {
-    x: 1.05,
-    y: 3.5,
-    w: 5.2,
+    x: 0.95,
+    y: 3.45,
+    w: 5.3,
     h: 0.3,
-    fontSize: 11,
+    fontSize: 10.5,
     bold: true,
     color: C_NAVY,
     fontFace: "Calibri",
@@ -484,11 +486,11 @@ export function buildPresentationDeck(
     }`,
   ];
   slide2.addText(healthPoints.join("\n\n"), {
-    x: 1.05,
-    y: 3.95,
-    w: 5.2,
-    h: 2.5,
-    fontSize: 11,
+    x: 0.95,
+    y: 3.85,
+    w: 5.3,
+    h: 2.6,
+    fontSize: 10,
     color: C_DARK_SLATE,
     lineSpacingMultiple: 1.1,
     fontFace: "Calibri",
@@ -497,19 +499,19 @@ export function buildPresentationDeck(
   // Right Panel: Operational Focus & Attention
   slide2.addShape(pptx.ShapeType.roundRect, {
     x: 6.78,
-    y: 3.3,
-    w: 5.75,
-    h: 3.4,
+    y: 3.25,
+    w: 5.85,
+    h: 3.45,
     fill: { color: C_WHITE },
     line: { color: C_BORDER, width: 1 },
     rectRadius: 0.08,
   });
   slide2.addText("MANAGEMENT FOCUS & RISK AREAS", {
     x: 7.05,
-    y: 3.5,
-    w: 5.2,
+    y: 3.45,
+    w: 5.3,
     h: 0.3,
-    fontSize: 11,
+    fontSize: 10.5,
     bold: true,
     color: overdueTasks.length > 0 || holdTasks.length > 0 ? C_AMBER : C_EMERALD,
     fontFace: "Calibri",
@@ -537,10 +539,10 @@ export function buildPresentationDeck(
   ];
   slide2.addText(focusPoints.join("\n\n"), {
     x: 7.05,
-    y: 3.95,
-    w: 5.2,
-    h: 2.5,
-    fontSize: 11,
+    y: 3.85,
+    w: 5.3,
+    h: 2.6,
+    fontSize: 10,
     color: C_DARK_SLATE,
     lineSpacingMultiple: 1.1,
     fontFace: "Calibri",
@@ -594,13 +596,13 @@ export function buildPresentationDeck(
     },
   ];
 
-  const boxW = 2.8;
+  const boxW = 2.85;
   const boxGap = 0.17;
   statusBoxes.forEach((box, i) => {
-    const x = 0.8 + i * (boxW + boxGap);
+    const x = 0.7 + i * (boxW + boxGap);
     slide3.addShape(pptx.ShapeType.roundRect, {
       x,
-      y: 1.45,
+      y: 1.4,
       w: boxW,
       h: 1.35,
       fill: { color: box.bg },
@@ -609,30 +611,30 @@ export function buildPresentationDeck(
     });
     slide3.addText(box.title, {
       x: x + 0.15,
-      y: 1.55,
+      y: 1.5,
       w: boxW - 0.3,
       h: 0.25,
-      fontSize: 9,
+      fontSize: 8.5,
       bold: true,
       color: box.border,
       fontFace: "Calibri",
     });
     slide3.addText(`${box.count} tasks  (${box.pct})`, {
       x: x + 0.15,
-      y: 1.8,
+      y: 1.75,
       w: boxW - 0.3,
       h: 0.45,
-      fontSize: 16,
+      fontSize: 15,
       bold: true,
       color: C_NAVY,
       fontFace: "Calibri",
     });
     slide3.addText(box.desc, {
       x: x + 0.15,
-      y: 2.3,
+      y: 2.25,
       w: boxW - 0.3,
       h: 0.3,
-      fontSize: 9,
+      fontSize: 8.5,
       color: C_SLATE,
       fontFace: "Calibri",
     });
@@ -657,19 +659,19 @@ export function buildPresentationDeck(
 
     return [
       { text: st.name, options: { bold: true, color: C_NAVY } },
-      { text: (st.category || "Workflow").replace("_", " ").toUpperCase(), options: { color: C_SLATE, fontSize: 9 } },
+      { text: (st.category || "Workflow").replace("_", " ").toUpperCase(), options: { color: C_SLATE, fontSize: 8.5 } },
       { text: String(count), options: { align: "center" as const, bold: true, color: C_NAVY } },
       { text: `${share}%`, options: { align: "center" as const, color: C_SLATE } },
-      { text: opStatus, options: { color: C_DARK_SLATE, fontSize: 9.5 } },
+      { text: opStatus, options: { color: C_DARK_SLATE, fontSize: 9 } },
     ];
   });
 
   slide3.addTable([statusTableHeaders, ...statusRows], {
-    x: 0.8,
-    y: 3.1,
-    w: 11.73,
-    colW: [3.2, 2.2, 1.8, 1.6, 2.93],
-    fontSize: 10,
+    x: 0.7,
+    y: 3.05,
+    w: 11.93,
+    colW: [3.3, 2.0, 1.8, 1.6, 3.23],
+    fontSize: 9.5,
     fontFace: "Calibri",
     border: { pt: 0.5, color: C_BORDER },
     fill: { color: C_WHITE },
@@ -709,7 +711,7 @@ export function buildPresentationDeck(
       pendingCount: pendingTasks.length,
       overdueCount: overdueTasks.length,
     },
-  ]).slice(0, 10).map((r) => [
+  ]).slice(0, 8).map((r) => [
     { text: r.name, options: { bold: true, color: C_NAVY } },
     { text: String(r.totalAssigned), options: { align: "center" as const, bold: true } },
     { text: String(r.inProgressCount), options: { align: "center" as const, color: C_BLUE, bold: true } },
@@ -720,11 +722,11 @@ export function buildPresentationDeck(
   ]);
 
   slide4.addTable([resourceTableHeaders, ...resourceRows], {
-    x: 0.8,
-    y: 1.5,
-    w: 11.73,
-    colW: [3.33, 1.4, 1.4, 1.4, 1.4, 1.4, 1.4],
-    fontSize: 10,
+    x: 0.7,
+    y: 1.4,
+    w: 11.93,
+    colW: [3.53, 1.4, 1.4, 1.4, 1.4, 1.4, 1.4],
+    fontSize: 9.5,
     fontFace: "Calibri",
     border: { pt: 0.5, color: C_BORDER },
     fill: { color: C_WHITE },
@@ -733,18 +735,18 @@ export function buildPresentationDeck(
 
   // Resource capacity note below table
   slide4.addShape(pptx.ShapeType.roundRect, {
-    x: 0.8,
-    y: 5.6,
-    w: 11.73,
-    h: 1.1,
+    x: 0.7,
+    y: 5.35,
+    w: 11.93,
+    h: 1.35,
     fill: { color: C_WHITE },
     line: { color: C_BORDER, width: 1 },
     rectRadius: 0.08,
   });
   slide4.addText("CAPACITY & WORKLOAD OBSERVATIONS", {
-    x: 1.05,
-    y: 5.75,
-    w: 11.2,
+    x: 0.95,
+    y: 5.5,
+    w: 11.4,
     h: 0.25,
     fontSize: 9.5,
     bold: true,
@@ -758,11 +760,11 @@ export function buildPresentationDeck(
         : "Tasks need assignments to ensure full accountability."
     }`,
     {
-      x: 1.05,
-      y: 6.05,
-      w: 11.2,
-      h: 0.55,
-      fontSize: 10,
+      x: 0.95,
+      y: 5.8,
+      w: 11.4,
+      h: 0.65,
+      fontSize: 9.5,
       color: C_DARK_SLATE,
       fontFace: "Calibri",
     }
@@ -782,11 +784,11 @@ export function buildPresentationDeck(
 
   // Left Column: Overdue Tasks
   slide5.addText(`OVERDUE DELIVERABLES (${overdueTasks.length})`, {
-    x: 0.8,
+    x: 0.7,
     y: 1.4,
-    w: 5.7,
+    w: 5.8,
     h: 0.35,
-    fontSize: 11,
+    fontSize: 10.5,
     bold: true,
     color: overdueTasks.length > 0 ? C_CRIMSON : C_EMERALD,
     fontFace: "Calibri",
@@ -794,20 +796,20 @@ export function buildPresentationDeck(
 
   if (overdueTasks.length === 0) {
     slide5.addShape(pptx.ShapeType.roundRect, {
-      x: 0.8,
+      x: 0.7,
       y: 1.8,
-      w: 5.7,
+      w: 5.85,
       h: 4.8,
       fill: { color: "F0FDF4" },
       line: { color: C_EMERALD, width: 1 },
       rectRadius: 0.08,
     });
     slide5.addText("✓ Zero Overdue Tasks\n\nAll project deliverables are actively tracking within scheduled target dates.", {
-      x: 1.1,
+      x: 0.95,
       y: 3.5,
-      w: 5.1,
+      w: 5.3,
       h: 1.5,
-      fontSize: 12,
+      fontSize: 11.5,
       bold: true,
       align: "center",
       color: C_EMERALD,
@@ -821,17 +823,17 @@ export function buildPresentationDeck(
       { text: "Priority", options: { bold: true, fill: { color: C_CRIMSON }, color: C_WHITE } },
     ];
     const overdueRows = overdueTasks.slice(0, 8).map((t) => [
-      { text: t.title.slice(0, 36), options: { bold: true, color: C_NAVY } },
-      { text: t.assignees.map((a) => a.name).join(", ") || "Unassigned", options: { color: C_SLATE } },
+      { text: t.title.slice(0, 30), options: { bold: true, color: C_NAVY } },
+      { text: t.assignees.map((a) => a.name).join(", ").slice(0, 20) || "Unassigned", options: { color: C_SLATE } },
       { text: t.dueDate || "Past due", options: { color: C_CRIMSON, bold: true } },
       { text: t.priority.toUpperCase(), options: { color: C_DARK_SLATE, bold: true } },
     ]);
     slide5.addTable([overdueHeaders, ...overdueRows], {
-      x: 0.8,
+      x: 0.7,
       y: 1.8,
-      w: 5.7,
-      colW: [2.5, 1.4, 1.0, 0.8],
-      fontSize: 9,
+      w: 5.85,
+      colW: [2.55, 1.4, 1.0, 0.9],
+      fontSize: 8.5,
       fontFace: "Calibri",
       border: { pt: 0.5, color: C_BORDER },
       fill: { color: C_WHITE },
@@ -840,11 +842,11 @@ export function buildPresentationDeck(
 
   // Right Column: Hold Tasks
   slide5.addText(`DELIVERABLES ON HOLD (${holdTasks.length})`, {
-    x: 6.83,
+    x: 6.78,
     y: 1.4,
-    w: 5.7,
+    w: 5.8,
     h: 0.35,
-    fontSize: 11,
+    fontSize: 10.5,
     bold: true,
     color: holdTasks.length > 0 ? C_AMBER : C_EMERALD,
     fontFace: "Calibri",
@@ -852,20 +854,20 @@ export function buildPresentationDeck(
 
   if (holdTasks.length === 0) {
     slide5.addShape(pptx.ShapeType.roundRect, {
-      x: 6.83,
+      x: 6.78,
       y: 1.8,
-      w: 5.7,
+      w: 5.85,
       h: 4.8,
       fill: { color: "F0FDF4" },
       line: { color: C_EMERALD, width: 1 },
       rectRadius: 0.08,
     });
     slide5.addText("✓ Zero Deliverables on Hold\n\nNo tasks are currently stalled, blocked, or awaiting external dependencies.", {
-      x: 7.1,
+      x: 7.05,
       y: 3.5,
-      w: 5.1,
+      w: 5.3,
       h: 1.5,
-      fontSize: 12,
+      fontSize: 11.5,
       bold: true,
       align: "center",
       color: C_EMERALD,
@@ -879,17 +881,17 @@ export function buildPresentationDeck(
       { text: "Priority", options: { bold: true, fill: { color: C_AMBER }, color: C_WHITE } },
     ];
     const holdRows = holdTasks.slice(0, 8).map((t) => [
-      { text: t.title.slice(0, 36), options: { bold: true, color: C_NAVY } },
-      { text: t.assignees.map((a) => a.name).join(", ") || "Unassigned", options: { color: C_SLATE } },
+      { text: t.title.slice(0, 30), options: { bold: true, color: C_NAVY } },
+      { text: t.assignees.map((a) => a.name).join(", ").slice(0, 20) || "Unassigned", options: { color: C_SLATE } },
       { text: t.statusName, options: { color: C_AMBER, bold: true } },
       { text: t.priority.toUpperCase(), options: { color: C_DARK_SLATE, bold: true } },
     ]);
     slide5.addTable([holdHeaders, ...holdRows], {
-      x: 6.83,
+      x: 6.78,
       y: 1.8,
-      w: 5.7,
-      colW: [2.5, 1.4, 1.0, 0.8],
-      fontSize: 9,
+      w: 5.85,
+      colW: [2.55, 1.4, 1.0, 0.9],
+      fontSize: 8.5,
       fontFace: "Calibri",
       border: { pt: 0.5, color: C_BORDER },
       fill: { color: C_WHITE },
@@ -902,7 +904,7 @@ export function buildPresentationDeck(
   // SLIDE 6+: Comprehensive Detailed Task Catalog (Paginated)
   // -------------------------------------------------------------
   if (options.includeCatalog !== false && tasks.length > 0) {
-    const tasksPerPage = 9;
+    const tasksPerPage = 8;
     const totalPages = Math.ceil(tasks.length / tasksPerPage);
 
     for (let page = 0; page < totalPages; page++) {
@@ -932,10 +934,10 @@ export function buildPresentationDeck(
         else if (t.isInProgress) statusTextColor = C_BLUE;
 
         return [
-          { text: t.key || "—", options: { bold: true, color: C_SLATE, fontSize: 8.5 } },
-          { text: t.title, options: { bold: true, color: C_NAVY } },
-          { text: (t.taskType || "Task").toUpperCase(), options: { color: C_SLATE, fontSize: 8.5 } },
-          { text: t.assignees.map((a) => a.name).join(", ") || "Unassigned", options: { color: C_DARK_SLATE } },
+          { text: t.key || "—", options: { bold: true, color: C_SLATE, fontSize: 8 } },
+          { text: t.title.slice(0, 48), options: { bold: true, color: C_NAVY } },
+          { text: (t.taskType || "Task").toUpperCase(), options: { color: C_SLATE, fontSize: 8 } },
+          { text: t.assignees.map((a) => a.name).join(", ").slice(0, 24) || "Unassigned", options: { color: C_DARK_SLATE } },
           { text: t.statusName, options: { bold: true, color: statusTextColor } },
           { text: t.priority.toUpperCase(), options: { bold: true, color: t.priority === "urgent" ? C_CRIMSON : C_DARK_SLATE } },
           { text: t.dueDate || "—", options: { color: t.isOverdue && !t.isCompleted ? C_CRIMSON : C_SLATE, bold: t.isOverdue && !t.isCompleted } },
@@ -943,11 +945,11 @@ export function buildPresentationDeck(
       });
 
       pageSlide.addTable([catalogHeaders, ...catalogRows], {
-        x: 0.8,
-        y: 1.5,
-        w: 11.73,
-        colW: [1.1, 4.0, 1.1, 2.0, 1.5, 1.0, 1.03],
-        fontSize: 9,
+        x: 0.7,
+        y: 1.4,
+        w: 11.93,
+        colW: [1.2, 4.33, 1.0, 1.8, 1.4, 1.1, 1.1],
+        fontSize: 8.5,
         fontFace: "Calibri",
         border: { pt: 0.5, color: C_BORDER },
         fill: { color: C_WHITE },

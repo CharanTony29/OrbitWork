@@ -259,8 +259,14 @@ export default function UserProfileDropdown({
         theme === "dark" ||
         (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
       document.documentElement.setAttribute("data-color-scheme", isDark ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
       document.documentElement.dataset.colorScheme = isDark ? "dark" : "light";
       document.documentElement.dataset.theme = theme;
+      if (isDark) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
       localStorage.setItem("orbitwork-theme", theme);
       localStorage.setItem("color-scheme", theme);
     } catch {}

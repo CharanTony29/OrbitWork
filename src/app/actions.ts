@@ -68,7 +68,7 @@ function values(formData: FormData) {
 export async function signIn(formData: FormData) {
   const parsed = values(formData);
   const rawReturnUrl = formData.get("returnUrl") as string | null;
-  const safeReturnUrl = rawReturnUrl && rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : "/dashboard";
+  const safeReturnUrl = rawReturnUrl && rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : "/my-dashboard";
   const returnQuery = rawReturnUrl ? `&returnUrl=${encodeURIComponent(rawReturnUrl)}` : "";
 
   if (!parsed.success) redirect(`/login?error=invalid_input${returnQuery}`);
@@ -88,7 +88,7 @@ export async function signIn(formData: FormData) {
 export async function signUp(formData: FormData) {
   const parsed = values(formData);
   const rawReturnUrl = formData.get("returnUrl") as string | null;
-  const safeReturnUrl = rawReturnUrl && rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : "/dashboard";
+  const safeReturnUrl = rawReturnUrl && rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : "/my-dashboard";
   const returnQuery = rawReturnUrl ? `&returnUrl=${encodeURIComponent(rawReturnUrl)}` : "";
 
   if (!parsed.success) redirect(`/signup?error=invalid_input${returnQuery}`);
@@ -122,7 +122,7 @@ export async function signInWithMagicLink(formData: FormData) {
   const email = z.string().trim().email().safeParse(formData.get("email"));
   const fromSource = formData.get("from") === "signup" ? "/signup" : "/login";
   const rawReturnUrl = formData.get("returnUrl") as string | null;
-  const safeReturnUrl = rawReturnUrl && rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : "/dashboard";
+  const safeReturnUrl = rawReturnUrl && rawReturnUrl.startsWith("/") && !rawReturnUrl.startsWith("//") ? rawReturnUrl : "/my-dashboard";
   const returnQuery = rawReturnUrl ? `&returnUrl=${encodeURIComponent(rawReturnUrl)}` : "";
 
   if (!email.success) redirect(`${fromSource}?error=invalid_input${returnQuery}`);

@@ -37,6 +37,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" data-theme="system">
       <head>
         <link rel="preload" href="/logo-64.png?v=3" as="image" type="image/png" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("orbitwork-theme")||localStorage.getItem("color-scheme")||"system";var d=t==="dark"||(t==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.setAttribute("data-color-scheme",d?"dark":"light");document.documentElement.setAttribute("data-theme",t);if(d){document.documentElement.classList.add("dark")}else{document.documentElement.classList.remove("dark")}}catch(e){}})()`,
+          }}
+        />
       </head>
       <body>
         <TopProgressBar />

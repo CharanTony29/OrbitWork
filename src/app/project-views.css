@@ -356,7 +356,8 @@ body:has(.project-app-shell) {
 .project-app-shell .task-panel > .calendar-wrap,
 .project-app-shell .task-panel > .workload-view,
 .project-app-shell .task-panel > .kanban-board,
-.project-app-shell .task-panel > .project-goals-view {
+.project-app-shell .task-panel > .project-goals-view,
+.project-app-shell .task-panel > .live-tracker-root {
   flex: 1 1 auto !important;
   min-height: 0 !important;
   overflow-y: auto !important;

@@ -28,7 +28,7 @@ export default function SocialAuthButtons({
         callbackOrigin = "https://app.orbitwork.org";
       }
       const supabase = createClient();
-      const safeNext = returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//") ? returnUrl : "/dashboard";
+      const safeNext = returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//") ? returnUrl : "/my-dashboard";
       const redirectTo = `${callbackOrigin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
