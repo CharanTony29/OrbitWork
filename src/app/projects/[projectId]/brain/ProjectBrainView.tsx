@@ -85,6 +85,12 @@ export default function ProjectBrainView({
   const [applySuccessMsg, setApplySuccessMsg] = useState<string | null>(null);
   const [preventiveCategoryFilter, setPreventiveCategoryFilter] = useState<string>("all");
 
+  // Selection & Batch Operations for Recommendations
+  const [selectedRecIds, setSelectedRecIds] = useState<Set<string>>(new Set());
+  const [batchReviewOpen, setBatchReviewOpen] = useState(false);
+  const [batchTargetRecs, setBatchTargetRecs] = useState<ActionableRecommendation[]>([]);
+  const [applyingBatch, setApplyingBatch] = useState(false);
+
   // Record Decision Modal
   const [decisionModalOpen, setDecisionModalOpen] = useState(false);
   const [decisionTitle, setDecisionTitle] = useState("");
@@ -276,6 +282,79 @@ export default function ProjectBrainView({
       alert(err instanceof Error ? err.message : "Failed to apply recommendation");
     } finally {
       setApplyingRec(false);
+    }
+  };
+
+  // Toggle single recommendation selection
+  const toggleSelectRec = (id: string) => {
+    setSelectedRecIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Toggle select all / deselect all
+  const toggleSelectAllRecs = () => {
+    if (!data?.recommendations) return;
+    if (selectedRecIds.size === data.recommendations.length) {
+      setSelectedRecIds(new Set());
+    } else {
+      setSelectedRecIds(new Set(data.recommendations.map((r) => r.id)));
+    }
+  };
+
+  // Open Batch Review Modal
+  const handleOpenBatch = (recs: ActionableRecommendation[]) => {
+    if (!recs.length) return;
+    setBatchTargetRecs(recs);
+    setBatchReviewOpen(true);
+  };
+
+  // Apply Batch Recommendations
+  const handleApplyBatch = async (recs: ActionableRecommendation[]) => {
+    if (!recs.length) return;
+    try {
+      setApplyingBatch(true);
+      const res = await fetch(`/api/projects/${projectId}/brain/recommendations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: recs.map((r) => ({
+            recommendationId: r.id,
+            actionType: r.actionType,
+            actionPayload: r.actionPayload,
+            title: r.title,
+            reason: r.whyRecommended,
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Failed to apply batch recommendations");
+      }
+
+      setApplySuccessMsg(
+        `Successfully fixed ${recs.length} project recommendation${recs.length > 1 ? "s" : ""} at once!`
+      );
+      setBatchReviewOpen(false);
+      setBatchTargetRecs([]);
+      setSelectedRecIds(new Set());
+
+      // Re-fetch project brain data so health scores recalculate immediately
+      fetchBrainData(true);
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to apply batch recommendations");
+    } finally {
+      setApplyingBatch(false);
     }
   };
 
@@ -550,11 +629,11 @@ export default function ProjectBrainView({
           className={`brain-nav-tab ${activeTab === "preventive" ? "active" : ""}`}
           onClick={() => setActiveTab("preventive")}
         >
-          <ShieldAlert
+          <Zap
             size={13}
             style={{ color: recommendations.length > 0 ? "var(--green)" : "var(--muted)" }}
           />{" "}
-          Preventive Measures ({recommendations.length})
+          Recommendations ({recommendations.length})
         </button>
         <button
           className={`brain-nav-tab ${activeTab === "dependencies" ? "active" : ""}`}
@@ -912,7 +991,24 @@ export default function ProjectBrainView({
                   <Zap size={16} style={{ color: "var(--green)" }} />
                   Recommended Actions ({recommendations.length})
                 </h3>
-                <span style={{ fontSize: "11px", color: "var(--muted)" }}>Safe Execution</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  {canEdit && recommendations.length > 0 && (
+                    <button
+                      className="rec-fix-all-btn"
+                      onClick={() => handleOpenBatch(recommendations)}
+                      title="Apply all recommendations at once with single confirmation"
+                    >
+                      ⚡ Fix All ({recommendations.length})
+                    </button>
+                  )}
+                  <button
+                    className="rec-view-all-tab-btn"
+                    onClick={() => setActiveTab("preventive")}
+                    title="View all recommendations with multi-select in separate tab"
+                  >
+                    Manage All →
+                  </button>
+                </div>
               </div>
 
               {recommendations.length === 0 ? (
@@ -920,46 +1016,82 @@ export default function ProjectBrainView({
                   ✓ All deliverables aligned. No corrective actions required.
                 </p>
               ) : (
-                recommendations.slice(0, 4).map((rec) => (
-                  <div key={rec.id} className="rec-item-card">
-                    <div className="rec-title-row">
-                      <p className="rec-title">{rec.title}</p>
-                      <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                        {rec.riskReductionLabel && (
-                          <span className="risk-reduction-tag">{rec.riskReductionLabel}</span>
-                        )}
-                        {rec.healthImpactLabel && (
-                          <span className="health-gain-tag">{rec.healthImpactLabel}</span>
-                        )}
+                <>
+                  {recommendations.slice(0, 2).map((rec) => (
+                    <div key={rec.id} className="rec-item-card">
+                      <div className="rec-title-row">
+                        <p className="rec-title">{rec.title}</p>
+                        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                          {rec.riskReductionLabel && (
+                            <span className="risk-reduction-tag">{rec.riskReductionLabel}</span>
+                          )}
+                          {rec.healthImpactLabel && (
+                            <span className="health-gain-tag">{rec.healthImpactLabel}</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="rec-explanation-grid">
-                      <div className="rec-expl-item">
-                        <strong>Why:</strong> {rec.whyRecommended}
+                      <div className="rec-explanation-grid">
+                        <div className="rec-expl-item">
+                          <strong>Why:</strong> {rec.whyRecommended}
+                        </div>
+                        <div className="rec-expl-item">
+                          <strong>Expected Benefit:</strong> {rec.expectedBenefit}
+                        </div>
+                        <div className="rec-expl-item">
+                          <strong>Possible Risk:</strong> {rec.possibleRisk}
+                        </div>
                       </div>
-                      <div className="rec-expl-item">
-                        <strong>Expected Benefit:</strong> {rec.expectedBenefit}
-                      </div>
-                      <div className="rec-expl-item">
-                        <strong>Possible Risk:</strong> {rec.possibleRisk}
-                      </div>
-                    </div>
-                    <div className="rec-action-buttons">
-                      <button className="rec-review-btn" onClick={() => setReviewRec(rec)}>
-                        Review changes
-                      </button>
-                      {canEdit && (
-                        <button
-                          className="rec-apply-btn"
-                          onClick={() => handleApplyRecommendation(rec)}
-                          disabled={applyingRec}
-                        >
-                          Apply change
+                      <div className="rec-action-buttons">
+                        <button className="rec-review-btn" onClick={() => setReviewRec(rec)}>
+                          Review changes
                         </button>
-                      )}
+                        {canEdit && (
+                          <button
+                            className="rec-apply-btn"
+                            onClick={() => handleApplyRecommendation(rec)}
+                            disabled={applyingRec}
+                          >
+                            Apply change
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+
+                  {recommendations.length > 2 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        background: "var(--surface-subtle)",
+                        border: "1px dashed var(--line)",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                        marginTop: "2px",
+                      }}
+                    >
+                      <span style={{ color: "var(--muted)" }}>
+                        + {recommendations.length - 2} more recommendations available in separate tab.
+                      </span>
+                      <button
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--green)",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          padding: 0,
+                        }}
+                        onClick={() => setActiveTab("preventive")}
+                      >
+                        Open Recommendations Tab ({recommendations.length}) →
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -1036,21 +1168,29 @@ export default function ProjectBrainView({
         </div>
       )}
 
-      {/* 4. SUBTAB: PREVENTIVE MEASURES & RISK MITIGATION */}
+      {/* 4. SUBTAB: PREVENTIVE MEASURES & RECOMMENDATIONS */}
       {activeTab === "preventive" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div className="brain-card">
             <div className="brain-card-header">
               <h3 className="brain-card-title">
                 <ShieldAlert size={18} style={{ color: "var(--green)" }} />
-                Preventive Measures & Risk Mitigation Control Center
+                Recommendations & Preventive Actions Control Center
               </h3>
-              <span style={{ fontSize: "11px", color: "var(--muted)" }}>
-                Preemptive Risk Reduction
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                {canEdit && recommendations.length > 0 && (
+                  <button
+                    className="batch-fix-all-btn"
+                    onClick={() => handleOpenBatch(recommendations)}
+                    title="Apply all recommendations in a single batch operation"
+                  >
+                    ⚡ Fix All at Once ({recommendations.length})
+                  </button>
+                )}
+              </div>
             </div>
             <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>
-              Actionable preventive strategies to eliminate execution bottlenecks, level contributor workloads, and safeguard project deliverables before delays compound.
+              Actionable recommendations to eliminate execution bottlenecks, level contributor workloads, and safeguard project deliverables before delays compound.
             </p>
 
             {/* Impact Metrics Banner */}
@@ -1128,6 +1268,69 @@ export default function ProjectBrainView({
               </button>
             </div>
 
+            {/* Batch Selection Toolbar */}
+            {recommendations.length > 0 && (
+              <div className="batch-action-toolbar">
+                <div className="select-all-group">
+                  <label className="select-all-label">
+                    <input
+                      type="checkbox"
+                      checked={
+                        recommendations.filter(
+                          (r) => preventiveCategoryFilter === "all" || r.category === preventiveCategoryFilter
+                        ).length > 0 &&
+                        recommendations
+                          .filter((r) => preventiveCategoryFilter === "all" || r.category === preventiveCategoryFilter)
+                          .every((r) => selectedRecIds.has(r.id))
+                      }
+                      onChange={toggleSelectAllRecs}
+                      className="rec-item-checkbox"
+                    />
+                    <span>
+                      {recommendations
+                        .filter((r) => preventiveCategoryFilter === "all" || r.category === preventiveCategoryFilter)
+                        .every((r) => selectedRecIds.has(r.id))
+                        ? "Deselect All"
+                        : `Select All (${
+                            recommendations.filter(
+                              (r) => preventiveCategoryFilter === "all" || r.category === preventiveCategoryFilter
+                            ).length
+                          })`}
+                    </span>
+                  </label>
+                  {selectedRecIds.size > 0 && (
+                    <span className="selection-count-pill">
+                      {selectedRecIds.size} of {recommendations.length} selected
+                    </span>
+                  )}
+                </div>
+
+                <div className="batch-buttons-group">
+                  {canEdit && (
+                    <>
+                      <button
+                        className="batch-fix-selected-btn"
+                        disabled={selectedRecIds.size === 0}
+                        onClick={() =>
+                          handleOpenBatch(
+                            recommendations.filter((r) => selectedRecIds.has(r.id))
+                          )
+                        }
+                      >
+                        ⚡ Fix Selected ({selectedRecIds.size})
+                      </button>
+                      <button
+                        className="batch-fix-all-btn"
+                        onClick={() => handleOpenBatch(recommendations)}
+                      >
+                        ⚡ Fix All at Once ({recommendations.length})
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* List of Preventive Measures */}
             {recommendations.length === 0 ? (
               <div
@@ -1153,83 +1356,95 @@ export default function ProjectBrainView({
                   .filter((rec) => preventiveCategoryFilter === "all" || rec.category === preventiveCategoryFilter)
                   .map((rec) => (
                     <div key={rec.id} className="preventive-measure-card">
-                      <div className="preventive-measure-header">
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                          <span
-                            className={`preventive-category-badge ${
-                              rec.category === "workload"
-                                ? "cat-workload"
-                                : rec.category === "blocker"
-                                ? "cat-blocker"
-                                : rec.category === "schedule"
-                                ? "cat-schedule"
-                                : "cat-dependency"
-                            }`}
-                          >
-                            {rec.category || "Preventive"}
-                          </span>
-                          <h4 style={{ margin: 0, fontSize: "13.5px", fontWeight: 700, color: "var(--ink)" }}>
-                            {rec.title}
-                          </h4>
-                        </div>
-                        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                          {rec.riskReductionLabel && (
-                            <span className="risk-reduction-tag">{rec.riskReductionLabel}</span>
-                          )}
-                          {rec.healthImpactLabel && (
-                            <span className="health-gain-tag">{rec.healthImpactLabel}</span>
-                          )}
-                        </div>
-                      </div>
+                      <div className="rec-card-with-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={selectedRecIds.has(rec.id)}
+                          onChange={() => toggleSelectRec(rec.id)}
+                          className="rec-item-checkbox"
+                          style={{ marginTop: "3px" }}
+                          title="Select for batch fix"
+                        />
+                        <div className="rec-card-body">
+                          <div className="preventive-measure-header">
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                              <span
+                                className={`preventive-category-badge ${
+                                  rec.category === "workload"
+                                    ? "cat-workload"
+                                    : rec.category === "blocker"
+                                    ? "cat-blocker"
+                                    : rec.category === "schedule"
+                                    ? "cat-schedule"
+                                    : "cat-dependency"
+                                }`}
+                              >
+                                {rec.category || "Preventive"}
+                              </span>
+                              <h4 style={{ margin: 0, fontSize: "13.5px", fontWeight: 700, color: "var(--ink)" }}>
+                                {rec.title}
+                              </h4>
+                            </div>
+                            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                              {rec.riskReductionLabel && (
+                                <span className="risk-reduction-tag">{rec.riskReductionLabel}</span>
+                              )}
+                              {rec.healthImpactLabel && (
+                                <span className="health-gain-tag">{rec.healthImpactLabel}</span>
+                              )}
+                            </div>
+                          </div>
 
-                      <p style={{ margin: 0, fontSize: "12.5px", color: "var(--ink)", lineHeight: 1.5 }}>
-                        {rec.description}
-                      </p>
+                          <p style={{ margin: 0, fontSize: "12.5px", color: "var(--ink)", lineHeight: 1.5 }}>
+                            {rec.description}
+                          </p>
 
-                      {/* Simulation & Comparison Meter */}
-                      <div className="preventive-comparison-meter">
-                        <span style={{ fontWeight: 600, color: "var(--muted)" }}>Simulated Trajectory:</span>
-                        <span className="comparison-before">
-                          Current Risk: High ({rec.riskReductionScore ? "75%" : "Elevated"})
-                        </span>
-                        <ArrowRight size={13} style={{ color: "var(--muted)" }} />
-                        <span className="comparison-after">
-                          Mitigated Risk: Low (
-                          {rec.riskReductionScore ? `${Math.max(15, 75 - rec.riskReductionScore)}%` : "Resolved"})
-                        </span>
-                        <span style={{ marginLeft: "auto", fontSize: "11px", color: "var(--green)", fontWeight: 700 }}>
-                          {rec.healthImpactLabel || "+6% Project Health"}
-                        </span>
-                      </div>
+                          {/* Simulation & Comparison Meter */}
+                          <div className="preventive-comparison-meter">
+                            <span style={{ fontWeight: 600, color: "var(--muted)" }}>Simulated Trajectory:</span>
+                            <span className="comparison-before">
+                              Current Risk: High ({rec.riskReductionScore ? "75%" : "Elevated"})
+                            </span>
+                            <ArrowRight size={13} style={{ color: "var(--muted)" }} />
+                            <span className="comparison-after">
+                              Mitigated Risk: Low (
+                              {rec.riskReductionScore ? `${Math.max(15, 75 - rec.riskReductionScore)}%` : "Resolved"})
+                            </span>
+                            <span style={{ marginLeft: "auto", fontSize: "11px", color: "var(--green)", fontWeight: 700 }}>
+                              {rec.healthImpactLabel || "+6% Project Health"}
+                            </span>
+                          </div>
 
-                      <div className="rec-explanation-grid">
-                        <div className="rec-expl-item">
-                          <strong>Why Recommended:</strong> {rec.whyRecommended}
-                        </div>
-                        <div className="rec-expl-item">
-                          <strong>Expected Benefit:</strong> {rec.expectedBenefit}
-                        </div>
-                        <div className="rec-expl-item">
-                          <strong>Scope Affected:</strong> {rec.affectsDescription}
-                        </div>
-                        <div className="rec-expl-item">
-                          <strong>Possible Risk:</strong> {rec.possibleRisk}
-                        </div>
-                      </div>
+                          <div className="rec-explanation-grid">
+                            <div className="rec-expl-item">
+                              <strong>Why Recommended:</strong> {rec.whyRecommended}
+                            </div>
+                            <div className="rec-expl-item">
+                              <strong>Expected Benefit:</strong> {rec.expectedBenefit}
+                            </div>
+                            <div className="rec-expl-item">
+                              <strong>Scope Affected:</strong> {rec.affectsDescription}
+                            </div>
+                            <div className="rec-expl-item">
+                              <strong>Possible Risk:</strong> {rec.possibleRisk}
+                            </div>
+                          </div>
 
-                      <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "4px" }}>
-                        <button className="rec-review-btn" onClick={() => setReviewRec(rec)}>
-                          Simulate & Review
-                        </button>
-                        {canEdit && (
-                          <button
-                            className="risk-mitigate-btn"
-                            onClick={() => handleApplyRecommendation(rec)}
-                            disabled={applyingRec}
-                          >
-                            ⚡ Apply Preventive Measure
-                          </button>
-                        )}
+                          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "4px" }}>
+                            <button className="rec-review-btn" onClick={() => setReviewRec(rec)}>
+                              Simulate & Review
+                            </button>
+                            {canEdit && (
+                              <button
+                                className="risk-mitigate-btn"
+                                onClick={() => handleApplyRecommendation(rec)}
+                                disabled={applyingRec}
+                              >
+                                ⚡ Apply Change
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -2259,6 +2474,109 @@ export default function ProjectBrainView({
                   disabled={applyingRec}
                 >
                   {applyingRec ? "Applying..." : "Confirm & Apply Preventive Measure"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Batch Recommendation Fix Modal */}
+      {batchReviewOpen && (
+        <div className="brain-modal-overlay" onClick={() => setBatchReviewOpen(false)}>
+          <div className="brain-modal-box" style={{ maxWidth: "680px" }} onClick={(e) => e.stopPropagation()}>
+            <div className="brain-modal-header">
+              <h3 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Zap size={18} style={{ color: "var(--green)" }} />
+                Batch Fix: Apply {batchTargetRecs.length} Action{batchTargetRecs.length > 1 ? "s" : ""} at Once
+              </h3>
+              <button className="brain-modal-close-btn" onClick={() => setBatchReviewOpen(false)}>
+                ×
+              </button>
+            </div>
+
+            <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", lineHeight: 1.5 }}>
+              The following {batchTargetRecs.length} recommended actions will be executed in a single batch to rebalance workloads, resolve schedule congestion, and eliminate delivery risks.
+            </p>
+
+            {/* Cumulative Impact Preview */}
+            <div
+              className="preventive-comparison-meter"
+              style={{
+                background: "rgba(22, 163, 74, 0.08)",
+                border: "1px solid rgba(22, 163, 74, 0.25)",
+                padding: "10px 14px",
+              }}
+            >
+              <span style={{ fontWeight: 700, color: "var(--ink)" }}>Cumulative Projected Health:</span>
+              <span className="comparison-before">Current: {health.overallScore}%</span>
+              <ArrowRight size={13} style={{ color: "var(--muted)" }} />
+              <span className="comparison-after">
+                Projected: {Math.min(100, health.overallScore + Math.min(22, batchTargetRecs.length * 5))}%
+              </span>
+              <span style={{ marginLeft: "auto", fontSize: "11px", color: "var(--green)", fontWeight: 700 }}>
+                Eliminates {batchTargetRecs.length} Risk Trajectories
+              </span>
+            </div>
+
+            {/* List of items to be applied */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                maxHeight: "280px",
+                overflowY: "auto",
+                padding: "8px",
+                background: "var(--surface-subtle)",
+                borderRadius: "8px",
+                border: "1px solid var(--line)",
+              }}
+            >
+              {batchTargetRecs.map((item, idx) => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: "10px",
+                    padding: "8px 10px",
+                    background: "var(--surface)",
+                    borderRadius: "6px",
+                    border: "1px solid var(--line)",
+                    fontSize: "12px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                    <span style={{ fontWeight: 700, color: "var(--muted)" }}>{idx + 1}.</span>
+                    <div>
+                      <strong style={{ color: "var(--ink)", display: "block" }}>{item.title}</strong>
+                      <span style={{ color: "var(--muted)", fontSize: "11.5px" }}>{item.affectsDescription}</span>
+                    </div>
+                  </div>
+                  {item.riskReductionLabel && (
+                    <span className="risk-reduction-tag" style={{ flexShrink: 0 }}>
+                      {item.riskReductionLabel}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "10px" }}>
+              <button className="rec-review-btn" onClick={() => setBatchReviewOpen(false)}>
+                Cancel
+              </button>
+              {canEdit && (
+                <button
+                  className="batch-fix-all-btn"
+                  onClick={() => handleApplyBatch(batchTargetRecs)}
+                  disabled={applyingBatch}
+                >
+                  {applyingBatch
+                    ? "Applying All Fixes..."
+                    : `Confirm & Fix All (${batchTargetRecs.length}) Now`}
                 </button>
               )}
             </div>
