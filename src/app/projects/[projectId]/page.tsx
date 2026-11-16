@@ -21,6 +21,7 @@ import ProjectGoalsView, { type ProjectGoalRecord } from "./ProjectGoalsView";
 import ProjectAIAgentsHub from "@/app/ai/ProjectAIAgentsHub";
 import ProjectBrainView from "./brain/ProjectBrainView";
 import ProjectLiveTracker from "./ProjectLiveTracker";
+import ProjectExportButton from "./ProjectExportButton";
 import FavoriteButton from "@/app/FavoriteButton";
 import { resolveProfileAvatarSrc } from "@/lib/chat";
 import {
@@ -330,7 +331,17 @@ export default async function ProjectPage({ params, searchParams }: {
               label="Favorite"
               compact
             />
-            <a className="export-link" href={`/api/projects/${projectId}/tasks.csv`} style={{ fontSize: "12px" }}>Export CSV</a>
+            <ProjectExportButton
+              projectId={projectId}
+              projectName={project.name}
+              tasks={(tasks ?? []).map((t) => ({
+                ...t,
+                assigneeIds: getTaskAssignees(t),
+              }))}
+              statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
+              members={members}
+              customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))}
+            />
             {canManage && (
               <ProjectSettingsPanel
                 projectId={project.id}

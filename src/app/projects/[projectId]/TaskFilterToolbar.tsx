@@ -359,7 +359,15 @@ export default function TaskFilterToolbar({
         })()}
 
         {/* Subtasks pill */}
-        <button type="button" className="toolbar-pill" title="Subtasks">
+        <button
+          type="button"
+          className="toolbar-pill"
+          title="Expand / Collapse Subtasks"
+          onClick={() => {
+            const btn = document.querySelector(".expand-collapse-all-btn") as HTMLButtonElement | null;
+            if (btn) btn.click();
+          }}
+        >
           <svg
             width="12"
             height="12"

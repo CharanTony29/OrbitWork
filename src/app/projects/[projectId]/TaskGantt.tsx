@@ -581,6 +581,7 @@ export default function TaskGantt({
                   <button
                     key={`pill-${h.id}`}
                     type="button"
+                    className="gantt-holiday-chip"
                     onClick={() => {
                       if (sIdx !== undefined && containerRef.current) {
                         const targetLeft = Math.max(0, (sIdx - 1) * DAY_COL_WIDTH);
@@ -588,9 +589,6 @@ export default function TaskGantt({
                       }
                     }}
                     style={{
-                      border: "1px solid #fde68a",
-                      background: "#fef3c7",
-                      color: "#92400e",
                       fontSize: 10.5,
                       fontWeight: 600,
                       padding: "2px 8px",
@@ -611,7 +609,7 @@ export default function TaskGantt({
 
           {yearLeaves.length > 0 && (
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <strong style={{ fontSize: 11, color: "#1d4ed8" }}>Team Time Off:</strong>
+              <strong style={{ fontSize: 11, color: "var(--primary, #3b82f6)" }}>Team Time Off:</strong>
               {yearLeaves.slice(0, 6).map((l) => {
                 const sIdx = dateToDayIndex.get(l.start.slice(0, 10));
                 const isSick = l.label.toLowerCase().includes("sick");
@@ -619,6 +617,7 @@ export default function TaskGantt({
                   <button
                     key={`pill-leave-${l.id}`}
                     type="button"
+                    className={`gantt-timeoff-chip ${isSick ? "is-sick" : "is-vacation"}`}
                     onClick={() => {
                       if (sIdx !== undefined && containerRef.current) {
                         const targetLeft = Math.max(0, (sIdx - 1) * DAY_COL_WIDTH);
@@ -626,9 +625,6 @@ export default function TaskGantt({
                       }
                     }}
                     style={{
-                      border: isSick ? "1px solid #bfdbfe" : "1px solid #ddd6fe",
-                      background: isSick ? "#eff6ff" : "#f5f3ff",
-                      color: isSick ? "#1e40af" : "#6d28d9",
                       fontSize: 10.5,
                       fontWeight: 600,
                       padding: "2px 8px",
@@ -735,7 +731,7 @@ export default function TaskGantt({
                     justifyContent: "space-between",
                     padding: "0 10px",
                     background: m.isCurrentMonth
-                      ? "#f0fdf4"
+                      ? "rgba(22, 163, 74, 0.14)"
                       : m.index % 2 === 0
                       ? "var(--surface, #ffffff)"
                       : "var(--app-bg, #f8fafc)",
@@ -759,7 +755,7 @@ export default function TaskGantt({
                       whiteSpace: "nowrap",
                       fontWeight: 700,
                       fontSize: 12,
-                      color: m.isCurrentMonth ? "#166534" : "var(--ink, #1e293b)",
+                      color: m.isCurrentMonth ? "var(--green, #16a34a)" : "var(--ink, #1e293b)",
                       zIndex: 2,
                     }}
                   >
@@ -772,8 +768,8 @@ export default function TaskGantt({
                         style={{
                           fontSize: 9,
                           fontWeight: 700,
-                          background: "#dcfce7",
-                          color: "#166534",
+                          background: "rgba(22, 163, 74, 0.2)",
+                          color: "var(--green, #16a34a)",
                           padding: "1px 5px",
                           borderRadius: 4,
                         }}
@@ -869,16 +865,16 @@ export default function TaskGantt({
                       ? "2px solid var(--line, #94a3b8)"
                       : "1px solid var(--line-light, #f1f5f9)",
                     background: isTodayCell
-                      ? "#dcfce7"
+                      ? "rgba(22, 163, 74, 0.2)"
                       : day.holidayLabels
-                      ? "#fffbeb"
+                      ? "rgba(245, 158, 11, 0.18)"
                       : day.isWeekend
-                      ? "var(--app-bg, #f8fafc)"
+                      ? "rgba(100, 116, 139, 0.08)"
                       : "transparent",
                     color: isTodayCell
-                      ? "#166534"
+                      ? "var(--green, #16a34a)"
                       : day.isWeekend
-                      ? "#94a3b8"
+                      ? "var(--muted, #94a3b8)"
                       : "var(--ink, #334155)",
                     fontSize: 10,
                     fontWeight: isTodayCell ? 700 : 500,
@@ -943,31 +939,28 @@ export default function TaskGantt({
             <>
               {/* Leaves Banner Row */}
               <div
+                className="gantt-timeoff-banner"
                 style={{
                   gridColumn: "1 / -1",
                   display: "grid",
                   gridTemplateColumns: gridColumns,
-                  background: "#eff6ff",
-                  borderBottom: "1px solid #bfdbfe",
                   minHeight: 28,
                   alignItems: "center",
                 }}
               >
                 <div
+                  className="gantt-timeoff-banner-sticky"
                   style={{
                     gridColumn: 1,
                     gridRow: 1,
                     position: "sticky",
                     left: 0,
                     zIndex: 15,
-                    background: "#eff6ff",
                     padding: "4px 12px",
                     fontSize: 10,
                     fontWeight: 700,
-                    color: "#1d4ed8",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
-                    borderRight: "2px solid var(--line, #cbd5e1)",
                     boxShadow: "3px 0 6px -2px rgba(0,0,0,0.06)",
                     width: TASK_COL_WIDTH,
                     minWidth: TASK_COL_WIDTH,
@@ -996,7 +989,7 @@ export default function TaskGantt({
                           ? "2px solid #64748b"
                           : day.isLastDayOfMonth
                           ? "2px solid var(--line, #94a3b8)"
-                          : "1px solid #e0e7ff",
+                          : "1px solid var(--line-light, rgba(148, 163, 184, 0.15))",
                         background: isTodayCell ? "rgba(22, 163, 74, 0.09)" : "transparent",
                       }}
                     >
@@ -1040,13 +1033,11 @@ export default function TaskGantt({
                 return (
                   <div
                     key={`event-${event.id}`}
-                    className="gantt-row gantt-event-row"
+                    className="gantt-row gantt-event-row gantt-leave-row"
                     style={{
                       gridColumn: "1 / -1",
                       display: "grid",
                       gridTemplateColumns: gridColumns,
-                      background: "#fafcff",
-                      borderBottom: "1px solid var(--line-light, #e2e8f0)",
                       minHeight: 38,
                       alignItems: "center",
                       position: "relative",
@@ -1054,7 +1045,7 @@ export default function TaskGantt({
                   >
                     {/* Sticky Person Cell */}
                     <div
-                      className="gantt-task-name"
+                      className="gantt-task-name gantt-leave-sticky-person"
                       style={{
                         gridColumn: 1,
                         gridRow: 1,
@@ -1067,11 +1058,9 @@ export default function TaskGantt({
                         alignItems: "center",
                         gap: 6,
                         overflow: "hidden",
-                        background: "#fafcff",
                         position: "sticky",
                         left: 0,
                         zIndex: 12,
-                        borderRight: "2px solid var(--line, #cbd5e1)",
                         boxShadow: "3px 0 6px -2px rgba(0,0,0,0.06)",
                         height: 38,
                       }}
@@ -1103,10 +1092,11 @@ export default function TaskGantt({
                         )}
                       </span>
                       <span
+                        className={`gantt-leave-person-name ${isSick ? "is-sick" : "is-vacation"}`}
                         style={{
                           fontSize: 11,
                           fontWeight: 650,
-                          color: isSick ? "#1e40af" : "#6d28d9",
+                          color: isSick ? "var(--primary, #2563eb)" : "#7c3aed",
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -1114,7 +1104,7 @@ export default function TaskGantt({
                         title={`${personName} · ${event.label}`}
                       >
                         {isSick ? "🤒" : "🏖️"} {personName}
-                        <span style={{ fontSize: 10, color: "#64748b", fontWeight: 500, marginLeft: 4 }}>
+                        <span style={{ fontSize: 10, color: "var(--muted, #64748b)", fontWeight: 500, marginLeft: 4 }}>
                           ({event.label})
                         </span>
                       </span>
@@ -1138,13 +1128,13 @@ export default function TaskGantt({
                               ? "2px solid #64748b"
                               : day.isLastDayOfMonth
                               ? "2px solid var(--line, #94a3b8)"
-                              : "1px solid var(--line-light, #eff1ef)",
+                              : "1px solid var(--line-light, rgba(148, 163, 184, 0.15))",
                             background: isTodayCell
                               ? "rgba(22, 163, 74, 0.09)"
                               : day.holidayLabels
                               ? "rgba(245,158,11,0.06)"
                               : day.isWeekend
-                              ? "var(--app-bg, #f8fafc)"
+                              ? "rgba(100, 116, 139, 0.08)"
                               : "transparent",
                           }}
                         >

@@ -357,7 +357,8 @@ body:has(.project-app-shell) {
 .project-app-shell .task-panel > .workload-view,
 .project-app-shell .task-panel > .kanban-board,
 .project-app-shell .task-panel > .project-goals-view,
-.project-app-shell .task-panel > .live-tracker-root {
+.project-app-shell .task-panel > .live-tracker-root,
+.project-app-shell .task-panel > .ai-agents-hub-wrap {
   flex: 1 1 auto !important;
   min-height: 0 !important;
   overflow-y: auto !important;
@@ -779,3 +780,106 @@ body:has(.project-app-shell) {
 }
 [data-color-scheme="dark"] .channel-roster-item:hover{background:#1b2027;border-color:#2a313a}
 [data-color-scheme="dark"] .channel-mention-chip{background:rgba(46,160,115,.22);color:#9ef0c8}
+
+/* Timeline / Gantt Dark Mode & Time Off Refinements */
+.gantt-holiday-strip {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+}
+
+.gantt-holiday-chip {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+:is([data-color-scheme="dark"], [data-theme="dark"], html.dark, .dark) .gantt-holiday-chip {
+  background: rgba(245, 158, 11, 0.16) !important;
+  color: #fcd34d !important;
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+}
+
+.gantt-timeoff-chip {
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.gantt-timeoff-chip.is-sick {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+.gantt-timeoff-chip.is-vacation {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+}
+:is([data-color-scheme="dark"], [data-theme="dark"], html.dark, .dark) .gantt-timeoff-chip.is-sick {
+  background: rgba(59, 130, 246, 0.16) !important;
+  color: #93c5fd !important;
+  border: 1px solid rgba(59, 130, 246, 0.35) !important;
+}
+:is([data-color-scheme="dark"], [data-theme="dark"], html.dark, .dark) .gantt-timeoff-chip.is-vacation {
+  background: rgba(147, 51, 234, 0.16) !important;
+  color: #c4b5fd !important;
+  border: 1px solid rgba(147, 51, 234, 0.35) !important;
+}
+
+/* Time Off Banner & Rows */
+.gantt-timeoff-banner {
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+}
+.gantt-timeoff-banner-sticky {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-right: 2px solid var(--line, #cbd5e1);
+}
+:is([data-color-scheme="dark"], [data-theme="dark"], html.dark, .dark) .gantt-timeoff-banner {
+  background: rgba(30, 58, 138, 0.25) !important;
+  border-bottom-color: var(--line) !important;
+}
+:is([data-color-scheme="dark"], [data-theme="dark"], html.dark, .dark) .gantt-timeoff-banner-sticky {
+  background: var(--surface) !important;
+  color: #93c5fd !important;
+  border-right-color: var(--line) !important;
+}
+
+.gantt-leave-row {
+  background: #fafcff;
+  border-bottom: 1px solid var(--line-light, #e2e8f0);
+}
+.gantt-leave-sticky-person {
+  background: #fafcff;
+  border-right: 2px solid var(--line, #cbd5e1);
+}
+:is([data-color-scheme="dark"], [data-theme="dark"], html.dark, .dark) .gantt-leave-row {
+  background: var(--surface) !important;
+  border-bottom-color: var(--line) !important;
+}
+:is([data-color-scheme="dark"], [data-theme="dark"], html.dark, .dark) .gantt-leave-sticky-person {
+  background: var(--surface) !important;
+  border-right-color: var(--line) !important;
+}
+
+:is([data-color-scheme="dark"], [data-theme="dark"], html.dark, .dark) .gantt-leave-person-name.is-sick {
+  color: #93c5fd !important;
+}
+:is([data-color-scheme="dark"], [data-theme="dark"], html.dark, .dark) .gantt-leave-person-name.is-vacation {
+  color: #c4b5fd !important;
+}
+
+:is([data-color-scheme="dark"], [data-theme="dark"], html.dark, .dark) .gantt-scale {
+  background: var(--app-bg) !important;
+  border-color: var(--line) !important;
+}
+:is([data-color-scheme="dark"], [data-theme="dark"], html.dark, .dark) .gantt-scale-sticky {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+}

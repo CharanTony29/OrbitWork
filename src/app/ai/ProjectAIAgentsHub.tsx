@@ -54,6 +54,22 @@ export default function ProjectAIAgentsHub({
   const [runningAgentId, setRunningAgentId] = useState<string | null>(null);
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [runFeedback, setRunFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [backgroundJobs, setBackgroundJobs] = useState<Array<{ id: string; title: string; startedAt: Date }>>([]);
+  const [completionPopup, setCompletionPopup] = useState<{
+    title: string;
+    summary: string;
+    processedCount: number;
+    type: "success" | "error";
+  } | null>(null);
+
+  // Auto-dismiss popup after 9 seconds
+  useEffect(() => {
+    if (!completionPopup) return;
+    const timer = setTimeout(() => {
+      setCompletionPopup(null);
+    }, 9000);
+    return () => clearTimeout(timer);
+  }, [completionPopup]);
 
   // Fetch agents on mount if not preloaded
   useEffect(() => {
@@ -123,47 +139,65 @@ export default function ProjectAIAgentsHub({
     );
   };
 
-  const handleRunOnProject = async (agent: CustomAIAgent) => {
+  const handleRunOnProject = (agent: CustomAIAgent) => {
+    const jobId = `agent-${agent.id}-${Date.now()}`;
+    const jobTitle = `Executing "${agent.name}" across project tasks`;
+
+    // Immediately register background job and allow user to continue work
     setRunningAgentId(agent.id);
+    setBackgroundJobs((prev) => [...prev, { id: jobId, title: jobTitle, startedAt: new Date() }]);
     setRunFeedback(null);
-    try {
-      const res = await fetch("/api/ai/agent/custom/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId,
-          agentId: agent.id,
-          runAllTasks: true,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Execution failed");
-      setRunFeedback({
-        type: "success",
-        text: data.summary || `Successfully executed "${agent.name}" on ${data.processedCount || 0} tasks! Past data has been updated.`,
-      });
-      setAgents((prev) =>
-        prev.map((a) =>
-          a.id === agent.id
-            ? {
-                ...a,
-                runs_count: (a.runs_count || 0) + (data.processedCount || 1),
-                last_run_at: new Date().toISOString(),
-              }
-            : a
-        )
-      );
-    } catch (err: unknown) {
-      setRunFeedback({
-        type: "error",
-        text: err instanceof Error ? err.message : "Failed to run agent on project",
-      });
-    } finally {
-      setRunningAgentId(null);
-    }
+
+    // Fire non-blocking asynchronous execution
+    (async () => {
+      try {
+        const res = await fetch("/api/ai/agent/custom/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId,
+            agentId: agent.id,
+            runAllTasks: true,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Execution failed");
+
+        // Show completion popup
+        setCompletionPopup({
+          title: `AI Agent "${agent.name}" Completed!`,
+          summary: data.summary || `Successfully executed on ${data.processedCount || 0} tasks in the background. Project data is now updated.`,
+          processedCount: data.processedCount || 0,
+          type: "success",
+        });
+
+        // Update stats
+        setAgents((prev) =>
+          prev.map((a) =>
+            a.id === agent.id
+              ? {
+                  ...a,
+                  runs_count: (a.runs_count || 0) + (data.processedCount || 1),
+                  last_run_at: new Date().toISOString(),
+                }
+              : a
+          )
+        );
+      } catch (err: unknown) {
+        setCompletionPopup({
+          title: `AI Agent "${agent.name}" Failed`,
+          summary: err instanceof Error ? err.message : "Failed to run agent in background",
+          processedCount: 0,
+          type: "error",
+        });
+      } finally {
+        setRunningAgentId(null);
+        setBackgroundJobs((prev) => prev.filter((j) => j.id !== jobId));
+      }
+    })();
   };
 
-  const handleRunAllOnProject = async () => {
+  const handleRunAllOnProject = () => {
     if (activeCount === 0) {
       setRunFeedback({
         type: "error",
@@ -171,42 +205,61 @@ export default function ProjectAIAgentsHub({
       });
       return;
     }
+
+    const jobId = `all-${Date.now()}`;
+    const jobTitle = `Running all ${activeCount} active AI agents across project`;
+
+    // Immediately register background job and keep UI unblocked
     setIsRunningAll(true);
+    setBackgroundJobs((prev) => [...prev, { id: jobId, title: jobTitle, startedAt: new Date() }]);
     setRunFeedback(null);
-    try {
-      const res = await fetch("/api/ai/agent/custom/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId,
-          runAllAgents: true,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Batch execution failed");
-      setRunFeedback({
-        type: "success",
-        text: data.summary || `Ran ${data.agentsCount} agents on ${data.processedCount} tasks. Project data updated!`,
-      });
-      setAgents((prev) =>
-        prev.map((a) =>
-          a.enabled
-            ? {
-                ...a,
-                runs_count: (a.runs_count || 0) + (data.processedCount || 1),
-                last_run_at: new Date().toISOString(),
-              }
-            : a
-        )
-      );
-    } catch (err: unknown) {
-      setRunFeedback({
-        type: "error",
-        text: err instanceof Error ? err.message : "Failed to run agents across project",
-      });
-    } finally {
-      setIsRunningAll(false);
-    }
+
+    // Fire non-blocking asynchronous execution
+    (async () => {
+      try {
+        const res = await fetch("/api/ai/agent/custom/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId,
+            runAllAgents: true,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Batch execution failed");
+
+        // Inform user with nice pop-up modal
+        setCompletionPopup({
+          title: "All AI Automations Completed!",
+          summary: data.summary || `Ran ${data.agentsCount} agents across ${data.processedCount} tasks in the background. All project data is now up to date.`,
+          processedCount: data.processedCount || 0,
+          type: "success",
+        });
+
+        // Update stats
+        setAgents((prev) =>
+          prev.map((a) =>
+            a.enabled
+              ? {
+                  ...a,
+                  runs_count: (a.runs_count || 0) + (data.processedCount || 1),
+                  last_run_at: new Date().toISOString(),
+                }
+              : a
+          )
+        );
+      } catch (err: unknown) {
+        setCompletionPopup({
+          title: "Background AI Run Failed",
+          summary: err instanceof Error ? err.message : "Failed to run agents across project in background",
+          processedCount: 0,
+          type: "error",
+        });
+      } finally {
+        setIsRunningAll(false);
+        setBackgroundJobs((prev) => prev.filter((j) => j.id !== jobId));
+      }
+    })();
   };
 
   const activeCount = agents.filter((a) => a.enabled).length;
@@ -496,6 +549,153 @@ export default function ProjectAIAgentsHub({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Floating Background Task Indicator */}
+      {backgroundJobs.length > 0 && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            zIndex: 9999,
+            background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)",
+            color: "#ffffff",
+            padding: "12px 18px",
+            borderRadius: "12px",
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.38), 0 8px 10px -6px rgba(0, 0, 0, 0.3)",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            border: "1px solid rgba(139, 92, 246, 0.45)",
+            maxWidth: "380px",
+          }}
+        >
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              background: "rgba(139, 92, 246, 0.25)",
+              display: "grid",
+              placeItems: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Loader2 size={16} className="spin" style={{ color: "#a78bfa" }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: "12px", fontWeight: 700, color: "#e0e7ff" }}>
+              AI Agent Running in Background
+            </div>
+            <div style={{ fontSize: "11px", color: "#c7d2fe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {backgroundJobs[0]?.title}
+            </div>
+            <div style={{ fontSize: "10px", color: "#a5b4fc", marginTop: "2px" }}>
+              You can continue working freely without waiting.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Completion Pop-up Modal */}
+      {completionPopup && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            zIndex: 10000,
+            background: "var(--surface, #ffffff)",
+            color: "var(--ink, #0f172a)",
+            padding: "18px 20px",
+            borderRadius: "14px",
+            border: completionPopup.type === "success" ? "2px solid #22c55e" : "2px solid #ef4444",
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2)",
+            maxWidth: "420px",
+            width: "calc(100vw - 48px)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                background: completionPopup.type === "success" ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
+                color: completionPopup.type === "success" ? "#16a34a" : "#dc2626",
+              }}
+            >
+              {completionPopup.type === "success" ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                <strong style={{ fontSize: "14px", fontWeight: 800 }}>
+                  {completionPopup.title}
+                </strong>
+                <button
+                  type="button"
+                  onClick={() => setCompletionPopup(null)}
+                  style={{
+                    background: "transparent",
+                    border: 0,
+                    cursor: "pointer",
+                    padding: 2,
+                    color: "var(--muted, #64748b)",
+                  }}
+                  title="Close notification"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <p style={{ margin: "6px 0 12px", fontSize: "12.5px", color: "var(--ink, #334155)", lineHeight: 1.5 }}>
+                {completionPopup.summary}
+              </p>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCompletionPopup(null);
+                    window.location.reload();
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    background: "var(--green, #167c58)",
+                    color: "#ffffff",
+                    border: 0,
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Refresh Tasks
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCompletionPopup(null)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    background: "var(--line, #e2e8f0)",
+                    color: "var(--ink, #334155)",
+                    border: 0,
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

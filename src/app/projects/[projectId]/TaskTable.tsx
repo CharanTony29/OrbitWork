@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquare, ExternalLink, ChevronDown, ChevronRight, Flag, Calendar, Layers, List, Check, GripVertical, Columns3, RotateCcw, ChevronLeft, User, Tag, SlidersHorizontal } from "lucide-react";
+import { MessageSquare, ExternalLink, ChevronDown, ChevronRight, Flag, Calendar, Layers, List, Check, GripVertical, Columns3, RotateCcw, ChevronLeft, User, Tag, SlidersHorizontal, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 import { useTransition, useRef, useState, useCallback, useEffect, useMemo, Fragment } from "react";
 import { updateTaskField, updateTaskStatus } from "@/app/actions";
 import {
@@ -1044,6 +1044,27 @@ export default function TaskTable({
     });
   };
 
+  // Compute all parent task IDs that have subtasks
+  const allParentWithSubtasks = useMemo(() => {
+    const ids = new Set<string>();
+    for (const task of tasks) {
+      if (task.parent_task_id) ids.add(task.parent_task_id);
+    }
+    return ids;
+  }, [tasks]);
+
+  const areAllExpanded =
+    allParentWithSubtasks.size > 0 &&
+    Array.from(allParentWithSubtasks).every((id) => expandedTaskIds.has(id));
+
+  const toggleExpandAll = useCallback(() => {
+    if (areAllExpanded) {
+      setExpandedTaskIds(new Set());
+    } else {
+      setExpandedTaskIds(new Set(allParentWithSubtasks));
+    }
+  }, [areAllExpanded, allParentWithSubtasks]);
+
   // Collapsed groups tracking
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     const set = new Set<string>();
@@ -1640,37 +1661,54 @@ export default function TaskTable({
 
   // --- Render Assignee Groups ---
   const renderAssigneeGroups = () => {
+    const memberMap = new Map<string, string>();
+    members.forEach((m) => memberMap.set(m.id, m.label));
+
     const tasksByAssignee = new Map<string, TaskRow[]>();
     const unassignedTasks: TaskRow[] = [];
 
     parentTasks.forEach((task) => {
-      const assignedId = task.assigneeIds && task.assigneeIds.length > 0 ? task.assigneeIds[0] : null;
-      if (!assignedId) {
+      const assignedIds = task.assigneeIds && task.assigneeIds.length > 0 ? task.assigneeIds : [];
+      if (assignedIds.length === 0) {
         unassignedTasks.push(task);
       } else {
-        const list = tasksByAssignee.get(assignedId) ?? [];
+        const primaryId = assignedIds[0];
+        const list = tasksByAssignee.get(primaryId) ?? [];
         list.push(task);
-        tasksByAssignee.set(assignedId, list);
+        tasksByAssignee.set(primaryId, list);
+      }
+    });
+
+    const orderedAssigneeIds: string[] = [];
+    members.forEach((m) => {
+      if (tasksByAssignee.has(m.id)) {
+        orderedAssigneeIds.push(m.id);
+      }
+    });
+    tasksByAssignee.forEach((_, id) => {
+      if (!orderedAssigneeIds.includes(id)) {
+        orderedAssigneeIds.push(id);
       }
     });
 
     return (
       <>
-        {members.map((m) => {
-          const groupTasks = tasksByAssignee.get(m.id) ?? [];
+        {orderedAssigneeIds.map((assigneeId) => {
+          const groupTasks = tasksByAssignee.get(assigneeId) ?? [];
           if (groupTasks.length === 0) return null;
-          const isCollapsed = collapsedGroups.has(m.id);
+          const memberLabel = memberMap.get(assigneeId) || "Teammate";
+          const isCollapsed = collapsedGroups.has(assigneeId);
           return (
-            <Fragment key={m.id}>
+            <Fragment key={assigneeId}>
               <tr className="status-group-tr">
                 <td colSpan={colSpanCount} className="status-group-td">
-                  <div className="status-group-header" onClick={() => toggleGroup(m.id)}>
+                  <div className="status-group-header" onClick={() => toggleGroup(assigneeId)}>
                     <button type="button" className="status-group-caret-btn" aria-label="Toggle group">
                       {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                     </button>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "12px" }}>
                       <User size={13} style={{ color: "#167c58" }} />
-                      <span style={{ color: "var(--ink, #1e293b)" }}>{m.label}</span>
+                      <span style={{ color: "var(--ink, #1e293b)" }}>{memberLabel}</span>
                     </span>
                     <span className="status-group-count">{groupTasks.length}</span>
                   </div>
@@ -2023,6 +2061,36 @@ export default function TaskTable({
           <span>Arrange columns</span>
         </button>
 
+        {allParentWithSubtasks.size > 0 && (
+          <button
+            type="button"
+            className="table-columns-btn expand-collapse-all-btn"
+            onClick={toggleExpandAll}
+            title={areAllExpanded ? "Collapse all subtasks" : "Expand all subtasks"}
+            style={{
+              marginLeft: 8,
+              background: areAllExpanded ? "rgba(22, 124, 88, 0.08)" : undefined,
+              borderColor: areAllExpanded ? "var(--green, #167c58)" : undefined,
+            }}
+          >
+            {areAllExpanded ? <ChevronsDownUp size={13} style={{ color: "var(--green)" }} /> : <ChevronsUpDown size={13} />}
+            <span>{areAllExpanded ? "Collapse All Subtasks" : "Expand All Subtasks"}</span>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: "1px 6px",
+                borderRadius: 999,
+                background: "rgba(22, 124, 88, 0.12)",
+                color: "var(--green, #167c58)",
+                marginLeft: 4,
+              }}
+            >
+              {allParentWithSubtasks.size}
+            </span>
+          </button>
+        )}
+
         {columnsMenuOpen && (
           <div className="table-columns-popover" role="dialog" aria-label="Customize your column order">
             <div className="view-tabs-popover-head">
@@ -2128,6 +2196,34 @@ export default function TaskTable({
                     <span className="task-th-inner">
                       <GripVertical size={11} className="task-th-grip" />
                       <span>{label}</span>
+                      {colId === "name" && allParentWithSubtasks.size > 0 && (
+                        <button
+                          type="button"
+                          className="th-expand-all-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleExpandAll();
+                          }}
+                          title={areAllExpanded ? "Collapse all subtasks" : "Expand all subtasks"}
+                          style={{
+                            marginLeft: "auto",
+                            background: "transparent",
+                            border: "1px solid var(--line, #e2e8f0)",
+                            cursor: "pointer",
+                            padding: "2px 5px",
+                            borderRadius: 4,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                            color: areAllExpanded ? "var(--green, #167c58)" : "var(--muted, #64748b)",
+                            fontSize: 10,
+                            fontWeight: 650,
+                          }}
+                        >
+                          {areAllExpanded ? <ChevronsDownUp size={11} /> : <ChevronsUpDown size={11} />}
+                          <span>{areAllExpanded ? "Collapse" : "Expand"}</span>
+                        </button>
+                      )}
                     </span>
                   </th>
                 );
@@ -2148,6 +2244,17 @@ export default function TaskTable({
             {groupBy === "priority" && renderPriorityGroups()}
             {groupBy === "status" && renderStatusGroups()}
             {groupBy === "due_date" && renderDueDateGroups()}
+            {groupBy === "assignee" && renderAssigneeGroups()}
+            {groupBy === "tags" && renderTagGroups()}
+            {groupBy?.startsWith("cf_") && renderCustomFieldGroups(groupBy.slice(3))}
+            {groupBy !== "priority" &&
+              groupBy !== "status" &&
+              groupBy !== "due_date" &&
+              groupBy !== "assignee" &&
+              groupBy !== "tags" &&
+              !groupBy?.startsWith("cf_") &&
+              groupBy !== "none" &&
+              renderGenericCustomGroup(groupBy)}
             {groupBy === "none" && renderFlatList()}
           </tbody>
         </table>

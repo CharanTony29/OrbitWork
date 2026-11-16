@@ -703,7 +703,15 @@
 /* Project AI Agents Hub & Modal Styles */
 
 .ai-agents-hub-wrap {
-  padding: 20px 24px 40px;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  height: 100%;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 24px 80px;
+  box-sizing: border-box;
 }
 
 .ai-hub-header {
