@@ -108,6 +108,10 @@ export interface RiskItem {
   affectedPeople: string[];
   scheduleImpactDays: number | null;
   recommendedAction: string;
+  // Preventive Measures Link
+  preventiveMeasureId?: string;
+  mitigationStrategy?: string;
+  potentialRiskReductionPercent?: number;
 }
 
 export interface WhyAtRiskExplanation {
@@ -209,6 +213,12 @@ export interface ActionableRecommendation {
   appliedAt?: string | null;
   appliedBy?: string | null;
   createdAt: string;
+  // Preventive Measure & Risk Reduction Enhancements
+  riskId?: string;
+  riskReductionScore?: number; // e.g. 50 (percentage risk reduction)
+  riskReductionLabel?: string; // e.g. "↓ 50% Risk Reduction"
+  healthImpactLabel?: string; // e.g. "+6% Health Score"
+  category?: "workload" | "schedule" | "dependency" | "blocker" | "risk";
 }
 
 export interface TodayProjectBrief {

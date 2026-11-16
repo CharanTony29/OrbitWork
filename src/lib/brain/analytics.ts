@@ -792,6 +792,9 @@ export function detectRisks(
       affectedPeople: blocker.assignees,
       scheduleImpactDays: blocker.isOverdue ? 4 : 2,
       recommendedAction: `Expedite "${blocker.title}" or temporarily remove blocker links to unstick downstream execution.`,
+      mitigationStrategy: `Prioritize "${blocker.title}" as urgent or remove dependency link to unblock ${crit.downstreamCount} downstream tasks.`,
+      potentialRiskReductionPercent: blocker.isOverdue ? 65 : 45,
+      preventiveMeasureId: `rec-blocker-${blocker.taskId}`,
     });
   }
 
@@ -810,6 +813,9 @@ export function detectRisks(
       affectedPeople: [],
       scheduleImpactDays: 7,
       recommendedAction: "Review and remove cyclic relationship links in the task dependencies list.",
+      mitigationStrategy: "Break the dependency loop by unlinking mutually blocking tasks.",
+      potentialRiskReductionPercent: 90,
+      preventiveMeasureId: "rec-break-cycle",
     });
   }
 
@@ -829,6 +835,8 @@ export function detectRisks(
         affectedPeople: [m.name],
         scheduleImpactDays: 3,
         recommendedAction: `Reassign 1-2 tasks from ${m.name} to available teammates to balance velocity.`,
+        mitigationStrategy: `Reallocate active tasks to teammates with capacity and stagger milestone due dates to reduce overload.`,
+        potentialRiskReductionPercent: 50,
       });
     }
   }
@@ -854,6 +862,9 @@ export function detectRisks(
         affectedPeople: [],
         scheduleImpactDays: Math.max(5, Math.ceil(activeTasks.length / 2)),
         recommendedAction: "Descope non-essential tasks or extend the project target date.",
+        mitigationStrategy: "Add a 5-7 day timeline buffer or descope non-blocking tasks to subsequent releases.",
+        potentialRiskReductionPercent: 60,
+        preventiveMeasureId: "rec-extend-deadline",
       });
     }
   }
@@ -874,6 +885,8 @@ export function detectRisks(
       affectedPeople: [],
       scheduleImpactDays: 3,
       recommendedAction: "Audit task scope and conduct an estimation calibration before next milestone.",
+      mitigationStrategy: "Calibrate estimation margins and conduct a scope breakdown for upcoming tasks.",
+      potentialRiskReductionPercent: 40,
     });
   }
 
@@ -1157,7 +1170,7 @@ export function simulateChangeImpact(
 }
 
 /**
- * Generates Actionable Recommendations based on Deterministic Data
+ * Generates Actionable Recommendations & Preventive Measures based on Deterministic Data
  */
 export function generateDeterministicRecommendations(
   ctx: AnalyticsContext,
@@ -1168,76 +1181,147 @@ export function generateDeterministicRecommendations(
 ): ActionableRecommendation[] {
   const recommendations: ActionableRecommendation[] = [];
   const statusMap = buildStatusMap(ctx.statuses);
+  const todayStr = new Date().toISOString().split("T")[0];
 
-  // Rec 1: Resolve overdue blockers
-  for (const crit of deps.criticalDependencies) {
-    if (crit.isOverdue) {
-      recommendations.push({
-        id: `rec-blocker-${crit.blockerTask.taskId}`,
-        projectId: ctx.projectId,
-        title: `Prioritize blocker: ${crit.blockerTask.title}`,
-        description: `This task is overdue and blocking ${crit.downstreamCount} downstream task${crit.downstreamCount > 1 ? "s" : ""}. Expediting it will unfreeze dependent deliverables.`,
-        whyRecommended: `Currently holding up ${crit.downstreamCount} dependent tasks on the project critical path.`,
-        affectsDescription: `Unblocks ${crit.downstreamCount} tasks including dependent downstream work.`,
-        expectedBenefit: "Clears project bottleneck and restores task momentum.",
-        possibleRisk: "May require temporary reallocation of team resources from other tasks.",
-        actionType: "change_priority",
-        actionPayload: {
-          taskId: crit.blockerTask.taskId,
-          priority: "urgent",
-        },
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      });
-    }
-  }
-
-  // Rec 2: Balance overloaded team members
-  const overloaded = workload.members.filter((m) => m.status === "overloaded");
-  const under = workload.members.filter((m) => m.status === "underutilized");
-
-  if (overloaded.length > 0 && under.length > 0) {
-    const srcMember = overloaded[0];
-    const targetMember = under[0];
-
-    // Find an active normal/high task of srcMember
-    const candidateTask = ctx.tasks.find((t) => {
-      const s = statusMap.get(t.status_id);
-      return (
-        s?.category !== "completed" &&
-        s?.category !== "cancelled" &&
-        (t.primary_assignee_id === srcMember.userId || t.secondary_assignee_id === srcMember.userId)
-      );
-    });
-
-    if (candidateTask) {
-      recommendations.push({
-        id: `rec-reassign-${candidateTask.id}`,
-        projectId: ctx.projectId,
-        title: `Rebalance workload: Move "${candidateTask.title}" to ${targetMember.name}`,
-        description: `${srcMember.name} has ${srcMember.activeTaskCount} tasks (${srcMember.workloadPercentage}% load), while ${targetMember.name} has available capacity.`,
-        whyRecommended: `Reduces single-point-of-failure risk and prevents deadline slip.`,
-        affectsDescription: `Reassigns "${candidateTask.title}" to ${targetMember.name}.`,
-        expectedBenefit: `Brings ${srcMember.name}'s workload closer to balanced and speeds up completion.`,
-        possibleRisk: "Brief ramp-up time needed for context transfer.",
-        actionType: "reassign_task",
-        actionPayload: {
-          taskId: candidateTask.id,
-          newPrimaryAssigneeId: targetMember.userId,
-          newAssigneeName: targetMember.name,
-        },
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      });
-    }
-  }
-
-  // Rec 3: Reschedule Overdue Non-blocking Tasks
   const activeTasks = ctx.tasks.filter((t) => {
     const s = statusMap.get(t.status_id);
     return s?.category !== "completed" && s?.category !== "cancelled";
   });
-  const todayStr = new Date().toISOString().split("T")[0];
+
+  // 1. Preventive Measure: Resolve Critical Overdue Blockers
+  for (const crit of deps.criticalDependencies) {
+    recommendations.push({
+      id: `rec-blocker-${crit.blockerTask.taskId}`,
+      projectId: ctx.projectId,
+      title: `Prioritize blocker: "${crit.blockerTask.title}"`,
+      description: `This task is currently holding up ${crit.downstreamCount} downstream task${crit.downstreamCount > 1 ? "s" : ""}. Elevating priority restores unblocked progress.`,
+      whyRecommended: `Currently on the project critical path; unblocks ${crit.downstreamCount} dependent deliverables.`,
+      affectsDescription: `Elevates priority of "${crit.blockerTask.title}" to Urgent.`,
+      expectedBenefit: `Clears execution bottleneck, unfreezing ${crit.downstreamCount} tasks immediately.`,
+      possibleRisk: "May require temporary reallocation of team focus from secondary items.",
+      actionType: "change_priority",
+      actionPayload: {
+        taskId: crit.blockerTask.taskId,
+        priority: "urgent",
+      },
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      riskId: `risk-dep-${crit.blockerTask.taskId}`,
+      riskReductionScore: crit.isOverdue ? 65 : 45,
+      riskReductionLabel: `↓ ${crit.isOverdue ? 65 : 45}% Blocker Risk`,
+      healthImpactLabel: "+12% Health Score",
+      category: "blocker",
+    });
+  }
+
+  // 2. Preventive Measure: Balance Overloaded Contributors & Mitigate Workload Risks
+  const overloadedMembers = workload.members.filter((m) => m.status === "overloaded" || m.activeTaskCount >= 6);
+
+  for (const srcMember of overloadedMembers) {
+    // Collect active tasks assigned to this member
+    const memberTasks = activeTasks.filter(
+      (t) => t.primary_assignee_id === srcMember.userId || t.secondary_assignee_id === srcMember.userId
+    );
+
+    if (memberTasks.length === 0) continue;
+
+    // Pick task with lowest priority or farthest deadline first (safest to reassign)
+    const taskToReassign =
+      memberTasks.find((t) => t.priority === "low" || t.priority === "normal") || memberTasks[0];
+
+    // Find best target teammate to receive this task:
+    // First: underutilized members
+    // Second: any teammate with fewer active tasks than srcMember
+    // Third: any profile with 0 tasks
+    let targetMember = workload.members.find(
+      (m) => m.status === "underutilized" && m.userId !== srcMember.userId
+    );
+
+    if (!targetMember) {
+      const candidates = workload.members
+        .filter((m) => m.userId !== srcMember.userId && m.activeTaskCount < srcMember.activeTaskCount)
+        .sort((a, b) => a.activeTaskCount - b.activeTaskCount);
+
+      if (candidates.length > 0) {
+        targetMember = candidates[0];
+      } else {
+        const unassignedProfile = ctx.profiles.find((p) => p.id !== srcMember.userId);
+        if (unassignedProfile) {
+          targetMember = {
+            userId: unassignedProfile.id,
+            name: unassignedProfile.display_name || "Team Member",
+            email: unassignedProfile.email || "",
+            avatarUrl: unassignedProfile.avatar_url || null,
+            activeTaskCount: 0,
+            overdueTaskCount: 0,
+            criticalTaskCount: 0,
+            estimatedMinutesTotal: 0,
+            workloadPercentage: 0,
+            status: "balanced",
+            taskTitles: [],
+          };
+        }
+      }
+    }
+
+    if (targetMember && taskToReassign) {
+      const reductionPercent = Math.min(60, Math.max(30, Math.round((2 / Math.max(1, srcMember.activeTaskCount)) * 100) + 20));
+      recommendations.push({
+        id: `rec-reassign-${srcMember.userId}-${taskToReassign.id}`,
+        projectId: ctx.projectId,
+        title: `Rebalance workload: Move "${taskToReassign.title}" from ${srcMember.name} to ${targetMember.name}`,
+        description: `${srcMember.name} is currently assigned ${srcMember.activeTaskCount} active tasks (${srcMember.workloadPercentage}% load), creating a delivery bottleneck.`,
+        whyRecommended: `Reduces single-contributor overload on ${srcMember.name} and utilizes available capacity with ${targetMember.name} (${targetMember.activeTaskCount} tasks).`,
+        affectsDescription: `Reassigns task "${taskToReassign.title}" to ${targetMember.name}.`,
+        expectedBenefit: `Decreases ${srcMember.name}'s workload risk by ${reductionPercent}% and balances team sprint velocity.`,
+        possibleRisk: "Brief 10-minute context handoff between assignees.",
+        actionType: "reassign_task",
+        actionPayload: {
+          taskId: taskToReassign.id,
+          newPrimaryAssigneeId: targetMember.userId,
+          newAssigneeName: targetMember.name,
+          oldAssigneeName: srcMember.name,
+        },
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        riskId: `risk-workload-${srcMember.userId}`,
+        riskReductionScore: reductionPercent,
+        riskReductionLabel: `↓ ${reductionPercent}% Risk Reduction`,
+        healthImpactLabel: "+6% Health Score",
+        category: "workload",
+      });
+    }
+
+    // Schedule Staggering Preventive Option: If contributor has multiple tasks, stagger dates to prevent collision
+    if (memberTasks.length >= 2) {
+      const secondTask = memberTasks[1];
+      const nextDue = new Date(Date.now() + 5 * 86400000).toISOString().split("T")[0];
+      recommendations.push({
+        id: `rec-stagger-${srcMember.userId}-${secondTask.id}`,
+        projectId: ctx.projectId,
+        title: `Prevent bottleneck: Stagger deadline for "${secondTask.title}" (+5 days)`,
+        description: `Spreads out ${srcMember.name}'s delivery commitments to prevent concurrent deadline collisions across ${srcMember.activeTaskCount} tasks.`,
+        whyRecommended: "Concurrent delivery dates on an overloaded contributor frequently trigger schedule slippage.",
+        affectsDescription: `Reschedules due date of "${secondTask.title}" to ${nextDue}.`,
+        expectedBenefit: "Provides breathing room for focused execution and decreases concurrency pressure.",
+        possibleRisk: "Ensure downstream milestones are updated if linked.",
+        actionType: "reschedule_task",
+        actionPayload: {
+          taskId: secondTask.id,
+          newDueDate: nextDue,
+        },
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        riskId: `risk-workload-${srcMember.userId}`,
+        riskReductionScore: 35,
+        riskReductionLabel: "↓ 35% Concurrency Relief",
+        healthImpactLabel: "+4% Health Score",
+        category: "schedule",
+      });
+    }
+  }
+
+  // 3. Preventive Measure: Reschedule Overdue Non-blocking Tasks
   const overdueNonBlockers = activeTasks.filter((t) => {
     const d = t.due_date ? String(t.due_date).split("T")[0] : null;
     const isOverdue = Boolean(d && d < todayStr);
@@ -1264,10 +1348,14 @@ export function generateDeterministicRecommendations(
       },
       status: "pending",
       createdAt: new Date().toISOString(),
+      riskReductionScore: 40,
+      riskReductionLabel: "↓ 40% Overdue Penalty",
+      healthImpactLabel: "+8% Health Score",
+      category: "schedule",
     });
   }
 
-  // Rec 4: Break Circular Dependencies
+  // 4. Preventive Measure: Break Circular Dependencies
   if (deps.hasCircularDependencies && deps.circularChains.length > 0) {
     recommendations.push({
       id: "rec-break-cycle",
@@ -1284,7 +1372,45 @@ export function generateDeterministicRecommendations(
       },
       status: "pending",
       createdAt: new Date().toISOString(),
+      riskId: "risk-circular-deps",
+      riskReductionScore: 90,
+      riskReductionLabel: "↓ 90% Deadlock Elimination",
+      healthImpactLabel: "+20% Health Score",
+      category: "dependency",
     });
+  }
+
+  // 5. Preventive Measure: Project Deadline Buffer Injection
+  if (ctx.projectDueDate) {
+    const pDue = String(ctx.projectDueDate).split("T")[0];
+    const daysLeft = Math.round(
+      (new Date(pDue).getTime() - new Date(todayStr).getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (daysLeft <= 7 && activeTasks.length > 5) {
+      const bufferDate = new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0];
+      recommendations.push({
+        id: "rec-extend-deadline",
+        projectId: ctx.projectId,
+        title: `Inject timeline buffer: Adjust target deadline (+7 days)`,
+        description: `Current deadline (${pDue}) leaves insufficient runway for ${activeTasks.length} remaining tasks. Extending by 7 days accommodates testing and QA without emergency crunch.`,
+        whyRecommended: "High active task volume with less than 7 days remaining creates acute risk of release slip.",
+        affectsDescription: `Adjusts target project deadline to ${bufferDate}.`,
+        expectedBenefit: "Provides realistic delivery buffer and protects project health score.",
+        possibleRisk: "Requires stakeholder notification.",
+        actionType: "adjust_deadline",
+        actionPayload: {
+          newDeadline: bufferDate,
+        },
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        riskId: "risk-project-deadline-crunch",
+        riskReductionScore: 65,
+        riskReductionLabel: "↓ 65% Deadline Crunch Risk",
+        healthImpactLabel: "+15% Health Score",
+        category: "schedule",
+      });
+    }
   }
 
   return recommendations;

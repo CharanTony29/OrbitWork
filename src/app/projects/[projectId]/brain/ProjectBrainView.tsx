@@ -52,6 +52,7 @@ interface ProjectBrainViewProps {
 export type BrainSubTab =
   | "overview"
   | "why"
+  | "preventive"
   | "dependencies"
   | "impact"
   | "workload"
@@ -82,6 +83,7 @@ export default function ProjectBrainView({
   const [reviewRec, setReviewRec] = useState<ActionableRecommendation | null>(null);
   const [applyingRec, setApplyingRec] = useState(false);
   const [applySuccessMsg, setApplySuccessMsg] = useState<string | null>(null);
+  const [preventiveCategoryFilter, setPreventiveCategoryFilter] = useState<string>("all");
 
   // Record Decision Modal
   const [decisionModalOpen, setDecisionModalOpen] = useState(false);
@@ -545,6 +547,16 @@ export default function ProjectBrainView({
           <AlertCircle size={13} /> Why At Risk?
         </button>
         <button
+          className={`brain-nav-tab ${activeTab === "preventive" ? "active" : ""}`}
+          onClick={() => setActiveTab("preventive")}
+        >
+          <ShieldAlert
+            size={13}
+            style={{ color: recommendations.length > 0 ? "var(--green)" : "var(--muted)" }}
+          />{" "}
+          Preventive Measures ({recommendations.length})
+        </button>
+        <button
           className={`brain-nav-tab ${activeTab === "dependencies" ? "active" : ""}`}
           onClick={() => setActiveTab("dependencies")}
         >
@@ -813,39 +825,83 @@ export default function ProjectBrainView({
                   ✓ No critical risks currently detected in this project.
                 </p>
               ) : (
-                risks.slice(0, 4).map((r) => (
-                  <div
-                    key={r.id}
-                    className={`risk-item-card ${
-                      r.severity === "critical"
-                        ? "risk-critical"
-                        : r.severity === "high"
-                        ? "risk-high"
-                        : r.severity === "medium"
-                        ? "risk-medium"
-                        : "risk-low"
-                    }`}
-                  >
-                    <div className="risk-item-header">
-                      <p className="risk-title">{r.title}</p>
-                      <span
-                        className={`risk-probability-badge ${
-                          r.severity === "critical"
-                            ? "prob-critical"
-                            : r.severity === "high"
-                            ? "prob-high"
-                            : "prob-medium"
-                        }`}
-                      >
-                        {r.probabilityScore ? `${r.probabilityScore}% probability` : r.probabilityLevel}
-                      </span>
+                risks.slice(0, 4).map((r) => {
+                  const matchingRec =
+                    recommendations.find(
+                      (rec) =>
+                        rec.riskId === r.id ||
+                        (r.affectedPeople.length > 0 &&
+                          rec.actionPayload &&
+                          String(rec.actionPayload.oldAssigneeName || "").toLowerCase() ===
+                            r.affectedPeople[0]?.toLowerCase())
+                    ) || recommendations.find((rec) => rec.category === "workload");
+
+                  return (
+                    <div
+                      key={r.id}
+                      className={`risk-item-card ${
+                        r.severity === "critical"
+                          ? "risk-critical"
+                          : r.severity === "high"
+                          ? "risk-high"
+                          : r.severity === "medium"
+                          ? "risk-medium"
+                          : "risk-low"
+                      }`}
+                    >
+                      <div className="risk-item-header">
+                        <p className="risk-title">{r.title}</p>
+                        <span
+                          className={`risk-probability-badge ${
+                            r.severity === "critical"
+                              ? "prob-critical"
+                              : r.severity === "high"
+                              ? "prob-high"
+                              : "prob-medium"
+                          }`}
+                        >
+                          {r.probabilityScore ? `${r.probabilityScore}% probability` : r.probabilityLevel}
+                        </span>
+                      </div>
+                      <p className="risk-reason">{r.reason}</p>
+
+                      {/* Preventive Mitigation Box */}
+                      <div className="risk-preventive-box">
+                        <div className="risk-preventive-header">
+                          <span className="risk-preventive-badge">
+                            <Zap size={11} /> Preventive Mitigation
+                          </span>
+                          {matchingRec?.riskReductionLabel && (
+                            <span className="risk-reduction-tag">{matchingRec.riskReductionLabel}</span>
+                          )}
+                          {matchingRec?.healthImpactLabel && (
+                            <span className="health-gain-tag">{matchingRec.healthImpactLabel}</span>
+                          )}
+                        </div>
+                        <p className="risk-preventive-text">
+                          {r.mitigationStrategy || matchingRec?.title || r.recommendedAction}
+                        </p>
+                        <div className="risk-preventive-footer">
+                          {matchingRec && canEdit && (
+                            <button
+                              className="risk-mitigate-btn"
+                              onClick={() => setReviewRec(matchingRec)}
+                              title="Review simulated impact and apply preventive measure"
+                            >
+                              ⚡ Mitigate Risk
+                            </button>
+                          )}
+                          <button
+                            className="risk-view-measures-btn"
+                            onClick={() => setActiveTab("preventive")}
+                          >
+                            View Mitigation Options →
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <p className="risk-reason">{r.reason}</p>
-                    <div className="risk-action-bar">
-                      <strong>Recommended:</strong> {r.recommendedAction}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -864,10 +920,18 @@ export default function ProjectBrainView({
                   ✓ All deliverables aligned. No corrective actions required.
                 </p>
               ) : (
-                recommendations.slice(0, 3).map((rec) => (
+                recommendations.slice(0, 4).map((rec) => (
                   <div key={rec.id} className="rec-item-card">
                     <div className="rec-title-row">
                       <p className="rec-title">{rec.title}</p>
+                      <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                        {rec.riskReductionLabel && (
+                          <span className="risk-reduction-tag">{rec.riskReductionLabel}</span>
+                        )}
+                        {rec.healthImpactLabel && (
+                          <span className="health-gain-tag">{rec.healthImpactLabel}</span>
+                        )}
+                      </div>
                     </div>
                     <div className="rec-explanation-grid">
                       <div className="rec-expl-item">
@@ -968,6 +1032,209 @@ export default function ProjectBrainView({
                 {data.whyAtRisk.affectedPeople.length ? data.whyAtRisk.affectedPeople.join(", ") : "None identified"}
               </span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. SUBTAB: PREVENTIVE MEASURES & RISK MITIGATION */}
+      {activeTab === "preventive" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div className="brain-card">
+            <div className="brain-card-header">
+              <h3 className="brain-card-title">
+                <ShieldAlert size={18} style={{ color: "var(--green)" }} />
+                Preventive Measures & Risk Mitigation Control Center
+              </h3>
+              <span style={{ fontSize: "11px", color: "var(--muted)" }}>
+                Preemptive Risk Reduction
+              </span>
+            </div>
+            <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>
+              Actionable preventive strategies to eliminate execution bottlenecks, level contributor workloads, and safeguard project deliverables before delays compound.
+            </p>
+
+            {/* Impact Metrics Banner */}
+            <div className="preventive-summary-banner">
+              <div className="preventive-stat-card">
+                <span className="preventive-stat-label">Active Project Risks</span>
+                <span
+                  className="preventive-stat-value"
+                  style={{ color: risks.length > 0 ? "#dc2626" : "var(--green)" }}
+                >
+                  {risks.length} {risks.length === 1 ? "Risk" : "Risks"}
+                </span>
+                <span className="preventive-stat-subtext">
+                  {risks.some((r) => r.severity === "critical")
+                    ? "Critical severity detected"
+                    : risks.some((r) => r.severity === "high")
+                    ? "High probability bottleneck"
+                    : "Moderate risk trajectory"}
+                </span>
+              </div>
+
+              <div className="preventive-stat-card">
+                <span className="preventive-stat-label">Available Mitigations</span>
+                <span className="preventive-stat-value" style={{ color: "var(--green)" }}>
+                  {recommendations.length} Actionable
+                </span>
+                <span className="preventive-stat-subtext">Calculated safe operations</span>
+              </div>
+
+              <div className="preventive-stat-card">
+                <span className="preventive-stat-label">Projected Health Score</span>
+                <span className="preventive-stat-value" style={{ color: "var(--green)" }}>
+                  {health.overallScore}% ➔{" "}
+                  {Math.min(100, health.overallScore + Math.min(20, recommendations.length * 5))}%
+                </span>
+                <span className="preventive-stat-subtext">
+                  Estimated +{Math.min(20, recommendations.length * 5)} pts post-mitigation
+                </span>
+              </div>
+
+              <div className="preventive-stat-card">
+                <span className="preventive-stat-label">Risk Trajectory</span>
+                <span className="preventive-stat-value" style={{ color: "#16a34a" }}>
+                  <TrendingDown size={18} /> High ➔ Low
+                </span>
+                <span className="preventive-stat-subtext">Eliminates single points of failure</span>
+              </div>
+            </div>
+
+            {/* Filter Chips */}
+            <div className="preventive-filter-bar">
+              <button
+                className={`preventive-filter-chip ${preventiveCategoryFilter === "all" ? "active" : ""}`}
+                onClick={() => setPreventiveCategoryFilter("all")}
+              >
+                All Measures ({recommendations.length})
+              </button>
+              <button
+                className={`preventive-filter-chip ${preventiveCategoryFilter === "workload" ? "active" : ""}`}
+                onClick={() => setPreventiveCategoryFilter("workload")}
+              >
+                Workload Rebalancing ({recommendations.filter((r) => r.category === "workload").length})
+              </button>
+              <button
+                className={`preventive-filter-chip ${preventiveCategoryFilter === "schedule" ? "active" : ""}`}
+                onClick={() => setPreventiveCategoryFilter("schedule")}
+              >
+                Schedule Staggering ({recommendations.filter((r) => r.category === "schedule").length})
+              </button>
+              <button
+                className={`preventive-filter-chip ${preventiveCategoryFilter === "blocker" ? "active" : ""}`}
+                onClick={() => setPreventiveCategoryFilter("blocker")}
+              >
+                Blocker Clearance ({recommendations.filter((r) => r.category === "blocker").length})
+              </button>
+            </div>
+
+            {/* List of Preventive Measures */}
+            {recommendations.length === 0 ? (
+              <div
+                style={{
+                  background: "rgba(22, 163, 74, 0.08)",
+                  border: "1px solid rgba(22, 163, 74, 0.25)",
+                  padding: "24px",
+                  borderRadius: "10px",
+                  textAlign: "center",
+                }}
+              >
+                <CheckCircle2 size={32} style={{ color: "var(--green)", margin: "0 auto 10px" }} />
+                <h4 style={{ margin: "0 0 6px", fontSize: "15px", color: "var(--ink)" }}>
+                  Maximum Project Health Achieved
+                </h4>
+                <p style={{ margin: 0, fontSize: "12.5px", color: "var(--muted)" }}>
+                  All deliverables, task dependencies, and contributor workloads are in equilibrium. No corrective or preventive measures are currently required.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {recommendations
+                  .filter((rec) => preventiveCategoryFilter === "all" || rec.category === preventiveCategoryFilter)
+                  .map((rec) => (
+                    <div key={rec.id} className="preventive-measure-card">
+                      <div className="preventive-measure-header">
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                          <span
+                            className={`preventive-category-badge ${
+                              rec.category === "workload"
+                                ? "cat-workload"
+                                : rec.category === "blocker"
+                                ? "cat-blocker"
+                                : rec.category === "schedule"
+                                ? "cat-schedule"
+                                : "cat-dependency"
+                            }`}
+                          >
+                            {rec.category || "Preventive"}
+                          </span>
+                          <h4 style={{ margin: 0, fontSize: "13.5px", fontWeight: 700, color: "var(--ink)" }}>
+                            {rec.title}
+                          </h4>
+                        </div>
+                        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                          {rec.riskReductionLabel && (
+                            <span className="risk-reduction-tag">{rec.riskReductionLabel}</span>
+                          )}
+                          {rec.healthImpactLabel && (
+                            <span className="health-gain-tag">{rec.healthImpactLabel}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <p style={{ margin: 0, fontSize: "12.5px", color: "var(--ink)", lineHeight: 1.5 }}>
+                        {rec.description}
+                      </p>
+
+                      {/* Simulation & Comparison Meter */}
+                      <div className="preventive-comparison-meter">
+                        <span style={{ fontWeight: 600, color: "var(--muted)" }}>Simulated Trajectory:</span>
+                        <span className="comparison-before">
+                          Current Risk: High ({rec.riskReductionScore ? "75%" : "Elevated"})
+                        </span>
+                        <ArrowRight size={13} style={{ color: "var(--muted)" }} />
+                        <span className="comparison-after">
+                          Mitigated Risk: Low (
+                          {rec.riskReductionScore ? `${Math.max(15, 75 - rec.riskReductionScore)}%` : "Resolved"})
+                        </span>
+                        <span style={{ marginLeft: "auto", fontSize: "11px", color: "var(--green)", fontWeight: 700 }}>
+                          {rec.healthImpactLabel || "+6% Project Health"}
+                        </span>
+                      </div>
+
+                      <div className="rec-explanation-grid">
+                        <div className="rec-expl-item">
+                          <strong>Why Recommended:</strong> {rec.whyRecommended}
+                        </div>
+                        <div className="rec-expl-item">
+                          <strong>Expected Benefit:</strong> {rec.expectedBenefit}
+                        </div>
+                        <div className="rec-expl-item">
+                          <strong>Scope Affected:</strong> {rec.affectsDescription}
+                        </div>
+                        <div className="rec-expl-item">
+                          <strong>Possible Risk:</strong> {rec.possibleRisk}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "4px" }}>
+                        <button className="rec-review-btn" onClick={() => setReviewRec(rec)}>
+                          Simulate & Review
+                        </button>
+                        {canEdit && (
+                          <button
+                            className="risk-mitigate-btn"
+                            onClick={() => handleApplyRecommendation(rec)}
+                            disabled={applyingRec}
+                          >
+                            ⚡ Apply Preventive Measure
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1902,7 +2169,10 @@ export default function ProjectBrainView({
         <div className="brain-modal-overlay" onClick={() => setReviewRec(null)}>
           <div className="brain-modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="brain-modal-header">
-              <h3>Review Recommended Action</h3>
+              <h3 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <ShieldAlert size={18} style={{ color: "var(--green)" }} />
+                Review & Confirm Preventive Measure
+              </h3>
               <button className="brain-modal-close-btn" onClick={() => setReviewRec(null)}>
                 ×
               </button>
@@ -1911,6 +2181,33 @@ export default function ProjectBrainView({
             <div>
               <h4 style={{ margin: "0 0 6px", fontSize: "15px", color: "var(--ink)" }}>{reviewRec.title}</h4>
               <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>{reviewRec.description}</p>
+            </div>
+
+            {/* Impact Simulation Comparison Box */}
+            <div
+              className="preventive-comparison-meter"
+              style={{
+                background: "rgba(22, 163, 74, 0.06)",
+                border: "1px solid rgba(22, 163, 74, 0.2)",
+              }}
+            >
+              <span style={{ fontWeight: 600, color: "var(--muted)" }}>Pre-execution Simulation:</span>
+              <span className="comparison-before">
+                Current Health: {health.overallScore}%
+              </span>
+              <ArrowRight size={13} style={{ color: "var(--muted)" }} />
+              <span className="comparison-after">
+                Projected Health:{" "}
+                {Math.min(
+                  100,
+                  health.overallScore +
+                    (reviewRec.riskReductionScore ? Math.round(reviewRec.riskReductionScore / 8) : 6)
+                )}
+                %
+              </span>
+              <span style={{ marginLeft: "auto", fontSize: "11px", color: "var(--green)", fontWeight: 700 }}>
+                {reviewRec.riskReductionLabel || "↓ Risk Reduced"}
+              </span>
             </div>
 
             <div
@@ -1924,7 +2221,7 @@ export default function ProjectBrainView({
               }}
             >
               <div>
-                <strong>Reason:</strong> {reviewRec.whyRecommended}
+                <strong>Why Recommended:</strong> {reviewRec.whyRecommended}
               </div>
               <div>
                 <strong>Scope Affected:</strong> {reviewRec.affectsDescription}
@@ -1934,6 +2231,20 @@ export default function ProjectBrainView({
               </div>
               <div>
                 <strong>Possible Risk:</strong> {reviewRec.possibleRisk}
+              </div>
+              <div>
+                <strong>Action Payload:</strong>{" "}
+                <code
+                  style={{
+                    fontSize: "11px",
+                    background: "var(--surface)",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    border: "1px solid var(--line)",
+                  }}
+                >
+                  {JSON.stringify(reviewRec.actionPayload)}
+                </code>
               </div>
             </div>
 
@@ -1947,7 +2258,7 @@ export default function ProjectBrainView({
                   onClick={() => handleApplyRecommendation(reviewRec)}
                   disabled={applyingRec}
                 >
-                  {applyingRec ? "Applying..." : "Confirm & Apply Changes"}
+                  {applyingRec ? "Applying..." : "Confirm & Apply Preventive Measure"}
                 </button>
               )}
             </div>

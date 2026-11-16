@@ -295,3 +295,86 @@ test("Project Brain: simulates change impact accurately", () => {
   assert.ok(impact.criticalTasks.some((t) => t.id === "t-root"));
   assert.ok(impact.criticalTasks.some((t) => t.id === "t-child"));
 });
+
+test("Project Brain: generates actionable preventive measures for workload concentration risks", () => {
+  // Scenario matching user's project: Member u1 has 8 tasks, Member u2 has 2 tasks
+  const tasks: RawTaskItem[] = [];
+  for (let i = 1; i <= 8; i++) {
+    tasks.push({
+      id: `task-u1-${i}`,
+      project_id: "p-workload",
+      generated_key: `T-${i}`,
+      title: `Feature Deliverable ${i}`,
+      description: null,
+      priority: i % 2 === 0 ? "high" : "normal",
+      status_id: "s-progress",
+      start_date: null,
+      due_date: "2026-12-10",
+      estimate_minutes: 120,
+      progress: 0,
+      parent_task_id: null,
+      created_at: new Date().toISOString(),
+      created_by: "u1",
+      primary_assignee_id: "u1",
+      secondary_assignee_id: null,
+    });
+  }
+  tasks.push({
+    id: "task-u2-1",
+    project_id: "p-workload",
+    generated_key: "T-9",
+    title: "Support Task",
+    description: null,
+    priority: "normal",
+    status_id: "s-progress",
+    start_date: null,
+    due_date: "2026-12-10",
+    estimate_minutes: 60,
+    progress: 0,
+    parent_task_id: null,
+    created_at: new Date().toISOString(),
+    created_by: "u2",
+    primary_assignee_id: "u2",
+    secondary_assignee_id: null,
+  });
+
+  const ctx: AnalyticsContext = {
+    projectId: "p-workload",
+    projectName: "Workload Test Project",
+    projectDueDate: "2026-12-25",
+    tasks,
+    statuses: mockStatuses,
+    dependencies: [],
+    goals: [],
+    documents: [],
+    activity: [],
+    profiles: [
+      { id: "u1", display_name: "Leela Lead", email: "leela@example.com", avatar_url: null },
+      { id: "u2", display_name: "Lavanya Dev", email: "lavanya@example.com", avatar_url: null },
+    ],
+    taskAssignees: [],
+    checklists: [],
+    checklistItems: [],
+  };
+
+  const deps = analyzeDependencies(ctx);
+  const workload = analyzeWorkload(ctx);
+  const health = computeProjectHealth(ctx, deps, workload);
+  const risks = detectRisks(ctx, deps, workload);
+
+  // Risk should be detected for overloaded user
+  const workloadRisk = risks.find((r) => r.id.startsWith("risk-workload-u1"));
+  assert.ok(workloadRisk, "Expected workload concentration risk for u1");
+  assert.equal(workloadRisk.probabilityLevel, "High");
+  assert.ok(workloadRisk.mitigationStrategy);
+
+  // Recommendations MUST contain concrete preventive measure for workload rebalancing
+  const recommendations = generateDeterministicRecommendations(ctx, health, risks, deps, workload);
+  assert.ok(recommendations.length > 0, "Recommendations should NOT be empty when workload risks exist");
+
+  const rebalanceRec = recommendations.find((r) => r.actionType === "reassign_task");
+  assert.ok(rebalanceRec, "Expected reassign_task preventive recommendation");
+  assert.equal(rebalanceRec.actionPayload.newPrimaryAssigneeId, "u2");
+  assert.ok(rebalanceRec.riskReductionScore && rebalanceRec.riskReductionScore > 0);
+  assert.ok(rebalanceRec.healthImpactLabel);
+});
