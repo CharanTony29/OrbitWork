@@ -1,4 +1,5 @@
 export const DEFAULT_PROJECT_TAB_ORDER = [
+  "live",
   "list",
   "board",
   "calendar",
@@ -15,6 +16,7 @@ export const DEFAULT_PROJECT_TAB_ORDER = [
 export type ProjectTabKey = (typeof DEFAULT_PROJECT_TAB_ORDER)[number];
 
 export const PROJECT_TAB_LABELS: Record<ProjectTabKey, string> = {
+  live: "Live Tracker",
   list: "List",
   board: "Board",
   calendar: "Calendar",

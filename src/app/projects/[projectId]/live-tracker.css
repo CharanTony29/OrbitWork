@@ -1,0 +1,499 @@
+/* Live Project Tracker Styles (Mirroring Executive Workboard) */
+
+.live-tracker-root {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 0 0 60px;
+  color: #17231f;
+  font-family: inherit;
+}
+
+/* Header bar */
+.live-tracker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #e7ebe7;
+}
+
+.live-tracker-breadcrumb {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.live-tracker-org-proj {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #17231f;
+  text-transform: uppercase;
+}
+
+.live-tracker-subtag {
+  font-size: 11px;
+  color: #77827c;
+  font-weight: 500;
+}
+
+.live-tracker-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.live-tracker-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #dfe5e0;
+  background: #ffffff;
+  color: #33413a;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.live-tracker-refresh-btn:hover {
+  background: #f5f8f5;
+  border-color: #cbd5e1;
+}
+
+.live-tracker-ppt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 0;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+  transition: all 0.15s ease;
+}
+
+.live-tracker-ppt-btn:hover {
+  background: #1e293b;
+  transform: translateY(-1px);
+}
+
+/* Hero Banner */
+.live-tracker-hero {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  background: #1b1917;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.live-tracker-hero-left {
+  padding: 40px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.live-tracker-view-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #eab308;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.live-tracker-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #eab308;
+}
+
+.live-tracker-headline {
+  font-size: 38px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  color: #ffffff;
+  margin: 0 0 12px;
+  font-family: inherit;
+  text-transform: uppercase;
+}
+
+.live-tracker-desc {
+  font-size: 14px;
+  color: #a8a29e;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.live-tracker-hero-right {
+  background: #efb64b;
+  padding: 34px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #1c1917;
+}
+
+.live-tracker-open-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #451a03;
+}
+
+.live-tracker-big-count {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.live-tracker-big-number {
+  font-size: 64px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -2px;
+  color: #1c1917;
+}
+
+.live-tracker-count-sub {
+  font-size: 15px;
+  font-weight: 600;
+  color: #78350f;
+}
+
+.live-tracker-pulse-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #1c1917;
+}
+
+.live-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7);
+  animation: liveTrackerPulse 2s infinite;
+}
+
+@keyframes liveTrackerPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(22, 163, 74, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+  }
+}
+
+/* The Workboard Section */
+.live-tracker-workboard {
+  background: #ffffff;
+  border: 1px solid #e7ebe7;
+  border-radius: 8px;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.live-tracker-board-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.live-tracker-board-title-group .eyebrow {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #77827c;
+  text-transform: uppercase;
+}
+
+.live-tracker-board-title-group h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  color: #17231f;
+  text-transform: uppercase;
+}
+
+.live-tracker-board-subtitle {
+  font-size: 12px;
+  color: #77827c;
+  font-weight: 500;
+}
+
+/* Tabs */
+.live-tracker-tabs {
+  display: flex;
+  gap: 18px;
+  border-bottom: 2px solid #f1f5f2;
+  margin-top: 4px;
+}
+
+.live-tracker-tab-btn {
+  background: none;
+  border: 0;
+  padding: 10px 4px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #65716a;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.live-tracker-tab-btn:hover {
+  color: #17231f;
+}
+
+.live-tracker-tab-btn.is-active {
+  color: #17231f;
+  font-weight: 700;
+}
+
+.live-tracker-tab-btn.is-active::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #efb64b;
+  border-radius: 2px 2px 0 0;
+}
+
+.live-tracker-tab-pill {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #f0f4f0;
+  color: #526057;
+}
+
+.live-tracker-tab-btn.is-active .live-tracker-tab-pill {
+  background: #efb64b;
+  color: #1c1917;
+}
+
+/* Toolbar */
+.live-tracker-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.live-tracker-search-wrap {
+  flex: 1;
+  min-width: 260px;
+  position: relative;
+}
+
+.live-tracker-search-wrap svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9aa49e;
+}
+
+.live-tracker-search-input {
+  width: 100%;
+  padding: 10px 14px 10px 36px;
+  border-radius: 8px;
+  border: 1px solid #dfe5e0;
+  background: #fafbf9;
+  font-size: 13px;
+  color: #17231f;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.live-tracker-search-input:focus {
+  background: #ffffff;
+  border-color: #6cad8d;
+  box-shadow: 0 0 0 3px #e7f3ec;
+}
+
+.live-tracker-select {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #dfe5e0;
+  background: #fafbf9;
+  font-size: 13px;
+  color: #39453f;
+  cursor: pointer;
+  outline: none;
+}
+
+/* List info bar */
+.live-tracker-info-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #77827c;
+  padding: 4px 2px;
+  border-bottom: 1px solid #f1f5f2;
+}
+
+/* Task List Rows */
+.live-tracker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.live-tracker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid #e7ebe7;
+  border-radius: 6px;
+  padding: 14px 18px;
+  position: relative;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  color: inherit;
+  border-left-width: 5px;
+}
+
+.live-tracker-row:hover {
+  background: #fafbf9;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transform: translateX(2px);
+}
+
+.live-tracker-row-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-right: 16px;
+}
+
+.live-tracker-task-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #17231f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.live-tracker-row-meta {
+  font-size: 12px;
+  color: #77827c;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.live-tracker-row-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-shrink: 0;
+}
+
+.live-tracker-status-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.live-tracker-status-badge {
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+  display: inline-block;
+}
+
+.live-tracker-due-info {
+  font-size: 11px;
+  color: #77827c;
+  font-weight: 500;
+}
+
+.live-tracker-due-info.is-overdue {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.live-tracker-arrow {
+  color: #9aa49e;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.live-tracker-row:hover .live-tracker-arrow {
+  color: #17231f;
+  transform: translate(2px, -2px);
+}
+
+/* Empty state */
+.live-tracker-empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: #77827c;
+  font-size: 13px;
+  background: #fafbf9;
+  border-radius: 8px;
+  border: 1px dashed #dfe5e0;
+}
+
+@media (max-width: 850px) {
+  .live-tracker-hero {
+    grid-template-columns: 1fr;
+  }
+  .live-tracker-hero-right {
+    padding: 24px;
+  }
+  .live-tracker-hero-left {
+    padding: 24px;
+  }
+  .live-tracker-headline {
+    font-size: 28px;
+  }
+}

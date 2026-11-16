@@ -20,6 +20,7 @@ import {
   Presentation,
   Workflow,
   Brain,
+  Radio,
 } from "lucide-react";
 import {
   DEFAULT_PROJECT_TAB_ORDER,
@@ -48,6 +49,8 @@ const STORAGE_KEY = "orbitwork_project_tab_order_v1";
 
 function renderTabIcon(key: ProjectTabKey, isSelected: boolean) {
   switch (key) {
+    case "live":
+      return <Radio size={13} style={{ color: isSelected ? "inherit" : "#eab308" }} />;
     case "list":
       return <ListTodo size={13} />;
     case "board":

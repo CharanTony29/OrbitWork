@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import ReportsChartsClient from "./ReportsChartsClient";
+import ExportPresentationButton from "./ExportPresentationButton";
 
 type Metric = {
   status_id: string;
@@ -198,12 +199,15 @@ export default async function ProjectReportsPage({
               Live task totals, team workload, and logged time across categories.
             </p>
           </div>
-          <a
-            className="button button-secondary"
-            href={`/api/projects/${projectId}/reports.csv`}
-          >
-            <Download size={15} /> Export CSV
-          </a>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <ExportPresentationButton projectId={projectId} projectName={project.name} />
+            <a
+              className="button button-secondary"
+              href={`/api/projects/${projectId}/reports.csv`}
+            >
+              <Download size={15} /> Export CSV
+            </a>
+          </div>
         </div>
 
         {/* Top Summary Stat Cards */}

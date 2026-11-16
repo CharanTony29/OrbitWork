@@ -20,6 +20,7 @@ import ProjectChannelView from "./ProjectChannelView";
 import ProjectGoalsView, { type ProjectGoalRecord } from "./ProjectGoalsView";
 import ProjectAIAgentsHub from "@/app/ai/ProjectAIAgentsHub";
 import ProjectBrainView from "./brain/ProjectBrainView";
+import ProjectLiveTracker from "./ProjectLiveTracker";
 import FavoriteButton from "@/app/FavoriteButton";
 import { resolveProfileAvatarSrc } from "@/lib/chat";
 import {
@@ -361,7 +362,20 @@ export default async function ProjectPage({ params, searchParams }: {
             }}
           />
         )}
-        {view === "list" ? (
+        {view === "live" ? (
+          <ProjectLiveTracker
+            projectId={project.id}
+            projectName={project.name}
+            workspaceName={workspace?.name}
+            initialTasks={(tasks ?? []).map((task) => ({
+              ...task,
+              assigneeIds: getTaskAssignees(task),
+            }))}
+            statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
+            people={people}
+            canEdit={canEdit}
+          />
+        ) : view === "list" ? (
           <TaskTable
             projectId={project.id}
             canEdit={canEdit}
