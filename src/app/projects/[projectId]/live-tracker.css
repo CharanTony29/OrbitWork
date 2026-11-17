@@ -101,17 +101,20 @@
   grid-template-columns: 1fr 280px;
   background: #18181b;
   border-radius: 8px;
-  overflow: hidden;
+  min-height: 140px;
+  height: auto;
+  overflow: visible;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .live-tracker-hero-left {
-  padding: 36px 44px;
+  padding: 24px 32px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   color: #ffffff;
+  overflow: visible;
 }
 
 .live-tracker-view-pill {
@@ -134,14 +137,16 @@
 }
 
 .live-tracker-headline {
-  font-size: 36px;
+  font-size: clamp(22px, 3.2vw, 34px);
   font-weight: 900;
   letter-spacing: -0.5px;
-  line-height: 1.1;
+  line-height: 1.25;
   color: #ffffff;
   margin: 0 0 10px;
   font-family: inherit;
   text-transform: uppercase;
+  word-break: break-word;
+  overflow: visible;
 }
 
 .live-tracker-desc {

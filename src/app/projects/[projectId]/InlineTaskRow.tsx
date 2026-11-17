@@ -34,10 +34,12 @@ export default function InlineTaskRow({
   const leadingEmptySpan = Math.min(Math.max(0, nameColIndex), Math.max(0, colSpan - 1));
   const trailingEmptySpan = Math.max(0, colSpan - 1 - leadingEmptySpan);
   const initialStatus = defaultStatusId || statuses[0]?.id || "";
+  const initialPriority: "low" | "normal" | "high" | "urgent" =
+    (["low", "normal", "high", "urgent"].includes(defaultPriority) ? defaultPriority : "normal");
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [statusId, setStatusId] = useState(initialStatus);
-  const [priority, setPriority] = useState<"low" | "normal" | "high" | "urgent">(defaultPriority);
+  const [priority, setPriority] = useState<"low" | "normal" | "high" | "urgent">(initialPriority);
   const [dueDate, setDueDate] = useState("");
   const [estimateMinutes, setEstimateMinutes] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
@@ -54,12 +56,6 @@ export default function InlineTaskRow({
       setStatusId(defaultStatusId);
     }
   }, [defaultStatusId]);
-
-  useEffect(() => {
-    if (defaultPriority) {
-      setPriority(defaultPriority);
-    }
-  }, [defaultPriority]);
 
   useEffect(() => {
     if (isAdding) {

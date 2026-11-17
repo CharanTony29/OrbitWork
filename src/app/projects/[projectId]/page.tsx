@@ -87,6 +87,12 @@ export default async function ProjectPage({ params, searchParams }: {
   if (["low", "normal", "high", "urgent"].includes(filters.priority ?? "")) taskQuery = taskQuery.eq("priority", filters.priority!);
   if (assigneeId) taskQuery = taskQuery.or(`primary_assignee_id.eq.${assigneeId},secondary_assignee_id.eq.${assigneeId}`);
   if (filters.sort === "due") taskQuery = taskQuery.order("due_date", { ascending: true, nullsFirst: false });
+  else if (filters.sort === "due_desc") taskQuery = taskQuery.order("due_date", { ascending: false, nullsFirst: true });
+  else if (filters.sort === "name" || filters.sort === "title" || filters.sort === "name_asc") taskQuery = taskQuery.order("title", { ascending: true });
+  else if (filters.sort === "name_desc" || filters.sort === "title_desc") taskQuery = taskQuery.order("title", { ascending: false });
+  else if (filters.sort === "priority" || filters.sort === "priority_asc") taskQuery = taskQuery.order("priority", { ascending: true });
+  else if (filters.sort === "priority_desc") taskQuery = taskQuery.order("priority", { ascending: false });
+  else if (filters.sort === "created" || filters.sort === "created_asc") taskQuery = taskQuery.order("created_at", { ascending: true });
   else taskQuery = taskQuery.order("created_at", { ascending: false });
   const [statusResult, taskResult, memberResult, fieldResult, canEditResult, canManageResult] = await Promise.all([
     supabase.from("project_statuses").select("id, name, color, category, position, is_default").eq("project_id", projectId).order("position"),
@@ -319,7 +325,7 @@ export default async function ProjectPage({ params, searchParams }: {
               group: filters.group,
             }}
           />
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          <div className="view-tabs-actions" style={{ display: "inline-flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
             {!canEdit && <span className="role-pill" style={{ background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1', fontSize: "11px", padding: "2px 8px" }}>View-only</span>}
             <FavoriteButton
               entityType="project"

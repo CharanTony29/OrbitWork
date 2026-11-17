@@ -631,7 +631,12 @@ export async function inviteOrganizationMember(formData: FormData) {
     successCount++;
   }
 
+  const returnUrl = formData.get("returnUrl") as string | null;
+
   if (successCount === 0) {
+    if (returnUrl && returnUrl.startsWith("/")) {
+      redirect(`${returnUrl}${returnUrl.includes("?") ? "&" : "?"}error=invitation_failed`);
+    }
     const failedRedirect = parsed.data.workspaceId
       ? `/workspaces/${parsed.data.workspaceId}?error=invitation_failed`
       : `/dashboard?error=invitation_failed`;
@@ -639,6 +644,10 @@ export async function inviteOrganizationMember(formData: FormData) {
   }
 
   revalidatePath("/dashboard");
+  if (returnUrl && returnUrl.startsWith("/")) {
+    revalidatePath(returnUrl);
+    redirect(`${returnUrl}${returnUrl.includes("?") ? "&" : "?"}invited=${successCount}`);
+  }
   if (parsed.data.workspaceId) {
     revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
     redirect(`/workspaces/${parsed.data.workspaceId}?invited=${successCount}`);
@@ -821,16 +830,16 @@ export async function createProject(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { error } = await supabase.from("projects").insert({
+  const { data: newProject, error } = await supabase.from("projects").insert({
     workspace_id: parsed.data.workspaceId,
     name: parsed.data.name,
     description: parsed.data.description ?? "",
     icon: parsed.data.icon || "📁",
     created_by: user.id,
-  });
-  if (error) redirect(`/workspaces/${parsed.data.workspaceId}?error=project_failed`);
+  }).select("id").single();
+  if (error || !newProject) redirect(`/workspaces/${parsed.data.workspaceId}?error=project_failed`);
   revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
-  redirect(`/workspaces/${parsed.data.workspaceId}`);
+  redirect(`/projects/${newProject.id}`);
 }
 
 export async function updateProjectDetails(formData: FormData) {
@@ -993,6 +1002,11 @@ export async function createTask(formData: FormData) {
 }
 
 export async function quickCreateTask(formData: FormData) {
+  const rawPriority = String(formData.get("priority") || "normal").toLowerCase().trim();
+  const normalizedPriority = (["low", "normal", "high", "urgent"].includes(rawPriority)
+    ? rawPriority
+    : "normal") as "low" | "normal" | "high" | "urgent";
+
   const parsed = z.object({
     projectId: z.string().uuid(),
     title: z.string().trim().min(1).max(240),
@@ -1004,7 +1018,7 @@ export async function quickCreateTask(formData: FormData) {
     projectId: formData.get("projectId"),
     title: formData.get("title"),
     statusId: formData.get("statusId"),
-    priority: (formData.get("priority") as "low" | "normal" | "high" | "urgent") || "normal",
+    priority: normalizedPriority,
     dueDate: formData.get("dueDate") || undefined,
     estimateMinutes: formData.get("estimateMinutes") || undefined,
   });

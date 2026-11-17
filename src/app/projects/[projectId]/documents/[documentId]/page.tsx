@@ -2,6 +2,7 @@ import Link from "next/link";
 import AppTopBar from "@/app/AppTopBar";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import DocBackLink from "@/app/DocBackLink";
 import { createClient } from "@/lib/supabase/server";
 import ClickUpDocWorkspace from "../ClickUpDocWorkspace";
 import { getDoc, getPageListing, getPage } from "@/lib/docs/service";
@@ -126,9 +127,7 @@ export default async function ProjectDocumentPage({
       />
 
       <div className="doc-page-subbar">
-        <Link className="back-link" href={`/projects/${projectId}/documents`}>
-          <ArrowLeft size={15} /> Back to Documents
-        </Link>
+        <DocBackLink href={`/projects/${projectId}/documents`} label="Back to Documents" />
       </div>
 
       <ClickUpDocWorkspace

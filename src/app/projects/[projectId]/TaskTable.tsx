@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquare, ExternalLink, ChevronDown, ChevronRight, Flag, Calendar, Layers, List, Check, GripVertical, Columns3, RotateCcw, ChevronLeft, User, Tag, SlidersHorizontal, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { MessageSquare, ExternalLink, ChevronDown, ChevronRight, Flag, Calendar, Layers, List, Check, GripVertical, Columns3, RotateCcw, ChevronLeft, User, Tag, SlidersHorizontal, ChevronsUpDown, ChevronsDownUp, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { useTransition, useRef, useState, useCallback, useEffect, useMemo, Fragment } from "react";
 import { updateTaskField, updateTaskStatus } from "@/app/actions";
 import {
@@ -880,6 +881,33 @@ export default function TaskTable({
   initialGroupBy?: string;
   initialColumnOrder?: string[];
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentSort = searchParams.get("sort") || "";
+
+  const toggleColumnSort = (colId: string) => {
+    let sortKey: string | null = null;
+    if (colId === "name") {
+      sortKey = currentSort === "name" ? "name_desc" : currentSort === "name_desc" ? null : "name";
+    } else if (colId === "due_date") {
+      sortKey = currentSort === "due" ? "due_desc" : currentSort === "due_desc" ? null : "due";
+    } else if (colId === "priority") {
+      sortKey = currentSort === "priority" ? "priority_desc" : currentSort === "priority_desc" ? null : "priority";
+    } else if (colId === "created_by") {
+      sortKey = currentSort === "created" ? "created_desc" : currentSort === "created_desc" ? null : "created";
+    }
+
+    if (sortKey !== undefined) {
+      const params = new URLSearchParams(searchParams.toString());
+      if (sortKey) {
+        params.set("sort", sortKey);
+      } else {
+        params.delete("sort");
+      }
+      router.push(`/projects/${projectId}?${params.toString()}`, { scroll: false });
+    }
+  };
+
   const [groupBy, setGroupBy] = useState<string>(initialGroupBy || "status");
   const [activeCommentsTask, setActiveCommentsTask] = useState<{
     id: string;
@@ -1472,7 +1500,11 @@ export default function TaskTable({
             <InlineTaskRow
               projectId={projectId}
               statuses={statuses}
-              defaultPriority={grp.key !== "none" ? grp.key : "normal"}
+              defaultPriority={
+                (["low", "normal", "high", "urgent"].includes(grp.key)
+                  ? grp.key
+                  : "normal") as "low" | "normal" | "high" | "urgent"
+              }
               members={members}
               colSpan={colSpanCount}
               nameColIndex={nameColIndex}
@@ -2210,6 +2242,49 @@ export default function TaskTable({
                     <span className="task-th-inner">
                       <GripVertical size={11} className="task-th-grip" />
                       <span>{label}</span>
+                      {["name", "due_date", "priority", "created_by"].includes(colId) && (
+                        <button
+                          type="button"
+                          className="th-sort-toggle-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleColumnSort(colId);
+                          }}
+                          aria-label={`Sort by ${label}`}
+                          title={`Click to sort by ${label}`}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: "2px 4px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color:
+                              (colId === "name" && (currentSort === "name" || currentSort === "name_desc")) ||
+                              (colId === "due_date" && (currentSort === "due" || currentSort === "due_desc")) ||
+                              (colId === "priority" && (currentSort === "priority" || currentSort === "priority_desc")) ||
+                              (colId === "created_by" && (currentSort === "created" || currentSort === "created_desc"))
+                                ? "var(--green, #167c58)"
+                                : "var(--muted, #94a3b8)",
+                          }}
+                        >
+                          {colId === "name" && currentSort === "name" && <ArrowUp size={11} />}
+                          {colId === "name" && currentSort === "name_desc" && <ArrowDown size={11} />}
+                          {colId === "due_date" && currentSort === "due" && <ArrowUp size={11} />}
+                          {colId === "due_date" && currentSort === "due_desc" && <ArrowDown size={11} />}
+                          {colId === "priority" && currentSort === "priority" && <ArrowUp size={11} />}
+                          {colId === "priority" && currentSort === "priority_desc" && <ArrowDown size={11} />}
+                          {colId === "created_by" && currentSort === "created" && <ArrowUp size={11} />}
+                          {colId === "created_by" && currentSort === "created_desc" && <ArrowDown size={11} />}
+                          {!(
+                            (colId === "name" && (currentSort === "name" || currentSort === "name_desc")) ||
+                            (colId === "due_date" && (currentSort === "due" || currentSort === "due_desc")) ||
+                            (colId === "priority" && (currentSort === "priority" || currentSort === "priority_desc")) ||
+                            (colId === "created_by" && (currentSort === "created" || currentSort === "created_desc"))
+                          ) && <ArrowUpDown size={11} style={{ opacity: 0.7 }} />}
+                        </button>
+                      )}
                       {colId === "name" && allParentWithSubtasks.size > 0 && (
                         <button
                           type="button"

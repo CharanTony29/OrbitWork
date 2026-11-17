@@ -151,6 +151,9 @@ export default function TaskBoard({
                   <article
                     className={`kanban-card${dragging === task.id ? " is-dragging" : ""}${!canEdit ? " is-readonly" : ""}`}
                     key={task.id}
+                    tabIndex={0}
+                    role="article"
+                    aria-label={`Task: ${task.title}`}
                     draggable={canEdit}
                     onDragStart={(event) => {
                       if (!canEdit) return;

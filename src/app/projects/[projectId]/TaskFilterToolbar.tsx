@@ -414,7 +414,7 @@ export default function TaskFilterToolbar({
                 type="button"
                 className="toolbar-search-clear-btn"
                 onClick={handleClearSearch}
-                aria-label="Clear"
+                aria-label="Clear search input"
               >
                 <X size={12} />
               </button>
@@ -429,6 +429,7 @@ export default function TaskFilterToolbar({
               setTimeout(() => searchInputRef.current?.focus(), 50);
             }}
             title="Search tasks"
+            aria-label="Search tasks"
           >
             <Search size={13} />
           </button>

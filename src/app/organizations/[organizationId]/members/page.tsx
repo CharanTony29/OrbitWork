@@ -5,13 +5,14 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, GitBranch, UsersRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { updateOrganizationMemberManager, updateOrganizationMemberRole } from "@/app/actions";
+import InviteMemberModal from "./InviteMemberModal";
 
 export default async function OrganizationMembersPage({
   params,
   searchParams,
 }: {
   params: Promise<{ organizationId: string }>;
-  searchParams: Promise<{ error?: string; hierarchy_updated?: string; member_updated?: string }>;
+  searchParams: Promise<{ error?: string; hierarchy_updated?: string; member_updated?: string; invited?: string }>;
 }) {
   const { organizationId } = await params;
   const sp = await searchParams;
@@ -126,8 +127,14 @@ export default async function OrganizationMembersPage({
               <h1>Members, roles &amp; hierarchy</h1>
               <p className="muted">People with access to {organization.name}, workspace roles, and reporting lines for leave approvals.</p>
             </div>
-            <span className="organization-members-count"><UsersRound size={16}/>{memberships.length} members</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span className="organization-members-count"><UsersRound size={16}/>{memberships.length} members</span>
+              {canManageOrg && (
+                <InviteMemberModal organizationId={organizationId} organizationName={organization.name} />
+              )}
+            </div>
           </header>
+  {sp.invited && <p className="notice" role="status">Invitation sent successfully ({sp.invited} teammate{Number(sp.invited) > 1 ? "s" : ""}).</p>}
   {sp.error && <p className="error" role="alert">Hierarchy or role update could not be saved ({sp.error}). Check permissions and avoid circular reporting.</p>}
   {(sp.hierarchy_updated || sp.member_updated) && <p className="notice" role="status">Organization member settings updated.</p>}
   {!hierarchySupported && <p className="error" role="alert">Run <code>supabase/migrations/202611120003_platform_enhancements.sql</code> in Supabase to enable reporting hierarchy management.</p>}
