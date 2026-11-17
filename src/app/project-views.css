@@ -558,7 +558,30 @@ body:has(.project-app-shell) {
 .task-table tbody tr td.custom-value-cell,
 .task-table tbody tr td.priority-td,
 .task-table tbody tr td.status-td,
-.task-table tbody tr td.linked-docs-td {
+.task-table tbody tr td.linked-docs-td,
+.task-table tbody tr.is-active-adding,
+.task-table tbody tr.is-active-adding > td,
+.task-table tbody tr.is-active-adding > td.task-title-cell,
+.task-table tbody tr.inline-task-tr,
+.task-table tbody tr.inline-task-tr > td,
+.task-table tbody tr td.inline-task-active-td,
+.task-table tbody tr td:has(.inline-add-row-content),
+.task-table tbody tr td:has(.inline-picker-wrap) {
+  overflow: visible !important;
+}
+
+.task-table tbody tr.is-active-adding,
+.task-table tbody tr.is-active-adding > td,
+.task-table tbody tr.inline-task-tr,
+.task-table tbody tr.inline-task-tr > td {
+  height: auto !important;
+  z-index: 60 !important;
+}
+
+.task-table tbody tr.is-active-adding td > *,
+.task-table tbody tr.inline-task-tr td > *,
+.inline-add-row-content {
+  max-height: none !important;
   overflow: visible !important;
 }
 

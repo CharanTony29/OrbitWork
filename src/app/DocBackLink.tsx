@@ -14,7 +14,7 @@ export default function DocBackLink({
 
   const handleNavigate = (e: React.MouseEvent) => {
     e.preventDefault();
-    router.push(href);
+    window.location.assign(href);
   };
 
   return (

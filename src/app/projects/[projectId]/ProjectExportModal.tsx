@@ -413,7 +413,7 @@ export default function ProjectExportModal({
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 5000,
+        zIndex: 9999,
         background: "rgba(15, 23, 42, 0.6)",
         backdropFilter: "blur(4px)",
         display: "grid",
@@ -471,6 +471,7 @@ export default function ProjectExportModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close export dialog"
             style={{
               background: "transparent",
               border: 0,

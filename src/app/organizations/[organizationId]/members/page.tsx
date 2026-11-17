@@ -50,6 +50,13 @@ export default async function OrganizationMembersPage({
   ]);
 
   const memberIds = memberships.map((member) => member.user_id);
+  const currentUserMembership = memberships.find((m) => m.user_id === user.id);
+  const isOrgAdminOrOwner = Boolean(
+    canManageOrg ||
+    isOwner ||
+    currentUserMembership?.role === "owner" ||
+    currentUserMembership?.role === "admin"
+  );
   const workspaceIds = (workspaces ?? []).map((workspace) => workspace.id);
   const [{ data: profiles }, { data: workspaceMembers }] = await Promise.all([
     memberIds.length ? supabase.from("profiles").select("id, display_name, email, avatar_url, designation, department, contact_information").in("id", memberIds) : Promise.resolve({ data: [] }),
@@ -129,7 +136,7 @@ export default async function OrganizationMembersPage({
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span className="organization-members-count"><UsersRound size={16}/>{memberships.length} members</span>
-              {canManageOrg && (
+              {isOrgAdminOrOwner && (
                 <InviteMemberModal organizationId={organizationId} organizationName={organization.name} />
               )}
             </div>

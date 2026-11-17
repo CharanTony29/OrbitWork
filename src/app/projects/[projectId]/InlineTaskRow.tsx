@@ -309,6 +309,7 @@ export default function InlineTaskRow({
                 style={{ color: priorityColors[priority] }}
                 onClick={() => setActiveMenu(activeMenu === "priority" ? null : "priority")}
                 title={`Priority: ${priority}`}
+                aria-label="Set priority"
               >
                 <Flag size={13} fill={priority !== "normal" ? "currentColor" : "none"} />
               </button>
