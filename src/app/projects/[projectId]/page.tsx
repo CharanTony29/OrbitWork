@@ -98,9 +98,10 @@ export default async function ProjectPage({ params, searchParams }: {
   else if (filters.sort === "priority_desc") taskQuery = taskQuery.order("priority", { ascending: false });
   else if (filters.sort === "created" || filters.sort === "created_asc") taskQuery = taskQuery.order("created_at", { ascending: true });
   else taskQuery = taskQuery.order("created_at", { ascending: false });
+  const PAGE_SIZE = 500;
   const [statusResult, taskResult, memberResult, fieldResult, canEditResult, canManageResult] = await Promise.all([
     supabase.from("project_statuses").select("id, name, color, category, position, is_default").eq("project_id", projectId).order("position"),
-    taskQuery.range((page - 1) * 100, page * 100 - 1),
+    taskQuery.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1),
     supabase.from("project_members").select("user_id, role").eq("project_id", projectId),
     supabase.from("custom_field_definitions").select("id, name, field_type, options, required, position").eq("project_id", projectId).order("position"),
     supabase.rpc("can_edit_project_tasks", { target_project: projectId }),

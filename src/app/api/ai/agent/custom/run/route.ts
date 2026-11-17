@@ -27,7 +27,8 @@ async function runAutoAssignParentFastPath(
   const { data: allTasks, error: tasksErr } = await supabase
     .from("tasks")
     .select("id, title, parent_task_id, primary_assignee_id")
-    .eq("project_id", projectId);
+    .eq("project_id", projectId)
+    .limit(1000);
 
   if (tasksErr || !allTasks || allTasks.length === 0) {
     return { updatedCount: 0, totalSubtasks: 0, summary: "No tasks found in project." };
@@ -36,33 +37,45 @@ async function runAutoAssignParentFastPath(
   const taskMap = new Map<string, any>(allTasks.map((t: any) => [t.id, t]));
   const subtasks = allTasks.filter((t: any) => Boolean(t.parent_task_id));
 
-  let updatedCount = 0;
-  const updates: Promise<any>[] = [];
+  const itemsToUpdate: Array<{ subtaskId: string; assigneeId: string }> = [];
 
   for (const st of subtasks) {
     const parent = taskMap.get(st.parent_task_id);
     if (parent && parent.primary_assignee_id) {
       if (st.primary_assignee_id !== parent.primary_assignee_id) {
-        updatedCount++;
-        updates.push(
-          supabase
-            .from("tasks")
-            .update({ primary_assignee_id: parent.primary_assignee_id })
-            .eq("id", st.id)
-            .then(async () => {
-              await supabase.from("task_assignees").upsert({
-                project_id: projectId,
-                task_id: st.id,
-                user_id: parent.primary_assignee_id,
-                assigned_by: userId,
-              });
-            })
-        );
+        itemsToUpdate.push({
+          subtaskId: st.id,
+          assigneeId: parent.primary_assignee_id,
+        });
       }
     }
   }
 
-  await Promise.allSettled(updates);
+  // Execute in parallel chunks of 25 to respect database connection limits while completing rapidly
+  const CHUNK_SIZE = 25;
+  for (let i = 0; i < itemsToUpdate.length; i += CHUNK_SIZE) {
+    const chunk = itemsToUpdate.slice(i, i + CHUNK_SIZE);
+    await Promise.allSettled(
+      chunk.map(async ({ subtaskId, assigneeId }) => {
+        await supabase
+          .from("tasks")
+          .update({ primary_assignee_id: assigneeId })
+          .eq("id", subtaskId);
+
+        await supabase.from("task_assignees").upsert(
+          {
+            project_id: projectId,
+            task_id: subtaskId,
+            user_id: assigneeId,
+            assigned_by: userId,
+          },
+          { onConflict: "task_id,user_id" }
+        );
+      })
+    );
+  }
+
+  const updatedCount = itemsToUpdate.length;
 
   if (agentId) {
     try {

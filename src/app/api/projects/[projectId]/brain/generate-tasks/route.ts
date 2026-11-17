@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generateTasksFromGoalAI } from "@/lib/brain/ai-service";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300; // Allow ample time for batch inserting up to 500 tasks and subtasks
 
 const generateSchema = z.object({
   goalTitle: z.string().trim().min(1).max(2000),
@@ -130,20 +131,24 @@ export async function POST(
 
       createdTasksCount.push(parentTask);
 
-      // 2. Insert subtasks if any
-      for (const subTitle of taskItem.subtasks) {
-        await supabase.from("tasks").insert({
+      // 2. Insert subtasks in bulk if any
+      if (taskItem.subtasks && taskItem.subtasks.length > 0) {
+        const subtaskRows = taskItem.subtasks.map((subTitle: string) => ({
           project_id: projectId,
           title: subTitle,
           priority: taskItem.priority || "normal",
           status_id: defaultStatusId,
           parent_task_id: parentTask.id,
           created_by: user.id,
-        });
+        }));
+        const { error: subErr } = await supabase.from("tasks").insert(subtaskRows);
+        if (subErr) {
+          console.error(`[Create Subtasks Error for Task ${parentTask.id}]:`, subErr);
+        }
       }
 
       // 3. Insert checklist & items if any
-      if (taskItem.checklists.length > 0) {
+      if (taskItem.checklists && taskItem.checklists.length > 0) {
         const { data: checklist } = await supabase
           .from("task_checklists")
           .insert({
@@ -156,16 +161,15 @@ export async function POST(
           .single();
 
         if (checklist) {
-          for (let i = 0; i < taskItem.checklists.length; i++) {
-            await supabase.from("checklist_items").insert({
-              project_id: projectId,
-              task_id: parentTask.id,
-              checklist_id: checklist.id,
-              title: taskItem.checklists[i],
-              position: i,
-              created_by: user.id,
-            });
-          }
+          const itemRows = taskItem.checklists.map((chk: string, i: number) => ({
+            project_id: projectId,
+            task_id: parentTask.id,
+            checklist_id: checklist.id,
+            title: chk,
+            position: i,
+            created_by: user.id,
+          }));
+          await supabase.from("checklist_items").insert(itemRows);
         }
       }
     }

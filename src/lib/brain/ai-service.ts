@@ -183,17 +183,27 @@ export async function generateTasksFromGoalAI(options: {
   // 1. Check if user provided an explicit structured task breakdown in description or title
   const fullText = `${goalTitle}\n${goalDescription || ""}`;
   const numberedTaskRegex = /^\s*(\d+)[\.\)]\s+([^\r\n]+)/gm;
-  const explicitTasks: string[] = [];
+  const explicitTasksWithPositions: Array<{ index: number; endHeaderIndex: number; title: string }> = [];
   let match: RegExpExecArray | null;
 
   while ((match = numberedTaskRegex.exec(fullText)) !== null) {
     const taskName = match[2].trim().replace(/\*\*/g, "");
-    if (taskName.length > 2 && !taskName.toLowerCase().startsWith("task structure") && !taskName.toLowerCase().startsWith("subtask creation")) {
-      explicitTasks.push(taskName);
+    if (
+      taskName.length > 2 &&
+      !taskName.toLowerCase().startsWith("task structure") &&
+      !taskName.toLowerCase().startsWith("subtask creation")
+    ) {
+      explicitTasksWithPositions.push({
+        index: match.index,
+        endHeaderIndex: match.index + match[0].length,
+        title: taskName,
+      });
     }
   }
 
-  // Check for test case scenarios (e.g. TC01 - TC64)
+  const explicitTasks = explicitTasksWithPositions.map((t) => t.title);
+
+  // Check for test case scenarios (e.g. TC01 - TC180)
   const tcRegex = /\b(TC\d{1,3})\b/gi;
   const detectedTCs: string[] = [];
   let tcMatch: RegExpExecArray | null;
@@ -202,7 +212,7 @@ export async function generateTasksFromGoalAI(options: {
     if (!detectedTCs.includes(tcId)) detectedTCs.push(tcId);
   }
 
-  // If user provided a comprehensive explicit breakdown (e.g. 5+ numbered tasks)
+  // If user provided a comprehensive explicit breakdown (e.g. 4+ numbered tasks)
   if (explicitTasks.length >= 4) {
     const generated: Array<{
       title: string;
@@ -213,18 +223,50 @@ export async function generateTasksFromGoalAI(options: {
       dependsOnTitle?: string;
     }> = [];
 
-    explicitTasks.forEach((taskTitle, idx) => {
-      // Allocate test cases or subtasks across the tasks
-      const startIdx = idx * 4;
-      const assignedTCs = detectedTCs.slice(startIdx, startIdx + 4);
-      const subtasks = assignedTCs.length > 0
-        ? assignedTCs.map((tc) => `${tc}: Execute & Validate Scenario for ${taskTitle}`)
-        : [
-            `Analyze requirements & preconditions for ${taskTitle}`,
-            `Execute positive & standard functional scenarios`,
-            `Perform boundary, negative & permission testing`,
-            `Verify data persistence and audit trail`,
-          ];
+    explicitTasksWithPositions.forEach((taskItem, idx) => {
+      const taskTitle = taskItem.title;
+      // Extract subtasks specific to this task if bullet points are written under it
+      const nextTaskStart = explicitTasksWithPositions[idx + 1]?.index ?? fullText.length;
+      const taskBlock = fullText.slice(taskItem.endHeaderIndex, nextTaskStart);
+
+      // Check for bulleted subtask lines: - Subtask, * Subtask, • Subtask, 1.1 Subtask, a) Subtask
+      const bulletRegex = /^\s*(?:[-*•]|\d+\.\d+|[a-zA-Z]\))\s+([^\r\n]+)/gm;
+      const parsedSubtasks: string[] = [];
+      let bMatch: RegExpExecArray | null;
+      while ((bMatch = bulletRegex.exec(taskBlock)) !== null) {
+        const line = bMatch[1].trim().replace(/\*\*/g, "");
+        if (line.length > 2 && !line.toLowerCase().startsWith("subtask creation")) {
+          parsedSubtasks.push(line);
+        }
+      }
+
+      // Determine subtasks (explicit bullet subtasks > test cases > 6 standard high-value subtasks)
+      let subtasks: string[] = [];
+      if (parsedSubtasks.length > 0) {
+        subtasks = parsedSubtasks;
+      } else if (detectedTCs.length > 0) {
+        const startIdx = idx * 6;
+        const assignedTCs = detectedTCs.slice(startIdx, startIdx + 6);
+        subtasks = assignedTCs.length > 0
+          ? assignedTCs.map((tc) => `${tc}: Execute & Validate Scenario for ${taskTitle}`)
+          : [
+              `Requirements analysis & precondition verification for ${taskTitle}`,
+              `Configure workflow logic & test harness setup`,
+              `Execute positive & standard functional scenarios`,
+              `Perform boundary, negative & security testing`,
+              `Verify data persistence, audit logs & transactions`,
+              `Conduct peer review, document test evidence & sign-off`,
+            ];
+      } else {
+        subtasks = [
+          `Requirements analysis & precondition verification for ${taskTitle}`,
+          `Configure workflow logic & test harness setup`,
+          `Execute positive & standard functional scenarios`,
+          `Perform boundary, negative & security testing`,
+          `Verify data persistence, audit logs & transactions`,
+          `Conduct peer review, document test evidence & sign-off`,
+        ];
+      }
 
       generated.push({
         title: taskTitle,
