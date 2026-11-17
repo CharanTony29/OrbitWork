@@ -2253,11 +2253,11 @@ export default function ProjectBrainView({
           </p>
 
           <form onSubmit={handleGenerateTasksPreview} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            <input
-              type="text"
+            <textarea
               placeholder="e.g. Launch company mobile app release or Implement Stripe billing"
               value={goalTitle}
               onChange={(e) => setGoalTitle(e.target.value)}
+              rows={2}
               style={{
                 padding: "10px 14px",
                 borderRadius: "8px",
@@ -2265,14 +2265,16 @@ export default function ProjectBrainView({
                 background: "var(--surface)",
                 color: "var(--ink)",
                 fontSize: "13px",
+                fontFamily: "inherit",
+                resize: "vertical",
               }}
               required
             />
             <textarea
-              placeholder="Optional scope details, requirements, or constraints..."
+              placeholder="Optional scope details, test scenarios, or numbered task breakdown..."
               value={goalDesc}
               onChange={(e) => setGoalDesc(e.target.value)}
-              rows={2}
+              rows={4}
               style={{
                 padding: "8px 12px",
                 borderRadius: "8px",
@@ -2280,6 +2282,8 @@ export default function ProjectBrainView({
                 background: "var(--surface)",
                 color: "var(--ink)",
                 fontSize: "13px",
+                fontFamily: "inherit",
+                resize: "vertical",
               }}
             />
             <button

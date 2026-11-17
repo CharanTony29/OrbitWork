@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Settings, X, GitBranch, Users, Columns, Archive, RotateCcw, Pencil } from "lucide-react";
+import { Settings, X, GitBranch, Users, Columns, Archive, RotateCcw, Pencil, Receipt } from "lucide-react";
 import {
   addProjectMember,
   createCustomField,
@@ -12,6 +12,7 @@ import {
   updateProjectStatus,
   toggleProjectActiveStatus,
   updateProjectDetails,
+  updateProjectBilling,
 } from "@/app/actions";
 import MultiValueFieldInput from "@/app/MultiValueFieldInput";
 
@@ -20,15 +21,7 @@ type Member = { id: string; label: string };
 type ProjectMember = { user_id: string; role: string };
 type CustomField = { id: string; name: string; field_type: string; required?: boolean };
 
-type Panel = "details" | "statuses" | "members" | "fields" | "status" | null;
-
-const MENU_ITEMS: { panel: Panel; label: string; icon: React.ReactNode }[] = [
-  { panel: "details", label: "Project name & icon", icon: <Pencil size={14} /> },
-  { panel: "statuses", label: "Workflow statuses", icon: <GitBranch size={14} /> },
-  { panel: "members", label: "Project members", icon: <Users size={14} /> },
-  { panel: "fields", label: "Custom fields", icon: <Columns size={14} /> },
-  { panel: "status", label: "Project status & archive", icon: <Archive size={14} /> },
-];
+type Panel = "details" | "statuses" | "members" | "fields" | "status" | "billing" | null;
 
 export default function ProjectSettingsPanel({
   projectId,
@@ -42,6 +35,13 @@ export default function ProjectSettingsPanel({
   projectName = "",
   projectDescription = "",
   projectIcon = "📁",
+  startDate = "",
+  dueDate = "",
+  poNumber = "",
+  clientName = "",
+  budgetAmount = "",
+  billingNotes = "",
+  canManage = false,
 }: {
   projectId: string;
   statuses: Status[];
@@ -54,11 +54,29 @@ export default function ProjectSettingsPanel({
   projectName?: string;
   projectDescription?: string;
   projectIcon?: string;
+  startDate?: string;
+  dueDate?: string;
+  poNumber?: string;
+  clientName?: string;
+  budgetAmount?: string;
+  billingNotes?: string;
+  canManage?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<Panel>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+
+  const menuItems: { panel: Panel; label: string; icon: React.ReactNode }[] = [
+    { panel: "details", label: "Project name & timeline", icon: <Pencil size={14} /> },
+    { panel: "statuses", label: "Workflow statuses", icon: <GitBranch size={14} /> },
+    { panel: "members", label: "Project members", icon: <Users size={14} /> },
+    { panel: "fields", label: "Custom fields", icon: <Columns size={14} /> },
+    { panel: "status", label: "Project status & archive", icon: <Archive size={14} /> },
+    ...(canManage
+      ? [{ panel: "billing" as Panel, label: "PO & Billing details", icon: <Receipt size={14} /> }]
+      : []),
+  ];
 
   // Close menu on outside click
   useEffect(() => {
@@ -104,7 +122,7 @@ export default function ProjectSettingsPanel({
         {menuOpen && (
           <div ref={menuRef} className="proj-settings-menu" role="menu">
             <p className="proj-settings-menu-title">Project settings</p>
-            {MENU_ITEMS.map(({ panel, label, icon }) => (
+            {menuItems.map(({ panel, label, icon }) => (
               <button
                 key={panel}
                 className="proj-settings-menu-item"
@@ -126,11 +144,11 @@ export default function ProjectSettingsPanel({
             className="proj-modal"
             role="dialog"
             aria-modal="true"
-            aria-label={MENU_ITEMS.find((i) => i.panel === activePanel)?.label}
+            aria-label={menuItems.find((i) => i.panel === activePanel)?.label}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="proj-modal-head">
-              <h2>{MENU_ITEMS.find((i) => i.panel === activePanel)?.label}</h2>
+              <h2>{menuItems.find((i) => i.panel === activePanel)?.label}</h2>
               <button className="proj-modal-close" aria-label="Close" onClick={closePanel}>
                 <X size={16} />
               </button>
@@ -143,6 +161,8 @@ export default function ProjectSettingsPanel({
                   initialName={projectName}
                   initialDescription={projectDescription}
                   initialIcon={projectIcon}
+                  initialStartDate={startDate}
+                  initialDueDate={dueDate}
                 />
               )}
               {activePanel === "statuses" && (
@@ -161,6 +181,15 @@ export default function ProjectSettingsPanel({
               )}
               {activePanel === "status" && (
                 <StatusPanel projectId={projectId} currentStatus={currentStatus} />
+              )}
+              {activePanel === "billing" && canManage && (
+                <ProjectBillingPanel
+                  projectId={projectId}
+                  initialPoNumber={poNumber}
+                  initialClientName={clientName}
+                  initialBudgetAmount={budgetAmount}
+                  initialBillingNotes={billingNotes}
+                />
               )}
             </div>
           </div>
@@ -402,18 +431,22 @@ function ProjectDetailsPanel({
   initialName,
   initialDescription,
   initialIcon = "📁",
+  initialStartDate = "",
+  initialDueDate = "",
 }: {
   projectId: string;
   initialName: string;
   initialDescription: string;
   initialIcon?: string;
+  initialStartDate?: string;
+  initialDueDate?: string;
 }) {
   const [selectedIcon, setSelectedIcon] = useState(initialIcon || "📁");
 
   return (
     <div className="proj-panel-content">
       <p style={{ fontSize: 13, color: "var(--muted)", margin: "0 0 16px" }}>
-        Managers can rename the project, update its description, and choose an icon or emoji to display across the workspace navigation.
+        Managers and owners can rename the project, configure timeline start &amp; target due dates, update description, and customize the project icon.
       </p>
 
       <form action={updateProjectDetails} className="admin-create-form" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -493,6 +526,48 @@ function ProjectDetailsPanel({
           />
         </div>
 
+        {/* Start Date & Due Date */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>
+              Start Date
+            </label>
+            <input
+              type="date"
+              name="startDate"
+              defaultValue={initialStartDate}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid var(--line)",
+                background: "var(--surface)",
+                color: "var(--ink)",
+                fontSize: 13,
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>
+              Target Due Date
+            </label>
+            <input
+              type="date"
+              name="dueDate"
+              defaultValue={initialDueDate}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid var(--line)",
+                background: "var(--surface)",
+                color: "var(--ink)",
+                fontSize: 13,
+              }}
+            />
+          </div>
+        </div>
+
         {/* Project Description */}
         <div>
           <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>
@@ -532,6 +607,145 @@ function ProjectDetailsPanel({
           }}
         >
           Save Project Changes
+        </button>
+      </form>
+    </div>
+  );
+}
+
+/* ── Project PO & Billing Details Panel ───────────────────────── */
+function ProjectBillingPanel({
+  projectId,
+  initialPoNumber,
+  initialClientName,
+  initialBudgetAmount,
+  initialBillingNotes,
+}: {
+  projectId: string;
+  initialPoNumber: string;
+  initialClientName: string;
+  initialBudgetAmount: string;
+  initialBillingNotes: string;
+}) {
+  return (
+    <div className="proj-panel-content" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <p style={{ fontSize: 13, color: "var(--muted)", margin: 0 }}>
+        Configure Purchase Order (PO) references, client information, budget allocations, and contractual billing notes. Strictly restricted to Workspace Managers and Owners.
+      </p>
+
+      <form action={updateProjectBilling} className="admin-create-form" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <input type="hidden" name="projectId" value={projectId} />
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>
+              Purchase Order (PO) Number
+            </label>
+            <input
+              type="text"
+              name="poNumber"
+              defaultValue={initialPoNumber}
+              placeholder="e.g. PO-2026-9482"
+              maxLength={100}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid var(--line)",
+                background: "var(--surface)",
+                color: "var(--ink)",
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>
+              Client / Enterprise Name
+            </label>
+            <input
+              type="text"
+              name="clientName"
+              defaultValue={initialClientName}
+              placeholder="e.g. Siemens PLM / Ford Corp"
+              maxLength={150}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid var(--line)",
+                background: "var(--surface)",
+                color: "var(--ink)",
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>
+            Project Budget ($ USD)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            name="budgetAmount"
+            defaultValue={initialBudgetAmount}
+            placeholder="e.g. 50000.00"
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--line)",
+              background: "var(--surface)",
+              color: "var(--ink)",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          />
+        </div>
+
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>
+            Billing Notes &amp; Payment Terms
+          </label>
+          <textarea
+            name="billingNotes"
+            defaultValue={initialBillingNotes}
+            placeholder="e.g. Net-30 payment terms upon completion of milestone deliverables..."
+            rows={3}
+            maxLength={2000}
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--line)",
+              background: "var(--surface)",
+              color: "var(--ink)",
+              fontSize: 13,
+              fontFamily: "inherit",
+              resize: "vertical",
+            }}
+          />
+        </div>
+
+        <button
+          type="submit"
+          className="mini-save"
+          style={{
+            alignSelf: "flex-start",
+            padding: "8px 20px",
+            background: "var(--green, #167c58)",
+            color: "#ffffff",
+            fontWeight: 700,
+            borderRadius: 8,
+            border: 0,
+            cursor: "pointer",
+          }}
+        >
+          Save Billing Details
         </button>
       </form>
     </div>

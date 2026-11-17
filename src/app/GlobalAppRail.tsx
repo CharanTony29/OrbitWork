@@ -146,7 +146,7 @@ export default function GlobalAppRail({
         }}
       >
         <FolderKanban size={17} />
-        <span style={{ fontSize: 8, fontWeight: 650 }}>Spaces</span>
+        <span style={{ fontSize: 8, fontWeight: 650 }}>Workspace</span>
       </button>
 
       <Link

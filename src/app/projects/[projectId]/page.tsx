@@ -41,7 +41,11 @@ export default async function ProjectPage({ params, searchParams }: {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: project } = await supabase.from("projects").select("id, workspace_id, name, description, status, priority, due_date, created_at, icon, workspaces(name, organization_id)").eq("id", projectId).maybeSingle();
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, workspace_id, name, description, status, priority, start_date, due_date, created_at, icon, po_number, client_name, budget_amount, billing_notes, workspaces(name, organization_id)")
+    .eq("id", projectId)
+    .maybeSingle();
   if (!project) notFound();
   const filters = await searchParams;
 
@@ -361,6 +365,13 @@ export default async function ProjectPage({ params, searchParams }: {
                 projectName={project.name}
                 projectDescription={project.description}
                 projectIcon={(project as any).icon || "📁"}
+                startDate={(project as any).start_date || ""}
+                dueDate={project.due_date || ""}
+                poNumber={(project as any).po_number || ""}
+                clientName={(project as any).client_name || ""}
+                budgetAmount={(project as any).budget_amount ? String((project as any).budget_amount) : ""}
+                billingNotes={(project as any).billing_notes || ""}
+                canManage={canManage}
               />
             )}
           </div>

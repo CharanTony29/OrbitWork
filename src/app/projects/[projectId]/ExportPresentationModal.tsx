@@ -70,6 +70,9 @@ export default function ExportPresentationModal({
       params.set("customPrimary", customPrimary);
       params.set("customAccent", customAccent);
     }
+    if (aiPrompt.trim()) {
+      params.set("aiPrompt", aiPrompt.trim());
+    }
 
     const exportUrl = `/api/projects/${projectId}/presentation.pptx?${params.toString()}`;
 

@@ -91,21 +91,47 @@ export default function ProjectViewTabsClient({
   const [dragKey, setDragKey] = useState<ProjectTabKey | null>(null);
   const [dragOverKey, setDragOverKey] = useState<ProjectTabKey | null>(null);
   const [customizerOpen, setCustomizerOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState<number>(6);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setTabOrder(normalizeTabOrder(initialTabOrder));
   }, [initialTabOrder]);
 
+  // Responsive visible tab count based on window width
   useEffect(() => {
-    if (!customizerOpen) return;
+    const updateCount = () => {
+      if (typeof window === "undefined") return;
+      const w = window.innerWidth;
+      if (w < 640) setVisibleCount(2);
+      else if (w < 900) setVisibleCount(3);
+      else if (w < 1180) setVisibleCount(5);
+      else if (w < 1440) setVisibleCount(7);
+      else setVisibleCount(9);
+    };
+    updateCount();
+    window.addEventListener("resize", updateCount);
+    return () => window.removeEventListener("resize", updateCount);
+  }, []);
+
+  useEffect(() => {
+    if (!customizerOpen && !moreOpen) return;
     const handleMouseDown = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (customizerOpen && popoverRef.current && !popoverRef.current.contains(target)) {
         setCustomizerOpen(false);
+      }
+      if (moreOpen && moreRef.current && !moreRef.current.contains(target)) {
+        setMoreOpen(false);
       }
     };
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setCustomizerOpen(false);
+      if (e.key === "Escape") {
+        setCustomizerOpen(false);
+        setMoreOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleMouseDown);
     document.addEventListener("keydown", handleKey);
@@ -113,7 +139,7 @@ export default function ProjectViewTabsClient({
       document.removeEventListener("mousedown", handleMouseDown);
       document.removeEventListener("keydown", handleKey);
     };
-  }, [customizerOpen]);
+  }, [customizerOpen, moreOpen]);
 
   const buildViewHref = (nextView: ProjectTabKey) => {
     const params = new URLSearchParams();
@@ -168,10 +194,14 @@ export default function ProjectViewTabsClient({
     void persistOrder(next);
   };
 
+  const visibleTabs = tabOrder.slice(0, visibleCount);
+  const overflowTabs = tabOrder.slice(visibleCount);
+  const isOverflowActive = overflowTabs.includes(activeView);
+
   return (
     <div className="view-tabs-customizable" ref={popoverRef}>
       <div className="view-tabs-strip">
-        {tabOrder.map((key) => {
+        {visibleTabs.map((key) => {
           const isSelected = activeView === key;
           const isDropTarget = dragOverKey === key && dragKey !== key;
           return (
@@ -210,6 +240,57 @@ export default function ProjectViewTabsClient({
             </Link>
           );
         })}
+
+        {overflowTabs.length > 0 && (
+          <div className="view-tabs-more-wrap" ref={moreRef}>
+            <button
+              type="button"
+              className={`view-tabs-more-btn${isOverflowActive ? " selected" : ""}${moreOpen ? " is-open" : ""}`}
+              onClick={() => setMoreOpen((o) => !o)}
+              title={isOverflowActive ? `Active: ${PROJECT_TAB_LABELS[activeView]} (Click to show remaining tabs)` : "Show remaining tabs"}
+              aria-expanded={moreOpen}
+              aria-label="Show remaining tabs"
+            >
+              {isOverflowActive ? (
+                <>
+                  {renderTabIcon(activeView, true)}
+                  <span>{PROJECT_TAB_LABELS[activeView]}</span>
+                  <ChevronRight size={13} className={`view-tabs-chevron-icon${moreOpen ? " is-rotated" : ""}`} />
+                </>
+              ) : (
+                <>
+                  <span>More</span>
+                  <ChevronRight size={13} className={`view-tabs-chevron-icon${moreOpen ? " is-rotated" : ""}`} />
+                </>
+              )}
+            </button>
+
+            {moreOpen && (
+              <div className="view-tabs-more-menu" role="menu" aria-label="Remaining project tabs">
+                <div className="view-tabs-more-menu-header">
+                  <span>Remaining Tabs ({overflowTabs.length})</span>
+                </div>
+                {overflowTabs.map((key) => {
+                  const isSelected = activeView === key;
+                  return (
+                    <Link
+                      key={key}
+                      href={buildViewHref(key)}
+                      prefetch={false}
+                      onClick={() => setMoreOpen(false)}
+                      className={`view-tabs-more-item${isSelected ? " selected" : ""}`}
+                      role="menuitem"
+                    >
+                      {renderTabIcon(key, isSelected)}
+                      <span>{PROJECT_TAB_LABELS[key]}</span>
+                      {isSelected && <span className="view-tabs-active-dot" />}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         <button
           type="button"

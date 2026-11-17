@@ -180,6 +180,84 @@ export async function generateTasksFromGoalAI(options: {
 }> {
   const { goalTitle, goalDescription, projectName } = options;
 
+  // 1. Check if user provided an explicit structured task breakdown in description or title
+  const fullText = `${goalTitle}\n${goalDescription || ""}`;
+  const numberedTaskRegex = /^\s*(\d+)[\.\)]\s+([^\r\n]+)/gm;
+  const explicitTasks: string[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = numberedTaskRegex.exec(fullText)) !== null) {
+    const taskName = match[2].trim().replace(/\*\*/g, "");
+    if (taskName.length > 2 && !taskName.toLowerCase().startsWith("task structure") && !taskName.toLowerCase().startsWith("subtask creation")) {
+      explicitTasks.push(taskName);
+    }
+  }
+
+  // Check for test case scenarios (e.g. TC01 - TC64)
+  const tcRegex = /\b(TC\d{1,3})\b/gi;
+  const detectedTCs: string[] = [];
+  let tcMatch: RegExpExecArray | null;
+  while ((tcMatch = tcRegex.exec(fullText)) !== null) {
+    const tcId = tcMatch[1].toUpperCase();
+    if (!detectedTCs.includes(tcId)) detectedTCs.push(tcId);
+  }
+
+  // If user provided a comprehensive explicit breakdown (e.g. 5+ numbered tasks)
+  if (explicitTasks.length >= 4) {
+    const generated: Array<{
+      title: string;
+      description: string;
+      priority: "low" | "normal" | "high" | "urgent";
+      subtasks: string[];
+      checklists: string[];
+      dependsOnTitle?: string;
+    }> = [];
+
+    explicitTasks.forEach((taskTitle, idx) => {
+      // Allocate test cases or subtasks across the tasks
+      const startIdx = idx * 4;
+      const assignedTCs = detectedTCs.slice(startIdx, startIdx + 4);
+      const subtasks = assignedTCs.length > 0
+        ? assignedTCs.map((tc) => `${tc}: Execute & Validate Scenario for ${taskTitle}`)
+        : [
+            `Analyze requirements & preconditions for ${taskTitle}`,
+            `Execute positive & standard functional scenarios`,
+            `Perform boundary, negative & permission testing`,
+            `Verify data persistence and audit trail`,
+          ];
+
+      generated.push({
+        title: taskTitle,
+        description: `Comprehensive execution, testing, and validation of ${taskTitle} in accordance with system specifications.`,
+        priority: idx === 0 || idx === explicitTasks.length - 1 ? "urgent" : "high",
+        subtasks,
+        checklists: [
+          "Preconditions & test environment verified",
+          "All functional test scenarios executed & passed",
+          "Negative testing & security boundary validation verified",
+          "Verification logs and test evidence documented",
+          "Stakeholder review and sign-off",
+        ],
+        dependsOnTitle: idx > 0 ? explicitTasks[idx - 1] : "",
+      });
+    });
+
+    return {
+      proposedTasks: generated,
+      milestones: [
+        `${explicitTasks[0]} Initialized & Verified`,
+        `Core Functional Workflow Completed (${explicitTasks.slice(1, Math.min(8, explicitTasks.length)).join(", ")})`,
+        "Integration, ERP & Security Boundaries Verified",
+        `${explicitTasks[explicitTasks.length - 1]} & Final Acceptance Sign-off`,
+      ],
+      risks: [
+        "Unplanned schema changes or environment unavailability during execution",
+        "Cross-system timeout or external ERP integration latency",
+        "Access permission discrepancies between approver roles",
+      ],
+    };
+  }
+
   const prompt = `
 A user wants to achieve this goal in project "${projectName}":
 Goal: "${goalTitle}"
@@ -202,7 +280,8 @@ Generate a realistic, high-quality work breakdown structure formatted as JSON wi
 }
 
 Rules:
-- Generate 4 to 7 realistic sequential tasks.
+- If the user specified a specific number or list of tasks/test cases, include ALL of them without omission!
+- Otherwise generate 5 to 10 sequential tasks.
 - Keep dependencies logical.
 - Output ONLY valid JSON, with no markdown code fences or other text.
 `.trim();
@@ -212,6 +291,7 @@ Rules:
       prompt,
       system: "You are a technical project manager assistant. Respond ONLY with valid JSON.",
       temperature: 0.2,
+      abortSignal: AbortSignal.timeout(60000),
     });
 
     const clean = res.text.replace(/```json/g, "").replace(/```/g, "").trim();

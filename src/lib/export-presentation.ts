@@ -49,6 +49,7 @@ export interface PresentationReportOptions {
   includeCatalog?: boolean;
   style?: PresentationThemeStyle;
   customColors?: PresentationCustomColors;
+  aiPrompt?: string;
 }
 
 export interface StatusMetric {
@@ -397,6 +398,51 @@ export function buildPresentationDeck(
     });
   }
 
+  // Helper for adding interactive slide navigation bar
+  function addSlideNavBar(slide: PptxGenJS.Slide, currentSlideNum: number) {
+    const navItems = [
+      { label: "Overview", slideNum: 1 },
+      { label: "KPIs", slideNum: 2 },
+      { label: "Status", slideNum: 3 },
+      { label: "Workload", slideNum: 4 },
+      { label: "Risks", slideNum: 5 },
+      ...(options.includeCatalog !== false ? [{ label: "Catalog", slideNum: 6 }] : []),
+    ];
+
+    const startX = 4.8;
+    const btnW = 0.8;
+    const btnH = 0.28;
+    const gap = 0.08;
+    const navY = 0.48;
+
+    navItems.forEach((item, idx) => {
+      const isCurrent = item.slideNum === currentSlideNum;
+      const x = startX + idx * (btnW + gap);
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x,
+        y: navY,
+        w: btnW,
+        h: btnH,
+        fill: { color: isCurrent ? C_BLUE : C_WHITE },
+        line: { color: isCurrent ? C_BLUE : C_BORDER, width: 1 },
+        rectRadius: 0.05,
+        hyperlink: { slide: item.slideNum },
+      });
+      slide.addText(item.label, {
+        x,
+        y: navY + 0.02,
+        w: btnW,
+        h: btnH - 0.04,
+        fontSize: 7.5,
+        bold: isCurrent,
+        align: "center",
+        color: isCurrent ? C_WHITE : C_DARK_SLATE,
+        fontFace: "Calibri",
+        hyperlink: { slide: item.slideNum },
+      });
+    });
+  }
+
   // -------------------------------------------------------------
   // SLIDE 2: Executive Summary & Health KPIs
   // -------------------------------------------------------------
@@ -406,6 +452,7 @@ export function buildPresentationDeck(
     "Executive Summary & Performance KPIs",
     "High-level execution velocity, completion rate, and workload health"
   );
+  addSlideNavBar(slide2, 2);
 
   // 5 KPI Metric Cards
   const kpiCards = [
@@ -505,52 +552,64 @@ export function buildPresentationDeck(
     });
   });
 
-  // Executive Insights Section below Cards (Two big analysis panels)
-  // Left Panel: Delivery & Health Assessment
-  slide2.addShape(pptx.ShapeType.roundRect, {
-    x: 0.7,
-    y: 3.25,
-    w: 5.85,
-    h: 3.45,
-    fill: { color: C_WHITE },
-    line: { color: C_BORDER, width: 1 },
-    rectRadius: 0.08,
-  });
-  slide2.addText("DELIVERY VELOCITY & MILESTONE HEALTH", {
-    x: 0.95,
-    y: 3.45,
-    w: 5.3,
-    h: 0.3,
-    fontSize: 10.5,
-    bold: true,
-    color: C_NAVY,
-    fontFace: "Calibri",
-  });
+  // Left Panel: Native Interactive Doughnut Chart
+  if (totalTasks > 0) {
+    slide2.addChart(
+      pptx.ChartType.doughnut,
+      [
+        {
+          name: "Task Composition",
+          labels: ["Completed", "In Progress", "On Hold", "Pending"],
+          values: [
+            completedTasks.length,
+            inProgressTasks.length,
+            holdTasks.length,
+            pendingTasks.length,
+          ],
+        },
+      ],
+      {
+        x: 0.7,
+        y: 3.25,
+        w: 5.85,
+        h: 3.45,
+        chartColors: [C_EMERALD, C_BLUE, C_AMBER, C_SLATE],
+        dataLabelColor: "FFFFFF",
+        showPercent: true,
+        showLegend: true,
+        legendPos: "b",
+        legendFontSize: 9,
+        holeSize: 55,
+        showTitle: true,
+        title: "TASK COMPLETION & DISTRIBUTION",
+        titleFontSize: 10.5,
+        titleColor: C_NAVY,
+        titleBold: true,
+      }
+    );
+  } else {
+    slide2.addShape(pptx.ShapeType.roundRect, {
+      x: 0.7,
+      y: 3.25,
+      w: 5.85,
+      h: 3.45,
+      fill: { color: C_WHITE },
+      line: { color: C_BORDER, width: 1 },
+      rectRadius: 0.08,
+    });
+    slide2.addText("No tasks recorded for the selected timeframe.", {
+      x: 0.95,
+      y: 4.8,
+      w: 5.3,
+      h: 0.5,
+      fontSize: 12,
+      color: C_SLATE,
+      align: "center",
+      fontFace: "Calibri",
+    });
+  }
 
-  const healthPoints = [
-    `• Overall Completion: ${completionRate}% of deliverables are finalized and verified.`,
-    `• Active Velocity: ${inProgressTasks.length} task(s) currently in progress across team members.`,
-    `• Pending Pipeline: ${pendingTasks.length} task(s) scheduled in backlog and ready for execution.`,
-    `• Delivery Pace: ${
-      completionRate >= 70
-        ? "Excellent momentum; project is tracking ahead of scheduled milestones."
-        : completionRate >= 40
-        ? "Healthy execution pace; core sprint deliverables moving steadily."
-        : "Early execution stage; team is ramping up active deliverables."
-    }`,
-  ];
-  slide2.addText(healthPoints.join("\n\n"), {
-    x: 0.95,
-    y: 3.85,
-    w: 5.3,
-    h: 2.6,
-    fontSize: 10,
-    color: C_DARK_SLATE,
-    lineSpacingMultiple: 1.1,
-    fontFace: "Calibri",
-  });
-
-  // Right Panel: Operational Focus & Attention
+  // Right Panel: Operational Focus & Attention + AI Prompt Directives
   slide2.addShape(pptx.ShapeType.roundRect, {
     x: 6.78,
     y: 3.25,
@@ -574,33 +633,64 @@ export function buildPresentationDeck(
   const focusPoints = [
     `• Overdue Deliverables: ${
       overdueTasks.length > 0
-        ? `${overdueTasks.length} active task(s) have passed their due date and require expedited resolution.`
-        : "Zero overdue tasks. All scheduled deliverables are within deadline."
+        ? `${overdueTasks.length} active task(s) have passed due date.`
+        : "Zero overdue tasks. All scheduled deliverables within deadline."
     }`,
     `• Work on Hold: ${
       holdTasks.length > 0
-        ? `${holdTasks.length} item(s) are paused pending requirements, external dependencies, or reviews.`
+        ? `${holdTasks.length} item(s) paused pending dependencies.`
         : "Zero active bottlenecks or paused deliverables."
     }`,
     `• Unassigned Tasks: ${
       tasks.filter((t) => t.assignees.length === 0 && !t.isCompleted).length
     } unassigned active item(s) awaiting resource allocation.`,
-    `• Action Recommended: ${
+    `• Action: ${
       overdueTasks.length > 0
-        ? "Focus immediate team standups on clearing overdue items and unblocking hold dependencies."
-        : "Maintain current delivery momentum and prepare next sprint backlog."
+        ? "Prioritize overdue milestones and clear blocked dependencies."
+        : "Maintain current execution pace across upcoming sprints."
     }`,
   ];
   slide2.addText(focusPoints.join("\n\n"), {
     x: 7.05,
-    y: 3.85,
+    y: 3.8,
     w: 5.3,
-    h: 2.6,
-    fontSize: 10,
+    h: options.aiPrompt ? 1.5 : 2.5,
+    fontSize: 9.5,
     color: C_DARK_SLATE,
-    lineSpacingMultiple: 1.1,
     fontFace: "Calibri",
   });
+
+  if (options.aiPrompt) {
+    slide2.addShape(pptx.ShapeType.roundRect, {
+      x: 7.05,
+      y: 5.4,
+      w: 5.3,
+      h: 1.15,
+      fill: { color: C_LIGHT_BG },
+      line: { color: C_BLUE, width: 1 },
+      rectRadius: 0.06,
+    });
+    slide2.addText("EXECUTIVE AI STRATEGY DIRECTIVES", {
+      x: 7.15,
+      y: 5.48,
+      w: 5.1,
+      h: 0.2,
+      fontSize: 8.5,
+      bold: true,
+      color: C_BLUE,
+      fontFace: "Calibri",
+    });
+    slide2.addText(options.aiPrompt.slice(0, 240), {
+      x: 7.15,
+      y: 5.7,
+      w: 5.1,
+      h: 0.75,
+      fontSize: 8,
+      color: C_DARK_SLATE,
+      italic: true,
+      fontFace: "Calibri",
+    });
+  }
 
   addSlideFooter(slide2, "Slide 2");
 
@@ -613,6 +703,7 @@ export function buildPresentationDeck(
     "Task Status Breakdown & Workflow Lifecycle",
     "Detailed status categorization across Completed, In Process, On Hold, and Pending states"
   );
+  addSlideNavBar(slide3, 3);
 
   // 4 Top Category Summary Boxes
   const statusBoxes = [
@@ -694,12 +785,12 @@ export function buildPresentationDeck(
     });
   });
 
-  // Table of all Project Statuses
+  // Table of all Project Statuses (Left Side)
   const statusTableHeaders = [
     { text: "Workflow Status", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE } },
     { text: "Category", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE } },
-    { text: "Tasks Count", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
-    { text: "% Share", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
+    { text: "Count", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
+    { text: "Share", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
     { text: "Operational Status", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE } },
   ];
 
@@ -707,30 +798,60 @@ export function buildPresentationDeck(
     const count = st.count || 0;
     const share = totalTasks ? Math.round((count * 100) / totalTasks) : 0;
     let opStatus = "Active Backlog";
-    if (st.category === "completed" || st.name.toLowerCase().includes("done")) opStatus = "Delivered / Closed";
-    else if (st.name.toLowerCase().includes("hold")) opStatus = "Paused / Pending Resolution";
-    else if (st.category === "in_progress" || st.name.toLowerCase().includes("progress")) opStatus = "Actively Moving";
+    if (st.category === "completed" || st.name.toLowerCase().includes("done")) opStatus = "Delivered";
+    else if (st.name.toLowerCase().includes("hold")) opStatus = "Paused";
+    else if (st.category === "in_progress" || st.name.toLowerCase().includes("progress")) opStatus = "In Progress";
 
     return [
       { text: st.name, options: { bold: true, color: C_NAVY } },
-      { text: (st.category || "Workflow").replace("_", " ").toUpperCase(), options: { color: C_SLATE, fontSize: 8.5 } },
+      { text: (st.category || "Workflow").replace("_", " ").toUpperCase(), options: { color: C_SLATE, fontSize: 8 } },
       { text: String(count), options: { align: "center" as const, bold: true, color: C_NAVY } },
       { text: `${share}%`, options: { align: "center" as const, color: C_SLATE } },
-      { text: opStatus, options: { color: C_DARK_SLATE, fontSize: 9 } },
+      { text: opStatus, options: { color: C_DARK_SLATE, fontSize: 8.5 } },
     ];
   });
 
   slide3.addTable([statusTableHeaders, ...statusRows], {
     x: 0.7,
     y: 3.05,
-    w: 11.93,
-    colW: [3.3, 2.0, 1.8, 1.6, 3.23],
-    fontSize: 9.5,
+    w: 6.2,
+    colW: [1.8, 1.2, 0.8, 0.8, 1.6],
+    fontSize: 9,
     fontFace: "Calibri",
     border: { pt: 0.5, color: C_BORDER },
     fill: { color: C_WHITE },
     autoPage: false,
   });
+
+  // Native Column Chart on Right
+  if (statuses.length > 0) {
+    const topStatuses = statuses.slice(0, 6);
+    slide3.addChart(
+      pptx.ChartType.bar,
+      [
+        {
+          name: "Tasks by Status",
+          labels: topStatuses.map((s) => s.name.slice(0, 14)),
+          values: topStatuses.map((s) => s.count),
+        },
+      ],
+      {
+        x: 7.15,
+        y: 3.05,
+        w: 5.48,
+        h: 3.65,
+        barDir: "col",
+        chartColors: [C_BLUE],
+        showValue: true,
+        showLegend: false,
+        showTitle: true,
+        title: "DISTRIBUTION BY WORKFLOW STATUS",
+        titleFontSize: 10,
+        titleColor: C_NAVY,
+        titleBold: true,
+      }
+    );
+  }
 
   addSlideFooter(slide3, "Slide 3");
 
@@ -743,15 +864,15 @@ export function buildPresentationDeck(
     "Resource Allocation & Team Workload",
     "Active task distribution, team ownership, and completed contributions"
   );
+  addSlideNavBar(slide4, 4);
 
   const resourceTableHeaders = [
     { text: "Team Member / Resource", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE } },
     { text: "Assigned", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
-    { text: "In Process", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
-    { text: "On Hold", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
-    { text: "Pending", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
-    { text: "Completed", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
-    { text: "Overdue", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
+    { text: "Active", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
+    { text: "Hold", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
+    { text: "Done", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
+    { text: "Late", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE, align: "center" as const } },
   ];
 
   const resourceRows = (resources.length > 0 ? resources : [
@@ -770,7 +891,6 @@ export function buildPresentationDeck(
     { text: String(r.totalAssigned), options: { align: "center" as const, bold: true } },
     { text: String(r.inProgressCount), options: { align: "center" as const, color: C_BLUE, bold: true } },
     { text: String(r.holdCount), options: { align: "center" as const, color: r.holdCount > 0 ? C_AMBER : C_SLATE } },
-    { text: String(r.pendingCount), options: { align: "center" as const, color: C_SLATE } },
     { text: String(r.completedCount), options: { align: "center" as const, color: C_EMERALD, bold: true } },
     { text: String(r.overdueCount), options: { align: "center" as const, color: r.overdueCount > 0 ? C_CRIMSON : C_SLATE, bold: r.overdueCount > 0 } },
   ]);
@@ -778,14 +898,51 @@ export function buildPresentationDeck(
   slide4.addTable([resourceTableHeaders, ...resourceRows], {
     x: 0.7,
     y: 1.4,
-    w: 11.93,
-    colW: [3.53, 1.4, 1.4, 1.4, 1.4, 1.4, 1.4],
-    fontSize: 9.5,
+    w: 6.2,
+    colW: [2.2, 0.8, 0.8, 0.8, 0.8, 0.8],
+    fontSize: 9,
     fontFace: "Calibri",
     border: { pt: 0.5, color: C_BORDER },
     fill: { color: C_WHITE },
     autoPage: false,
   });
+
+  // Native Horizontal Bar Chart on Right
+  const topRes = (resources.length > 0 ? resources : []).slice(0, 5);
+  if (topRes.length > 0) {
+    slide4.addChart(
+      pptx.ChartType.bar,
+      [
+        {
+          name: "Completed",
+          labels: topRes.map((r) => r.name.slice(0, 12)),
+          values: topRes.map((r) => r.completedCount),
+        },
+        {
+          name: "In Progress",
+          labels: topRes.map((r) => r.name.slice(0, 12)),
+          values: topRes.map((r) => r.inProgressCount),
+        },
+      ],
+      {
+        x: 7.15,
+        y: 1.4,
+        w: 5.48,
+        h: 3.8,
+        barDir: "bar",
+        chartColors: [C_EMERALD, C_BLUE],
+        showLegend: true,
+        legendPos: "b",
+        legendFontSize: 8.5,
+        showValue: true,
+        showTitle: true,
+        title: "TEAM WORKLOAD: COMPLETED VS ACTIVE",
+        titleFontSize: 10,
+        titleColor: C_NAVY,
+        titleBold: true,
+      }
+    );
+  }
 
   // Resource capacity note below table
   slide4.addShape(pptx.ShapeType.roundRect, {
@@ -835,6 +992,7 @@ export function buildPresentationDeck(
     "Critical Items & What Needs Attention",
     "Items requiring managerial intervention: Overdue deadlines and paused / blocked deliverables"
   );
+  addSlideNavBar(slide5, 5);
 
   // Left Column: Overdue Tasks
   slide5.addText(`OVERDUE DELIVERABLES (${overdueTasks.length})`, {
@@ -970,6 +1128,7 @@ export function buildPresentationDeck(
         `Task Status Inventory Catalog ${totalPages > 1 ? `(Part ${page + 1} of ${totalPages})` : ""}`,
         `Complete registry of deliverables, ownership, and current lifecycle status`
       );
+      addSlideNavBar(pageSlide, 6 + page);
 
       const catalogHeaders = [
         { text: "Key", options: { bold: true, fill: { color: C_DARK_SLATE }, color: C_WHITE } },

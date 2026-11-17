@@ -42,6 +42,7 @@ export async function GET(
   const monthParam = searchParams.get("month"); // e.g. "2026-11"
   const yearParam = searchParams.get("year"); // e.g. "2026"
   const includeCatalog = searchParams.get("includeCatalog") !== "false";
+  const aiPrompt = searchParams.get("aiPrompt") || undefined;
 
   // Determine period boundaries and human label
   const now = new Date();
@@ -332,6 +333,7 @@ export async function GET(
             background: customBg || undefined,
           }
         : undefined,
+    aiPrompt,
   };
 
   // Build the presentation deck

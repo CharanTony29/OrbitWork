@@ -59,7 +59,7 @@ export function HomeInteractiveTabs({ isUserLoggedIn }: { isUserLoggedIn: boolea
         "Team workload capacity and scheduled calendar events"
       ],
       ctaLabel: isUserLoggedIn ? "Open Task Board" : "Try Kanban & Sheet Views",
-      ctaHref: isUserLoggedIn ? "/dashboard" : "/signup",
+      ctaHref: isUserLoggedIn ? "/my-dashboard" : "/signup",
       preview: (
         <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--line, #e4e9e5)", paddingBottom: 10 }}>
@@ -114,7 +114,7 @@ export function HomeInteractiveTabs({ isUserLoggedIn }: { isUserLoggedIn: boolea
         "AI Description Polish to turn rough notes into professional requirements"
       ],
       ctaLabel: isUserLoggedIn ? "Open AI Agents Hub" : "Try AI Project Intelligence",
-      ctaHref: isUserLoggedIn ? "/dashboard" : "/signup",
+      ctaHref: isUserLoggedIn ? "/my-dashboard" : "/signup",
       preview: (
         <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10, textAlign: "left" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, padding: "10px 12px" }}>
@@ -180,7 +180,7 @@ export function HomeInteractiveTabs({ isUserLoggedIn }: { isUserLoggedIn: boolea
         "One-click CSV & PDF export for team billing and payroll"
       ],
       ctaLabel: isUserLoggedIn ? "View My Timesheets" : "Explore Timesheet Workflows",
-      ctaHref: isUserLoggedIn ? "/dashboard" : "/signup",
+      ctaHref: isUserLoggedIn ? "/my-dashboard" : "/signup",
       preview: (
         <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -227,7 +227,7 @@ export function HomeInteractiveTabs({ isUserLoggedIn }: { isUserLoggedIn: boolea
         "Clean, professional PDF export for sharing with external stakeholders"
       ],
       ctaLabel: isUserLoggedIn ? "Open Documents" : "Start Documenting Free",
-      ctaHref: isUserLoggedIn ? "/dashboard" : "/signup",
+      ctaHref: isUserLoggedIn ? "/my-dashboard" : "/signup",
       preview: (
         <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10, textAlign: "left" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid var(--line)", paddingBottom: 8 }}>
@@ -259,7 +259,7 @@ export function HomeInteractiveTabs({ isUserLoggedIn }: { isUserLoggedIn: boolea
         "Granular per-workspace isolation—no accidental cross-tenant data leakage"
       ],
       ctaLabel: isUserLoggedIn ? "Manage Workspace Storage" : "See Storage Integrations",
-      ctaHref: isUserLoggedIn ? "/dashboard" : "/signup",
+      ctaHref: isUserLoggedIn ? "/my-dashboard" : "/signup",
       preview: (
         <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 2 }}>Workspace Storage Provider (Interactive)</div>
@@ -369,7 +369,7 @@ export function HomeInteractiveTabs({ isUserLoggedIn }: { isUserLoggedIn: boolea
         "Export diagrams to SVG and PNG for design review"
       ],
       ctaLabel: isUserLoggedIn ? "Open Whiteboard" : "Explore Whiteboards",
-      ctaHref: isUserLoggedIn ? "/dashboard" : "/signup",
+      ctaHref: isUserLoggedIn ? "/my-dashboard" : "/signup",
       preview: (
         <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -649,7 +649,7 @@ export function HomeMobileNav({ isUserLoggedIn }: { isUserLoggedIn: boolean }) {
           </nav>
           <div className="hp-mobile-drawer-actions">
             {isUserLoggedIn ? (
-              <Link href="/dashboard" className="hp-btn-primary" onClick={() => setIsOpen(false)}>
+              <Link href="/my-dashboard" className="hp-btn-primary" onClick={() => setIsOpen(false)}>
                 Go to Dashboard <ArrowRight size={15} />
               </Link>
             ) : (

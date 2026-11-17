@@ -848,11 +848,15 @@ export async function updateProjectDetails(formData: FormData) {
     name: z.string().trim().min(2).max(120),
     description: z.string().trim().max(2000).optional(),
     icon: z.string().trim().max(10).optional(),
+    startDate: z.string().trim().optional(),
+    dueDate: z.string().trim().optional(),
   }).safeParse({
     projectId: formData.get("projectId"),
     name: formData.get("name"),
     description: formData.get("description") || undefined,
     icon: formData.get("icon") || undefined,
+    startDate: formData.get("startDate") ? String(formData.get("startDate")).trim() : undefined,
+    dueDate: formData.get("dueDate") ? String(formData.get("dueDate")).trim() : undefined,
   });
   if (!parsed.success) {
     const pId = formData.get("projectId");
@@ -870,11 +874,63 @@ export async function updateProjectDetails(formData: FormData) {
   };
   if (parsed.data.description !== undefined) updatePayload.description = parsed.data.description;
   if (parsed.data.icon !== undefined) updatePayload.icon = parsed.data.icon;
+  if (parsed.data.startDate !== undefined) {
+    updatePayload.start_date = parsed.data.startDate || null;
+  }
+  if (parsed.data.dueDate !== undefined) {
+    updatePayload.due_date = parsed.data.dueDate || null;
+  }
 
   const { error } = await supabase.from("projects").update(updatePayload).eq("id", parsed.data.projectId);
   if (error) redirect(`/projects/${parsed.data.projectId}?error=project_update_failed`);
   revalidatePath(`/projects/${parsed.data.projectId}`);
   redirect(`/projects/${parsed.data.projectId}?project_updated=1`);
+}
+
+export async function updateProjectBilling(formData: FormData) {
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+    poNumber: z.string().trim().max(100).optional(),
+    clientName: z.string().trim().max(150).optional(),
+    budgetAmount: z.string().trim().max(50).optional(),
+    billingNotes: z.string().trim().max(2000).optional(),
+  }).safeParse({
+    projectId: formData.get("projectId"),
+    poNumber: formData.get("poNumber") ? String(formData.get("poNumber")).trim() : undefined,
+    clientName: formData.get("clientName") ? String(formData.get("clientName")).trim() : undefined,
+    budgetAmount: formData.get("budgetAmount") ? String(formData.get("budgetAmount")).trim() : undefined,
+    billingNotes: formData.get("billingNotes") ? String(formData.get("billingNotes")).trim() : undefined,
+  });
+
+  if (!parsed.success) {
+    const pId = formData.get("projectId");
+    redirect(pId ? `/projects/${pId}?error=invalid_billing_details` : "/dashboard");
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+  const { data: canManage } = await supabase.rpc("can_manage_project", { target_project: parsed.data.projectId });
+  if (!canManage) redirect(`/projects/${parsed.data.projectId}?error=billing_forbidden`);
+
+  const parsedBudget = parsed.data.budgetAmount && !isNaN(Number(parsed.data.budgetAmount.replace(/[^0-9.]/g, "")))
+    ? parseFloat(parsed.data.budgetAmount.replace(/[^0-9.]/g, ""))
+    : null;
+
+  const { error } = await supabase
+    .from("projects")
+    .update({
+      po_number: parsed.data.poNumber || null,
+      client_name: parsed.data.clientName || null,
+      budget_amount: parsedBudget,
+      billing_notes: parsed.data.billingNotes || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsed.data.projectId);
+
+  if (error) redirect(`/projects/${parsed.data.projectId}?error=billing_update_failed`);
+  revalidatePath(`/projects/${parsed.data.projectId}`);
+  redirect(`/projects/${parsed.data.projectId}?billing_updated=1`);
 }
 
 export async function toggleProjectActiveStatus(formData: FormData) {

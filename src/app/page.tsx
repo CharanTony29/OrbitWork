@@ -320,7 +320,7 @@ export default async function Home({
             <div className="hp-hero-cta-group">
               {user ? (
                 <>
-                  <Link href="/dashboard" className="hp-btn-primary">
+                  <Link href="/my-dashboard" className="hp-btn-primary">
                     Go to Your Dashboard <ArrowRight size={17} />
                   </Link>
                   <Link href="/services/project-management" className="hp-btn-secondary">
@@ -903,7 +903,7 @@ export default async function Home({
 
             <div className="hp-cta-buttons">
               {user ? (
-                <Link href="/dashboard" className="hp-btn-primary">
+                <Link href="/my-dashboard" className="hp-btn-primary">
                   Open Your Dashboard <ArrowRight size={17} />
                 </Link>
               ) : (

@@ -9,13 +9,13 @@ import { generateTasksFromGoalAI } from "@/lib/brain/ai-service";
 export const dynamic = "force-dynamic";
 
 const generateSchema = z.object({
-  goalTitle: z.string().trim().min(1).max(200),
-  goalDescription: z.string().trim().max(2000).optional(),
+  goalTitle: z.string().trim().min(1).max(2000),
+  goalDescription: z.string().trim().max(100000).optional(),
   createTasks: z.boolean().optional().default(false),
   selectedTasks: z
     .array(
       z.object({
-        title: z.string().trim().min(1).max(300),
+        title: z.string().trim().min(1).max(500),
         description: z.string().optional().default(""),
         priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
         subtasks: z.array(z.string()).optional().default([]),

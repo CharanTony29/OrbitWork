@@ -89,7 +89,7 @@ export function PublicSiteHeader({
                 />
                 {userEmail?.split("@")[0]}
               </span>
-              <Link href="/dashboard" className="hp-btn-primary">
+              <Link href="/my-dashboard" className="hp-btn-primary">
                 Dashboard <ArrowRight size={15} />
               </Link>
             </>
