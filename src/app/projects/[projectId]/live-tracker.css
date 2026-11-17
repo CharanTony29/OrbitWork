@@ -100,22 +100,23 @@
   display: grid;
   grid-template-columns: 1fr 280px;
   background: #18181b;
-  border-radius: 8px;
-  min-height: 180px;
+  border-radius: 10px;
+  min-height: 190px;
   height: auto;
-  overflow: visible;
+  overflow: hidden !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.08);
   margin-bottom: 24px;
 }
 
 .live-tracker-hero-left {
-  padding: 28px 36px;
+  padding: 32px 36px 36px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   color: #ffffff;
-  overflow: visible;
+  box-sizing: border-box;
+  min-height: 100%;
 }
 
 .live-tracker-view-pill {
@@ -506,15 +507,16 @@
 @media (max-width: 850px) {
   .live-tracker-hero {
     grid-template-columns: 1fr;
+    min-height: auto;
   }
   .live-tracker-hero-right {
     padding: 24px;
   }
   .live-tracker-hero-left {
-    padding: 24px;
+    padding: 28px 24px;
   }
   .live-tracker-headline {
-    font-size: 28px;
+    font-size: 24px;
   }
 }
 
