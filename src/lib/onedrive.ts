@@ -99,6 +99,7 @@ export async function getOneDriveAccessToken(
       grant_type: "refresh_token",
     }),
     cache: "no-store",
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!response.ok) {
@@ -219,6 +220,7 @@ export async function uploadProjectOneDriveFile(
       },
       body: Buffer.from(fileBytes),
       cache: "no-store",
+      signal: AbortSignal.timeout(30000),
     });
 
     if (!response.ok) {
@@ -304,6 +306,7 @@ export async function getOneDriveFile(accessToken: string, fileId: string) {
     {
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: "no-store",
+      signal: AbortSignal.timeout(15000),
     }
   );
 
@@ -322,6 +325,7 @@ export async function getOneDriveFile(accessToken: string, fileId: string) {
     {
       headers: downloadUrl ? {} : { Authorization: `Bearer ${accessToken}` },
       cache: "no-store",
+      signal: AbortSignal.timeout(30000),
     }
   );
 

@@ -1085,6 +1085,8 @@ export default function TaskGantt({
                           <img
                             src={event.avatarUrl}
                             alt=""
+                            loading="lazy"
+                            decoding="async"
                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                           />
                         ) : (
@@ -1417,6 +1419,8 @@ export default function TaskGantt({
                         <img
                           src={assigneeAvatar}
                           alt={assigneeName}
+                          loading="lazy"
+                          decoding="async"
                           style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         />
                       ) : (
@@ -1592,6 +1596,8 @@ export default function TaskGantt({
                           <img
                             src={assigneeAvatar}
                             alt=""
+                            loading="lazy"
+                            decoding="async"
                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                           />
                         ) : (

@@ -218,6 +218,8 @@ export default function TaskBoard({
                                   <img
                                     src={avatar}
                                     alt={name}
+                                    loading="lazy"
+                                    decoding="async"
                                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                                     onError={(e) => {
                                       e.currentTarget.style.display = "none";

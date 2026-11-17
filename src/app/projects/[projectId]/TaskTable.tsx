@@ -1188,6 +1188,8 @@ export default function TaskTable({
                           <img
                             src={m.avatarUrl}
                             alt={m.label}
+                            loading="lazy"
+                            decoding="async"
                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                             onError={(e) => {
                               e.currentTarget.style.display = "none";

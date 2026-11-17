@@ -82,6 +82,7 @@ export async function googleDriveAccessToken(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken, grant_type: "refresh_token" }),
     cache: "no-store",
+    signal: AbortSignal.timeout(15000),
   });
   if (!response.ok) throw new GoogleDriveError("reconnect", response.status);
   const payload = await response.json() as { access_token?: string };
@@ -90,7 +91,12 @@ export async function googleDriveAccessToken(
 }
 
 async function driveRequest<T>(accessToken: string, url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { Authorization: `Bearer ${accessToken}`, ...init?.headers }, cache: "no-store" });
+  const response = await fetch(url, {
+    ...init,
+    headers: { Authorization: `Bearer ${accessToken}`, ...init?.headers },
+    cache: "no-store",
+    signal: init?.signal ?? AbortSignal.timeout(20000),
+  });
   if (!response.ok) {
     let reason = "";
     try {
@@ -161,7 +167,11 @@ export async function uploadProjectDriveFile(
 
 export async function getDriveFile(accessToken: string, fileId: string) {
   const metadata = await driveRequest<{ name: string; mimeType: string }>(accessToken, `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=name,mimeType`);
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, { headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+    signal: AbortSignal.timeout(30000),
+  });
   if (!response.ok) throw new Error("Could not retrieve the Google Drive file");
   const arrayBuffer = await response.arrayBuffer();
   return { metadata, buffer: Buffer.from(arrayBuffer) };

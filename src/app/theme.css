@@ -51,6 +51,36 @@ html,body{background:var(--app-bg);color:var(--ink)}
   --line: #303a33;
 }
 
+@keyframes orbitworkShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface-subtle, rgba(0, 0, 0, 0.04)) 25%,
+    var(--line, rgba(0, 0, 0, 0.08)) 37%,
+    var(--surface-subtle, rgba(0, 0, 0, 0.04)) 63%
+  ) !important;
+  background-size: 400% 100% !important;
+  animation: orbitworkShimmer 1.4s ease infinite !important;
+  border-radius: 6px;
+}
+:is([data-color-scheme="dark"], [data-theme="dark"], html.dark, .dark) .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.09) 37%,
+    rgba(255, 255, 255, 0.04) 63%
+  ) !important;
+  background-size: 400% 100% !important;
+}
+
 [data-color-scheme="dark"] .topbar {
   background: var(--surface) !important;
   border-color: var(--line) !important;

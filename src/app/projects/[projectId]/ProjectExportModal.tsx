@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { formatMinutes, formatRemaining } from "@/lib/work";
+import * as XLSX from "xlsx";
 
 export type ExportFormat = "excel" | "html" | "csv";
 
@@ -276,12 +277,33 @@ export default function ProjectExportModal({
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
       downloadBlob(blob, `${sanitizedProject}_Tasks_${dateStr}.csv`);
     } else if (selectedFormat === "excel") {
-      // Generate Excel XML Spreadsheet (native Excel format, opens cleanly without 3rd party bloat)
-      const xml = generateExcelXml(projectName, colsToExport, tasks);
-      const blob = new Blob([xml], {
+      // Generate genuine binary .xlsx OpenXML workbook (opens cleanly in Excel without format mismatch warning)
+      const headerLabels = colsToExport.map((c) => c.label);
+      const dataRows = tasks.map((task) =>
+        colsToExport.map((col) => getTaskCellValue(task, col.id))
+      );
+
+      const worksheet = XLSX.utils.aoa_to_sheet([headerLabels, ...dataRows]);
+
+      // Set optimal column widths based on content
+      worksheet["!cols"] = colsToExport.map((col, colIdx) => {
+        let maxLen = col.label.length;
+        for (let r = 0; r < Math.min(tasks.length, 60); r++) {
+          const val = dataRows[r]?.[colIdx];
+          if (val) maxLen = Math.max(maxLen, String(val).length);
+        }
+        return { wch: Math.min(Math.max(maxLen + 3, 15), 55) };
+      });
+
+      const workbook = XLSX.utils.book_new();
+      const sheetName = (projectName || "Tasks").replace(/[\\/?*[\]:]/g, "_").slice(0, 31);
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+
+      const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([wbout], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      downloadBlob(blob, `${sanitizedProject}_Report_${dateStr}.xls`);
+      downloadBlob(blob, `${sanitizedProject}_Report_${dateStr}.xlsx`);
     } else if (selectedFormat === "html") {
       // Generate Styled HTML Executive Report
       const html = generateHtmlReport(projectName, colsToExport, tasks, statuses);
@@ -301,68 +323,6 @@ export default function ProjectExportModal({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  };
-
-  // Generate Excel 2003 XML Spreadsheet
-  const generateExcelXml = (
-    projName: string,
-    cols: ExportColumnDef[],
-    taskList: any[]
-  ) => {
-    const headerRow = cols
-      .map(
-        (c) =>
-          `<Cell ss:StyleID="Header"><Data ss:Type="String">${escapeXml(c.label)}</Data></Cell>`
-      )
-      .join("");
-
-    const dataRows = taskList
-      .map((t) => {
-        const cells = cols
-          .map((c) => {
-            const val = getTaskCellValue(t, c.id);
-            return `<Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(val)}</Data></Cell>`;
-          })
-          .join("");
-        return `<Row ss:Height="20">${cells}</Row>`;
-      })
-      .join("");
-
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
- <Styles>
-  <Style ss:ID="Default" ss:Name="Normal">
-   <Alignment ss:Vertical="Center"/>
-   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#000000"/>
-  </Style>
-  <Style ss:ID="Header">
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#167c58"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#ffffff"/>
-   <Interior ss:Color="#167c58" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="Data">
-   <Alignment ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#e2e8f0"/>
-   </Borders>
-   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#1e293b"/>
-  </Style>
- </Styles>
- <Worksheet ss:Name="${escapeXml(projName)}">
-  <Table ss:DefaultRowHeight="18">
-   ${cols.map(() => `<Column ss:Width="130"/>`).join("")}
-   <Row ss:Height="24">${headerRow}</Row>
-   ${dataRows}
-  </Table>
- </Worksheet>
-</Workbook>`;
   };
 
   // Generate Styled HTML Executive Report
@@ -532,7 +492,7 @@ export default function ProjectExportModal({
             </label>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
               {[
-                { format: "excel", label: "Excel Spreadsheet", ext: ".xls", icon: FileSpreadsheet, color: "#167c58" },
+                { format: "excel", label: "Excel Spreadsheet", ext: ".xlsx", icon: FileSpreadsheet, color: "#167c58" },
                 { format: "html", label: "Executive HTML Report", ext: ".html", icon: FileCode, color: "#2563eb" },
                 { format: "csv", label: "CSV Data File", ext: ".csv", icon: FileText, color: "#d97706" },
               ].map((item) => {
