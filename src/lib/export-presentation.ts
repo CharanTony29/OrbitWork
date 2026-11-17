@@ -1,4 +1,5 @@
 import PptxGenJS from "pptxgenjs";
+import { getTemplateById, type PresentationTemplate } from "./presentation/templates.ts";
 
 export type ReportPeriodType = "weekly" | "monthly" | "yearly" | "custom" | "all";
 
@@ -48,6 +49,7 @@ export interface PresentationReportOptions {
   endDate?: string;
   includeCatalog?: boolean;
   style?: PresentationThemeStyle;
+  templateId?: string;
   customColors?: PresentationCustomColors;
   aiPrompt?: string;
 }
@@ -85,50 +87,37 @@ export function buildPresentationDeck(
   pptx.author = "Orbitwork Project Management";
   pptx.company = options.organizationName || "Orbitwork Enterprise";
 
-  // Theme / Template Palette Customization
-  const style = options.style || "executive";
-  let C_NAVY = "0F172A";
-  let C_DARK_SLATE = "1E293B";
-  let C_BLUE = "2563EB";
-  let C_EMERALD = "10B981";
+  // Dynamic Presentation Template Resolution (Supports 30+ Curated Templates)
+  const template: PresentationTemplate = getTemplateById(options.templateId || options.style);
+  
+  let C_NAVY = template.bg;
+  let C_DARK_SLATE = template.cardBg;
+  let C_BLUE = template.accent;
+  let C_EMERALD = template.accentSecondary || "10B981";
   let C_AMBER = "D97706";
-  let C_GOLD = "EAB308";
+  let C_GOLD = template.isDark ? "EAB308" : template.accent;
   let C_CRIMSON = "EF4444";
-  let C_SLATE = "64748B";
-  let C_LIGHT_BG = "F8FAFC";
-  let C_WHITE = "FFFFFF";
-  let C_BORDER = "E2E8F0";
+  let C_SLATE = template.textSecondary;
+  let C_LIGHT_BG = template.isDark ? template.bg : template.bg;
+  let C_WHITE = template.textPrimary;
+  let C_BORDER = template.cardBorder;
+  const FONT_TITLE = template.fontTitle || "Inter";
+  const FONT_BODY = template.fontBody || "Calibri";
 
-  if (style === "emerald") {
-    C_NAVY = "064E3B";
-    C_DARK_SLATE = "065F46";
-    C_BLUE = "10B981";
-    C_EMERALD = "059669";
-    C_LIGHT_BG = "F0FDF4";
-    C_BORDER = "DCFCE7";
-  } else if (style === "sapphire") {
-    C_NAVY = "1E1B4B";
-    C_DARK_SLATE = "312E81";
-    C_BLUE = "2563EB";
-    C_EMERALD = "06B6D4";
-    C_LIGHT_BG = "F0F9FF";
-    C_BORDER = "E0F2FE";
-  } else if (style === "crimson") {
-    C_NAVY = "18181B";
-    C_DARK_SLATE = "27272A";
-    C_BLUE = "DC2626";
-    C_EMERALD = "F43F5E";
-    C_LIGHT_BG = "FFF1F2";
-    C_BORDER = "FFE4E6";
-  } else if (style === "minimal") {
-    C_NAVY = "1E293B";
-    C_DARK_SLATE = "334155";
-    C_BLUE = "2563EB";
-    C_EMERALD = "167C58";
-    C_LIGHT_BG = "FFFFFF";
+  // Pitch Sage Special Fine-Tuning
+  if (template.id === "pitch_sage") {
+    C_NAVY = "8FA173";
+    C_DARK_SLATE = "7E9162";
+    C_LIGHT_BG = "8FA173";
     C_WHITE = "FFFFFF";
-    C_BORDER = "E2E8F0";
-  } else if (style === "custom" && options.customColors) {
+    C_SLATE = "111111";
+    C_BLUE = "111111";
+    C_EMERALD = "111111";
+    C_BORDER = "6F8254";
+  }
+
+  // Handle custom user color overrides if provided
+  if (options.customColors) {
     if (options.customColors.primary) C_NAVY = options.customColors.primary.replace("#", "");
     if (options.customColors.secondary) C_DARK_SLATE = options.customColors.secondary.replace("#", "");
     if (options.customColors.accent) C_BLUE = options.customColors.accent.replace("#", "");
@@ -149,10 +138,13 @@ export function buildPresentationDeck(
   const pendingRate = totalTasks ? Math.round((pendingTasks.length * 100) / totalTasks) : 0;
 
   // -------------------------------------------------------------
-  // SLIDE 1: Cover Slide (Executive Modern Dark Theme)
+  // SLIDE 1: Cover Slide
   // -------------------------------------------------------------
   const slide1 = pptx.addSlide();
   slide1.background = { color: C_NAVY };
+  if (template.transition && template.transition !== "none") {
+    (slide1 as any).transition = { type: template.transition };
+  }
 
   // Decorative top accent stripes
   slide1.addShape(pptx.ShapeType.rect, {
@@ -183,21 +175,39 @@ export function buildPresentationDeck(
       fontSize: 11,
       bold: true,
       color: C_GOLD,
-      fontFace: "Calibri",
+      fontFace: FONT_TITLE,
     }
   );
 
-  // Main Title
-  slide1.addText("PROJECT STATUS & EXECUTION REPORT", {
-    x: 0.7,
-    y: 1.55,
-    w: 11.8,
-    h: 1.1,
-    fontSize: 32,
-    bold: true,
-    color: C_WHITE,
-    fontFace: "Calibri",
-  });
+  // Main Title (Pitch Sage dual-tone or bold header)
+  if (template.id === "pitch_sage") {
+    slide1.addText(
+      [
+        { text: "PROJECT STATUS &\n", options: { color: "FFFFFF" } },
+        { text: "KPI REPORT", options: { color: "111111" } },
+      ],
+      {
+        x: 0.7,
+        y: 1.55,
+        w: 11.8,
+        h: 1.15,
+        fontSize: 34,
+        bold: true,
+        fontFace: FONT_TITLE,
+      }
+    );
+  } else {
+    slide1.addText("PROJECT STATUS & EXECUTION REPORT", {
+      x: 0.7,
+      y: 1.55,
+      w: 11.8,
+      h: 1.1,
+      fontSize: 32,
+      bold: true,
+      color: C_WHITE,
+      fontFace: FONT_TITLE,
+    });
+  }
 
   // Project & Scope subtitle
   slide1.addText(
@@ -208,8 +218,8 @@ export function buildPresentationDeck(
       w: 11.8,
       h: 0.45,
       fontSize: 16,
-      color: "94A3B8",
-      fontFace: "Calibri",
+      color: template.id === "pitch_sage" ? "111111" : C_SLATE,
+      fontFace: FONT_BODY,
     }
   );
 
@@ -220,7 +230,7 @@ export function buildPresentationDeck(
     w: 5.6,
     h: 1.35,
     fill: { color: C_DARK_SLATE },
-    line: { color: "334155", width: 1 },
+    line: { color: C_BORDER, width: 1 },
     rectRadius: 0.1,
   });
 
@@ -304,6 +314,9 @@ export function buildPresentationDeck(
   // Helper for adding standard header on content slides
   function addSlideHeader(slide: PptxGenJS.Slide, title: string, subtitle: string) {
     slide.background = { color: C_LIGHT_BG };
+    if (template.transition && template.transition !== "none") {
+      (slide as any).transition = { type: template.transition };
+    }
 
     // Top accent bar
     slide.addShape(pptx.ShapeType.rect, {
@@ -323,8 +336,8 @@ export function buildPresentationDeck(
       h: 0.45,
       fontSize: 19,
       bold: true,
-      color: C_NAVY,
-      fontFace: "Calibri",
+      color: template.isDark ? C_WHITE : C_NAVY,
+      fontFace: FONT_TITLE,
     });
 
     // Subtitle
@@ -334,8 +347,8 @@ export function buildPresentationDeck(
       w: 9.2,
       h: 0.3,
       fontSize: 10.5,
-      color: C_SLATE,
-      fontFace: "Calibri",
+      color: template.isDark ? "94A3B8" : C_SLATE,
+      fontFace: FONT_BODY,
     });
 
     // Right-hand project chip
@@ -344,7 +357,7 @@ export function buildPresentationDeck(
       y: 0.35,
       w: 2.4,
       h: 0.7,
-      fill: { color: C_WHITE },
+      fill: { color: template.isDark ? C_DARK_SLATE : C_WHITE },
       line: { color: C_BORDER, width: 1 },
       rectRadius: 0.06,
     });
@@ -356,8 +369,8 @@ export function buildPresentationDeck(
       fontSize: 9.5,
       bold: true,
       align: "center",
-      color: C_NAVY,
-      fontFace: "Calibri",
+      color: template.isDark ? C_WHITE : C_NAVY,
+      fontFace: FONT_TITLE,
     });
     slide.addText(options.periodLabel.slice(0, 26), {
       x: 10.25,
@@ -366,8 +379,8 @@ export function buildPresentationDeck(
       h: 0.25,
       fontSize: 8,
       align: "center",
-      color: C_SLATE,
-      fontFace: "Calibri",
+      color: template.isDark ? "94A3B8" : C_SLATE,
+      fontFace: FONT_BODY,
     });
   }
 

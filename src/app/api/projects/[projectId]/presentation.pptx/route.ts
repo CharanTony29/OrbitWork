@@ -43,6 +43,7 @@ export async function GET(
   const yearParam = searchParams.get("year"); // e.g. "2026"
   const includeCatalog = searchParams.get("includeCatalog") !== "false";
   const aiPrompt = searchParams.get("aiPrompt") || undefined;
+  const templateId = searchParams.get("templateId") || searchParams.get("style") || "pitch_sage";
 
   // Determine period boundaries and human label
   const now = new Date();
@@ -324,6 +325,7 @@ export async function GET(
     endDate: customEndDate || undefined,
     includeCatalog,
     style,
+    templateId,
     customColors:
       customPrimary || customSecondary || customAccent || customBg
         ? {
