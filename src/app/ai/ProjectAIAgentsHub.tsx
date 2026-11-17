@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { CustomAIAgent } from "@/lib/ai/agent/custom-agent-types";
 import CustomAgentBuilderModal from "./CustomAgentBuilderModal";
+import { triggerAIAgentRun } from "@/lib/ai/agent/background-runner";
 
 interface ProjectAIAgentsHubProps {
   projectId: string;
@@ -93,6 +94,28 @@ export default function ProjectAIAgentsHub({
     };
   }, [projectId]);
 
+  useEffect(() => {
+    const handleUpdated = (e: Event) => {
+      const custom = e as CustomEvent<{ agentId?: string; processedCount?: number }>;
+      const targetAgentId = custom.detail?.agentId;
+      setAgents((prev) =>
+        prev.map((a) => {
+          if (!targetAgentId || a.id === targetAgentId) {
+            return {
+              ...a,
+              runs_count: (a.runs_count || 0) + (custom.detail?.processedCount || 1),
+              last_run_at: new Date().toISOString(),
+            };
+          }
+          return a;
+        })
+      );
+    };
+
+    window.addEventListener("orbitwork:tasks-updated", handleUpdated);
+    return () => window.removeEventListener("orbitwork:tasks-updated", handleUpdated);
+  }, []);
+
   const handleToggle = async (agent: CustomAIAgent) => {
     setTogglePendingId(agent.id);
     const nextState = !agent.enabled;
@@ -140,61 +163,20 @@ export default function ProjectAIAgentsHub({
   };
 
   const handleRunOnProject = (agent: CustomAIAgent) => {
-    const jobId = `agent-${agent.id}-${Date.now()}`;
-    const jobTitle = `Executing "${agent.name}" across project tasks`;
-
-    // Immediately register background job and allow user to continue work
     setRunningAgentId(agent.id);
-    setBackgroundJobs((prev) => [...prev, { id: jobId, title: jobTitle, startedAt: new Date() }]);
-    setRunFeedback(null);
+    setRunFeedback({
+      type: "success",
+      text: `AI Agent "${agent.name}" is now executing in the background. You can freely switch to List or any other view! Confirmation will appear at the bottom right.`,
+    });
 
-    // Fire non-blocking asynchronous execution
-    (async () => {
-      try {
-        const res = await fetch("/api/ai/agent/custom/run", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            projectId,
-            agentId: agent.id,
-            runAllTasks: true,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Execution failed");
-
-        // Show completion popup
-        setCompletionPopup({
-          title: `AI Agent "${agent.name}" Completed!`,
-          summary: data.summary || `Successfully executed on ${data.processedCount || 0} tasks in the background. Project data is now updated.`,
-          processedCount: data.processedCount || 0,
-          type: "success",
-        });
-
-        // Update stats
-        setAgents((prev) =>
-          prev.map((a) =>
-            a.id === agent.id
-              ? {
-                  ...a,
-                  runs_count: (a.runs_count || 0) + (data.processedCount || 1),
-                  last_run_at: new Date().toISOString(),
-                }
-              : a
-          )
-        );
-      } catch (err: unknown) {
-        setCompletionPopup({
-          title: `AI Agent "${agent.name}" Failed`,
-          summary: err instanceof Error ? err.message : "Failed to run agent in background",
-          processedCount: 0,
-          type: "error",
-        });
-      } finally {
-        setRunningAgentId(null);
-        setBackgroundJobs((prev) => prev.filter((j) => j.id !== jobId));
-      }
-    })();
+    triggerAIAgentRun({
+      projectId,
+      agentId: agent.id,
+      agentName: agent.name,
+      runAllTasks: true,
+    }).finally(() => {
+      setRunningAgentId(null);
+    });
   };
 
   const handleRunAllOnProject = () => {
@@ -206,60 +188,19 @@ export default function ProjectAIAgentsHub({
       return;
     }
 
-    const jobId = `all-${Date.now()}`;
-    const jobTitle = `Running all ${activeCount} active AI agents across project`;
-
-    // Immediately register background job and keep UI unblocked
     setIsRunningAll(true);
-    setBackgroundJobs((prev) => [...prev, { id: jobId, title: jobTitle, startedAt: new Date() }]);
-    setRunFeedback(null);
+    setRunFeedback({
+      type: "success",
+      text: `Running all ${activeCount} active AI agents in the background. You can freely navigate away! Confirmation will appear at the bottom right.`,
+    });
 
-    // Fire non-blocking asynchronous execution
-    (async () => {
-      try {
-        const res = await fetch("/api/ai/agent/custom/run", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            projectId,
-            runAllAgents: true,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Batch execution failed");
-
-        // Inform user with nice pop-up modal
-        setCompletionPopup({
-          title: "All AI Automations Completed!",
-          summary: data.summary || `Ran ${data.agentsCount} agents across ${data.processedCount} tasks in the background. All project data is now up to date.`,
-          processedCount: data.processedCount || 0,
-          type: "success",
-        });
-
-        // Update stats
-        setAgents((prev) =>
-          prev.map((a) =>
-            a.enabled
-              ? {
-                  ...a,
-                  runs_count: (a.runs_count || 0) + (data.processedCount || 1),
-                  last_run_at: new Date().toISOString(),
-                }
-              : a
-          )
-        );
-      } catch (err: unknown) {
-        setCompletionPopup({
-          title: "Background AI Run Failed",
-          summary: err instanceof Error ? err.message : "Failed to run agents across project in background",
-          processedCount: 0,
-          type: "error",
-        });
-      } finally {
-        setIsRunningAll(false);
-        setBackgroundJobs((prev) => prev.filter((j) => j.id !== jobId));
-      }
-    })();
+    triggerAIAgentRun({
+      projectId,
+      agentName: "All Active Automations",
+      runAllAgents: true,
+    }).finally(() => {
+      setIsRunningAll(false);
+    });
   };
 
   const activeCount = agents.filter((a) => a.enabled).length;

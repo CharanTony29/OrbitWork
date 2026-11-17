@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 import { updateTaskStatus } from "@/app/actions";
 
 type Task = {
@@ -75,8 +76,15 @@ export default function TaskBoard({
   profileAvatars?: Map<string, string | null>;
   canEdit?: boolean;
 }) {
+  const router = useRouter();
   const [dragging, setDragging] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const handleUpdated = () => router.refresh();
+    window.addEventListener("orbitwork:tasks-updated", handleUpdated);
+    return () => window.removeEventListener("orbitwork:tasks-updated", handleUpdated);
+  }, [router]);
 
   function moveTask(taskId: string, statusId: string) {
     if (!canEdit) return;

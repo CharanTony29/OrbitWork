@@ -885,6 +885,14 @@ export default function TaskTable({
   const searchParams = useSearchParams();
   const currentSort = searchParams.get("sort") || "";
 
+  useEffect(() => {
+    const handleTasksUpdated = () => {
+      router.refresh();
+    };
+    window.addEventListener("orbitwork:tasks-updated", handleTasksUpdated);
+    return () => window.removeEventListener("orbitwork:tasks-updated", handleTasksUpdated);
+  }, [router]);
+
   const toggleColumnSort = (colId: string) => {
     let sortKey: string | null = null;
     if (colId === "name") {

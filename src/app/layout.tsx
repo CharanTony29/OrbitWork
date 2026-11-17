@@ -14,6 +14,7 @@ import AuthRecoveryListener from "./AuthRecoveryListener";
 import TopProgressBar from "./TopProgressBar";
 import GlobalMobileDrawer from "./GlobalMobileDrawer";
 import AIChatDrawer from "./ai/AIChatDrawer";
+import AIAgentGlobalNotifier from "./ai/AIAgentGlobalNotifier";
 
 export const metadata: Metadata = {
   metadataBase: new URL(CANONICAL_ORIGIN),
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ChatNotificationListener />
         <AuthRecoveryListener />
         <AIChatDrawer />
+        <AIAgentGlobalNotifier />
       </body>
     </html>
   );

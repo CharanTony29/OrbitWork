@@ -48,7 +48,7 @@ export async function executeCustomAgent({
   // 1. Verify task exists
   const { data: task } = await supabase
     .from("tasks")
-    .select("id, project_id, title")
+    .select("id, project_id, title, parent_task_id, primary_assignee_id")
     .eq("id", taskId)
     .single();
 
@@ -56,11 +56,60 @@ export async function executeCustomAgent({
     return { ok: false, summary: "Task not found" };
   }
 
+  // 1b. Fast path for direct rule automations (Subtask Auto-Inheritor)
+  if (
+    agent.action_type === "auto_assign_parent" ||
+    agent.name.toLowerCase().includes("subtask auto-inheritor")
+  ) {
+    if (task.parent_task_id) {
+      const { data: parent } = await supabase
+        .from("tasks")
+        .select("id, title, primary_assignee_id")
+        .eq("id", task.parent_task_id)
+        .single();
+
+      if (parent?.primary_assignee_id) {
+        if (task.primary_assignee_id !== parent.primary_assignee_id) {
+          await supabase
+            .from("tasks")
+            .update({ primary_assignee_id: parent.primary_assignee_id })
+            .eq("id", taskId);
+
+          await supabase.from("task_assignees").upsert({
+            project_id: projectId,
+            task_id: taskId,
+            user_id: parent.primary_assignee_id,
+            assigned_by: userId,
+          });
+
+          return {
+            ok: true,
+            summary: `Subtask "${task.title}" inherited parent assignee from "${parent.title}".`,
+          };
+        }
+        return {
+          ok: true,
+          summary: `Subtask "${task.title}" already matches parent assignee.`,
+        };
+      }
+      return {
+        ok: true,
+        summary: `Parent task "${parent?.title || "Parent"}" has no primary assignee set yet.`,
+      };
+    } else {
+      return {
+        ok: true,
+        summary: `Task "${task.title}" is a parent task.`,
+      };
+    }
+  }
+
   // 2. Determine effective instructions
   let effectiveInstructions = agent.system_instructions?.trim() || "";
 
   if (!effectiveInstructions) {
-    switch (agent.action_type) {
+    switch (agent.action_type as string) {
+      case "auto_assign":
       case "auto_assign_parent":
         effectiveInstructions =
           "If this task is a subtask with a parent task, check the parent task's primary assignee and assign this subtask to that same assignee.";
