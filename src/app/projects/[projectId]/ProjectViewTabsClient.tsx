@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -92,13 +93,42 @@ export default function ProjectViewTabsClient({
   const [dragOverKey, setDragOverKey] = useState<ProjectTabKey | null>(null);
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [menuCoords, setMenuCoords] = useState<{ top: number; left: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [visibleCount, setVisibleCount] = useState<number>(6);
   const popoverRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     setTabOrder(normalizeTabOrder(initialTabOrder));
   }, [initialTabOrder]);
+
+  const toggleMore = () => {
+    if (!moreOpen && moreRef.current) {
+      const rect = moreRef.current.getBoundingClientRect();
+      setMenuCoords({
+        top: rect.bottom + 5,
+        left: Math.max(8, Math.min(window.innerWidth - 215, rect.left)),
+      });
+    }
+    setMoreOpen((prev) => !prev);
+  };
+
+  // Close dropdown on scroll or window resize
+  useEffect(() => {
+    if (!moreOpen) return;
+    const handleClose = () => setMoreOpen(false);
+    window.addEventListener("scroll", handleClose, true);
+    window.addEventListener("resize", handleClose);
+    return () => {
+      window.removeEventListener("scroll", handleClose, true);
+      window.removeEventListener("resize", handleClose);
+    };
+  }, [moreOpen]);
 
   // Responsive visible tab count based on window width
   useEffect(() => {
@@ -119,11 +149,13 @@ export default function ProjectViewTabsClient({
   useEffect(() => {
     if (!customizerOpen && !moreOpen) return;
     const handleMouseDown = (e: MouseEvent) => {
-      const target = e.target as Node;
+      const target = e.target as HTMLElement;
       if (customizerOpen && popoverRef.current && !popoverRef.current.contains(target)) {
         setCustomizerOpen(false);
       }
-      if (moreOpen && moreRef.current && !moreRef.current.contains(target)) {
+      if (moreOpen) {
+        if (moreRef.current && moreRef.current.contains(target)) return;
+        if (target.closest?.(".view-tabs-more-menu")) return;
         setMoreOpen(false);
       }
     };
@@ -242,11 +274,11 @@ export default function ProjectViewTabsClient({
         })}
 
         {overflowTabs.length > 0 && (
-          <div className="view-tabs-more-wrap" ref={moreRef} style={{ position: "relative", zIndex: 130 }}>
+          <div className="view-tabs-more-wrap" ref={moreRef} style={{ position: "relative" }}>
             <button
               type="button"
               className={`view-tabs-more-btn${isOverflowActive ? " selected" : ""}${moreOpen ? " is-open" : ""}`}
-              onClick={() => setMoreOpen((o) => !o)}
+              onClick={toggleMore}
               title={isOverflowActive ? `Active: ${PROJECT_TAB_LABELS[activeView]} (Click to show remaining tabs)` : "Show remaining tabs"}
               aria-expanded={moreOpen}
               aria-label="Show remaining tabs"
@@ -265,12 +297,19 @@ export default function ProjectViewTabsClient({
               )}
             </button>
 
-            {moreOpen && (
+            {moreOpen && menuCoords && mounted && typeof document !== "undefined" && createPortal(
               <div
                 className="view-tabs-more-menu"
                 role="menu"
                 aria-label="Remaining project tabs"
-                style={{ zIndex: 99999, position: "absolute", top: "calc(100% + 6px)", left: 0 }}
+                style={{
+                  position: "fixed",
+                  top: `${menuCoords.top}px`,
+                  left: `${menuCoords.left}px`,
+                  zIndex: 999999,
+                  minWidth: 200,
+                  boxShadow: "0 18px 45px rgba(0,0,0,0.32)",
+                }}
               >
                 <div className="view-tabs-more-menu-header">
                   <span>Remaining Tabs ({overflowTabs.length})</span>
@@ -292,7 +331,8 @@ export default function ProjectViewTabsClient({
                     </Link>
                   );
                 })}
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         )}
