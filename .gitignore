@@ -11,3 +11,4 @@ neon.env*
 pnpm-debug.log*
 *.tsbuildinfo
 .neon
+scratch/

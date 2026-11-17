@@ -22,7 +22,9 @@ import {
   Workflow,
   Brain,
   Radio,
+  Loader2,
 } from "lucide-react";
+import { notifyNavigationStart } from "@/app/TopProgressBar";
 import {
   DEFAULT_PROJECT_TAB_ORDER,
   normalizeTabOrder,
@@ -48,7 +50,10 @@ type Props = {
 
 const STORAGE_KEY = "orbitwork_project_tab_order_v1";
 
-function renderTabIcon(key: ProjectTabKey, isSelected: boolean) {
+function renderTabIcon(key: ProjectTabKey, isSelected: boolean, isPending: boolean = false) {
+  if (isPending) {
+    return <Loader2 size={13} className="spin tab-loading-spinner" />;
+  }
   switch (key) {
     case "live":
       return <Radio size={13} style={{ color: isSelected ? "inherit" : "#eab308" }} />;
@@ -98,6 +103,26 @@ export default function ProjectViewTabsClient({
   const [visibleCount, setVisibleCount] = useState<number>(6);
   const popoverRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
+  const [pendingView, setPendingView] = useState<ProjectTabKey | null>(null);
+
+  // When activeView updates from server props, clear pendingView immediately without artificial delay
+  useEffect(() => {
+    setPendingView(null);
+  }, [activeView]);
+
+  // Failsafe & error cleanup
+  useEffect(() => {
+    if (!pendingView) return;
+    const handleDone = () => setPendingView(null);
+    window.addEventListener("orbitwork-nav-done", handleDone);
+    window.addEventListener("orbitwork-nav-error", handleDone);
+    const timer = setTimeout(() => setPendingView(null), 7000);
+    return () => {
+      window.removeEventListener("orbitwork-nav-done", handleDone);
+      window.removeEventListener("orbitwork-nav-error", handleDone);
+      clearTimeout(timer);
+    };
+  }, [pendingView]);
 
   useEffect(() => {
     setMounted(true);
@@ -229,12 +254,14 @@ export default function ProjectViewTabsClient({
   const visibleTabs = tabOrder.slice(0, visibleCount);
   const overflowTabs = tabOrder.slice(visibleCount);
   const isOverflowActive = overflowTabs.includes(activeView);
+  const isOverflowPending = Boolean(pendingView && overflowTabs.includes(pendingView));
 
   return (
     <div className="view-tabs-customizable" ref={popoverRef}>
       <div className="view-tabs-strip">
         {visibleTabs.map((key) => {
           const isSelected = activeView === key;
+          const isPending = pendingView === key;
           const isDropTarget = dragOverKey === key && dragKey !== key;
           return (
             <Link
@@ -242,6 +269,23 @@ export default function ProjectViewTabsClient({
               href={buildViewHref(key)}
               prefetch={false}
               draggable
+              onClick={(e) => {
+                if (key === activeView) {
+                  e.preventDefault();
+                  return;
+                }
+                if (pendingView === key) {
+                  e.preventDefault();
+                  return;
+                }
+                setPendingView(key);
+                notifyNavigationStart(buildViewHref(key));
+                window.dispatchEvent(
+                  new CustomEvent("orbitwork:tab-transition-start", {
+                    detail: { from: activeView, to: key, label: PROJECT_TAB_LABELS[key] },
+                  })
+                );
+              }}
               onDragStart={(e) => {
                 setDragKey(key);
                 e.dataTransfer.effectAllowed = "move";
@@ -262,12 +306,13 @@ export default function ProjectViewTabsClient({
                 setDragKey(null);
                 setDragOverKey(null);
               }}
-              className={`${isSelected ? "selected" : ""}${
+              className={`${isSelected ? "selected" : ""}${isPending ? " is-pending-tab" : ""}${
                 isDropTarget ? " is-tab-drop-target" : ""
               }`}
-              title={`Open ${PROJECT_TAB_LABELS[key]} view (drag to reorder tabs)`}
+              title={isPending ? `Loading ${PROJECT_TAB_LABELS[key]} view...` : `Open ${PROJECT_TAB_LABELS[key]} view (drag to reorder tabs)`}
+              aria-busy={isPending}
             >
-              {renderTabIcon(key, isSelected)}
+              {renderTabIcon(key, isSelected, isPending)}
               <span>{PROJECT_TAB_LABELS[key]}</span>
             </Link>
           );
@@ -277,13 +322,26 @@ export default function ProjectViewTabsClient({
           <div className="view-tabs-more-wrap" ref={moreRef} style={{ position: "relative" }}>
             <button
               type="button"
-              className={`view-tabs-more-btn${isOverflowActive ? " selected" : ""}${moreOpen ? " is-open" : ""}`}
+              className={`view-tabs-more-btn${isOverflowActive ? " selected" : ""}${isOverflowPending ? " is-pending-tab" : ""}${moreOpen ? " is-open" : ""}`}
               onClick={toggleMore}
-              title={isOverflowActive ? `Active: ${PROJECT_TAB_LABELS[activeView]} (Click to show remaining tabs)` : "Show remaining tabs"}
+              title={
+                isOverflowPending
+                  ? `Loading ${PROJECT_TAB_LABELS[pendingView!]}...`
+                  : isOverflowActive
+                  ? `Active: ${PROJECT_TAB_LABELS[activeView]} (Click to show remaining tabs)`
+                  : "Show remaining tabs"
+              }
               aria-expanded={moreOpen}
               aria-label="Show remaining tabs"
+              aria-busy={isOverflowPending}
             >
-              {isOverflowActive ? (
+              {isOverflowPending ? (
+                <>
+                  <Loader2 size={13} className="spin tab-loading-spinner" />
+                  <span>Loading {PROJECT_TAB_LABELS[pendingView!]}...</span>
+                  <ChevronRight size={13} className={`view-tabs-chevron-icon${moreOpen ? " is-rotated" : ""}`} />
+                </>
+              ) : isOverflowActive ? (
                 <>
                   {renderTabIcon(activeView, true)}
                   <span>{PROJECT_TAB_LABELS[activeView]}</span>
@@ -316,16 +374,35 @@ export default function ProjectViewTabsClient({
                 </div>
                 {overflowTabs.map((key) => {
                   const isSelected = activeView === key;
+                  const isPending = pendingView === key;
                   return (
                     <Link
                       key={key}
                       href={buildViewHref(key)}
                       prefetch={false}
-                      onClick={() => setMoreOpen(false)}
-                      className={`view-tabs-more-item${isSelected ? " selected" : ""}`}
+                      onClick={(e) => {
+                        setMoreOpen(false);
+                        if (key === activeView) {
+                          e.preventDefault();
+                          return;
+                        }
+                        if (pendingView === key) {
+                          e.preventDefault();
+                          return;
+                        }
+                        setPendingView(key);
+                        notifyNavigationStart(buildViewHref(key));
+                        window.dispatchEvent(
+                          new CustomEvent("orbitwork:tab-transition-start", {
+                            detail: { from: activeView, to: key, label: PROJECT_TAB_LABELS[key] },
+                          })
+                        );
+                      }}
+                      className={`view-tabs-more-item${isSelected ? " selected" : ""}${isPending ? " is-pending-tab" : ""}`}
                       role="menuitem"
+                      aria-busy={isPending}
                     >
-                      {renderTabIcon(key, isSelected)}
+                      {renderTabIcon(key, isSelected, isPending)}
                       <span>{PROJECT_TAB_LABELS[key]}</span>
                       {isSelected && <span className="view-tabs-active-dot" />}
                     </Link>
@@ -348,6 +425,16 @@ export default function ProjectViewTabsClient({
           <span>Arrange tabs</span>
         </button>
       </div>
+
+      {pendingView && (
+        <div className="view-tab-transition-bar" role="status" aria-live="polite">
+          <div className="view-tab-transition-inner">
+            <Loader2 size={13} className="spin tab-loading-spinner" />
+            <span>Switching to <strong>{PROJECT_TAB_LABELS[pendingView]}</strong> view...</span>
+          </div>
+          <div className="view-tab-transition-shimmer" />
+        </div>
+      )}
 
       {customizerOpen && (
         <div

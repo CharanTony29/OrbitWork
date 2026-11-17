@@ -8,10 +8,12 @@ import "./ai/ai-polish.css";
 import "./ai/ai-chat.css";
 import "./ai/ai-agent.css";
 import "./projects/[projectId]/brain/brain.css";
+import "./interaction-feedback.css";
 import ThemePicker from "./ThemePicker";
 import ChatNotificationListener from "./ChatNotificationListener";
 import AuthRecoveryListener from "./AuthRecoveryListener";
 import TopProgressBar from "./TopProgressBar";
+import GlobalInteractionFeedback from "./GlobalInteractionFeedback";
 import GlobalMobileDrawer from "./GlobalMobileDrawer";
 import AIChatDrawer from "./ai/AIChatDrawer";
 import AIAgentGlobalNotifier from "./ai/AIAgentGlobalNotifier";
@@ -46,6 +48,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body>
         <TopProgressBar />
+        <GlobalInteractionFeedback />
         {children}
         <GlobalMobileDrawer />
         <ThemePicker />

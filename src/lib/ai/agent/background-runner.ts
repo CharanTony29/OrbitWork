@@ -102,8 +102,23 @@ export async function triggerAIAgentRun({
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Execution failed");
+      let data: any = {};
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        try {
+          data = await res.json();
+        } catch {
+          data = {};
+        }
+      } else {
+        const text = await res.text();
+        if (!res.ok) {
+          throw new Error(
+            text && text.length < 160 ? text : `Server error (${res.status} ${res.statusText || "Request failed"})`
+          );
+        }
+      }
+      if (!res.ok) throw new Error(data?.error || `Execution failed (${res.status})`);
 
       // Update job to completed
       const updated = getActiveAIAgentJobs().map((j) =>
