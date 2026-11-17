@@ -65,6 +65,127 @@ export const ACCENT_PRESETS = [
   { name: "Midnight Slate", light: "#475569", dark: "#94a3b8", darkVariant: "#334155" },
 ];
 
+export type PresetThemeId = "matrix" | "cyberpunk" | "solarized-dark" | "solarized-light";
+
+export interface PresetThemeDefinition {
+  id: PresetThemeId;
+  name: string;
+  mode: "light" | "dark";
+  badge: string;
+  description: string;
+  accentColor: string;
+  accentDarkColor: string;
+  fontFamily: string;
+  statusColors: ThemeStatusColors;
+}
+
+export const FULL_THEME_PRESETS: PresetThemeDefinition[] = [
+  {
+    id: "matrix",
+    name: "Matrix",
+    mode: "dark",
+    badge: "OLED",
+    description: "Pitch black terminal with electric neon green & monospace code",
+    accentColor: "#00ff66",
+    accentDarkColor: "#003b14",
+    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+    statusColors: {
+      new: "#00e5ff",
+      inProgress: "#00ff66",
+      hold: "#eab308",
+      review: "#a855f7",
+      done: "#05df72",
+      reopen: "#ef4444",
+    },
+  },
+  {
+    id: "cyberpunk",
+    name: "Cyberpunk",
+    mode: "dark",
+    badge: "Neon",
+    description: "Vibrant laser fuchsia with electric cyan and modern geometry",
+    accentColor: "#ff007f",
+    accentDarkColor: "#4a0429",
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
+    statusColors: {
+      new: "#06b6d4",
+      inProgress: "#ff007f",
+      hold: "#f59e0b",
+      review: "#d946ef",
+      done: "#10b981",
+      reopen: "#ff2a5f",
+    },
+  },
+  {
+    id: "solarized-dark",
+    name: "Solarized Dark",
+    mode: "dark",
+    badge: "Slate",
+    description: "Scientifically tuned palette on iconic base03 deep cyan slate",
+    accentColor: "#2aa198",
+    accentDarkColor: "#073642",
+    fontFamily: "inherit",
+    statusColors: {
+      new: "#268bd2",
+      inProgress: "#2aa198",
+      hold: "#b58900",
+      review: "#6c71c4",
+      done: "#859900",
+      reopen: "#dc322f",
+    },
+  },
+  {
+    id: "solarized-light",
+    name: "Solarized Light",
+    mode: "light",
+    badge: "Paper",
+    description: "Warm Solarized parchment with soft contrast and clean contrast",
+    accentColor: "#268bd2",
+    accentDarkColor: "#073642",
+    fontFamily: "inherit",
+    statusColors: {
+      new: "#268bd2",
+      inProgress: "#2aa198",
+      hold: "#b58900",
+      review: "#6c71c4",
+      done: "#859900",
+      reopen: "#dc322f",
+    },
+  },
+];
+
+export function applyPresetTheme(presetId: PresetThemeId) {
+  const preset = FULL_THEME_PRESETS.find((p) => p.id === presetId);
+  if (!preset) return;
+  const prefs = getUserThemePreferences();
+  const targetMode = preset.mode;
+  const updatedTheme: ThemeCustomization = {
+    accentColor: preset.accentColor,
+    accentDarkColor: preset.accentDarkColor,
+    fontFamily: preset.fontFamily,
+    fontScale: 1.0,
+    statusColors: { ...preset.statusColors },
+  };
+
+  const newPrefs: UserThemePreferences = {
+    ...prefs,
+    [targetMode]: updatedTheme,
+  };
+
+  if (typeof window !== "undefined") {
+    document.documentElement.setAttribute("data-theme", targetMode);
+    document.documentElement.setAttribute("data-color-scheme", targetMode);
+    if (targetMode === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    document.cookie = `orbitwork_theme=${targetMode};path=/;max-age=31536000;SameSite=Lax`;
+  }
+
+  saveUserThemePreferences(newPrefs);
+}
+
 export const FONT_FAMILY_OPTIONS = [
   { id: "inherit", label: "Default ('DM Sans', sans-serif)", value: "inherit" },
   { id: "inter", label: "Inter", value: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },

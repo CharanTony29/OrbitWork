@@ -36,6 +36,7 @@ import { signOut } from "./actions";
 import UniversalCreateModal from "./UniversalCreateModal";
 import CustomThemeStudioModal from "./CustomThemeStudioModal";
 import QuickTimeTrackerModal from "./QuickTimeTrackerModal";
+import { FULL_THEME_PRESETS, applyPresetTheme } from "@/lib/custom-theme";
 import {
   PRESENCE_DURATION_OPTIONS,
   PRESENCE_STATUS_OPTIONS,
@@ -799,6 +800,46 @@ export default function UserProfileDropdown({
                     >
                       <Monitor size={12} /> Auto
                     </button>
+                  </div>
+                  <div style={{ margin: "0 16px 8px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5 }}>
+                    {FULL_THEME_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          applyPresetTheme(preset.id);
+                          setIsOpen(false);
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "5px 8px",
+                          fontSize: 10.5,
+                          fontWeight: 600,
+                          border: "1px solid var(--line, #dfe5e0)",
+                          borderRadius: 6,
+                          background: "var(--paper, #fff)",
+                          cursor: "pointer",
+                          color: "var(--ink)",
+                          textAlign: "left",
+                        }}
+                        title={preset.description}
+                      >
+                        <span
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: preset.accentColor,
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {preset.name}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                   <div style={{ margin: "0 16px 8px" }}>
                     <button

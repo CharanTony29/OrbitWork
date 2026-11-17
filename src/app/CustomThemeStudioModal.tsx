@@ -18,6 +18,7 @@ import {
   DEFAULT_LIGHT_THEME,
   FONT_FAMILY_OPTIONS,
   FONT_SCALE_OPTIONS,
+  FULL_THEME_PRESETS,
   getUserThemePreferences,
   resetUserThemeToDefault,
   saveUserThemePreferences,
@@ -248,6 +249,68 @@ export default function CustomThemeStudioModal({ isOpen, onClose }: Props) {
             gap: 22,
           }}
         >
+          {/* Section 0: Curated One-Click Full Themes */}
+          <section>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)" }}>
+                Curated Theme Presets (One-Click)
+              </label>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>Matrix, Cyberpunk, Solarized & more</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))", gap: 8 }}>
+              {FULL_THEME_PRESETS.map((preset) => {
+                const isPresetActive =
+                  currentTheme.accentColor.toLowerCase() === preset.accentColor.toLowerCase() &&
+                  activeTab === preset.mode;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(preset.mode);
+                      setPreferences((prev) => ({
+                        ...prev,
+                        [preset.mode]: {
+                          ...prev[preset.mode],
+                          accentColor: preset.accentColor,
+                          accentDarkColor: preset.accentDarkColor,
+                          fontFamily: preset.fontFamily,
+                          statusColors: { ...preset.statusColors },
+                        },
+                      }));
+                    }}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      gap: 4,
+                      padding: "8px 10px",
+                      borderRadius: 10,
+                      border: isPresetActive ? `2px solid ${preset.accentColor}` : "1px solid var(--line, #cbd5e1)",
+                      background: isPresetActive ? "color-mix(in srgb, var(--green, #167c58) 8%, transparent)" : "var(--surface-subtle, #f8fafc)",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 12, color: "var(--ink)" }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: preset.accentColor }} />
+                        {preset.name}
+                      </span>
+                      <span style={{ fontSize: 9, fontWeight: 750, padding: "1px 5px", borderRadius: 4, background: preset.mode === "dark" ? "#0f172a" : "#e2e8f0", color: preset.mode === "dark" ? "#38bdf8" : "#475569" }}>
+                        {preset.badge}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 10, color: "var(--muted)", lineHeight: 1.3 }}>
+                      {preset.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
           {/* Section 1: Accent Color */}
           <section>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>

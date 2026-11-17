@@ -242,7 +242,7 @@ export default function ProjectViewTabsClient({
         })}
 
         {overflowTabs.length > 0 && (
-          <div className="view-tabs-more-wrap" ref={moreRef}>
+          <div className="view-tabs-more-wrap" ref={moreRef} style={{ position: "relative", zIndex: 130 }}>
             <button
               type="button"
               className={`view-tabs-more-btn${isOverflowActive ? " selected" : ""}${moreOpen ? " is-open" : ""}`}
@@ -266,7 +266,12 @@ export default function ProjectViewTabsClient({
             </button>
 
             {moreOpen && (
-              <div className="view-tabs-more-menu" role="menu" aria-label="Remaining project tabs">
+              <div
+                className="view-tabs-more-menu"
+                role="menu"
+                aria-label="Remaining project tabs"
+                style={{ zIndex: 99999, position: "absolute", top: "calc(100% + 6px)", left: 0 }}
+              >
                 <div className="view-tabs-more-menu-header">
                   <span>Remaining Tabs ({overflowTabs.length})</span>
                 </div>
