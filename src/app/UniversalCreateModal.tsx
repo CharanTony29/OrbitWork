@@ -960,25 +960,7 @@ export default function UniversalCreateModal({
                   borderTop: "1px solid var(--line)",
                 }}
               >
-                <button
-                  type="button"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    border: "1px solid var(--line)",
-                    background: "var(--surface-raised)",
-                    color: "var(--ink)",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  <Sparkles size={13} />
-                  <span>Templates</span>
-                </button>
+                <div />
 
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <button

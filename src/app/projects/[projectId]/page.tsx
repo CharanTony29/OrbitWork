@@ -352,6 +352,9 @@ export default async function ProjectPage({ params, searchParams }: {
                 people={people}
                 availableMembers={availableMembers}
                 currentStatus={project.status}
+                projectName={project.name}
+                projectDescription={project.description}
+                projectIcon={(project as any).icon || "📁"}
               />
             )}
           </div>

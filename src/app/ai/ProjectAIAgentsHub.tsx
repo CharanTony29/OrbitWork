@@ -450,9 +450,18 @@ export default function ProjectAIAgentsHub({
                 {agent.system_instructions && (
                   <div
                     className="ai-card-instructions"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       setEditingAgent(agent);
                       setModalOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setEditingAgent(agent);
+                        setModalOpen(true);
+                      }
                     }}
                     style={{ cursor: "pointer" }}
                     title="Click to modify this agent's rules & instructions"

@@ -222,7 +222,19 @@ export default function AIAgentSubtaskPlanner({
 
   return (
     <div className="ai-agent-card">
-      <div className="ai-agent-header" onClick={() => setIsOpen(!isOpen)}>
+      <div
+        className="ai-agent-header"
+        role="button"
+        tabIndex={0}
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen(!isOpen)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setIsOpen(!isOpen);
+          }
+        }}
+      >
         <div className="ai-agent-header-info">
           <div className="ai-agent-icon-badge">
             <Zap size={15} />
@@ -348,7 +360,16 @@ export default function AIAgentSubtaskPlanner({
                       <div
                         key={sub.id}
                         className={`ai-subtask-item ${sub.selected ? "is-selected" : ""}`}
+                        role="checkbox"
+                        aria-checked={sub.selected}
+                        tabIndex={0}
                         onClick={() => handleToggleSubtask(sub.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleToggleSubtask(sub.id);
+                          }
+                        }}
                       >
                         <button
                           type="button"

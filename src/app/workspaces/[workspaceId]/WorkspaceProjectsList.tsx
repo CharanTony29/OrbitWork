@@ -141,7 +141,28 @@ export default function WorkspaceProjectsList({
           }}
         >
           <input type="hidden" name="workspaceId" value={workspaceId} />
-          <FolderKanban size={16} color="var(--green, #167c58)" style={{ flexShrink: 0 }} />
+          <select
+            name="icon"
+            defaultValue="📁"
+            title="Choose Project Icon"
+            style={{
+              height: 34,
+              padding: "0 6px",
+              borderRadius: 6,
+              border: "1px solid var(--line, #cbd5e1)",
+              background: "var(--paper, #fff)",
+              fontSize: 16,
+              outline: "none",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            {["📁", "🚀", "⚡", "🎯", "📊", "🛠️", "💻", "💡", "🔥", "🌟", "📦", "🎨", "🌐", "🤖"].map((e) => (
+              <option key={e} value={e}>
+                {e}
+              </option>
+            ))}
+          </select>
           <input
             name="name"
             placeholder="Project name (e.g. Website Revamp, Mobile App)..."
@@ -221,7 +242,11 @@ export default function WorkspaceProjectsList({
                 >
                   <div className="project-card-top" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                     <span className="project-symbol">
-                      <FolderKanban size={17} />
+                      {(project as any).icon ? (
+                        <span style={{ fontSize: 18, lineHeight: 1 }}>{(project as any).icon}</span>
+                      ) : (
+                        <FolderKanban size={17} />
+                      )}
                     </span>
                     <span className={`project-state state-${project.status}`}>
                       {project.status === "archived" ? "Inactive" : project.status.replace("_", " ")}

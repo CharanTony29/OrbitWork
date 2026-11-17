@@ -7,6 +7,8 @@ import {
   X,
   CheckCircle2,
   Loader2,
+  Palette,
+  Sparkles,
 } from "lucide-react";
 
 interface ExportPresentationModalProps {
@@ -39,6 +41,12 @@ export default function ExportPresentationModal({
   );
   const [endDate, setEndDate] = useState(today.toISOString().slice(0, 10));
   const [includeCatalog, setIncludeCatalog] = useState(true);
+  const [selectedStyle, setSelectedStyle] = useState<
+    "executive" | "emerald" | "sapphire" | "crimson" | "minimal" | "custom"
+  >("executive");
+  const [customPrimary, setCustomPrimary] = useState("#0f172a");
+  const [customAccent, setCustomAccent] = useState("#2563eb");
+  const [aiPrompt, setAiPrompt] = useState("");
   const [isExporting, setIsExporting] = useState(false);
 
   if (!isOpen) return null;
@@ -57,6 +65,11 @@ export default function ExportPresentationModal({
       params.set("endDate", endDate);
     }
     params.set("includeCatalog", includeCatalog ? "true" : "false");
+    params.set("style", selectedStyle);
+    if (selectedStyle === "custom") {
+      params.set("customPrimary", customPrimary);
+      params.set("customAccent", customAccent);
+    }
 
     const exportUrl = `/api/projects/${projectId}/presentation.pptx?${params.toString()}`;
 
@@ -355,6 +368,146 @@ export default function ExportPresentationModal({
                 <p style={{ margin: 0, fontSize: 12, color: "var(--muted, #64748b)" }}>
                   Includes all tasks, deliverables, and team assignments across the entire project history.
                 </p>
+              </div>
+            )}
+          </div>
+
+          {/* Template & Presentation Style Selector */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <label
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "var(--ink, #334155)",
+                  display: "block",
+                }}
+              >
+                SELECT PRESENTATION STYLE &amp; TEMPLATE
+              </label>
+              <span style={{ fontSize: 11, color: "var(--muted, #64748b)" }}>Choose palette or AI custom style</span>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+                gap: 8,
+              }}
+            >
+              {[
+                { id: "executive", label: "Executive Dark", bg: "#0f172a", accent: "#2563eb", desc: "Boardroom" },
+                { id: "emerald", label: "Emerald Corporate", bg: "#064e3b", accent: "#10b981", desc: "Consulting" },
+                { id: "sapphire", label: "Sapphire Tech", bg: "#1e1b4b", accent: "#06b6d4", desc: "Enterprise" },
+                { id: "crimson", label: "Crimson Modern", bg: "#18181b", accent: "#dc2626", desc: "High Impact" },
+                { id: "minimal", label: "Minimalist Light", bg: "#ffffff", accent: "#167c58", desc: "Print/Handout", border: true },
+                { id: "custom", label: "Custom / AI Style", bg: customPrimary, accent: customAccent, desc: "AI Palette", isCustom: true },
+              ].map((tmpl) => {
+                const isSelected = selectedStyle === tmpl.id;
+                return (
+                  <button
+                    key={tmpl.id}
+                    type="button"
+                    onClick={() => setSelectedStyle(tmpl.id as any)}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: 10,
+                      border: isSelected ? "2px solid #2563eb" : "1px solid var(--line, #cbd5e1)",
+                      background: "var(--surface, #ffffff)",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      position: "relative",
+                      boxShadow: isSelected ? "0 2px 8px rgba(37, 99, 235, 0.2)" : "none",
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: 4, marginBottom: 6, alignItems: "center" }}>
+                      <span
+                        style={{
+                          width: 14,
+                          height: 14,
+                          borderRadius: "50%",
+                          background: tmpl.bg,
+                          border: tmpl.border ? "1px solid #cbd5e1" : "none",
+                          display: "inline-block",
+                        }}
+                      />
+                      <span
+                        style={{
+                          width: 14,
+                          height: 14,
+                          borderRadius: "50%",
+                          background: tmpl.accent,
+                          display: "inline-block",
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink, #0f172a)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {tmpl.label}
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--muted, #64748b)" }}>{tmpl.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Custom AI Style Drawer */}
+            {selectedStyle === "custom" && (
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  background: "var(--surface-subtle, #f8fafc)",
+                  border: "1px solid var(--line, #cbd5e1)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 650 }}>Primary Color:</span>
+                    <input
+                      type="color"
+                      value={customPrimary}
+                      onChange={(e) => setCustomPrimary(e.target.value)}
+                      style={{ width: 28, height: 28, border: 0, borderRadius: 4, cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: 11, fontFamily: "monospace" }}>{customPrimary}</span>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 650 }}>Accent Color:</span>
+                    <input
+                      type="color"
+                      value={customAccent}
+                      onChange={(e) => setCustomAccent(e.target.value)}
+                      style={{ width: 28, height: 28, border: 0, borderRadius: 4, cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: 11, fontFamily: "monospace" }}>{customAccent}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <span style={{ fontSize: 11, color: "var(--muted, #64748b)", display: "block", marginBottom: 4 }}>
+                    Custom style notes or template branding prompt (optional):
+                  </span>
+                  <input
+                    type="text"
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="e.g. Warm Nordic minimalist aesthetic with charcoal text"
+                    style={{
+                      width: "100%",
+                      fontSize: 12,
+                      padding: "5px 8px",
+                      borderRadius: 6,
+                      border: "1px solid var(--line, #cbd5e1)",
+                      background: "var(--surface, #ffffff)",
+                      color: "var(--ink)",
+                    }}
+                  />
+                </div>
               </div>
             )}
           </div>

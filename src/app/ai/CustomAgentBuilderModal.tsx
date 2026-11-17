@@ -66,6 +66,15 @@ export default function CustomAgentBuilderModal({
     setError(null);
   }, [agentToEdit, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleApplyTemplate = (tmpl: (typeof AGENT_TEMPLATES)[0]) => {
@@ -134,7 +143,13 @@ export default function CustomAgentBuilderModal({
   };
 
   return (
-    <div className="ai-modal-overlay" onClick={onClose}>
+    <div
+      className="ai-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={isEditing ? "Modify AI Agent & Rules" : "Declare New AI Agent"}
+      onClick={onClose}
+    >
       <div className="ai-modal-container" onClick={(e) => e.stopPropagation()}>
         <div className="ai-modal-header">
           <div className="ai-modal-title-group">

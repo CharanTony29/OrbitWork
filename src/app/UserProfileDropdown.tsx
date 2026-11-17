@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { signOut } from "./actions";
 import UniversalCreateModal from "./UniversalCreateModal";
+import CustomThemeStudioModal from "./CustomThemeStudioModal";
 import {
   PRESENCE_DURATION_OPTIONS,
   PRESENCE_STATUS_OPTIONS,
@@ -70,6 +71,7 @@ export default function UserProfileDropdown({
   const [showNotepad, setShowNotepad] = useState(false);
   const [notepadContent, setNotepadContent] = useState("");
   const [themeSubmenu, setThemeSubmenu] = useState(false);
+  const [showThemeStudio, setShowThemeStudio] = useState(false);
   const [universalModalTab, setUniversalModalTab] = useState<"task" | "reminder" | "doc" | "whiteboard" | "dashboard" | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
@@ -724,77 +726,106 @@ export default function UserProfileDropdown({
                 <span style={{ fontSize: 10, color: "var(--muted)" }}>Toggle ›</span>
               </button>
               {themeSubmenu && (
-                <div
-                  style={{
-                    margin: "4px 16px 8px",
-                    padding: 4,
-                    borderRadius: 8,
-                    background: "var(--soft, #f8fafc)",
-                    display: "flex",
-                    gap: 4,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setTheme("light")}
+                <>
+                  <div
                     style={{
-                      flex: 1,
+                      margin: "4px 16px 8px",
+                      padding: 4,
+                      borderRadius: 8,
+                      background: "var(--soft, #f8fafc)",
                       display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
                       gap: 4,
-                      padding: "4px",
-                      fontSize: 10.5,
-                      border: 0,
-                      borderRadius: 5,
-                      background: "var(--paper, #fff)",
-                      cursor: "pointer",
-                      color: "var(--ink)",
                     }}
                   >
-                    <Sun size={12} /> Light
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTheme("dark")}
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 4,
-                      padding: "4px",
-                      fontSize: 10.5,
-                      border: 0,
-                      borderRadius: 5,
-                      background: "var(--paper, #fff)",
-                      cursor: "pointer",
-                      color: "var(--ink)",
-                    }}
-                  >
-                    <Moon size={12} /> Dark
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTheme("system")}
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 4,
-                      padding: "4px",
-                      fontSize: 10.5,
-                      border: 0,
-                      borderRadius: 5,
-                      background: "var(--paper, #fff)",
-                      cursor: "pointer",
-                      color: "var(--ink)",
-                    }}
-                  >
-                    <Monitor size={12} /> Auto
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => setTheme("light")}
+                      style={{
+                        flex: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 4,
+                        padding: "4px",
+                        fontSize: 10.5,
+                        border: 0,
+                        borderRadius: 5,
+                        background: "var(--paper, #fff)",
+                        cursor: "pointer",
+                        color: "var(--ink)",
+                      }}
+                    >
+                      <Sun size={12} /> Light
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTheme("dark")}
+                      style={{
+                        flex: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 4,
+                        padding: "4px",
+                        fontSize: 10.5,
+                        border: 0,
+                        borderRadius: 5,
+                        background: "var(--paper, #fff)",
+                        cursor: "pointer",
+                        color: "var(--ink)",
+                      }}
+                    >
+                      <Moon size={12} /> Dark
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTheme("system")}
+                      style={{
+                        flex: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 4,
+                        padding: "4px",
+                        fontSize: 10.5,
+                        border: 0,
+                        borderRadius: 5,
+                        background: "var(--paper, #fff)",
+                        cursor: "pointer",
+                        color: "var(--ink)",
+                      }}
+                    >
+                      <Monitor size={12} /> Auto
+                    </button>
+                  </div>
+                  <div style={{ margin: "0 16px 8px" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowThemeStudio(true);
+                        setIsOpen(false);
+                      }}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        padding: "7px 10px",
+                        fontSize: 11,
+                        fontWeight: 650,
+                        border: "1px dashed var(--green, #167c58)",
+                        borderRadius: 6,
+                        background: "transparent",
+                        color: "var(--green, #167c58)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Palette size={12} />
+                      <span>Customize Colors &amp; Typography…</span>
+                    </button>
+                  </div>
+                </>
               )}
             </div>
 
@@ -1274,6 +1305,12 @@ export default function UserProfileDropdown({
         onClose={() => setUniversalModalTab(null)}
         initialTab={universalModalTab || "task"}
         projectId={projectId}
+      />
+
+      {/* Appearance & UI Studio Modal */}
+      <CustomThemeStudioModal
+        isOpen={showThemeStudio}
+        onClose={() => setShowThemeStudio(false)}
       />
     </div>
   );

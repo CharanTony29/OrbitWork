@@ -24,6 +24,7 @@ import TaskLinkedDocsCell, {
 } from "./TaskLinkedDocsCell";
 import { formatMinutes, formatRemaining } from "@/lib/work";
 import DateInput from "@/app/DateInput";
+import { getCustomStatusColor } from "@/lib/custom-theme";
 
 type TaskRow = {
   id: string;
@@ -73,6 +74,10 @@ const PRIORITY_META: Record<string, { label: string; color: string }> = {
 };
 
 function getStatusColor(status?: { name?: string; color?: string; category?: string }) {
+  if (typeof window !== "undefined") {
+    const custom = getCustomStatusColor(status?.name, status?.category);
+    if (custom) return custom;
+  }
   const name = (status?.name ?? "").toLowerCase();
   if (name.includes("new") || name.includes("to do") || name.includes("todo") || name.includes("backlog") || status?.category === "not_started") {
     return "#0284c7"; // Vibrant Sky / Cyan Blue for New
@@ -897,6 +902,13 @@ export default function TaskTable({
   const [dragColId, setDragColId] = useState<string | null>(null);
   const [dragOverColId, setDragOverColId] = useState<string | null>(null);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
+  const [, setThemeVersion] = useState(0);
+
+  useEffect(() => {
+    const onTheme = () => setThemeVersion((v) => v + 1);
+    window.addEventListener("orbitwork:theme-change", onTheme);
+    return () => window.removeEventListener("orbitwork:theme-change", onTheme);
+  }, []);
 
   const tableWrapRef = useRef<HTMLDivElement>(null);
   const columnsMenuRef = useRef<HTMLDivElement>(null);

@@ -68,6 +68,15 @@ const NODE_COLORS: Record<string, { fill: string; stroke: string; text: string }
   slate: { fill: "#f8fafc", stroke: "#64748b", text: "#0f172a" },
 };
 
+const DARK_NODE_COLORS: Record<string, { fill: string; stroke: string; text: string }> = {
+  blue: { fill: "rgba(30, 58, 138, 0.45)", stroke: "#60a5fa", text: "#e0f2fe" },
+  green: { fill: "rgba(6, 78, 59, 0.55)", stroke: "#34d399", text: "#ecfdf5" },
+  amber: { fill: "rgba(120, 53, 15, 0.5)", stroke: "#fbbf24", text: "#fef3c7" },
+  purple: { fill: "rgba(88, 28, 135, 0.5)", stroke: "#c084fc", text: "#f5f3ff" },
+  rose: { fill: "rgba(136, 19, 55, 0.5)", stroke: "#fb7185", text: "#ffe4e6" },
+  slate: { fill: "rgba(30, 41, 59, 0.8)", stroke: "#94a3b8", text: "#f8fafc" },
+};
+
 const DEFAULT_TEMPLATES: Record<string, { nodes: FlowNode[]; edges: FlowEdge[] }> = {
   process: {
     nodes: [
@@ -134,6 +143,21 @@ export default function FlowchartCanvas({
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const checkDark = () => {
+      const isDark =
+        document.documentElement.classList.contains("dark") ||
+        document.documentElement.getAttribute("data-theme") === "dark" ||
+        document.body.classList.contains("dark");
+      setIsDarkMode(isDark);
+    };
+    checkDark();
+    const observer = new MutationObserver(checkDark);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
+    return () => observer.disconnect();
+  }, []);
 
   const draggingNodeRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const panStartRef = useRef<{ clientX: number; clientY: number; origPanX: number; origPanY: number }>({ clientX: 0, clientY: 0, origPanX: 0, origPanY: 0 });
@@ -688,7 +712,7 @@ export default function FlowchartCanvas({
                 refY="4"
                 orient="auto"
               >
-                <polygon points="0 0, 12 4, 0 8" fill="#475569" />
+                <polygon points="0 0, 12 4, 0 8" fill={isDarkMode ? "#94a3b8" : "#475569"} />
               </marker>
             </defs>
 
@@ -717,7 +741,7 @@ export default function FlowchartCanvas({
                       y1={fromPt.y}
                       x2={toPt.x}
                       y2={toPt.y}
-                      stroke={isEdgeSelected ? "var(--green, #167c58)" : "#64748b"}
+                      stroke={isEdgeSelected ? "var(--green, #167c58)" : isDarkMode ? "#64748b" : "#94a3b8"}
                       strokeWidth={isEdgeSelected ? "3" : "2"}
                       markerEnd="url(#visio-arrow)"
                     />
@@ -729,15 +753,15 @@ export default function FlowchartCanvas({
                           width={edge.label.length * 8 + 12}
                           height={18}
                           rx={4}
-                          fill="#ffffff"
-                          stroke="#cbd5e1"
+                          fill={isDarkMode ? "#1e293b" : "#ffffff"}
+                          stroke={isDarkMode ? "#334155" : "#cbd5e1"}
                           strokeWidth="1"
                         />
                         <text
                           x={0}
                           y={-1}
                           textAnchor="middle"
-                          fill="#334155"
+                          fill={isDarkMode ? "#f1f5f9" : "#334155"}
                           fontSize="10"
                           fontWeight="700"
                         >
@@ -779,7 +803,8 @@ export default function FlowchartCanvas({
               {nodes.map((node) => {
                 const isSelected = node.id === selectedNodeId;
                 const isConnecting = node.id === connectFromId;
-                const colors = NODE_COLORS[node.color || "blue"] || NODE_COLORS.blue;
+                const activePalette = isDarkMode ? DARK_NODE_COLORS : NODE_COLORS;
+                const colors = activePalette[node.color || "blue"] || activePalette.blue;
 
                 return (
                   <g
@@ -846,8 +871,8 @@ export default function FlowchartCanvas({
                     ) : node.type === "note" ? (
                       <polygon
                         points={`0,0 ${node.w - 12},0 ${node.w},12 ${node.w},${node.h} 0,${node.h}`}
-                        fill="#fef08a"
-                        stroke="#ca8a04"
+                        fill={isDarkMode ? "rgba(161, 98, 7, 0.45)" : "#fef08a"}
+                        stroke={isDarkMode ? "#facc15" : "#ca8a04"}
                         strokeWidth={isSelected ? 2.5 : 1.5}
                         filter="drop-shadow(0 2px 5px rgba(0,0,0,0.08))"
                       />

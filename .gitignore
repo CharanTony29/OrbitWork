@@ -4,6 +4,9 @@ out/
 dist/
 .env
 .env.*
+*.env*
+**/*.env*
+neon.env*
 !.env.example
 pnpm-debug.log*
 *.tsbuildinfo

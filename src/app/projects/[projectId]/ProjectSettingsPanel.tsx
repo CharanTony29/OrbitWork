@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Settings, X, GitBranch, Users, Columns, Archive, RotateCcw } from "lucide-react";
+import { Settings, X, GitBranch, Users, Columns, Archive, RotateCcw, Pencil } from "lucide-react";
 import {
   addProjectMember,
   createCustomField,
@@ -11,6 +11,7 @@ import {
   updateProjectMemberRole,
   updateProjectStatus,
   toggleProjectActiveStatus,
+  updateProjectDetails,
 } from "@/app/actions";
 import MultiValueFieldInput from "@/app/MultiValueFieldInput";
 
@@ -19,9 +20,10 @@ type Member = { id: string; label: string };
 type ProjectMember = { user_id: string; role: string };
 type CustomField = { id: string; name: string; field_type: string; required?: boolean };
 
-type Panel = "statuses" | "members" | "fields" | "status" | null;
+type Panel = "details" | "statuses" | "members" | "fields" | "status" | null;
 
 const MENU_ITEMS: { panel: Panel; label: string; icon: React.ReactNode }[] = [
+  { panel: "details", label: "Project name & icon", icon: <Pencil size={14} /> },
   { panel: "statuses", label: "Workflow statuses", icon: <GitBranch size={14} /> },
   { panel: "members", label: "Project members", icon: <Users size={14} /> },
   { panel: "fields", label: "Custom fields", icon: <Columns size={14} /> },
@@ -37,6 +39,9 @@ export default function ProjectSettingsPanel({
   people,
   availableMembers,
   currentStatus = "active",
+  projectName = "",
+  projectDescription = "",
+  projectIcon = "📁",
 }: {
   projectId: string;
   statuses: Status[];
@@ -46,6 +51,9 @@ export default function ProjectSettingsPanel({
   people: Map<string, string>;
   availableMembers: Member[];
   currentStatus?: string;
+  projectName?: string;
+  projectDescription?: string;
+  projectIcon?: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<Panel>(null);
@@ -129,6 +137,14 @@ export default function ProjectSettingsPanel({
             </div>
 
             <div className="proj-modal-body">
+              {activePanel === "details" && (
+                <ProjectDetailsPanel
+                  projectId={projectId}
+                  initialName={projectName}
+                  initialDescription={projectDescription}
+                  initialIcon={projectIcon}
+                />
+              )}
               {activePanel === "statuses" && (
                 <StatusesPanel projectId={projectId} statuses={statuses} />
               )}
@@ -374,6 +390,150 @@ function FieldsPanel({ projectId, customFields }: { projectId: string; customFie
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ── Project Details & Icon ────────────────────────── */
+const EMOJI_OPTIONS = ["📁", "🚀", "⚡", "🎯", "📊", "🛠️", "💻", "💡", "🔥", "🌟", "📦", "🎨", "🌐", "🔒", "🤖", "📈", "🧪", "📑"];
+
+function ProjectDetailsPanel({
+  projectId,
+  initialName,
+  initialDescription,
+  initialIcon = "📁",
+}: {
+  projectId: string;
+  initialName: string;
+  initialDescription: string;
+  initialIcon?: string;
+}) {
+  const [selectedIcon, setSelectedIcon] = useState(initialIcon || "📁");
+
+  return (
+    <div className="proj-panel-content">
+      <p style={{ fontSize: 13, color: "var(--muted)", margin: "0 0 16px" }}>
+        Managers can rename the project, update its description, and choose an icon or emoji to display across the workspace navigation.
+      </p>
+
+      <form action={updateProjectDetails} className="admin-create-form" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <input type="hidden" name="projectId" value={projectId} />
+        <input type="hidden" name="icon" value={selectedIcon} />
+
+        {/* Icon Picker */}
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 8, color: "var(--ink)" }}>
+            Project Icon &amp; Badge
+          </label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+            {EMOJI_OPTIONS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => setSelectedIcon(emoji)}
+                style={{
+                  width: 34,
+                  height: 34,
+                  fontSize: 18,
+                  borderRadius: 8,
+                  border: selectedIcon === emoji ? "2px solid var(--green, #167c58)" : "1px solid var(--line)",
+                  background: selectedIcon === emoji ? "rgba(22, 124, 88, 0.12)" : "var(--surface)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>Or custom emoji:</span>
+            <input
+              type="text"
+              value={selectedIcon}
+              onChange={(e) => setSelectedIcon(e.target.value.slice(0, 4))}
+              style={{
+                width: 60,
+                textAlign: "center",
+                fontSize: 16,
+                padding: "3px 6px",
+                borderRadius: 6,
+                border: "1px solid var(--line)",
+                background: "var(--surface)",
+                color: "var(--ink)",
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Project Name */}
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>
+            Project Name *
+          </label>
+          <input
+            type="text"
+            name="name"
+            defaultValue={initialName}
+            required
+            minLength={2}
+            maxLength={120}
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--line)",
+              background: "var(--surface)",
+              color: "var(--ink)",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          />
+        </div>
+
+        {/* Project Description */}
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6, color: "var(--ink)" }}>
+            Project Description
+          </label>
+          <textarea
+            name="description"
+            defaultValue={initialDescription}
+            rows={3}
+            maxLength={2000}
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--line)",
+              background: "var(--surface)",
+              color: "var(--ink)",
+              fontSize: 13,
+              fontFamily: "inherit",
+              resize: "vertical",
+            }}
+          />
+        </div>
+
+        <button
+          type="submit"
+          className="mini-save"
+          style={{
+            alignSelf: "flex-start",
+            padding: "8px 20px",
+            background: "var(--green, #167c58)",
+            color: "#ffffff",
+            fontWeight: 700,
+            borderRadius: 8,
+            border: 0,
+            cursor: "pointer",
+          }}
+        >
+          Save Project Changes
+        </button>
+      </form>
     </div>
   );
 }

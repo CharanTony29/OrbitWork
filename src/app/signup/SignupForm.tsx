@@ -64,6 +64,19 @@ export default function SignupForm({
             Create password (min. 8 characters)
             <PasswordInput name="password" autoComplete="new-password" required minLength={8} maxLength={128} />
           </label>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", margin: "6px 0 2px", fontSize: "12px", color: "var(--muted, #64748b)", lineHeight: "1.4" }}>
+            <input
+              type="checkbox"
+              id="signup-consent"
+              name="termsConsent"
+              required
+              defaultChecked
+              style={{ marginTop: "2px", accentColor: "var(--brand, #059669)" }}
+            />
+            <label htmlFor="signup-consent" style={{ cursor: "pointer", fontWeight: "normal" }}>
+              I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", color: "inherit" }}>Terms of Service</a> &amp; <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", color: "inherit" }}>Privacy Policy</a>, and consent to receive essential service and task notification emails.
+            </label>
+          </div>
           <button className="button button-primary" type="submit" style={{ marginTop: 4 }}>
             Create Account
           </button>
@@ -86,6 +99,19 @@ export default function SignupForm({
           <p style={{ fontSize: 11, color: "var(--muted)", margin: "0", lineHeight: 1.4 }}>
             No password required. We’ll email you a secure direct-access link to instantly start.
           </p>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", margin: "6px 0 2px", fontSize: "12px", color: "var(--muted, #64748b)", lineHeight: "1.4" }}>
+            <input
+              type="checkbox"
+              id="magic-consent"
+              name="termsConsent"
+              required
+              defaultChecked
+              style={{ marginTop: "2px", accentColor: "var(--brand, #059669)" }}
+            />
+            <label htmlFor="magic-consent" style={{ cursor: "pointer", fontWeight: "normal" }}>
+              I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", color: "inherit" }}>Terms of Service</a> &amp; <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", color: "inherit" }}>Privacy Policy</a>, and consent to receive essential service and task notification emails.
+            </label>
+          </div>
           <button className="button button-secondary" type="submit" style={{ marginTop: 4 }}>
             Password-less sign up
           </button>

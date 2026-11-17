@@ -141,7 +141,14 @@ function emailWrapper(content: string, title: string): string {
       ${content}
     </div>
     <div class="footer">
-      Sent by <a href="${appUrl}" style="color:#059669;text-decoration:none;font-weight:600;">Orbitwork</a> · Projects &amp; Work Management
+      <p style="margin: 0 0 6px;">Sent by <a href="${appUrl}" style="color:#059669;text-decoration:none;font-weight:600;">Orbitwork</a> · Projects &amp; Work Management</p>
+      <p style="margin: 0; font-size: 11px; color: #94a3b8;">
+        You are receiving this because of your project membership and notification preferences.
+        <br />
+        <a href="${appUrl}/profile" style="color: #059669; text-decoration: underline;">Notification Preferences</a>
+        &nbsp;&middot;&nbsp;
+        <a href="${appUrl}/privacy" style="color: #059669; text-decoration: underline;">Privacy Policy</a>
+      </p>
     </div>
   </div>
 </body>

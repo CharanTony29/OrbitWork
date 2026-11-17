@@ -14,8 +14,10 @@ import {
   MessageSquare,
   PanelLeft,
   UsersRound,
+  FolderKanban,
 } from "lucide-react";
 import { BrandMark } from "./BrandMark";
+import WorkspaceLovPopover from "./WorkspaceLovPopover";
 
 type GlobalAppRailProps = {
   organizationId?: string;
@@ -32,6 +34,7 @@ export default function GlobalAppRail({
   const [storedOrgId, setStoredOrgId] = useState<string | null>(null);
   const [storedWorkspaceId, setStoredWorkspaceId] = useState<string | null>(null);
   const [storedProjectId, setStoredProjectId] = useState<string | null>(null);
+  const [lovOpen, setLovOpen] = useState(false);
 
   // Sync props to localStorage and retrieve stored values
   useEffect(() => {
@@ -122,6 +125,30 @@ export default function GlobalAppRail({
         <span>Dashboard</span>
       </Link>
 
+      <button
+        type="button"
+        onClick={() => setLovOpen((prev) => !prev)}
+        title="Quick Workspace & Organization LOV Switcher"
+        className={lovOpen ? "is-active" : undefined}
+        style={{
+          background: lovOpen ? "var(--rail-hover)" : "transparent",
+          border: 0,
+          cursor: "pointer",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 4,
+          color: lovOpen ? "var(--rail-strong)" : "var(--rail-ink)",
+          borderRadius: 8,
+          width: 46,
+          minHeight: 47,
+        }}
+      >
+        <FolderKanban size={17} />
+        <span style={{ fontSize: 8, fontWeight: 650 }}>Spaces</span>
+      </button>
+
       <Link
         href="/inbox"
         prefetch={false}
@@ -209,6 +236,8 @@ export default function GlobalAppRail({
         <Layers3 size={17} />
         <span>More</span>
       </Link>
+
+      <WorkspaceLovPopover isOpen={lovOpen} onClose={() => setLovOpen(false)} />
     </nav>
   );
 }

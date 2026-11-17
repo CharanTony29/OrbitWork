@@ -307,6 +307,12 @@ export async function GET(
       : orgObj.name
     : undefined;
 
+  const style = (searchParams.get("style") as any) || "executive";
+  const customPrimary = searchParams.get("customPrimary");
+  const customSecondary = searchParams.get("customSecondary");
+  const customAccent = searchParams.get("customAccent");
+  const customBg = searchParams.get("customBg");
+
   const options: PresentationReportOptions = {
     projectName: project.name,
     workspaceName: workspaceObj?.name,
@@ -316,6 +322,16 @@ export async function GET(
     startDate: customStartDate || undefined,
     endDate: customEndDate || undefined,
     includeCatalog,
+    style,
+    customColors:
+      customPrimary || customSecondary || customAccent || customBg
+        ? {
+            primary: customPrimary || undefined,
+            secondary: customSecondary || undefined,
+            accent: customAccent || undefined,
+            background: customBg || undefined,
+          }
+        : undefined,
   };
 
   // Build the presentation deck

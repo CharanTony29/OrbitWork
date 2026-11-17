@@ -29,6 +29,7 @@ export type SpaceProject = {
   workspace_id: string;
   name: string;
   status: string;
+  icon?: string | null;
 };
 
 export type UserSpaceData = {
@@ -173,11 +174,11 @@ export async function getUserSpaceData(): Promise<UserSpaceData | null> {
     workspaceIds.length
       ? supabase
           .from("projects")
-          .select("id, workspace_id, name, status, updated_at")
+          .select("id, workspace_id, name, status, updated_at, icon")
           .in("workspace_id", workspaceIds)
           .order("name")
       : Promise.resolve({
-          data: [] as Array<{ id: string; workspace_id: string; name: string; status: string; updated_at?: string }>,
+          data: [] as Array<{ id: string; workspace_id: string; name: string; status: string; updated_at?: string; icon?: string | null }>,
         }),
     workspaceIds.length
       ? supabase
@@ -318,6 +319,7 @@ export async function getUserSpaceData(): Promise<UserSpaceData | null> {
       workspace_id: p.workspace_id,
       name: p.name,
       status: p.status,
+      icon: (p as any).icon || null,
     })),
     organizationMembers: orgMembersList,
     assignedTaskCount: assignedTaskCount ?? 0,

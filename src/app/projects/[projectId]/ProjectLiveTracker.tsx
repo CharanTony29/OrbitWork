@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import ExportPresentationModal from "./ExportPresentationModal";
+import { getCustomStatusColor } from "@/lib/custom-theme";
 import "./live-tracker.css";
 
 interface LiveTask {
@@ -53,6 +54,10 @@ interface ProjectLiveTrackerProps {
 
 function getStatusColor(status?: WorkflowStatus): string {
   if (!status) return "#64748b";
+  if (typeof window !== "undefined") {
+    const custom = getCustomStatusColor(status.name, status.category || undefined);
+    if (custom) return custom;
+  }
   const name = (status.name || "").toLowerCase();
   if (
     status.category === "completed" ||
@@ -100,6 +105,13 @@ export default function ProjectLiveTracker({
   const [sortBy, setSortBy] = useState<"recent" | "due" | "priority">("recent");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [, setThemeVersion] = useState(0);
+
+  useEffect(() => {
+    const onTheme = () => setThemeVersion((v) => v + 1);
+    window.addEventListener("orbitwork:theme-change", onTheme);
+    return () => window.removeEventListener("orbitwork:theme-change", onTheme);
+  }, []);
   const [, startTransition] = useTransition();
 
   // Status mapping

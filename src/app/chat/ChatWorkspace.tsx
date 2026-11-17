@@ -469,6 +469,19 @@ export default function ChatWorkspace({
     alt: string;
   } | null>(null);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (lightboxImage) setLightboxImage(null);
+        else if (showSharedModal) setShowSharedModal(false);
+        else if (quickTaskSourceMsg) setQuickTaskSourceMsg(null);
+        else if (showNewGroupModal) setShowNewGroupModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxImage, showSharedModal, quickTaskSourceMsg, showNewGroupModal]);
+
   const feedRef = useRef<HTMLDivElement | null>(null);
   const feedEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -2028,6 +2041,9 @@ export default function ChatWorkspace({
       {showNewGroupModal && (
         <div
           className="chat-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="New Group Chat"
           onClick={() => setShowNewGroupModal(false)}
         >
           <form
@@ -2125,6 +2141,9 @@ export default function ChatWorkspace({
       {quickTaskSourceMsg && (
         <div
           className="chat-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Convert Message to Task"
           onClick={() => setQuickTaskSourceMsg(null)}
         >
           <form
@@ -2210,6 +2229,9 @@ export default function ChatWorkspace({
       {showSharedModal && (
         <div
           className="chat-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Shared in ${activeThreadSummary.title}`}
           onClick={() => setShowSharedModal(false)}
         >
           <div className="chat-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -2267,6 +2289,9 @@ export default function ChatWorkspace({
       {lightboxImage && (
         <div
           className="chat-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image Preview"
           onClick={() => setLightboxImage(null)}
         >
           <img

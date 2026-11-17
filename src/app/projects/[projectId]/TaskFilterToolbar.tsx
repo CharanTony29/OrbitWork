@@ -18,8 +18,12 @@ import {
   Flag,
   List,
   Tag,
+  Palette,
+  Sparkles,
 } from "lucide-react";
 import UniversalCreateModal from "@/app/UniversalCreateModal";
+import CustomThemeStudioModal from "@/app/CustomThemeStudioModal";
+import MoMToTasksModal from "./MoMToTasksModal";
 
 type WorkflowStatus = { id: string; name: string; color: string; category?: string };
 type Member = { id: string; label: string };
@@ -61,6 +65,8 @@ export default function TaskFilterToolbar({
   const [customGroupValue, setCustomGroupValue] = useState("");
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [isUniversalCreateOpen, setIsUniversalCreateOpen] = useState(false);
+  const [isMoMOpen, setIsMoMOpen] = useState(false);
+  const [isThemeStudioOpen, setIsThemeStudioOpen] = useState(false);
 
   const filterRef = useRef<HTMLDivElement>(null);
   const assigneeRef = useRef<HTMLDivElement>(null);
@@ -462,6 +468,18 @@ export default function TaskFilterToolbar({
               >
                 Due date
               </button>
+              <div style={{ height: 1, background: "var(--line)", margin: "4px 0" }} />
+              <button
+                type="button"
+                className="toolbar-dropdown-item"
+                onClick={() => {
+                  setIsThemeStudioOpen(true);
+                  setSortMenuOpen(false);
+                }}
+              >
+                <Palette size={13} style={{ marginRight: 6 }} />
+                <span>Theme & UI Studio</span>
+              </button>
             </div>
           )}
         </div>
@@ -475,6 +493,18 @@ export default function TaskFilterToolbar({
         >
           <span>Add Task</span>
           <ChevronDown size={12} />
+        </button>
+
+        {/* Convert Minutes of Meeting to Tasks */}
+        <button
+          type="button"
+          className="toolbar-pill"
+          onClick={() => setIsMoMOpen(true)}
+          title="Convert Minutes of Meeting (MoM) to Tasks with AI duplicate check"
+          style={{ color: "var(--green, #167c58)", fontWeight: 650 }}
+        >
+          <Sparkles size={13} className="pill-icon" />
+          <span>MoM to Tasks</span>
         </button>
       </div>
 
@@ -651,6 +681,18 @@ export default function TaskFilterToolbar({
         projectName={projectName}
         statuses={statuses}
         members={members}
+      />
+
+      <MoMToTasksModal
+        isOpen={isMoMOpen}
+        onClose={() => setIsMoMOpen(false)}
+        projectId={projectId}
+        projectName={projectName}
+      />
+
+      <CustomThemeStudioModal
+        isOpen={isThemeStudioOpen}
+        onClose={() => setIsThemeStudioOpen(false)}
       />
     </div>
   );

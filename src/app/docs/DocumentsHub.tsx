@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -85,6 +85,20 @@ export default function DocumentsHub({
   const [shareDoc, setShareDoc] = useState<DocItem | null>(null);
   const [renameDoc, setRenameDoc] = useState<DocItem | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (shareDoc) setShareDoc(null);
+        else if (renameDoc) setRenameDoc(null);
+        else if (showImportModal) setShowImportModal(false);
+        else if (showTemplateModal) setShowTemplateModal(false);
+        else if (showCreateModal) setShowCreateModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [shareDoc, renameDoc, showImportModal, showTemplateModal, showCreateModal]);
 
   // Create form state
   const [newTitle, setNewTitle] = useState("");
@@ -1094,7 +1108,16 @@ export default function DocumentsHub({
               </p>
               <div
                 className="import-dropzone"
+                role="button"
+                tabIndex={0}
+                aria-label="Upload document file"
                 onClick={() => importFileRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    importFileRef.current?.click();
+                  }
+                }}
               >
                 <Upload size={28} />
                 <strong>Click to choose a file</strong>

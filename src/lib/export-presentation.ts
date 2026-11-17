@@ -23,6 +23,21 @@ export interface TaskReportItem {
   isPending: boolean;
 }
 
+export type PresentationThemeStyle =
+  | "executive"
+  | "emerald"
+  | "sapphire"
+  | "crimson"
+  | "minimal"
+  | "custom";
+
+export interface PresentationCustomColors {
+  primary?: string;
+  secondary?: string;
+  accent?: string;
+  background?: string;
+}
+
 export interface PresentationReportOptions {
   projectName: string;
   workspaceName?: string;
@@ -32,6 +47,8 @@ export interface PresentationReportOptions {
   startDate?: string;
   endDate?: string;
   includeCatalog?: boolean;
+  style?: PresentationThemeStyle;
+  customColors?: PresentationCustomColors;
 }
 
 export interface StatusMetric {
@@ -67,18 +84,55 @@ export function buildPresentationDeck(
   pptx.author = "Orbitwork Project Management";
   pptx.company = options.organizationName || "Orbitwork Enterprise";
 
-  // Palette definitions
-  const C_NAVY = "0F172A";
-  const C_DARK_SLATE = "1E293B";
-  const C_BLUE = "2563EB";
-  const C_EMERALD = "10B981";
-  const C_AMBER = "D97706";
-  const C_GOLD = "EAB308";
-  const C_CRIMSON = "EF4444";
-  const C_SLATE = "64748B";
-  const C_LIGHT_BG = "F8FAFC";
-  const C_WHITE = "FFFFFF";
-  const C_BORDER = "E2E8F0";
+  // Theme / Template Palette Customization
+  const style = options.style || "executive";
+  let C_NAVY = "0F172A";
+  let C_DARK_SLATE = "1E293B";
+  let C_BLUE = "2563EB";
+  let C_EMERALD = "10B981";
+  let C_AMBER = "D97706";
+  let C_GOLD = "EAB308";
+  let C_CRIMSON = "EF4444";
+  let C_SLATE = "64748B";
+  let C_LIGHT_BG = "F8FAFC";
+  let C_WHITE = "FFFFFF";
+  let C_BORDER = "E2E8F0";
+
+  if (style === "emerald") {
+    C_NAVY = "064E3B";
+    C_DARK_SLATE = "065F46";
+    C_BLUE = "10B981";
+    C_EMERALD = "059669";
+    C_LIGHT_BG = "F0FDF4";
+    C_BORDER = "DCFCE7";
+  } else if (style === "sapphire") {
+    C_NAVY = "1E1B4B";
+    C_DARK_SLATE = "312E81";
+    C_BLUE = "2563EB";
+    C_EMERALD = "06B6D4";
+    C_LIGHT_BG = "F0F9FF";
+    C_BORDER = "E0F2FE";
+  } else if (style === "crimson") {
+    C_NAVY = "18181B";
+    C_DARK_SLATE = "27272A";
+    C_BLUE = "DC2626";
+    C_EMERALD = "F43F5E";
+    C_LIGHT_BG = "FFF1F2";
+    C_BORDER = "FFE4E6";
+  } else if (style === "minimal") {
+    C_NAVY = "1E293B";
+    C_DARK_SLATE = "334155";
+    C_BLUE = "2563EB";
+    C_EMERALD = "167C58";
+    C_LIGHT_BG = "FFFFFF";
+    C_WHITE = "FFFFFF";
+    C_BORDER = "E2E8F0";
+  } else if (style === "custom" && options.customColors) {
+    if (options.customColors.primary) C_NAVY = options.customColors.primary.replace("#", "");
+    if (options.customColors.secondary) C_DARK_SLATE = options.customColors.secondary.replace("#", "");
+    if (options.customColors.accent) C_BLUE = options.customColors.accent.replace("#", "");
+    if (options.customColors.background) C_LIGHT_BG = options.customColors.background.replace("#", "");
+  }
 
   // Compute key summary figures
   const totalTasks = tasks.length;

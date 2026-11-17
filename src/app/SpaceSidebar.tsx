@@ -152,10 +152,14 @@ export default function SpaceSidebar({
                               className="ov-project-leaf"
                               title={project.name}
                             >
+                              <span style={{ fontSize: 13, display: "inline-flex", alignItems: "center" }}>
+                                {project.icon || "📁"}
+                              </span>
+                              <span className="ov-tree-leaf-text">{project.name}</span>
                               <span
                                 className={`ov-proj-status status-${project.status || "active"}`}
+                                style={{ marginLeft: "auto" }}
                               />
-                              <span className="ov-tree-leaf-text">{project.name}</span>
                             </Link>
                           ))}
                         </div>

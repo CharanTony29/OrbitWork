@@ -810,10 +810,12 @@ export async function createProject(formData: FormData) {
     workspaceId: z.string().uuid(),
     name: z.string().trim().min(2).max(120),
     description: z.string().trim().max(2000).optional(),
+    icon: z.string().trim().max(10).optional(),
   }).safeParse({
     workspaceId: formData.get("workspaceId"),
     name: formData.get("name"),
     description: formData.get("description") || undefined,
+    icon: formData.get("icon") || undefined,
   });
   if (!parsed.success) redirect("/dashboard?error=invalid_project");
   const supabase = await createClient();
@@ -823,11 +825,47 @@ export async function createProject(formData: FormData) {
     workspace_id: parsed.data.workspaceId,
     name: parsed.data.name,
     description: parsed.data.description ?? "",
+    icon: parsed.data.icon || "📁",
     created_by: user.id,
   });
   if (error) redirect(`/workspaces/${parsed.data.workspaceId}?error=project_failed`);
   revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
   redirect(`/workspaces/${parsed.data.workspaceId}`);
+}
+
+export async function updateProjectDetails(formData: FormData) {
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+    name: z.string().trim().min(2).max(120),
+    description: z.string().trim().max(2000).optional(),
+    icon: z.string().trim().max(10).optional(),
+  }).safeParse({
+    projectId: formData.get("projectId"),
+    name: formData.get("name"),
+    description: formData.get("description") || undefined,
+    icon: formData.get("icon") || undefined,
+  });
+  if (!parsed.success) {
+    const pId = formData.get("projectId");
+    redirect(pId ? `/projects/${pId}?error=invalid_project_details` : "/dashboard");
+  }
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+  const { data: canManage } = await supabase.rpc("can_manage_project", { target_project: parsed.data.projectId });
+  if (!canManage) redirect(`/projects/${parsed.data.projectId}?error=project_forbidden`);
+
+  const updatePayload: Record<string, any> = {
+    name: parsed.data.name,
+    updated_at: new Date().toISOString(),
+  };
+  if (parsed.data.description !== undefined) updatePayload.description = parsed.data.description;
+  if (parsed.data.icon !== undefined) updatePayload.icon = parsed.data.icon;
+
+  const { error } = await supabase.from("projects").update(updatePayload).eq("id", parsed.data.projectId);
+  if (error) redirect(`/projects/${parsed.data.projectId}?error=project_update_failed`);
+  revalidatePath(`/projects/${parsed.data.projectId}`);
+  redirect(`/projects/${parsed.data.projectId}?project_updated=1`);
 }
 
 export async function toggleProjectActiveStatus(formData: FormData) {
