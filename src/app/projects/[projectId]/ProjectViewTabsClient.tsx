@@ -70,9 +70,9 @@ function renderTabIcon(key: ProjectTabKey, isSelected: boolean) {
     case "goals":
       return <Target size={13} />;
     case "agents":
-      return <Bot size={13} style={{ color: isSelected ? "inherit" : "#8b5cf6" }} />;
+      return <Bot size={13} />;
     case "brain":
-      return <Brain size={13} style={{ color: isSelected ? "inherit" : "#16a34a" }} />;
+      return <Brain size={13} />;
     default:
       return null;
   }
@@ -202,7 +202,7 @@ export default function ProjectViewTabsClient({
               }}
               className={`${isSelected ? "selected" : ""}${
                 isDropTarget ? " is-tab-drop-target" : ""
-              }${key === "channel" ? " view-tab-channel" : ""}${key === "goals" ? " view-tab-channel" : ""}${key === "agents" ? " view-tab-channel view-tab-agents" : ""}`}
+              }`}
               title={`Open ${PROJECT_TAB_LABELS[key]} view (drag to reorder tabs)`}
             >
               {renderTabIcon(key, isSelected)}

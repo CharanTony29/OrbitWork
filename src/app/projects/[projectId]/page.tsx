@@ -41,7 +41,7 @@ export default async function ProjectPage({ params, searchParams }: {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: project } = await supabase.from("projects").select("id, workspace_id, name, description, status, priority, due_date, created_at, workspaces(name, organization_id)").eq("id", projectId).maybeSingle();
+  const { data: project } = await supabase.from("projects").select("id, workspace_id, name, description, status, priority, due_date, created_at, icon, workspaces(name, organization_id)").eq("id", projectId).maybeSingle();
   if (!project) notFound();
   const filters = await searchParams;
 

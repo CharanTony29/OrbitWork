@@ -545,7 +545,8 @@ html,body{background:var(--app-bg);color:var(--ink);font-family:var(--app-font-f
 }
 
 [data-color-scheme="dark"] .calendar-day.is-today {
-  background-color: #1a2b20 !important;
+  background-color: color-mix(in srgb, var(--green, #10b981) 16%, var(--surface, #171c19)) !important;
+  border-top: 2px solid var(--green, #10b981) !important;
 }
 
 [data-color-scheme="dark"] :is(

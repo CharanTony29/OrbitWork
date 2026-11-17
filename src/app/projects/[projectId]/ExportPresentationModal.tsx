@@ -93,7 +93,12 @@ export default function ExportPresentationModal({
         className="canvas-modal-container"
         onClick={(e) => e.stopPropagation()}
         style={{
-          maxWidth: 640,
+          width: "100%",
+          maxWidth: 680,
+          maxHeight: "88vh",
+          height: "auto",
+          display: "flex",
+          flexDirection: "column",
           borderRadius: 14,
           overflow: "hidden",
           padding: 0,
@@ -108,8 +113,9 @@ export default function ExportPresentationModal({
         {/* Header */}
         <div
           style={{
+            flexShrink: 0,
             background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
-            padding: "24px 28px",
+            padding: "20px 28px",
             color: "#ffffff",
             position: "relative",
           }}
@@ -165,7 +171,19 @@ export default function ExportPresentationModal({
         </div>
 
         {/* Modal Body */}
-        <div style={{ padding: "24px 28px", display: "grid", gap: 20 }}>
+        <div
+          style={{
+            flex: "1 1 auto",
+            minHeight: 0,
+            maxHeight: "calc(88vh - 190px)",
+            overflowY: "auto",
+            padding: "24px 28px",
+            display: "grid",
+            gap: 20,
+            scrollbarWidth: "thin",
+            scrollbarColor: "var(--line, #94a3b8) transparent",
+          }}
+        >
           {/* Period Selector Tabs */}
           <div>
             <label
@@ -585,6 +603,7 @@ export default function ExportPresentationModal({
         {/* Modal Footer */}
         <div
           style={{
+            flexShrink: 0,
             padding: "16px 28px",
             background: "var(--surface-subtle, #f8fafc)",
             borderTop: "1px solid var(--line, #e2e8f0)",

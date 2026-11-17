@@ -23,7 +23,7 @@ export default async function HierarchyNavigation({
   const { data: projects } = workspaceIds.length
     ? await supabase
         .from("projects")
-        .select("id, name, workspace_id")
+        .select("id, name, workspace_id, icon")
         .in("workspace_id", workspaceIds)
         .order("name")
     : { data: [] };
@@ -39,6 +39,7 @@ export default async function HierarchyNavigation({
         id: p.id,
         name: p.name,
         workspace_id: p.workspace_id,
+        icon: (p as any).icon || "📁",
       }))}
     />
   );

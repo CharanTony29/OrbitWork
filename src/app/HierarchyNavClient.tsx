@@ -29,10 +29,11 @@ type Props = {
   currentWorkspaceId: string;
   currentProjectId?: string;
   workspaces: Array<{ id: string; name: string }>;
-  projects: Array<{ id: string; name: string; workspace_id: string }>;
+  projects: Array<{ id: string; name: string; workspace_id: string; icon?: string | null }>;
 };
 
 const STORAGE_KEY = "orbitwork:sidebar-collapsed";
+const POPULAR_PROJECT_ICONS = ["📁", "🚀", "⚡", "🎯", "📊", "🛠️", "💻", "💡", "🔥", "🌟", "📦", "🎨", "🌐", "🔒", "🤖", "📈", "🧪", "📑"];
 
 export default function HierarchyNavClient({
   organizationId,
@@ -45,9 +46,11 @@ export default function HierarchyNavClient({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [customIcons, setCustomIcons] = useState<Record<string, string>>({});
+  const [editingIconProjectId, setEditingIconProjectId] = useState<string | null>(null);
   const pathname = usePathname();
 
-  // Initialize collapse preference from localStorage
+  // Initialize collapse preference and custom project icons from localStorage
   useEffect(() => {
     setMounted(true);
     try {
@@ -56,7 +59,50 @@ export default function HierarchyNavClient({
         setIsCollapsed(true);
       }
     } catch {}
+
+    try {
+      const savedIcons = localStorage.getItem("orbitwork:project_icons");
+      if (savedIcons) setCustomIcons(JSON.parse(savedIcons));
+    } catch {}
+
+    const handleIconChange = (e: any) => {
+      if (e?.detail?.projectId && e?.detail?.icon) {
+        setCustomIcons((prev) => {
+          const next = { ...prev, [e.detail.projectId]: e.detail.icon };
+          try {
+            localStorage.setItem("orbitwork:project_icons", JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      }
+    };
+    window.addEventListener("orbitwork:project-icon-change", handleIconChange);
+    return () => window.removeEventListener("orbitwork:project-icon-change", handleIconChange);
   }, []);
+
+  const handlePickIcon = async (projId: string, icon: string) => {
+    setCustomIcons((prev) => {
+      const next = { ...prev, [projId]: icon };
+      try {
+        localStorage.setItem("orbitwork:project_icons", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    setEditingIconProjectId(null);
+    window.dispatchEvent(
+      new CustomEvent("orbitwork:project-icon-change", {
+        detail: { projectId: projId, icon },
+      })
+    );
+
+    try {
+      await fetch(`/api/projects/${projId}/icon`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ icon }),
+      });
+    } catch {}
+  };
 
   // Update layout container classes
   useEffect(() => {
@@ -354,11 +400,91 @@ export default function HierarchyNavClient({
                           prefetch={false}
                           title={project.name}
                         >
-                          <span className="hierarchy-project-dot" />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setEditingIconProjectId(editingIconProjectId === project.id ? null : project.id);
+                            }}
+                            className="hierarchy-project-icon"
+                            title="Click to customize project icon"
+                            style={{
+                              border: 0,
+                              background: "transparent",
+                              padding: 0,
+                              cursor: "pointer",
+                              fontSize: 13,
+                              lineHeight: 1,
+                              flexShrink: 0,
+                              marginRight: 2,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            {customIcons[project.id] || project.icon || "📁"}
+                          </button>
                           <span className="hierarchy-link-label">
                             {project.name}
                           </span>
                         </Link>
+                        {editingIconProjectId === project.id && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              margin: "4px 0 8px 10px",
+                              padding: "8px 10px",
+                              background: "var(--surface, #ffffff)",
+                              border: "1px solid var(--line, #e2e8f0)",
+                              borderRadius: 10,
+                              boxShadow: "0 10px 25px rgba(0,0,0,0.18)",
+                              zIndex: 50,
+                              display: "grid",
+                              gap: 6,
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--ink, #0f172a)" }}>
+                                Choose Project Icon
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingIconProjectId(null);
+                                }}
+                                style={{ border: 0, background: "transparent", cursor: "pointer", color: "var(--muted)", padding: 2 }}
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4 }}>
+                              {POPULAR_PROJECT_ICONS.map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handlePickIcon(project.id, emoji);
+                                  }}
+                                  style={{
+                                    border: (customIcons[project.id] || project.icon || "📁") === emoji ? "1.5px solid var(--green, #167c58)" : "1px solid var(--line, #e2e8f0)",
+                                    background: (customIcons[project.id] || project.icon || "📁") === emoji ? "color-mix(in srgb, var(--green, #167c58) 12%, var(--surface))" : "var(--surface)",
+                                    borderRadius: 6,
+                                    padding: "4px 2px",
+                                    fontSize: 14,
+                                    cursor: "pointer",
+                                    display: "grid",
+                                    placeItems: "center",
+                                  }}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         {project.id === currentProjectId && (
                           <ProjectSublinks projectId={project.id} />
                         )}

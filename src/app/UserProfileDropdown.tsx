@@ -35,6 +35,7 @@ import {
 import { signOut } from "./actions";
 import UniversalCreateModal from "./UniversalCreateModal";
 import CustomThemeStudioModal from "./CustomThemeStudioModal";
+import QuickTimeTrackerModal from "./QuickTimeTrackerModal";
 import {
   PRESENCE_DURATION_OPTIONS,
   PRESENCE_STATUS_OPTIONS,
@@ -72,6 +73,7 @@ export default function UserProfileDropdown({
   const [notepadContent, setNotepadContent] = useState("");
   const [themeSubmenu, setThemeSubmenu] = useState(false);
   const [showThemeStudio, setShowThemeStudio] = useState(false);
+  const [showTimeTrackerModal, setShowTimeTrackerModal] = useState(false);
   const [universalModalTab, setUniversalModalTab] = useState<"task" | "reminder" | "doc" | "whiteboard" | "dashboard" | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
@@ -937,29 +939,30 @@ export default function UserProfileDropdown({
               <span>My Work</span>
             </Link>
 
-            <Link
-              href={
-                workspaceId
-                  ? `/workspaces/${workspaceId}/timesheets`
-                  : projectId
-                  ? `/projects/${projectId}/timesheets`
-                  : "/dashboard"
-              }
-              onClick={() => setIsOpen(false)}
+            <button
+              type="button"
+              onClick={() => {
+                setShowTimeTrackerModal(true);
+                setIsOpen(false);
+              }}
               className="user-menu-item"
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
+                width: "100%",
                 padding: "7px 16px",
                 fontSize: 12.5,
                 color: "var(--ink, #334155)",
-                textDecoration: "none",
+                background: "transparent",
+                border: 0,
+                cursor: "pointer",
+                textAlign: "left",
               }}
             >
               <Clock size={14} />
               <span>Track Time</span>
-            </Link>
+            </button>
 
             <button
               type="button"
@@ -1311,6 +1314,14 @@ export default function UserProfileDropdown({
       <CustomThemeStudioModal
         isOpen={showThemeStudio}
         onClose={() => setShowThemeStudio(false)}
+      />
+
+      {/* Quick Time Tracker Modal (Instant Start/Stop & Active Tasks) */}
+      <QuickTimeTrackerModal
+        isOpen={showTimeTrackerModal}
+        onClose={() => setShowTimeTrackerModal(false)}
+        workspaceId={workspaceId}
+        projectId={projectId}
       />
     </div>
   );

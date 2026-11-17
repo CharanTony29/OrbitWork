@@ -175,6 +175,9 @@
 .hierarchy-workspace-link.is-current,.hierarchy-project-link.is-current{background:var(--nav-hover);color:var(--green);font-weight:650}
 .hierarchy-project-dot{width:7px;height:7px;flex:none;border:1.5px solid var(--nav-muted);border-radius:2px}
 .hierarchy-project-link.is-current .hierarchy-project-dot{border-color:var(--green);background:var(--green)}
+.hierarchy-project-icon{font-size:13px;line-height:1;flex:none;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;transition:transform .12s ease}
+.hierarchy-project-icon:hover{transform:scale(1.18)}
+.hierarchy-project-link.is-current .hierarchy-project-icon{filter:drop-shadow(0 1px 3px rgba(0,0,0,0.2))}
 .hierarchy-project-group{display:grid;gap:2px}
 .hierarchy-project-sublinks{display:grid;gap:2px;margin:2px 0 6px 12px;padding-left:10px;border-left:1px dashed var(--nav-line)}
 .hierarchy-sublink{min-height:27px;display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:5px;color:var(--nav-muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:background .12s,color .12s}
@@ -365,7 +368,7 @@
 [data-color-scheme="dark"] .task-table td{background:#151a17;color:#dbe2dc;border-color:var(--line)}
 [data-color-scheme="dark"] .task-table tr:hover td{background:#202622}
 [data-color-scheme="dark"] :is(.kanban-column,.calendar-day,.calendar-day.outside,.gantt-task-name,.workload-person,.workload-tasks a){background:#171c19;color:var(--ink);border-color:var(--line)}
-[data-color-scheme="dark"] .calendar-day.is-today{background:#1d2b22}
+[data-color-scheme="dark"] .calendar-day.is-today{background:color-mix(in srgb, var(--green, #10b981) 16%, var(--surface, #171c19));border-top:2px solid var(--green, #10b981)}
 [data-color-scheme="dark"] .calendar-day-number{color:#ced7d0}
 [data-color-scheme="dark"] .calendar-task{color:#e3eee6;background:#26362b;box-shadow:inset 0 0 0 1px #374b3d}
 [data-color-scheme="dark"] .calendar-task.is-planned{color:#cad4cc;background:#252b27}
