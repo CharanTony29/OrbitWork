@@ -5,28 +5,28 @@ import { createClient } from "@/lib/supabase/server";
 import {
   ArrowRight,
   Bot,
+  Brain,
   Building2,
-  Calendar,
   Clock,
   Cloud,
   FileText,
+  Globe2,
   Kanban,
-  MessageSquare,
-  Share2,
+  Layers,
+  Rocket,
   ShieldCheck,
   Sparkles,
-  Timer,
   Users,
   Zap,
 } from "lucide-react";
-import {
-  HomeInteractiveTabs,
-  HomeTeamPersonas,
-  HomeFaqAccordion,
-} from "./HomeInteractiveTabs";
 import { BrandMark } from "./BrandMark";
-import { HeroInteractiveMockup } from "./HeroInteractiveMockup";
 import { PublicSiteHeader, PublicSiteFooter } from "./PublicSiteChrome";
+import { Hero3DWorkspaceStage } from "./_components/home/Hero3DWorkspaceStage";
+import {
+  HowItWorksReel,
+  ProductShowcase,
+  ProjectBrainFlow,
+} from "./_components/home/LazyHomeSections";
 import {
   CANONICAL_HOME_URL,
   CANONICAL_LOGO_URL,
@@ -35,22 +35,24 @@ import {
 } from "@/lib/seo";
 
 export const metadata: Metadata = buildPublicMetadata({
-  title: "Orbitwork — Project Management & Work Management Software",
+  title: "Orbitwork — AI Project Management Software, Docs & Team Collaboration",
   absoluteTitle: true,
   description:
-    "Orbitwork is modern project management and work management software uniting Kanban boards, Gantt timelines, task sheets, docs, team chat, timesheets, and cloud storage.",
+    "Orbitwork is AI project management software that brings task management, project planning, living project documentation, team collaboration, autonomous AI agents, and Project Brain into one unified workspace.",
   path: "/",
   keywords: [
     "Orbitwork",
     "project management software",
     "project management tool",
-    "work management software",
-    "free project management tool",
-    "free project management software",
+    "AI project management",
+    "team collaboration",
+    "task management",
+    "project planning",
+    "project documentation",
+    "AI agents for teams",
+    "Project Brain",
     "Kanban board",
-    "Gantt chart software",
-    "team time tracking",
-    "Jira alternative",
+    "Gantt timeline",
   ],
 });
 
@@ -71,7 +73,7 @@ const STRUCTURED_DATA = {
       image: CANONICAL_LOGO_URL,
       email: "orbitwork.admin@gmail.com",
       description:
-        "Modern multi-tenant project management, time tracking, documentation, and team collaboration platform.",
+        "AI-powered project management software uniting task management, living project documentation, team collaboration, time tracking, and Project Brain in one workspace.",
     },
     {
       "@type": "WebSite",
@@ -84,11 +86,21 @@ const STRUCTURED_DATA = {
       "@type": "SoftwareApplication",
       name: "Orbitwork",
       applicationCategory: "BusinessApplication",
+      applicationSubCategory: "Project Management Software",
       operatingSystem: "Web",
       url: CANONICAL_HOME_URL,
       image: CANONICAL_LOGO_URL,
       description:
-        "All-in-one project management and work management software featuring Kanban boards, task sheets, Gantt timelines, workload calendars, timesheets, collaborative docs, team chat, and cloud drive sync.",
+        "Unified AI project management tool combining List, Board, Calendar, Gantt Timeline, Workload, Whiteboard, Flowchart, Living Docs, Team Chat, Timesheets, Custom AI Agents, and Project Brain.",
+      featureList: [
+        "12 synchronized project views including List, Kanban Board, Gantt Timeline, Calendar, Workload, Whiteboard, and Flowchart",
+        "Living Markdown project documentation linked directly to tasks with version snapshots and PDF export",
+        "Custom AI Agents Hub with event-driven triggers and AI Subtask Planner",
+        "Project Brain for health diagnostics, preventive risk detection, change impact simulation, and decision memory",
+        "Built-in task timers, weekly timesheet approvals, leave requests, and country holiday calendars",
+        "Multi-tenant Organizations and Workspaces secured by PostgreSQL Row Level Security",
+        "Workspace-level cloud storage routing for Google Drive, OneDrive, SharePoint, or encrypted database storage",
+      ],
       offers: {
         "@type": "Offer",
         price: "0",
@@ -96,68 +108,72 @@ const STRUCTURED_DATA = {
       },
     },
     {
-      "@type": "FAQPage",
-      mainEntity: [
+      "@type": "HowTo",
+      name: "How Orbitwork Works: Plan, Collaborate, Execute, and Improve",
+      description:
+        "Manage projects, documentation, team collaboration, and AI-assisted delivery inside one Orbitwork workspace.",
+      step: [
         {
-          "@type": "Question",
-          name: "What is Orbitwork and how does it compare to other project management tools?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Orbitwork is a unified project management and work collaboration platform designed to replace fragmented tool stacks (like Jira + Toggl + Google Docs + Slack). It combines multi-tenant organizations and workspaces, Kanban boards, interactive task sheets, Gantt timelines, built-in time tracking, weekly timesheet approvals, Markdown docs, real-time team chat, and cloud storage integrations.",
-          },
+          "@type": "HowToStep",
+          position: 1,
+          name: "Plan",
+          text: "Create projects, decompose goals or meeting notes into tasks and subtasks with AI, and schedule milestones on Gantt timelines.",
         },
         {
-          "@type": "Question",
-          name: "Is Orbitwork free to start for small and growing teams?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Yes. Orbitwork is free to start. You can create workspaces, projects, task views, checklists, custom fields, docs, and timesheets without paying upfront or entering a credit card.",
-          },
+          "@type": "HowToStep",
+          position: 2,
+          name: "Collaborate",
+          text: "Link living Markdown project documentation directly to tasks, discuss updates in real-time Project Channels, and share workspace cloud files.",
         },
         {
-          "@type": "Question",
-          name: "How does multi-tenant organization and workspace security work?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Orbitwork uses PostgreSQL Row Level Security (RLS) to enforce strict isolation across every organization, workspace, and project. Owners and admins manage roles (Owner, Admin, Member, Viewer) so internal teams, contractors, and clients only see the projects assigned to them.",
-          },
+          "@type": "HowToStep",
+          position: 3,
+          name: "Execute",
+          text: "Track delivery across Kanban boards, task sheets, and calendars while running live task timers and event-driven AI Agents.",
         },
         {
-          "@type": "Question",
-          name: "Can we connect Google Drive, Microsoft OneDrive, or SharePoint?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Yes. Each workspace can choose its own storage provider—Google Drive, Microsoft OneDrive, SharePoint, or Orbitwork built-in database storage—using minimal OAuth 2.0 scopes and AES-256-GCM encryption for credentials at rest.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "How do built-in time tracking, timesheets, and holidays work?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Team members can start live stopwatch timers directly on tasks or log manual billable hours, then submit weekly timesheets for manager review and CSV/PDF export. Organizations can also manage PTO leave requests and auto-import country public holidays.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "Can users customize project view tabs, table columns, and chat alerts?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Yes. Every user can reorder project view tabs (List, Board, Calendar, Timeline, Workload, Whiteboard, Flowchart, Channel, Goals, AI Agents) and customize table column layouts independently without affecting teammates, while receiving real-time team chat messages, notifications, and email alerts.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "How do Autonomous AI Agents and the Subtask Planner work in Orbitwork?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Orbitwork integrates specialized AI agents directly into your workspace. The AI Subtask Planner decomposes complex tickets into sequenced tasks with time estimates, while agents like QA Architect and Scope Refiner audit requirements for missing edge cases and draft acceptance criteria—freeing your engineers and managers from repetitive administrative overhead.",
-          },
+          "@type": "HowToStep",
+          position: 4,
+          name: "Improve",
+          text: "Use Project Brain to monitor project health, detect schedule and workload risks early, simulate deadline changes, and record team decisions.",
         },
       ],
     },
   ],
 };
+
+const AUDIENCE_ITEMS = [
+  {
+    icon: Building2,
+    title: "Small & Growing Businesses",
+    description:
+      "Replace scattered spreadsheets, chat threads, and disconnected time trackers with one structured workspace.",
+  },
+  {
+    icon: Rocket,
+    title: "Startups",
+    description:
+      "Move from roadmap specs to shipped sprints fast—without enterprise bloat or stitching five tools together.",
+  },
+  {
+    icon: Layers,
+    title: "Project & Product Teams",
+    description:
+      "Keep PRDs, Kanban boards, task sheets, dependencies, Gantt timelines, and releases continuously aligned.",
+  },
+  {
+    icon: Globe2,
+    title: "Remote & Distributed Teams",
+    description:
+      "Stay coordinated across time zones with built-in channels, living docs, workload views, and holiday calendars.",
+  },
+  {
+    icon: Sparkles,
+    title: "Teams Unifying PM + Docs + AI",
+    description:
+      "Run task management, project documentation, and autonomous AI agents in one shared context.",
+  },
+];
 
 export default async function Home({
   searchParams,
@@ -185,7 +201,8 @@ export default async function Home({
     if (params.error) cbQuery.set("error", params.error);
     if (params.error_description) cbQuery.set("error_description", params.error_description);
     const targetOrigin =
-      process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_APP_URL?.includes("orbitwork.org")
+      process.env.NODE_ENV === "production" ||
+      process.env.NEXT_PUBLIC_APP_URL?.includes("orbitwork.org")
         ? "https://app.orbitwork.org"
         : "";
     redirect(`${targetOrigin}/auth/callback?${cbQuery.toString()}`);
@@ -194,7 +211,8 @@ export default async function Home({
   // 2. If recovery flow landed on home page, forward immediately to reset-password page on app.orbitwork.org
   if (params.type === "recovery" || params.next?.includes("reset-password")) {
     const targetOrigin =
-      process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_APP_URL?.includes("orbitwork.org")
+      process.env.NODE_ENV === "production" ||
+      process.env.NEXT_PUBLIC_APP_URL?.includes("orbitwork.org")
         ? "https://app.orbitwork.org"
         : "";
     redirect(`${targetOrigin}/auth/reset-password`);
@@ -284,6 +302,8 @@ export default async function Home({
     );
   }
 
+  const isLoggedIn = Boolean(user);
+
   return (
     <div className="hp-page">
       <script
@@ -294,665 +314,265 @@ export default async function Home({
       <PublicSiteHeader active="home" userEmail={user?.email ?? null} />
 
       <main>
-        {/* Hero Section */}
-        <section className="hp-hero">
-          <div className="hp-hero-glow" />
+        {/* 1. HERO SECTION */}
+        <section className="hp-hero" aria-labelledby="hero-heading">
+          <div className="hp-hero-bg-grid" aria-hidden="true" />
+          <div className="hp-hero-orb hp-hero-orb-1" aria-hidden="true" />
+          <div className="hp-hero-orb hp-hero-orb-2" aria-hidden="true" />
+
           <div className="hp-container hp-hero-content">
             <div className="hp-pill-badge">
-              <Bot size={14} style={{ color: "#8b5cf6" }} />
-              <span>All-in-One Project Platform · Powered by Autonomous AI</span>
+              <Sparkles size={14} className="hp-badge-sparkle" aria-hidden="true" />
+              <span>AI Project Management · Docs · Team Collaboration</span>
             </div>
 
-            <h1 className="hp-hero-title">
-              Modern Project Management for{" "}
-              <span className="hp-hero-highlight">
-                Projects, People, and Progress
-              </span>
+            <h1 className="hp-hero-title" id="hero-heading">
+              Project Management, Docs &amp; AI —{" "}
+              <span className="hp-hero-highlight">Built as One Workspace</span>
             </h1>
 
             <p className="hp-hero-subtitle">
-              Unify agile Kanban boards, interactive task spreadsheets, Gantt
-              timelines, autonomous AI agents, collaborative Markdown docs, real-time team chat, built-in
-              time tracking, and multi-cloud storage inside one calm, distraction-free
-              workspace.
+              Orbitwork is modern project management software for startups, growing businesses, and distributed product teams—uniting task management, project planning, living documentation, AI agents, and Project Brain in one place.
             </p>
 
             <div className="hp-hero-cta-group">
-              {user ? (
+              {isLoggedIn ? (
                 <>
-                  <Link href="/my-dashboard" className="hp-btn-primary">
-                    Go to Your Dashboard <ArrowRight size={17} />
+                  <Link href="/my-dashboard" className="hp-btn-primary hp-btn-lg">
+                    Open Your Dashboard <ArrowRight size={17} />
                   </Link>
-                  <Link href="/services/project-management" className="hp-btn-secondary">
-                    Explore Capabilities
-                  </Link>
+                  <a href="#how-it-works" className="hp-btn-secondary hp-btn-lg">
+                    See How It Works
+                  </a>
                 </>
               ) : (
                 <>
-                  <Link href="/signup" className="hp-btn-primary">
-                    Get Started for Free <ArrowRight size={17} />
+                  <Link href="/signup" className="hp-btn-primary hp-btn-lg">
+                    Start Free Workspace <ArrowRight size={17} />
                   </Link>
-                  <Link href="/services/project-management" className="hp-btn-secondary">
-                    Explore Project Management
-                  </Link>
+                  <a href="#how-it-works" className="hp-btn-secondary hp-btn-lg">
+                    See How It Works
+                  </a>
                 </>
               )}
             </div>
 
-            <ul className="hp-hero-checklist">
-              <li>10 Synchronized Views (Kanban, Sheet, Gantt &amp; more)</li>
-              <li>Autonomous AI Agents &amp; Subtask Planner</li>
-              <li>Built-in Timers &amp; Weekly Timesheets</li>
-              <li>Multi-Cloud Storage &amp; Team Chat</li>
+            <ul className="hp-hero-capabilities" aria-label="Core platform capabilities">
+              <li>12 Synchronized Views</li>
+              <li>Living Project Docs</li>
+              <li>Autonomous AI Agents &amp; Project Brain</li>
+              <li>Free to Start · No Card Required</li>
             </ul>
 
-            {/* Product Hero Mockup Preview */}
-            <div className="hp-preview-wrap">
-              <div className="hp-float-card hp-float-card-1">
-                <div className="hp-float-icon hp-icon-green">
-                  <Timer size={20} />
-                </div>
-                <div className="hp-float-text">
-                  <strong>38.5 Hours Logged</strong>
-                  <span>Weekly Timesheet · Approved ✓</span>
-                </div>
-              </div>
-
-              <div className="hp-float-card hp-float-card-2">
-                <div className="hp-float-icon hp-icon-amber">
-                  <Cloud size={20} />
-                </div>
-                <div className="hp-float-text">
-                  <strong>Drive, OneDrive &amp; SharePoint</strong>
-                  <span>Workspace cloud sync active</span>
-                </div>
-              </div>
-
-              <HeroInteractiveMockup />
-            </div>
+            {/* Interactive 3D Product Workspace Stage */}
+            <Hero3DWorkspaceStage />
           </div>
         </section>
 
-        {/* Value Pillars Strip */}
-        <section className="hp-value-strip">
+        {/* 2. TARGET AUDIENCE */}
+        <section className="hp-audience-section" aria-labelledby="audience-heading">
           <div className="hp-container">
-            <div className="hp-value-grid">
-              <div className="hp-value-item">
-                <div className="hp-value-icon">
-                  <Zap size={22} />
-                </div>
-                <div>
-                  <h4>Zero Context Switching</h4>
-                  <p>
-                    Tasks, boards, Gantt charts, docs, timesheets, and real-time
-                    team chat live together in one coherent workspace.
-                  </p>
-                </div>
-              </div>
+            <div className="hp-audience-header">
+              <span className="hp-section-tag">Who Orbitwork Is Built For</span>
+              <h2 className="hp-audience-title" id="audience-heading">
+                One project management tool built for modern teams at every stage
+              </h2>
+            </div>
 
-              <div className="hp-value-item">
-                <div className="hp-value-icon">
-                  <ShieldCheck size={22} />
-                </div>
-                <div>
-                  <h4>Multi-Tenant Isolation</h4>
-                  <p>
-                    PostgreSQL Row Level Security keeps every organization,
-                    workspace, client project, and file strictly isolated.
-                  </p>
-                </div>
-              </div>
-
-              <div className="hp-value-item">
-                <div className="hp-value-icon">
-                  <Cloud size={22} />
-                </div>
-                <div>
-                  <h4>Your Choice of Cloud</h4>
-                  <p>
-                    Store project files in Google Drive, OneDrive, SharePoint, or
-                    built-in encrypted local storage per workspace.
-                  </p>
-                </div>
-              </div>
-
-              <div className="hp-value-item">
-                <div className="hp-value-icon">
-                  <Clock size={22} />
-                </div>
-                <div>
-                  <h4>Native Time &amp; Leave Tracking</h4>
-                  <p>
-                    Live task stopwatch timers, weekly timesheet approvals, and
-                    country public holidays built directly into your workflow.
-                  </p>
-                </div>
-              </div>
+            <div className="hp-audience-grid">
+              {AUDIENCE_ITEMS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <article key={item.title} className="hp-audience-card">
+                    <div className="hp-audience-icon" aria-hidden="true">
+                      <Icon size={19} />
+                    </div>
+                    <h3>{item.title}</h3>
+                    <p>{item.description}</p>
+                  </article>
+                );
+              })}
             </div>
           </div>
         </section>
 
-        {/* Solutions & Use Cases Overview */}
+        {/* 3. HOW ORBITWORK WORKS (Plan → Collaborate → Execute → Improve) */}
+        <HowItWorksReel />
+
+        {/* 4. PRODUCT SHOWCASE (Projects, List/Board/Timeline, Tasks, Docs, AI Agents, Project Brain, Collaboration) */}
+        <div id="views" />
+        <ProductShowcase isUserLoggedIn={isLoggedIn} />
+
+        {/* 5. AI + PROJECT BRAIN (Animated Data-Flow Visualization) */}
+        <ProjectBrainFlow />
+
+        {/* 6. WHY ORBITWORK (Projects + Knowledge + AI in One Workspace) */}
         <section
-          className="hp-container"
-          id="solutions"
-          style={{ padding: "64px 24px 24px" }}
-        >
-          <div className="hp-section-header">
-            <span className="hp-section-tag">Built for Modern Teams</span>
-            <h2 className="hp-section-title">
-              Project execution tailored to how real organizations work
-            </h2>
-            <p className="hp-section-desc">
-              Whether managing client deliverables, software sprints, agency
-              retainers, or cross-department operations, Orbitwork keeps every
-              milestone, assignee, document, and logged hour aligned.
-            </p>
-          </div>
-
-          <div className="hp-two-col-grid">
-            <article className="hp-info-card">
-              <div className="hp-feature-icon-wrap">
-                <Kanban size={24} />
-              </div>
-              <h3>Project &amp; Task Management</h3>
-              <p>
-                Plan work with customizable workflow statuses, subtasks with
-                independent assignees, progress bars, checklists, dependencies,
-                and personalizable per-user view tabs and sheet columns.
-              </p>
-              <Link href="/services/project-management" className="hp-inline-link">
-                Explore Project Management <ArrowRight size={14} />
-              </Link>
-            </article>
-
-            <article className="hp-info-card">
-              <div className="hp-feature-icon-wrap">
-                <MessageSquare size={24} />
-              </div>
-              <h3>Real-Time Team Chat &amp; Channels</h3>
-              <p>
-                Collaborate via workspace channels, custom group chats, and direct
-                messages with instant pop-up notifications, read receipts, image
-                pasting, and 1-click task creation from any message.
-              </p>
-              <Link href="/services" className="hp-inline-link">
-                See Platform Solutions <ArrowRight size={14} />
-              </Link>
-            </article>
-
-            <article className="hp-info-card">
-              <div className="hp-feature-icon-wrap">
-                <Calendar size={24} />
-              </div>
-              <h3>Timesheets, Leave &amp; Public Holidays</h3>
-              <p>
-                Track billable and non-billable effort with live task timers,
-                approve weekly timesheets, coordinate team PTO, and automatically
-                populate public holidays for your selected country.
-              </p>
-              <Link href="/projects-case-studies" className="hp-inline-link">
-                View Team Use Cases <ArrowRight size={14} />
-              </Link>
-            </article>
-
-            <article className="hp-info-card">
-              <div className="hp-feature-icon-wrap">
-                <Users size={24} />
-              </div>
-              <h3>Organizations, Workspaces &amp; Client Access</h3>
-              <p>
-                Structure companies cleanly into Organizations, Workspaces, and
-                Projects with Owner, Admin, Member, and Viewer permissions plus
-                seamless password-less or Google sign-in.
-              </p>
-              <Link href="/about" className="hp-inline-link">
-                Learn About Orbitwork <ArrowRight size={14} />
-              </Link>
-            </article>
-          </div>
-        </section>
-
-        {/* Autonomous AI Agents & Intelligence Showcase */}
-        <section
-          className="hp-container"
-          id="ai"
-          style={{ padding: "48px 24px 24px" }}
-        >
-          <div className="hp-section-header">
-            <span
-              className="hp-section-tag"
-              style={{
-                background: "rgba(139, 92, 246, 0.12)",
-                color: "#8b5cf6",
-                borderColor: "rgba(139, 92, 246, 0.25)",
-              }}
-            >
-              ✨ Autonomous Project Intelligence
-            </span>
-            <h2 className="hp-section-title">
-              Autonomous AI Agents &amp; Subtask Decomposition built into every workflow
-            </h2>
-            <p className="hp-section-desc">
-              Eliminate project ambiguity and manual ticket busywork. Orbitwork pairs deep workspace context with specialized autonomous agents to break down requirements, draft test suites, and summarize sprint progress instantly.
-            </p>
-          </div>
-
-          <div className="hp-two-col-grid">
-            <article className="hp-info-card" style={{ borderLeft: "3px solid #8b5cf6" }}>
-              <div
-                className="hp-feature-icon-wrap"
-                style={{ background: "rgba(139, 92, 246, 0.1)", color: "#8b5cf6" }}
-              >
-                <Bot size={24} />
-              </div>
-              <h3>Project AI Agents Hub</h3>
-              <p>
-                Deploy specialized autonomous agents across your projects: QA Architect for test coverage and regression checks, Scope Refiner to catch missing edge cases, and Release Coordinator to flag critical blockers.
-              </p>
-              <div style={{ marginTop: 12 }}>
-                <span className="hp-tag hp-tag-purple" style={{ fontSize: 11 }}>
-                  QA Architect · Scope Refiner · Custom Prompts
-                </span>
-              </div>
-            </article>
-
-            <article className="hp-info-card" style={{ borderLeft: "3px solid #167c58" }}>
-              <div
-                className="hp-feature-icon-wrap"
-                style={{ background: "rgba(22, 124, 88, 0.1)", color: "#167c58" }}
-              >
-                <Sparkles size={24} />
-              </div>
-              <h3>1-Click AI Subtask Planner</h3>
-              <p>
-                Transform complex epics into sequenced, assignable subtasks in seconds. The planner automatically estimates execution time, recommends assignees based on domain expertise, and drafts step-by-step checklists.
-              </p>
-              <div style={{ marginTop: 12 }}>
-                <span className="hp-tag hp-tag-green" style={{ fontSize: 11 }}>
-                  Automatic Checklists &amp; Effort Estimates
-                </span>
-              </div>
-            </article>
-
-            <article className="hp-info-card" style={{ borderLeft: "3px solid #2563eb" }}>
-              <div
-                className="hp-feature-icon-wrap"
-                style={{ background: "rgba(37, 99, 235, 0.1)", color: "#2563eb" }}
-              >
-                <MessageSquare size={24} />
-              </div>
-              <h3>Context-Aware AI Assistant</h3>
-              <p>
-                A floating assistant that knows your active sprint. Ask &quot;What are our blockers for release?&quot;, draft executive status updates, or generate new project tasks straight from conversation threads.
-              </p>
-              <div style={{ marginTop: 12 }}>
-                <span className="hp-tag hp-tag-blue" style={{ fontSize: 11 }}>
-                  Live Workspace RAG &amp; Sprint Summaries
-                </span>
-              </div>
-            </article>
-
-            <article className="hp-info-card" style={{ borderLeft: "3px solid #d97706" }}>
-              <div
-                className="hp-feature-icon-wrap"
-                style={{ background: "rgba(217, 119, 6, 0.1)", color: "#d97706" }}
-              >
-                <ShieldCheck size={24} />
-              </div>
-              <h3>Description Polish &amp; Ticket Diagnostics</h3>
-              <p>
-                Clean up rough draft notes with one click. Orbitwork AI structures descriptions into User Stories, Acceptance Criteria (Gherkin style), and technical prerequisites while scoring clarity before work begins.
-              </p>
-              <div style={{ marginTop: 12 }}>
-                <span className="hp-tag hp-tag-amber" style={{ fontSize: 11 }}>
-                  Acceptance Criteria &amp; Clarity Scoring
-                </span>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        {/* Interactive Workspace Tabs Showcase */}
-        <div className="hp-container">
-          <HomeInteractiveTabs isUserLoggedIn={!!user} />
-        </div>
-
-        {/* Core Features Deep Dive Grid */}
-        <section
-          className="hp-container"
+          className="hp-section hp-why-section"
           id="features"
-          style={{ padding: "56px 24px" }}
+          aria-labelledby="why-orbitwork-heading"
         >
-          <div className="hp-section-header">
-            <span className="hp-section-tag">Core Capabilities</span>
-            <h2 className="hp-section-title">
-              Everything required for calm, high-velocity execution
-            </h2>
-            <p className="hp-section-desc">
-              Replace scattered trackers, chat apps, and billing sheets with one
-              cohesive workspace.
-            </p>
-          </div>
-
-          <div className="hp-features-grid">
-            <div className="hp-feature-card">
-              <div className="hp-feature-icon-wrap">
-                <Kanban size={26} />
-              </div>
-              <h3>10 Synchronized Project Views</h3>
-              <p>
-                Switch effortlessly between List, Board, Calendar, Gantt
-                Timeline, Workload, Whiteboard, Flowchart, Project Channel, Goals,
-                and AI Agents Hub tabs arranged in your preferred order.
-              </p>
-              <ul className="hp-feature-bullets">
-                <li>Per-user custom tab &amp; column ordering</li>
-                <li>Multi-value custom fields &amp; inline editing</li>
-                <li>Subtasks, progress tracking &amp; dependencies</li>
-              </ul>
-            </div>
-
-            <div className="hp-feature-card" id="timesheets">
-              <div className="hp-feature-icon-wrap">
-                <Clock size={26} />
-              </div>
-              <h3>Integrated Time Tracking</h3>
-              <p>
-                Accurate, pain-free time logging inside every task. Submit weekly
-                timesheets for manager approval and monitor remaining budget hours.
-              </p>
-              <ul className="hp-feature-bullets">
-                <li>Live task stopwatch timers &amp; manual logs</li>
-                <li>Billable vs non-billable categorization</li>
-                <li>One-click CSV export &amp; PDF reports</li>
-              </ul>
-            </div>
-
-            <div className="hp-feature-card">
-              <div className="hp-feature-icon-wrap">
-                <FileText size={26} />
-              </div>
-              <h3>Living Project Docs &amp; Wikis</h3>
-              <p>
-                Write project specs, meeting notes, and team SOPs with inline
-                images, task references, revision history snapshots, and PDF
-                export.
-              </p>
-              <ul className="hp-feature-bullets">
-                <li>Rich Markdown formatting &amp; resizable images</li>
-                <li>Version history &amp; restore checkpoints</li>
-                <li>Instant HTML and PDF export anytime</li>
-              </ul>
-            </div>
-
-            <div className="hp-feature-card" id="storage">
-              <div className="hp-feature-icon-wrap">
-                <Cloud size={26} />
-              </div>
-              <h3>Multi-Cloud Storage Freedom</h3>
-              <p>
-                You retain control of your files. Attach Google Drive, Microsoft
-                OneDrive, SharePoint, or Orbitwork&apos;s encrypted database
-                storage per workspace.
-              </p>
-              <ul className="hp-feature-bullets">
-                <li>Encrypted OAuth credentials (AES-256-GCM)</li>
-                <li>Workspace-level storage routing</li>
-                <li>Zero vendor lock-in or extra hosting markup</li>
-              </ul>
-            </div>
-
-            <div className="hp-feature-card">
-              <div className="hp-feature-icon-wrap">
-                <Building2 size={26} />
-              </div>
-              <h3>Multi-Tenant Hierarchy</h3>
-              <p>
-                Organize complex teams clearly: Organizations contain
-                Workspaces, Workspaces house Projects, and Projects manage Tasks
-                and Docs.
-              </p>
-              <ul className="hp-feature-bullets">
-                <li>Owner, Admin, Member &amp; Viewer roles</li>
-                <li>Bulk teammate email invitations</li>
-                <li>Granular project &amp; workspace access</li>
-              </ul>
-            </div>
-
-            <div className="hp-feature-card">
-              <div className="hp-feature-icon-wrap">
-                <Share2 size={26} />
-              </div>
-              <h3>Whiteboards &amp; Flowcharts</h3>
-              <p>
-                Brainstorm architectures, customer journeys, and workflow diagrams
-                with interactive flowcharts and whiteboards linked directly to
-                project tasks.
-              </p>
-              <ul className="hp-feature-bullets">
-                <li>Convert canvas shapes into tracked tasks</li>
-                <li>Visual dependency arrows &amp; milestones</li>
-                <li>Share diagrams in team chat &amp; channels</li>
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        {/* Team Personas Showcase */}
-        <div className="hp-container">
-          <HomeTeamPersonas />
-        </div>
-
-        {/* How the Workspace Fits Together */}
-        <section className="hp-compare-section" id="comparison">
           <div className="hp-container">
             <div className="hp-section-header">
-              <span className="hp-section-tag">Unified Architecture</span>
-              <h2 className="hp-section-title">
-                How Orbitwork brings every project workflow together
+              <span className="hp-section-tag">Why Orbitwork</span>
+              <h2 className="hp-section-title" id="why-orbitwork-heading">
+                Projects, knowledge, and AI belong in the same workspace
               </h2>
               <p className="hp-section-desc">
-                Tasks, conversations, files, time logs, and project documentation
-                stay synchronized in one place.
+                When planning, project documentation, team collaboration, and AI share one live data layer, teams spend less time copying context and more time delivering.
               </p>
             </div>
 
-            <div className="hp-compare-table-wrap">
-              <table className="hp-compare-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: "25%" }}>Capability</th>
-                    <th style={{ width: "38%" }} className="hp-compare-highlight-col">
-                      <div className="hp-compare-badge-orbit">
-                        <BrandMark
-                          size={22}
-                          style={{
-                            width: 22,
-                            height: 22,
-                            marginRight: 4,
-                            borderRadius: 6,
-                          }}
-                        />
-                        In Orbitwork
-                      </div>
-                    </th>
-                    <th style={{ width: "37%" }}>Team Benefit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <strong>Task Planning</strong>
-                    </td>
-                    <td className="hp-compare-highlight-col">
-                      <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
-                        10 Flexible Views
-                      </span>{" "}
-                      — List, Board, Calendar, Timeline, Workload, Flowchart,
-                      Whiteboard, Channel, Goals &amp; AI Agents
-                    </td>
-                    <td>
-                      Every teammate views live project state in the format that
-                      fits their role best.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <strong>AI Project Intelligence</strong>
-                    </td>
-                    <td className="hp-compare-highlight-col">
-                      <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
-                        Autonomous AI Agents
-                      </span>{" "}
-                      — Subtask Planner, QA Architect, Scope Refiner &amp; floating AI Assistant
-                    </td>
-                    <td>
-                      Saves hours weekly per engineer in scoping, ticket formatting, and sprint status tracking.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <strong>Time &amp; Timesheets</strong>
-                    </td>
-                    <td className="hp-compare-highlight-col">
-                      <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
-                        Built-in Timers
-                      </span>{" "}
-                      — Task stopwatches + weekly approval &amp; CSV/PDF export
-                    </td>
-                    <td>
-                      Eliminates separate time trackers and tracks billable client
-                      work accurately.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <strong>Team Messaging</strong>
-                    </td>
-                    <td className="hp-compare-highlight-col">
-                      <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
-                        Integrated Chat
-                      </span>{" "}
-                      — Direct DMs, group chats, channels, read receipts &amp;
-                      alerts
-                    </td>
-                    <td>
-                      Keep project discussions searchable and turn any message into
-                      an assigned task.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <strong>Project Documents</strong>
-                    </td>
-                    <td className="hp-compare-highlight-col">
-                      <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
-                        Living Docs
-                      </span>{" "}
-                      — Markdown specs, embedded images &amp; version history
-                    </td>
-                    <td>
-                      Requirements, meeting notes, and runbooks stay right alongside
-                      tasks.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <strong>File Storage</strong>
-                    </td>
-                    <td className="hp-compare-highlight-col">
-                      <span style={{ color: "var(--hp-green)", fontWeight: 700 }}>
-                        Bring Your Cloud
-                      </span>{" "}
-                      — Google Drive, OneDrive, SharePoint or Local DB
-                    </td>
-                    <td>
-                      Every workspace connects the storage provider your company
-                      already governs.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <div className="hp-bento-grid">
+              {/* Featured Wide Bento Card */}
+              <article className="hp-bento-card hp-bento-wide">
+                <div className="hp-bento-wide-copy">
+                  <div className="hp-bento-icon hp-bi-emerald" aria-hidden="true">
+                    <Zap size={20} />
+                  </div>
+                  <h3>Projects + Knowledge + AI — Zero Context Switching</h3>
+                  <p>
+                    Tasks link straight to living project specs, team channels convert messages into tracked work, and Project Brain reads it all in real time—no fragile sync plugins between separate apps.
+                  </p>
+                </div>
+
+                {/* Visual Convergence Pill Diagram */}
+                <div
+                  className="hp-convergence-visual"
+                  role="img"
+                  aria-label="Diagram showing Projects, Knowledge Docs, and AI Agents converging into one unified Orbitwork workspace"
+                >
+                  <div className="hp-conv-pill">
+                    <Kanban size={14} /> Projects &amp; Tasks
+                  </div>
+                  <span className="hp-conv-plus" aria-hidden="true">+</span>
+                  <div className="hp-conv-pill">
+                    <FileText size={14} /> Living Docs
+                  </div>
+                  <span className="hp-conv-plus" aria-hidden="true">+</span>
+                  <div className="hp-conv-pill hp-conv-pill-ai">
+                    <Brain size={14} /> Project Brain &amp; AI
+                  </div>
+                  <span className="hp-conv-eq" aria-hidden="true">→</span>
+                  <div className="hp-conv-result">
+                    <BrandMark size={18} />
+                    <span>One Shared Source of Truth</span>
+                  </div>
+                </div>
+              </article>
+
+              <article className="hp-bento-card">
+                <div className="hp-bento-icon hp-bi-violet" aria-hidden="true">
+                  <Bot size={20} />
+                </div>
+                <h3>AI Agents Built Into Real Events</h3>
+                <p>
+                  Trigger acceptance checklists, subtask assignee inheritance, effort estimates, or custom plain-English agents automatically on task creation or status changes.
+                </p>
+              </article>
+
+              <article className="hp-bento-card">
+                <div className="hp-bento-icon hp-bi-emerald" aria-hidden="true">
+                  <ShieldCheck size={20} />
+                </div>
+                <h3>Multi-Tenant Security via PostgreSQL RLS</h3>
+                <p>
+                  Organizations, Workspaces, and Projects are isolated at the database row level with Owner, Admin, Member, and Viewer access roles.
+                </p>
+              </article>
+
+              <article className="hp-bento-card" id="timesheets">
+                <div className="hp-bento-icon hp-bi-amber" aria-hidden="true">
+                  <Clock size={20} />
+                </div>
+                <h3>Built-In Time Tracking, Timesheets &amp; Leave</h3>
+                <p>
+                  Run live task stopwatches, submit weekly timesheets for manager approval, export CSV/PDF reports, and coordinate team leave and country holidays.
+                </p>
+              </article>
+
+              <article className="hp-bento-card" id="storage">
+                <div className="hp-bento-icon hp-bi-sky" aria-hidden="true">
+                  <Cloud size={20} />
+                </div>
+                <h3>Your Cloud, Your Files</h3>
+                <p>
+                  Route workspace attachments to Google Drive, Microsoft OneDrive, SharePoint, or built-in encrypted database storage with AES-256-GCM credential protection.
+                </p>
+              </article>
+
+              <article className="hp-bento-card">
+                <div className="hp-bento-icon hp-bi-emerald" aria-hidden="true">
+                  <Users size={20} />
+                </div>
+                <h3>Flexible Views for Every Role</h3>
+                <p>
+                  Let every teammate reorder tabs across 12 views—from Live Tracker and Kanban to Gantt Timeline, Whiteboard, Flowchart, and Goals—without disrupting others.
+                </p>
+              </article>
             </div>
           </div>
         </section>
 
-        {/* Frequently Asked Questions */}
-        <section className="hp-faq-section" id="faq">
-          <div className="hp-section-header">
-            <span className="hp-section-tag">Frequently Asked Questions</span>
-            <h2 className="hp-section-title">Everything you need to know</h2>
-            <p className="hp-section-desc">
-              Quick answers about Orbitwork project management features,
-              workspaces, time tracking, and security.
-            </p>
+        {/* 7. FINAL CTA */}
+        <section className="hp-final-cta-wrap" aria-labelledby="final-cta-heading">
+          <div className="hp-container">
+            <div className="hp-final-cta">
+              {/* Lightweight Animated Orbital Visual Backdrop */}
+              <div className="hp-cta-orbit-bg" aria-hidden="true">
+                <span className="hp-orbit-ring hp-orbit-r1" />
+                <span className="hp-orbit-ring hp-orbit-r2" />
+                <span className="hp-orbit-ring hp-orbit-r3" />
+                <span className="hp-orbit-glow" />
+              </div>
+
+              <div className="hp-final-cta-inner">
+                <span className="hp-cta-kicker">Ready in Minutes · Free to Start</span>
+                <h2 id="final-cta-heading">
+                  Bring your projects, docs, and AI into Orbit
+                </h2>
+                <p>
+                  Create your organization, launch your first workspace, and experience unified project planning, team collaboration, and Project Brain today.
+                </p>
+
+                <div className="hp-cta-buttons">
+                  {isLoggedIn ? (
+                    <Link href="/my-dashboard" className="hp-btn-primary hp-btn-lg">
+                      Open Your Dashboard <ArrowRight size={17} />
+                    </Link>
+                  ) : (
+                    <>
+                      <Link href="/signup" className="hp-btn-primary hp-btn-lg">
+                        Create Free Workspace <ArrowRight size={17} />
+                      </Link>
+                      <Link href="/contact" className="hp-btn-secondary hp-btn-lg">
+                        Contact Our Team
+                      </Link>
+                    </>
+                  )}
+                </div>
+
+                <nav className="hp-cta-links" aria-label="Explore Orbitwork pages">
+                  <Link href="/project-management-software">Project Management Software</Link>
+                  <span aria-hidden="true">·</span>
+                  <Link href="/free-project-management-software">Free Project Management</Link>
+                  <span aria-hidden="true">·</span>
+                  <Link href="/services/project-management">Platform Features</Link>
+                  <span aria-hidden="true">·</span>
+                  <Link href="/jira-alternative">Jira Alternative</Link>
+                  <span aria-hidden="true">·</span>
+                  <Link href="/asana-alternative">Asana Alternative</Link>
+                  <span aria-hidden="true">·</span>
+                  <Link href="/clickup-alternative">ClickUp Alternative</Link>
+                  <span aria-hidden="true">·</span>
+                  <Link href="/projects-case-studies">Use Cases</Link>
+                  <span aria-hidden="true">·</span>
+                  <Link href="/about">About</Link>
+                </nav>
+              </div>
+            </div>
           </div>
-
-          <HomeFaqAccordion />
         </section>
-
-        {/* Final Call to Action Banner */}
-        <div className="hp-container">
-          <section className="hp-cta-banner">
-            <h2>Bring clarity to your projects today</h2>
-            <p>
-              Organize workspaces, empower your team with unified views, and
-              deliver meaningful results together in Orbitwork.
-            </p>
-
-            <div className="hp-cta-buttons">
-              {user ? (
-                <Link href="/my-dashboard" className="hp-btn-primary">
-                  Open Your Dashboard <ArrowRight size={17} />
-                </Link>
-              ) : (
-                <>
-                  <Link href="/signup" className="hp-btn-primary">
-                    Get Started for Free <ArrowRight size={17} />
-                  </Link>
-                  <Link href="/contact" className="hp-btn-secondary">
-                    Contact Us
-                  </Link>
-                </>
-              )}
-            </div>
-
-            <div className="hp-cta-fineprint">
-              <Link href="/free-project-management-software" style={{ color: "inherit" }}>
-                Free Project Management
-              </Link>{" "}
-              ·{" "}
-              <Link href="/project-management-software" style={{ color: "inherit" }}>
-                Project Management Software
-              </Link>{" "}
-              ·{" "}
-              <Link href="/jira-alternative" style={{ color: "inherit" }}>
-                Jira Alternative
-              </Link>{" "}
-              ·{" "}
-              <Link href="/free-jira-alternative" style={{ color: "inherit" }}>
-                Free Jira Alternative
-              </Link>{" "}
-              ·{" "}
-              <Link href="/services" style={{ color: "inherit" }}>
-                Solutions
-              </Link>{" "}
-              ·{" "}
-              <Link href="/projects-case-studies" style={{ color: "inherit" }}>
-                Use Cases
-              </Link>{" "}
-              ·{" "}
-              <Link href="/about" style={{ color: "inherit" }}>
-                About
-              </Link>{" "}
-              ·{" "}
-              <Link href="/contact" style={{ color: "inherit" }}>
-                Contact
-              </Link>
-            </div>
-          </section>
-        </div>
       </main>
 
       <PublicSiteFooter />
