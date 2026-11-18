@@ -7,7 +7,13 @@ interface WordPreviewViewerProps {
   url: string;
 }
 
-export default function WordPreviewViewer({ url }: { url: string }) {
+export default function WordPreviewViewer({
+  url,
+  height = "76vh",
+}: {
+  url: string;
+  height?: string;
+}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -58,7 +64,7 @@ export default function WordPreviewViewer({ url }: { url: string }) {
     <div
       style={{
         width: "100%",
-        height: "76vh",
+        height,
         display: "flex",
         flexDirection: "column",
         background: "#f1f5f9",

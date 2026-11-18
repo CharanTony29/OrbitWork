@@ -8,7 +8,13 @@ interface ExcelPreviewViewerProps {
   url: string;
 }
 
-export default function ExcelPreviewViewer({ url }: { url: string }) {
+export default function ExcelPreviewViewer({
+  url,
+  height = "76vh",
+}: {
+  url: string;
+  height?: string;
+}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sheetNames, setSheetNames] = useState<string[]>([]);
@@ -90,7 +96,7 @@ export default function ExcelPreviewViewer({ url }: { url: string }) {
   }
 
   return (
-    <div style={{ width: "100%", height: "76vh", display: "flex", flexDirection: "column", background: "var(--paper, #fff)" }}>
+    <div style={{ width: "100%", height, display: "flex", flexDirection: "column", background: "var(--paper, #fff)" }}>
       {/* Sheet Tabs Header */}
       {sheetNames.length > 1 && (
         <div

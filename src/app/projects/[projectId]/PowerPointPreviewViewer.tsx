@@ -204,7 +204,15 @@ function guessImageMime(path: string): string {
   return "image/png";
 }
 
-export default function PowerPointPreviewViewer({ url }: { url: string }) {
+export default function PowerPointPreviewViewer({
+  url,
+  height = "76vh",
+  fullScreen = false,
+}: {
+  url: string;
+  height?: string;
+  fullScreen?: boolean;
+}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [slides, setSlides] = useState<ParsedSlide[]>([]);
@@ -479,7 +487,7 @@ export default function PowerPointPreviewViewer({ url }: { url: string }) {
   );
 
   return (
-    <div style={{ width: "100%", height: "76vh", display: "flex", flexDirection: "column", background: "#0f172a" }}>
+    <div style={{ width: "100%", height, display: "flex", flexDirection: "column", background: "#0f172a" }}>
       {/* Slide Toolbar */}
       <div
         style={{
@@ -574,7 +582,7 @@ export default function PowerPointPreviewViewer({ url }: { url: string }) {
             style={{
               position: "relative",
               width: "100%",
-              maxWidth: "860px",
+              maxWidth: fullScreen ? "1160px" : "860px",
               aspectRatio: `${aspectRatio}`,
               background: activeSlide.bgColor || "#ffffff",
               borderRadius: 8,

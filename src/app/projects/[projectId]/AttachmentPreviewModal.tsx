@@ -474,6 +474,26 @@ export default function AttachmentPreviewModal({
             )}
 
             <a
+              href={`/attachments/${attachment.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="button button-secondary"
+              style={{
+                padding: "4px 12px",
+                fontSize: 11,
+                height: 30,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                textDecoration: "none",
+              }}
+              title="Open preview in a new browser tab"
+            >
+              <ExternalLink size={13} />
+              <span>Open in Tab</span>
+            </a>
+
+            <a
               href={`${previewUrl}?download=true`}
               download={attachment.file_name}
               className="button button-secondary"

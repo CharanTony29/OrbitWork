@@ -939,7 +939,7 @@ export default function TaskAttachmentsSection({
               ? `/projects/${projectId}/tasks/${taskId}?tab=whiteboard`
               : meta.kind === "flowchart"
               ? `/projects/${projectId}/tasks/${taskId}?tab=flowchart`
-              : `/api/attachments/${item.id}`;
+              : `/attachments/${item.id}`;
 
           return (
             <div className="modern-attachment-card" key={item.id}>
@@ -1161,12 +1161,12 @@ export default function TaskAttachmentsSection({
               </div>
               <div className="attachment-preview-actions">
                 <a
-                  href={`/api/attachments/${previewItem.id}`}
+                  href={`/attachments/${previewItem.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="button button-secondary"
                   style={{ padding: "4px 10px", fontSize: "11px", minHeight: "28px", display: "inline-flex", alignItems: "center", gap: 5 }}
-                  title="Open file in a new browser tab"
+                  title="Open preview in a new browser tab"
                 >
                   <ExternalLink size={13} />
                   <span>Open in Tab</span>
