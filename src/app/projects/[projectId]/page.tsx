@@ -28,9 +28,12 @@ import {
   DEFAULT_PROJECT_TAB_ORDER,
   normalizeTabOrder,
   parsePreferenceArrayCookie,
+  parsePreferenceWidthsCookie,
   PROJECT_TAB_COOKIE,
   ProjectTabKey,
   TABLE_COL_COOKIE,
+  TABLE_COL_WIDTHS_COOKIE,
+  TABLE_FROZEN_COLS_COOKIE,
 } from "@/lib/project-preferences";
 
 export default async function ProjectPage({ params, searchParams }: {
@@ -50,14 +53,28 @@ export default async function ProjectPage({ params, searchParams }: {
   const filters = await searchParams;
 
   const cookieStore = await cookies();
-  let dbPrefs: { project_tab_order?: unknown; list_column_order?: unknown } | null = null;
+  let dbPrefs: {
+    project_tab_order?: unknown;
+    list_column_order?: unknown;
+    list_column_widths?: unknown;
+    list_frozen_columns?: unknown;
+  } | null = null;
   try {
-    const { data: prefRow } = await supabase
+    const extPrefRes = await supabase
       .from("user_preferences")
-      .select("project_tab_order, list_column_order")
+      .select("project_tab_order, list_column_order, list_column_widths, list_frozen_columns")
       .eq("user_id", user.id)
       .maybeSingle();
-    dbPrefs = prefRow;
+    if (extPrefRes.error) {
+      const basePrefRes = await supabase
+        .from("user_preferences")
+        .select("project_tab_order, list_column_order")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      dbPrefs = basePrefRes.data;
+    } else {
+      dbPrefs = extPrefRes.data;
+    }
   } catch {
     dbPrefs = null;
   }
@@ -77,6 +94,28 @@ export default async function ProjectPage({ params, searchParams }: {
   const userColumnOrder = Array.isArray(dbPrefs?.list_column_order)
     ? dbPrefs.list_column_order.filter((c): c is string => typeof c === "string")
     : cookieColOrder;
+
+  const cookieColWidths = parsePreferenceWidthsCookie(
+    cookieStore.get(TABLE_COL_WIDTHS_COOKIE)?.value
+  );
+  const userColumnWidths: Record<string, number> =
+    dbPrefs?.list_column_widths &&
+    typeof dbPrefs.list_column_widths === "object" &&
+    !Array.isArray(dbPrefs.list_column_widths) &&
+    Object.keys(dbPrefs.list_column_widths).length > 0
+      ? (dbPrefs.list_column_widths as Record<string, number>)
+      : cookieColWidths;
+
+  const cookieFrozenCols = parsePreferenceArrayCookie(
+    cookieStore.get(TABLE_FROZEN_COLS_COOKIE)?.value
+  );
+  const hasDbFrozen = Array.isArray(dbPrefs?.list_frozen_columns);
+  const hasCookieFrozen = Boolean(cookieStore.get(TABLE_FROZEN_COLS_COOKIE)?.value);
+  const userFrozenColumns: string[] | undefined = hasDbFrozen
+    ? (dbPrefs?.list_frozen_columns as unknown[]).filter((c): c is string => typeof c === "string")
+    : hasCookieFrozen
+    ? cookieFrozenCols
+    : undefined;
 
   const validViews = new Set<string>(DEFAULT_PROJECT_TAB_ORDER);
   const view = (
@@ -413,6 +452,8 @@ export default async function ProjectPage({ params, searchParams }: {
             projectId={project.id}
             canEdit={canEdit}
             initialColumnOrder={userColumnOrder}
+            initialColumnWidths={userColumnWidths}
+            initialFrozenColumns={userFrozenColumns}
             tasks={(tasks ?? []).map((task) => ({
               ...task,
               assigneeIds: getTaskAssignees(task),

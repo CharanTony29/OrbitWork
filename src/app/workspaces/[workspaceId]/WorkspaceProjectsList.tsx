@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
-import { FolderKanban, Plus, Archive, CheckCircle, RotateCcw } from "lucide-react";
-import { createProject, toggleProjectActiveStatus } from "@/app/actions";
+import { FolderKanban, Plus, Archive, RotateCcw, Trash2, AlertTriangle, X } from "lucide-react";
+import { createProject, deleteProject, toggleProjectActiveStatus } from "@/app/actions";
 
 type ProjectItem = {
   id: string;
@@ -26,6 +27,8 @@ export default function WorkspaceProjectsList({
 }) {
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("active");
   const [showCreateBar, setShowCreateBar] = useState(false);
+  const [deletingProject, setDeletingProject] = useState<ProjectItem | null>(null);
+  const [confirmProjectName, setConfirmProjectName] = useState("");
 
   const activeProjects = projects.filter((p) => p.status === "active");
   const inactiveProjects = projects.filter((p) => p.status === "archived" || p.status === "on_hold" || p.status === "completed");
@@ -264,16 +267,41 @@ export default function WorkspaceProjectsList({
                   </div>
                 </Link>
 
-                {/* Inactive / Reactivate Action for Managers */}
+                {/* Inactive / Reactivate & Delete Actions for Managers */}
                 {canManage && (
                   <div
                     style={{
                       padding: "6px 14px 10px",
                       borderTop: "1px solid var(--line, #f1f5f9)",
                       display: "flex",
-                      justifyContent: "flex-end",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 8,
                     }}
                   >
+                    <button
+                      type="button"
+                      title="Permanently delete project"
+                      onClick={() => {
+                        setConfirmProjectName("");
+                        setDeletingProject(project);
+                      }}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid #fecaca",
+                        borderRadius: 6,
+                        padding: "3px 8px",
+                        fontSize: 10.5,
+                        color: "#dc2626",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <Trash2 size={11} />
+                      <span>Delete</span>
+                    </button>
                     <form action={toggleProjectActiveStatus}>
                       <input type="hidden" name="projectId" value={project.id} />
                       <input type="hidden" name="workspaceId" value={workspaceId} />
@@ -347,6 +375,120 @@ export default function WorkspaceProjectsList({
           </p>
         </div>
       )}
+
+      {deletingProject &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="proj-modal-overlay"
+            style={{ zIndex: 20015 }}
+            onClick={() => setDeletingProject(null)}
+          >
+            <div
+              className="proj-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Delete project ${deletingProject.name}`}
+              style={{ maxWidth: 450 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="proj-modal-head">
+                <h2 style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#dc2626" }}>
+                  <AlertTriangle size={17} />
+                  <span>Delete project</span>
+                </h2>
+                <button
+                  type="button"
+                  className="proj-modal-close"
+                  aria-label="Close"
+                  onClick={() => setDeletingProject(null)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="proj-modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: "var(--ink)" }}>
+                  This permanently deletes <strong>{deletingProject.name}</strong> and all of its tasks, documents,
+                  comments, and time entries. This cannot be undone.
+                </p>
+                <form action={deleteProject} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <input type="hidden" name="projectId" value={deletingProject.id} />
+                  <input type="hidden" name="workspaceId" value={workspaceId} />
+                  <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12.5, fontWeight: 600 }}>
+                    <span>
+                      Type <strong>{deletingProject.name}</strong> to confirm:
+                    </span>
+                    <input
+                      type="text"
+                      name="confirmName"
+                      value={confirmProjectName}
+                      onChange={(e) => setConfirmProjectName(e.target.value)}
+                      placeholder={deletingProject.name}
+                      autoFocus
+                      required
+                      style={{
+                        height: 38,
+                        padding: "0 12px",
+                        borderRadius: 8,
+                        border: "1px solid var(--line, #cbd5e1)",
+                        background: "var(--paper, #fff)",
+                        color: "var(--ink)",
+                        fontSize: 13,
+                      }}
+                    />
+                  </label>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={() => setDeletingProject(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={
+                        confirmProjectName.trim().toLowerCase() !==
+                        deletingProject.name.trim().toLowerCase()
+                      }
+                      className="button"
+                      style={{
+                        background:
+                          confirmProjectName.trim().toLowerCase() ===
+                          deletingProject.name.trim().toLowerCase()
+                            ? "#dc2626"
+                            : "#f1f5f9",
+                        color:
+                          confirmProjectName.trim().toLowerCase() ===
+                          deletingProject.name.trim().toLowerCase()
+                            ? "#fff"
+                            : "#94a3b8",
+                        border:
+                          "1px solid " +
+                          (confirmProjectName.trim().toLowerCase() ===
+                          deletingProject.name.trim().toLowerCase()
+                            ? "#b91c1c"
+                            : "#e2e8f0"),
+                        cursor:
+                          confirmProjectName.trim().toLowerCase() ===
+                          deletingProject.name.trim().toLowerCase()
+                            ? "pointer"
+                            : "not-allowed",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Trash2 size={14} />
+                      <span>Permanently Delete</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

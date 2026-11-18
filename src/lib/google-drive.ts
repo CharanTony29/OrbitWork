@@ -27,7 +27,7 @@ export function encryptRefreshToken(token: string) {
   return `${ivBytes.toString("base64url")}.${cipher.getAuthTag().toString("base64url")}.${ciphertext.toString("base64url")}`;
 }
 
-function decryptRefreshToken(encrypted: string) {
+export function decryptRefreshToken(encrypted: string) {
   const [iv, tag, ciphertext] = encrypted.split(".");
   if (!iv || !tag || !ciphertext) throw new Error("Stored Google Drive token is invalid");
   const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(iv, "base64url"));
@@ -163,6 +163,33 @@ export async function uploadProjectDriveFile(
   return driveRequest<{ id: string; name: string; mimeType: string; size?: string; webViewLink?: string }>(accessToken, "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,size,webViewLink", {
     method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body,
   });
+}
+
+export async function uploadPersonalDriveFile(
+  accessToken: string,
+  folderName: string,
+  fileName: string,
+  mimeType: string,
+  bytes: Uint8Array
+) {
+  const safeFolder = folderName.trim() || "Orbitwork Chat";
+  const parent = (await findFolder(accessToken, safeFolder)) ?? (await createFolder(accessToken, safeFolder));
+  const boundary = `orbitwork_${randomUUID().replaceAll("-", "")}`;
+  const metadata = JSON.stringify({ name: fileName, parents: [parent] });
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`),
+    Buffer.from(bytes),
+    Buffer.from(`\r\n--${boundary}--`),
+  ]);
+  return driveRequest<{ id: string; name: string; mimeType: string; size?: string; webViewLink?: string }>(
+    accessToken,
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,size,webViewLink",
+    {
+      method: "POST",
+      headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+      body,
+    }
+  );
 }
 
 export async function getDriveFile(accessToken: string, fileId: string) {

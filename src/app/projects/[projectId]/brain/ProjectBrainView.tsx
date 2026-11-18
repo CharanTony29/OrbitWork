@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { showAppToast } from "@/lib/app-feedback";
 import {
   AlertCircle,
   AlertTriangle,
@@ -319,7 +320,7 @@ export default function ProjectBrainView({
         router.refresh();
       });
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to apply recommendation");
+      showAppToast(err instanceof Error ? err.message : "Failed to apply recommendation", "error");
     } finally {
       setApplyingRec(false);
     }
@@ -392,7 +393,7 @@ export default function ProjectBrainView({
         router.refresh();
       });
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to apply batch recommendations");
+      showAppToast(err instanceof Error ? err.message : "Failed to apply batch recommendations", "error");
     } finally {
       setApplyingBatch(false);
     }
@@ -427,7 +428,7 @@ export default function ProjectBrainView({
       setDecisionImpact("");
       fetchBrainData(true);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to record decision");
+      showAppToast(err instanceof Error ? err.message : "Failed to record decision", "error");
     } finally {
       setSubmittingDecision(false);
     }
@@ -452,7 +453,7 @@ export default function ProjectBrainView({
       const result: ChangeImpactResult = await res.json();
       setSimResult(result);
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Simulation error");
+      showAppToast(err instanceof Error ? err.message : "Simulation error", "error");
     } finally {
       setSimLoading(false);
     }
@@ -535,7 +536,7 @@ export default function ProjectBrainView({
       // Select all by default
       setSelectedTaskIndices(new Set((json.proposedTasks || []).map((_: unknown, i: number) => i)));
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error generating tasks");
+      showAppToast(err instanceof Error ? err.message : "Error generating tasks", "error");
     } finally {
       setGeneratingTasks(false);
     }
@@ -545,7 +546,7 @@ export default function ProjectBrainView({
   const handleCommitTasks = async () => {
     const toCreate = proposedTasks.filter((_, i) => selectedTaskIndices.has(i));
     if (toCreate.length === 0) {
-      alert("Please select at least one task to create.");
+      showAppToast("Please select at least one task to create.", "warning");
       return;
     }
 
@@ -572,7 +573,7 @@ export default function ProjectBrainView({
         router.refresh();
       });
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error creating tasks");
+      showAppToast(err instanceof Error ? err.message : "Error creating tasks", "error");
     } finally {
       setCreatingTasks(false);
     }

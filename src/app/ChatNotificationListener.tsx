@@ -186,21 +186,7 @@ function ActiveChatNotificationListener() {
       const uid = data.user?.id ?? null;
       currentUserIdRef.current = uid;
       setCurrentUserId(uid);
-
-      if (
-        uid &&
-        typeof window !== "undefined" &&
-        "Notification" in window &&
-        Notification.permission === "default"
-      ) {
-        try {
-          const dismissed =
-            window.localStorage.getItem(PERMISSION_DISMISSED_KEY) === "1";
-          if (!dismissed) setShowPermissionPrompt(true);
-        } catch {
-          // ignore
-        }
-      }
+      // Only use Orbitwork in-app notifications (never browser/OS desktop notification permission popups)
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -247,11 +233,21 @@ function ActiveChatNotificationListener() {
       const data = await res.json();
 
       if (typeof data.totalUnread === "number") {
+        let adjustedUnread = data.totalUnread;
+        const activeKey = activeChatKeyRef.current;
+        if (
+          activeKey &&
+          pathnameRef.current?.startsWith("/chat") &&
+          data.unreadByThread &&
+          typeof data.unreadByThread[activeKey] === "number"
+        ) {
+          adjustedUnread = Math.max(0, adjustedUnread - data.unreadByThread[activeKey]);
+        }
         const win = window as Window & { __orbitworkChatUnreadCount?: number };
-        win.__orbitworkChatUnreadCount = data.totalUnread;
+        win.__orbitworkChatUnreadCount = adjustedUnread;
         window.dispatchEvent(
           new CustomEvent("orbitwork-chat-unread", {
-            detail: { totalUnread: data.totalUnread },
+            detail: { totalUnread: adjustedUnread },
           })
         );
       }
@@ -354,36 +350,11 @@ function ActiveChatNotificationListener() {
           }
           return merged.slice(-3);
         });
-
-        // Fire OS Desktop Notifications
-        if (
-          typeof window !== "undefined" &&
-          "Notification" in window &&
-          Notification.permission === "granted"
-        ) {
-          const latestItem = ordered[ordered.length - 1];
-          try {
-            const notif = new Notification(
-              `${latestItem.senderName} (${latestItem.threadLabel})`,
-              {
-                body: latestItem.previewText,
-                tag: `orbitwork-chat-${latestItem.id}`,
-              }
-            );
-            notif.onclick = () => {
-              window.focus();
-              navigateToThread(latestItem);
-              notif.close();
-            };
-          } catch {
-            // Browser rejected notification constructor
-          }
-        }
       }
     } catch {
       // Non-blocking poll error
     }
-  }, [navigateToThread]);
+  }, []);
 
   const pollAppNotifications = useCallback(async () => {
     const uid = currentUserIdRef.current;
@@ -622,9 +593,6 @@ function ActiveChatNotificationListener() {
   };
 
   const requestDesktopAlerts = async () => {
-    if ("Notification" in window) {
-      await Notification.requestPermission();
-    }
     setShowPermissionPrompt(false);
   };
 

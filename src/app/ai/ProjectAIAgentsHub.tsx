@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { showAppConfirm } from "@/lib/app-feedback";
 import {
   Bot,
   Zap,
@@ -140,7 +141,13 @@ export default function ProjectAIAgentsHub({
   };
 
   const handleDelete = async (agentId: string) => {
-    if (!confirm("Delete this AI Agent?")) return;
+    const confirmed = await showAppConfirm({
+      title: "Delete AI Agent",
+      message: "Are you sure you want to delete this AI Agent?",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
 
     try {
       await fetch(`/api/ai/agent/custom?agentId=${agentId}`, {

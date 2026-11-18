@@ -88,25 +88,24 @@ export async function GET(request: NextRequest) {
     let rows: RawChatRow[] = [];
 
     if (type === "latest") {
-      // Fetch recent incoming messages from colleagues (not own sent messages)
+      // Fetch recent messages (both incoming & own) so we can accurately compute
+      // strictly unread incoming messages (never counting already-replied threads).
       const sinceIso = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
       const extRes = await supabase
         .from("workspace_chat_messages")
         .select(CHAT_SELECT_EXTENDED)
-        .neq("sender_id", user.id)
         .gte("created_at", sinceIso)
         .order("created_at", { ascending: false })
-        .limit(80);
+        .limit(200);
 
       if (extRes.error && isSchemaMissingError(extRes.error)) {
         enhancedMigrationMissing = true;
         const baseRes = await supabase
           .from("workspace_chat_messages")
           .select(CHAT_SELECT_BASE)
-          .neq("sender_id", user.id)
           .gte("created_at", sinceIso)
           .order("created_at", { ascending: false })
-          .limit(80);
+          .limit(200);
 
         if (baseRes.error) {
           if (isSchemaMissingError(baseRes.error)) {
@@ -132,7 +131,26 @@ export async function GET(request: NextRequest) {
       const activeOrgIds = await getUserActiveOrgIds(supabase, user.id);
       const fallbackOrgId = activeOrgIds[0] ?? null;
 
-      // Compute unread counts per thread against chat_read_receipts
+      // Filter out any DM rows not involving this user
+      const visibleRows = rows.filter((row) => {
+        if (row.recipient_id) {
+          return row.sender_id === user.id || row.recipient_id === user.id;
+        }
+        return true;
+      });
+
+      // Track the latest timestamp this user sent a message in each thread
+      const latestOwnSentByThread = new Map<string, number>();
+      for (const row of visibleRows) {
+        if (row.sender_id !== user.id) continue;
+        const threadKey = resolveThreadKeyFromRow(row, fallbackOrgId);
+        const msgMs = new Date(row.created_at).getTime();
+        if (msgMs > (latestOwnSentByThread.get(threadKey) ?? 0)) {
+          latestOwnSentByThread.set(threadKey, msgMs);
+        }
+      }
+
+      // Compute unread counts per thread against chat_read_receipts + own latest reply
       const unreadByThread: Record<string, number> = {};
       let totalUnread = 0;
 
@@ -142,29 +160,51 @@ export async function GET(request: NextRequest) {
         .eq("user_id", user.id);
 
       const receiptMap = new Map<string, number>();
+      const channelReceiptMax = new Map<string, number>();
       if (receiptRes.error) {
         if (isSchemaMissingError(receiptRes.error)) {
           enhancedMigrationMissing = true;
         }
       } else {
         for (const r of receiptRes.data ?? []) {
-          receiptMap.set(String(r.thread_key), new Date(String(r.last_read_at)).getTime());
+          const key = String(r.thread_key);
+          const ts = new Date(String(r.last_read_at)).getTime();
+          receiptMap.set(key, ts);
+          if (key.startsWith("channel:")) {
+            const parts = key.split(":");
+            const chName = parts[parts.length - 1];
+            if (chName && ts > (channelReceiptMax.get(chName) ?? 0)) {
+              channelReceiptMax.set(chName, ts);
+            }
+          }
         }
       }
 
+      const incomingRows = visibleRows.filter((row) => {
+        if (row.sender_id === user.id) return false;
+        if (row.recipient_id && row.recipient_id !== user.id) return false;
+        return true;
+      });
+
       if (!receiptRes.error) {
-        for (const row of rows) {
+        for (const row of incomingRows) {
           const threadKey = resolveThreadKeyFromRow(row, fallbackOrgId);
           const msgMs = new Date(row.created_at).getTime();
-          const lastReadMs = receiptMap.get(threadKey) ?? 0;
-          if (msgMs > lastReadMs) {
+          let lastReadMs = receiptMap.get(threadKey) ?? 0;
+          if (!row.thread_id && !row.recipient_id) {
+            const chName = row.channel || "general";
+            lastReadMs = Math.max(lastReadMs, channelReceiptMax.get(chName) ?? 0);
+          }
+          const ownLatestMs = latestOwnSentByThread.get(threadKey) ?? 0;
+          const effectiveLastReadMs = Math.max(lastReadMs, ownLatestMs);
+          if (msgMs > effectiveLastReadMs) {
             unreadByThread[threadKey] = (unreadByThread[threadKey] ?? 0) + 1;
             totalUnread += 1;
           }
         }
       }
 
-      const topRows = rows.slice(0, 25);
+      const topRows = incomingRows.slice(0, 25);
       const profilesMap = await fetchProfilesMap(
         supabase,
         topRows.map((r) => r.sender_id)

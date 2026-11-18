@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { showAppToast } from "@/lib/app-feedback";
 import { useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -103,7 +104,7 @@ export default function MoMToTasksModal({
   const handleCreateTasks = async () => {
     const selectedTasks = extractedTasks.filter((t) => t.selected);
     if (selectedTasks.length === 0) {
-      alert("Please select at least one task to create.");
+      showAppToast("Please select at least one task to create.", "warning");
       return;
     }
 

@@ -169,6 +169,7 @@ export async function GET(request: NextRequest) {
 
     // 4. Read receipts
     const receiptMap = new Map<string, number>();
+    const channelReceiptMax = new Map<string, number>();
     if (!baseMigrationMissing) {
       const receiptRes = await supabase
         .from("chat_read_receipts")
@@ -180,50 +181,84 @@ export async function GET(request: NextRequest) {
         }
       } else {
         for (const r of receiptRes.data ?? []) {
-          receiptMap.set(
-            String(r.thread_key),
-            new Date(String(r.last_read_at)).getTime()
-          );
+          const key = String(r.thread_key);
+          const ts = new Date(String(r.last_read_at)).getTime();
+          receiptMap.set(key, ts);
+          if (key.startsWith("channel:")) {
+            const parts = key.split(":");
+            const chName = parts[parts.length - 1];
+            if (chName && ts > (channelReceiptMax.get(chName) ?? 0)) {
+              channelReceiptMax.set(chName, ts);
+            }
+          }
         }
       }
     }
 
     const profilesMap = await fetchProfilesMap(supabase, colleagueIds);
 
-    // Aggregate latest message & unread count per threadKey
+    // Aggregate latest message, latest own sent time, & strictly unread count per threadKey
     const latestByThread = new Map<string, RawChatRow>();
+    const latestOwnSentByThread = new Map<string, number>();
     const unreadCounts = new Map<string, number>();
 
-    for (const row of recentRows) {
-      let threadKey: string;
+    const resolveRowThreadKey = (row: RawChatRow): string | null => {
       if (row.thread_id) {
-        threadKey = buildGroupThreadKey(row.thread_id);
-      } else if (row.recipient_id) {
-        const peer = row.sender_id === user.id ? row.recipient_id : row.sender_id;
-        threadKey = buildDirectThreadKey(user.id, peer);
-      } else {
-        // Scope channel messages to the selected org or legacy global rows
-        if (
-          resolvedOrgId &&
-          row.organization_id &&
-          row.organization_id !== resolvedOrgId
-        ) {
-          continue;
-        }
-        threadKey = buildChannelThreadKey(
-          row.channel || "general",
-          resolvedOrgId ?? row.organization_id
-        );
+        return buildGroupThreadKey(row.thread_id);
       }
+      if (row.recipient_id) {
+        if (row.sender_id !== user.id && row.recipient_id !== user.id) {
+          return null;
+        }
+        const peer = row.sender_id === user.id ? row.recipient_id : row.sender_id;
+        return buildDirectThreadKey(user.id, peer);
+      }
+      if (
+        resolvedOrgId &&
+        row.organization_id &&
+        row.organization_id !== resolvedOrgId
+      ) {
+        return null;
+      }
+      return buildChannelThreadKey(
+        row.channel || "general",
+        resolvedOrgId ?? row.organization_id
+      );
+    };
 
+    // First pass: capture latest message & newest own sent timestamp per thread
+    for (const row of recentRows) {
+      const threadKey = resolveRowThreadKey(row);
+      if (!threadKey) continue;
       if (!latestByThread.has(threadKey)) {
         latestByThread.set(threadKey, row);
       }
-
-      if (row.sender_id !== user.id && !enhancedMigrationMissing && !baseMigrationMissing) {
+      if (row.sender_id === user.id) {
         const msgMs = new Date(row.created_at).getTime();
-        const lastReadMs = receiptMap.get(threadKey) ?? 0;
-        if (msgMs > lastReadMs) {
+        if (msgMs > (latestOwnSentByThread.get(threadKey) ?? 0)) {
+          latestOwnSentByThread.set(threadKey, msgMs);
+        }
+      }
+    }
+
+    // Second pass: strictly count incoming messages newer than both read receipt & latest own reply
+    if (!enhancedMigrationMissing && !baseMigrationMissing) {
+      for (const row of recentRows) {
+        if (row.sender_id === user.id) continue;
+        if (row.recipient_id && row.recipient_id !== user.id) continue;
+        const threadKey = resolveRowThreadKey(row);
+        if (!threadKey) continue;
+        const msgMs = new Date(row.created_at).getTime();
+        let lastReadMs = receiptMap.get(threadKey) ?? 0;
+        if (!row.thread_id && !row.recipient_id) {
+          const chName = row.channel || "general";
+          lastReadMs = Math.max(lastReadMs, channelReceiptMax.get(chName) ?? 0);
+        }
+        const effectiveLastReadMs = Math.max(
+          lastReadMs,
+          latestOwnSentByThread.get(threadKey) ?? 0
+        );
+        if (msgMs > effectiveLastReadMs) {
           unreadCounts.set(threadKey, (unreadCounts.get(threadKey) ?? 0) + 1);
         }
       }

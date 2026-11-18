@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { showAppConfirm, showAppToast } from "@/lib/app-feedback";
 import {
   Pen,
   Eraser,
@@ -879,8 +880,14 @@ export default function WhiteboardCanvas({
     setStrokes((prev) => prev.slice(0, -1));
   };
 
-  const handleClear = () => {
-    if (confirm("Clear all drawings, sticky notes, and images?")) {
+  const handleClear = async () => {
+    const confirmed = await showAppConfirm({
+      title: "Clear Whiteboard",
+      message: "Clear all drawings, sticky notes, and images?",
+      confirmLabel: "Clear All",
+      destructive: true,
+    });
+    if (confirmed) {
       setStrokes([]);
       setStickyNotes([]);
       setImages([]);
@@ -929,7 +936,7 @@ export default function WhiteboardCanvas({
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err) {
       console.error("Save error", err);
-      alert("Failed to save whiteboard. Please verify project access permissions.");
+      showAppToast("Failed to save whiteboard. Please verify project access permissions.", "error");
     } finally {
       setIsSaving(false);
     }

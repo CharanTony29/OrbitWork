@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { showAppConfirm, showAppPrompt } from "@/lib/app-feedback";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -1945,7 +1946,12 @@ export default function ClickUpDocWorkspace({
                         type="button"
                         className="restore-version-btn"
                         onClick={async () => {
-                          if (confirm(`Restore Version ${ver.version_number}?`)) {
+                          const ok = await showAppConfirm({
+                            title: "Restore Version",
+                            message: `Restore Version ${ver.version_number}? Current unsaved changes will be replaced.`,
+                            confirmLabel: "Restore",
+                          });
+                          if (ok) {
                             setBlocks(ver.content_json);
                             setPageTitle(ver.title);
                             triggerAutosave(ver.title, pageIcon, pageCover, ver.content_json);
@@ -3238,8 +3244,13 @@ function BlockRenderer({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    const inputUrl = prompt("Enter Image URL:");
+                  onClick={async () => {
+                    const inputUrl = await showAppPrompt({
+                      title: "Embed Image via URL",
+                      message: "Enter Image URL:",
+                      placeholder: "https://...",
+                      confirmLabel: "Embed",
+                    });
                     if (inputUrl) {
                       onChange({ url: inputUrl, width: "100%", align: "center" });
                     }

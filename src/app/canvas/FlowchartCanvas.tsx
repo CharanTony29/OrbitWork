@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { showAppToast } from "@/lib/app-feedback";
 import {
   Plus,
   Trash2,
@@ -377,7 +378,7 @@ export default function FlowchartCanvas({
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (err) {
       console.error("Save error", err);
-      alert("Failed to save flowchart. Verify project access permissions.");
+      showAppToast("Failed to save flowchart. Verify project access permissions.", "error");
     } finally {
       setIsSaving(false);
     }
@@ -587,7 +588,7 @@ export default function FlowchartCanvas({
                 if (selectedNodeId) {
                   setConnectFromId(connectFromId ? null : selectedNodeId);
                 } else {
-                  alert("Please click a shape first, then click Connect Arrow.");
+                  showAppToast("Please click a shape first, then click Connect Arrow.", "info");
                 }
               }}
               title={

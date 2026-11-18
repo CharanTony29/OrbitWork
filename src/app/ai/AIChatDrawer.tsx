@@ -18,6 +18,7 @@ import {
   Minimize2,
 } from "lucide-react";
 import { markdownToSafeHtml } from "@/lib/markdown";
+import { showAppConfirm } from "@/lib/app-feedback";
 
 interface Message {
   id: string;
@@ -204,8 +205,14 @@ export default function AIChatDrawer({ context }: AIChatDrawerProps) {
     }
   };
 
-  const handleClear = () => {
-    if (confirm("Clear this conversation history?")) {
+  const handleClear = async () => {
+    const confirmed = await showAppConfirm({
+      title: "Clear Conversation",
+      message: "Clear this conversation history?",
+      confirmLabel: "Clear",
+      destructive: true,
+    });
+    if (confirmed) {
       setMessages([]);
     }
   };

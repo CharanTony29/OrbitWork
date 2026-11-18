@@ -17,6 +17,7 @@ import GlobalInteractionFeedback from "./GlobalInteractionFeedback";
 import GlobalMobileDrawer from "./GlobalMobileDrawer";
 import AIChatDrawer from "./ai/AIChatDrawer";
 import AIAgentGlobalNotifier from "./ai/AIAgentGlobalNotifier";
+import AppDialogHost from "./AppDialogHost";
 
 export const metadata: Metadata = {
   metadataBase: new URL(CANONICAL_ORIGIN),
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <AuthRecoveryListener />
         <AIChatDrawer />
         <AIAgentGlobalNotifier />
+        <AppDialogHost />
       </body>
     </html>
   );

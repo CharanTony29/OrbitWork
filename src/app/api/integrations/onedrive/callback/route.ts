@@ -3,8 +3,13 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { encryptOneDriveToken } from "@/lib/onedrive";
+import {
+  getUserApplicableOrgPolicies,
+  validateAccountAgainstPolicies,
+} from "@/lib/personal-cloud";
 
 type OAuthState = {
+  mode?: "user_personal";
   workspaceId?: string;
   organizationId: string;
   userId: string;
@@ -13,7 +18,20 @@ type OAuthState = {
   redirectUri?: string;
 };
 
-function failure(request: Request, organizationId: string, reason: string, workspaceId?: string, detail?: string) {
+function failure(
+  request: Request,
+  organizationId: string,
+  reason: string,
+  workspaceId?: string,
+  detail?: string,
+  isPersonal?: boolean
+) {
+  if (isPersonal) {
+    const detailParam = detail ? `&cloud_detail=${encodeURIComponent(detail)}` : "";
+    return NextResponse.redirect(
+      new URL(`/profile?cloud_error=${encodeURIComponent(reason)}${detailParam}`, request.url)
+    );
+  }
   const param = `storage=${encodeURIComponent(reason)}${detail ? `&storage_error=${encodeURIComponent(detail)}` : ""}`;
   if (workspaceId && /^[0-9a-f-]{36}$/i.test(workspaceId)) {
     return NextResponse.redirect(
@@ -60,6 +78,7 @@ export async function GET(request: Request) {
 
   const orgId = decoded?.organizationId ?? "";
   const wsId = decoded?.workspaceId ?? "";
+  const isPersonal = decoded?.mode === "user_personal";
 
   if (
     !decoded ||
@@ -68,10 +87,10 @@ export async function GET(request: Request) {
     Date.now() - decoded.issuedAt > 600000 ||
     Date.now() < decoded.issuedAt - 30000
   ) {
-    return failure(request, orgId, "invalid_state", wsId);
+    return failure(request, orgId, "invalid_state", wsId, undefined, isPersonal);
   }
   if (oauthError || !code) {
-    return failure(request, orgId, "cancelled", wsId);
+    return failure(request, orgId, "cancelled", wsId, undefined, isPersonal);
   }
 
   const supabase = await createClient();
@@ -79,7 +98,7 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user || user.id !== decoded.userId) {
-    return failure(request, orgId, "session_changed", wsId);
+    return failure(request, orgId, "session_changed", wsId, undefined, isPersonal);
   }
 
   const clientId = process.env.MICROSOFT_CLIENT_ID;
@@ -103,7 +122,7 @@ export async function GET(request: Request) {
       cache: "no-store",
     });
 
-    if (!tokenResponse.ok) return failure(request, orgId, "token_exchange_failed", wsId);
+    if (!tokenResponse.ok) return failure(request, orgId, "token_exchange_failed", wsId, undefined, isPersonal);
 
     const tokenPayload = (await tokenResponse.json()) as { access_token?: string; refresh_token?: string };
 
@@ -127,6 +146,52 @@ export async function GET(request: Request) {
       } catch (encErr) {
         console.error("Failed encrypting OneDrive refresh token:", encErr);
       }
+    }
+
+    // Handle Personal User Cloud Connection (for private Chat & Group attachments)
+    if (isPersonal) {
+      const policies = await getUserApplicableOrgPolicies(supabase, user.id);
+      const policyCheck = validateAccountAgainstPolicies("onedrive", accountEmail, policies);
+      if (!policyCheck.ok) {
+        return failure(request, "", "policy_violation", "", policyCheck.reason, true);
+      }
+
+      const { data: existingPersonal } = await supabase
+        .from("user_cloud_connections")
+        .select("id, refresh_token_ciphertext")
+        .eq("user_id", user.id)
+        .eq("provider", "onedrive")
+        .maybeSingle();
+
+      const finalCiphertext = refreshTokenCiphertext || existingPersonal?.refresh_token_ciphertext;
+      if (!finalCiphertext) {
+        return failure(request, "", "missing_refresh_token", "", undefined, true);
+      }
+
+      await supabase
+        .from("user_cloud_connections")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("user_id", user.id);
+
+      const { error: upsertErr } = await supabase.from("user_cloud_connections").upsert(
+        {
+          user_id: user.id,
+          provider: "onedrive",
+          account_email: accountEmail || null,
+          refresh_token_ciphertext: finalCiphertext,
+          folder_name: "Orbitwork Chat",
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,provider" }
+      );
+
+      if (upsertErr) {
+        console.error("[OneDrive Callback] Personal cloud save failed:", upsertErr);
+        return failure(request, "", "save_failed", "", upsertErr.message, true);
+      }
+
+      return NextResponse.redirect(new URL("/profile?cloud_connected=onedrive", request.url));
     }
 
     if (wsId) {
@@ -235,6 +300,6 @@ export async function GET(request: Request) {
       new URL(`/organizations/${orgId}/integrations?storage=onedrive_connected`, request.url)
     );
   } catch {
-    return failure(request, orgId, "connection_failed", wsId);
+    return failure(request, orgId, "connection_failed", wsId, undefined, isPersonal);
   }
 }

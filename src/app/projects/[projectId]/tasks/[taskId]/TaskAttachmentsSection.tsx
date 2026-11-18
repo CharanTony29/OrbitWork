@@ -2,6 +2,7 @@
 
 import { useState, useRef, useTransition, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { showAppConfirm, showAppToast } from "@/lib/app-feedback";
 import Link from "next/link";
 import {
   UploadCloud,
@@ -530,8 +531,14 @@ export default function TaskAttachmentsSection({
     setUploading(true);
   };
 
-  const handleDeleteAttachment = (attachmentId: string) => {
-    if (!confirm("Are you sure you want to remove this attachment from the task?")) return;
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    const confirmed = await showAppConfirm({
+      title: "Remove Attachment",
+      message: "Are you sure you want to remove this attachment from the task?",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!confirmed) return;
     startDeleteTransition(async () => {
       const fd = new FormData();
       fd.set("projectId", projectId);
@@ -558,7 +565,10 @@ export default function TaskAttachmentsSection({
       if (res?.ok) {
         window.location.href = `/projects/${projectId}/tasks/${taskId}?tab=${type}`;
       } else {
-        alert(res?.error ? `Could not create ${type}: ${res.error}` : `Failed to create ${type}`);
+        showAppToast(
+          res?.error ? `Could not create ${type}: ${res.error}` : `Failed to create ${type}`,
+          "error"
+        );
       }
     });
   };

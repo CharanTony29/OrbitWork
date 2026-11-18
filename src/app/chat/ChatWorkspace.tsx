@@ -36,6 +36,7 @@ import {
   ListFilter,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { showAppToast } from "@/lib/app-feedback";
 import {
   CHAT_CHANNELS,
   CHAT_COMPOSER_EMOJIS,
@@ -584,6 +585,8 @@ export default function ChatWorkspace({
         t.threadKey === threadKey ? { ...t, unreadCount: 0 } : t
       );
       const totalUnread = next.reduce((sum, item) => sum + item.unreadCount, 0);
+      const win = window as Window & { __orbitworkChatUnreadCount?: number };
+      win.__orbitworkChatUnreadCount = totalUnread;
       window.dispatchEvent(
         new CustomEvent("orbitwork-chat-unread", { detail: { totalUnread } })
       );
@@ -617,6 +620,8 @@ export default function ChatWorkspace({
         );
         setThreads(synced);
         const totalUnread = synced.reduce((s, t) => s + t.unreadCount, 0);
+        const win = window as Window & { __orbitworkChatUnreadCount?: number };
+        win.__orbitworkChatUnreadCount = totalUnread;
         window.dispatchEvent(
           new CustomEvent("orbitwork-chat-unread", { detail: { totalUnread } })
         );
@@ -747,7 +752,7 @@ export default function ChatWorkspace({
     lastSeenMsgIdRef.current = latestId;
   }, [messages, activeThreadKey, currentUserId, markThreadAsRead]);
 
-  // Upload pasted or selected files to /api/chat/attachments (bytea Postgres persistence)
+  // Upload pasted or selected files to /api/chat/attachments (stored in sender's personal Drive/OneDrive — NEVER Supabase)
   const uploadAttachmentFile = useCallback(
     async (file: File) => {
       setUploadingFile(true);
@@ -760,27 +765,23 @@ export default function ChatWorkspace({
           method: "POST",
           body: fd,
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
 
         if (!res.ok) {
-          if (data.migrationMissing && file.type.startsWith("image/")) {
-            const compressed = await compressImageForFallback(file);
-            if (compressed) {
-              setStagedAttachments((prev) => [
-                ...prev,
-                {
-                  id: `inline-${Date.now()}`,
-                  fileName: file.name || "screenshot.jpg",
-                  mimeType: "image/jpeg",
-                  fileSizeBytes: compressed.length,
-                  url: compressed,
-                },
-              ]);
-              setEnhancedMigrationMissing(true);
-              return;
-            }
+          const msg = data.error || "Failed to upload file.";
+          setErrorBanner(msg);
+          if (data.needsCloudConnection || data.policyViolation) {
+            showAppToast(msg, "warning", {
+              title: data.policyViolation
+                ? "Organization cloud policy"
+                : "Connect personal cloud drive",
+              actionLabel: "Open Profile Settings",
+              actionHref: "/profile#personal-cloud-storage",
+              durationMs: 8500,
+            });
+          } else {
+            showAppToast(msg, "error");
           }
-          setErrorBanner(data.error || "Failed to upload file.");
           return;
         }
 
@@ -788,7 +789,9 @@ export default function ChatWorkspace({
           setStagedAttachments((prev) => [...prev, data.attachment]);
         }
       } catch {
-        setErrorBanner("Upload failed. Check network and retry.");
+        const msg = "Upload failed. Check network and retry.";
+        setErrorBanner(msg);
+        showAppToast(msg, "error");
       } finally {
         setUploadingFile(false);
       }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { showAppConfirm } from "@/lib/app-feedback";
 import {
   Palette,
   X,
@@ -85,8 +86,14 @@ export default function CustomThemeStudioModal({ isOpen, onClose }: Props) {
     }, 800);
   };
 
-  const handleReset = () => {
-    if (window.confirm("Reset all appearance and status color customizations back to default OrbitWork styles?")) {
+  const handleReset = async () => {
+    const confirmed = await showAppConfirm({
+      title: "Reset Appearance",
+      message: "Reset all appearance and status color customizations back to default OrbitWork styles?",
+      confirmLabel: "Reset",
+      destructive: true,
+    });
+    if (confirmed) {
       resetUserThemeToDefault();
       setPreferences({
         light: { ...DEFAULT_LIGHT_THEME },

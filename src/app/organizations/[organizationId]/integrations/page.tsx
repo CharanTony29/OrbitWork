@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getOrganizationStorageConfig } from "@/lib/storage-config";
+import { getOrgChatCloudPolicy } from "@/lib/personal-cloud";
+import OrgChatCloudPolicyCard from "./OrgChatCloudPolicyCard";
 import {
   setOrganizationActiveStorageProvider,
   saveOrganizationOneDriveConfig,
@@ -44,7 +46,7 @@ export default async function OrganizationIntegrationsPage({
     .maybeSingle();
   if (!organization) notFound();
 
-  const [{ data: connection }, { data: canManage }, storageConfig] = await Promise.all([
+  const [{ data: connection }, { data: canManage }, { data: canManageChatPolicy }, storageConfig, chatCloudPolicy] = await Promise.all([
     supabase
       .from("google_drive_connections")
       .select("connected_by, connected_at, updated_at, account_email")
@@ -55,7 +57,12 @@ export default async function OrganizationIntegrationsPage({
       target_org: organizationId,
       allowed_roles: ["owner", "admin"],
     }),
+    supabase.rpc("has_org_role", {
+      target_org: organizationId,
+      allowed_roles: ["owner", "admin", "manager"],
+    }),
     getOrganizationStorageConfig(supabase, organizationId),
+    getOrgChatCloudPolicy(supabase, organizationId),
   ]);
 
   const googleConfigured = Boolean(
@@ -346,6 +353,14 @@ export default async function OrganizationIntegrationsPage({
                 </form>
               ))}
           </article>
+
+          {/* 5. Member Chat & Group Attachment Storage Policy (*@myorg.com vs Any) */}
+          <OrgChatCloudPolicyCard
+            organizationId={organizationId}
+            organizationName={organization.name}
+            initialPolicy={chatCloudPolicy}
+            canManage={Boolean(canManageChatPolicy)}
+          />
         </div>
 
         {/* Setup Reference */}

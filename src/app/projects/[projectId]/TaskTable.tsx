@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { MessageSquare, ExternalLink, ChevronDown, ChevronRight, Flag, Calendar, Layers, List, Check, GripVertical, Columns3, RotateCcw, ChevronLeft, User, Tag, SlidersHorizontal, ChevronsUpDown, ChevronsDownUp, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
-import { useTransition, useRef, useState, useCallback, useEffect, useMemo, Fragment } from "react";
+import { MessageSquare, ExternalLink, ChevronDown, ChevronRight, Flag, Calendar, Layers, List, Check, GripVertical, Columns3, RotateCcw, ChevronLeft, User, Tag, SlidersHorizontal, ChevronsUpDown, ChevronsDownUp, ArrowUp, ArrowDown, ArrowUpDown, Pin, PinOff } from "lucide-react";
+import { cloneElement, isValidElement, useTransition, useRef, useState, useCallback, useEffect, useMemo, Fragment, type ReactElement } from "react";
 import { updateTaskField, updateTaskStatus } from "@/app/actions";
 import {
   BASE_TABLE_COLUMN_LABELS,
   BaseTableColumnKey,
   buildDefaultColumnOrder,
+  clampColumnWidth,
+  getDefaultColumnWidth,
   normalizeColumnOrder,
   TABLE_COL_COOKIE,
+  TABLE_COL_WIDTHS_COOKIE,
+  TABLE_FROZEN_COLS_COOKIE,
 } from "@/lib/project-preferences";
 import AssigneePicker from "./AssigneePicker";
 import AddColumnButton from "./AddColumnButton";
@@ -865,6 +869,8 @@ export default function TaskTable({
   runningTimerMap,
   initialGroupBy = "status",
   initialColumnOrder,
+  initialColumnWidths,
+  initialFrozenColumns,
 }: {
   projectId: string;
   canEdit?: boolean;
@@ -880,6 +886,8 @@ export default function TaskTable({
   runningTimerMap?: Map<string, { id: string; started_at: string; billable?: boolean }>;
   initialGroupBy?: string;
   initialColumnOrder?: string[];
+  initialColumnWidths?: Record<string, number>;
+  initialFrozenColumns?: string[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -935,6 +943,13 @@ export default function TaskTable({
   const [savedColumnOrder, setSavedColumnOrder] = useState<string[] | undefined>(
     initialColumnOrder
   );
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
+    initialColumnWidths ?? {}
+  );
+  const [frozenColumns, setFrozenColumns] = useState<string[]>(
+    initialFrozenColumns !== undefined ? initialFrozenColumns : ["name"]
+  );
+  const [resizingColId, setResizingColId] = useState<string | null>(null);
   const [dragColId, setDragColId] = useState<string | null>(null);
   const [dragOverColId, setDragOverColId] = useState<string | null>(null);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
@@ -988,6 +1003,151 @@ export default function TaskTable({
   const orderedColumnIds = useMemo(
     () => normalizeColumnOrder(savedColumnOrder, customFieldIds),
     [savedColumnOrder, customFieldIds]
+  );
+
+  // Hydrate column widths & frozen columns from localStorage if server props weren't present
+  useEffect(() => {
+    if (initialColumnWidths && Object.keys(initialColumnWidths).length > 0) {
+      setColumnWidths(initialColumnWidths);
+    } else {
+      try {
+        const cached = localStorage.getItem("orbitwork_table_col_widths_v1");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            setColumnWidths(parsed);
+          }
+        }
+      } catch {}
+    }
+  }, [initialColumnWidths]);
+
+  useEffect(() => {
+    if (initialFrozenColumns !== undefined) {
+      setFrozenColumns(initialFrozenColumns);
+    } else {
+      try {
+        const cached = localStorage.getItem("orbitwork_table_frozen_cols_v1");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) {
+            setFrozenColumns(parsed.filter((x): x is string => typeof x === "string"));
+          }
+        }
+      } catch {}
+    }
+  }, [initialFrozenColumns]);
+
+  const persistColumnWidths = useCallback(async (nextWidths: Record<string, number>) => {
+    setColumnWidths(nextWidths);
+    try {
+      localStorage.setItem("orbitwork_table_col_widths_v1", JSON.stringify(nextWidths));
+      document.cookie = `${TABLE_COL_WIDTHS_COOKIE}=${encodeURIComponent(
+        JSON.stringify(nextWidths)
+      )}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+    } catch {}
+    try {
+      await fetch("/api/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listColumnWidths: nextWidths }),
+      });
+    } catch {}
+  }, []);
+
+  const persistFrozenColumns = useCallback(async (nextFrozen: string[]) => {
+    const unique = [...new Set(nextFrozen)];
+    setFrozenColumns(unique);
+    try {
+      localStorage.setItem("orbitwork_table_frozen_cols_v1", JSON.stringify(unique));
+      document.cookie = `${TABLE_FROZEN_COLS_COOKIE}=${encodeURIComponent(
+        JSON.stringify(unique)
+      )}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+    } catch {}
+    try {
+      await fetch("/api/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ listFrozenColumns: unique }),
+      });
+    } catch {}
+  }, []);
+
+  const toggleFreezeColumn = useCallback(
+    (colId: string) => {
+      const next = frozenColumns.includes(colId)
+        ? frozenColumns.filter((id) => id !== colId)
+        : [...frozenColumns, colId];
+      void persistFrozenColumns(next);
+    },
+    [frozenColumns, persistFrozenColumns]
+  );
+
+  const getColumnWidth = useCallback(
+    (colId: string): number => clampColumnWidth(columnWidths[colId] ?? getDefaultColumnWidth(colId)),
+    [columnWidths]
+  );
+
+  // Place frozen columns first on the left (in their chosen relative order) so sticky offsets never collide
+  const frozenSet = useMemo(() => new Set(frozenColumns), [frozenColumns]);
+  const displayColumnIds = useMemo(() => {
+    const pinned = orderedColumnIds.filter((id) => frozenSet.has(id));
+    const unpinned = orderedColumnIds.filter((id) => !frozenSet.has(id));
+    return [...pinned, ...unpinned];
+  }, [orderedColumnIds, frozenSet]);
+
+  const { frozenLeftMap, lastFrozenColId } = useMemo(() => {
+    const map = new Map<string, number>();
+    let accLeft = 0;
+    let lastId: string | null = null;
+    for (const colId of displayColumnIds) {
+      if (!frozenSet.has(colId)) break;
+      map.set(colId, accLeft);
+      accLeft += getColumnWidth(colId);
+      lastId = colId;
+    }
+    return { frozenLeftMap: map, lastFrozenColId: lastId };
+  }, [displayColumnIds, frozenSet, getColumnWidth]);
+
+  const startResizeColumn = useCallback(
+    (e: React.MouseEvent, colId: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startWidth = getColumnWidth(colId);
+      setResizingColId(colId);
+      let latestWidth = startWidth;
+
+      const onMouseMove = (moveEvt: MouseEvent) => {
+        latestWidth = clampColumnWidth(startWidth + (moveEvt.clientX - startX));
+        setColumnWidths((prev) => ({ ...prev, [colId]: latestWidth }));
+      };
+
+      const onMouseUp = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        setResizingColId(null);
+        const nextWidths = { ...columnWidths, [colId]: latestWidth };
+        void persistColumnWidths(nextWidths);
+      };
+
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    },
+    [columnWidths, getColumnWidth, persistColumnWidths]
+  );
+
+  const resetColumnWidth = useCallback(
+    (colId: string) => {
+      const next = { ...columnWidths };
+      delete next[colId];
+      void persistColumnWidths(next);
+    },
+    [columnWidths, persistColumnWidths]
   );
 
   const persistColumnOrder = useCallback(
@@ -1429,9 +1589,43 @@ export default function TaskTable({
       return null;
     };
 
+    const renderStyledCell = (colId: string) => {
+      const cellEl = renderCell(colId);
+      if (!cellEl || !isValidElement(cellEl)) return cellEl;
+      const width = getColumnWidth(colId);
+      const isFrozen = frozenLeftMap.has(colId);
+      const leftPx = frozenLeftMap.get(colId);
+      const isLastFrozen = colId === lastFrozenColId;
+      const existingProps = cellEl.props as { className?: string; style?: React.CSSProperties };
+      const mergedClass = [
+        existingProps.className || "",
+        isFrozen ? "is-frozen-col" : "",
+        isLastFrozen ? "is-last-frozen-col" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const mergedStyle: React.CSSProperties = {
+        ...(existingProps.style || {}),
+        width: `${width}px`,
+        minWidth: `${width}px`,
+        maxWidth: `${width}px`,
+        ...(isFrozen
+          ? {
+              position: "sticky",
+              left: `${leftPx}px`,
+              zIndex: 6,
+            }
+          : {}),
+      };
+      return cloneElement(cellEl as ReactElement<Record<string, unknown>>, {
+        className: mergedClass || undefined,
+        style: mergedStyle,
+      });
+    };
+
     return (
       <tr key={task.id} className={`task-data-tr${isSubtask ? " is-subtask-row" : ""}`}>
-        {orderedColumnIds.map((colId) => renderCell(colId))}
+        {displayColumnIds.map((colId) => renderStyledCell(colId))}
         <td className="add-col-empty-cell" />
       </tr>
     );
@@ -2103,7 +2297,7 @@ export default function TaskTable({
     >
       <div className="table-columns-toolbar" ref={columnsMenuRef}>
         <span className="table-columns-hint">
-          Drag column headers to arrange your own view
+          Drag edges to resize · Pin to freeze · Drag headers to reorder
         </span>
         <button
           type="button"
@@ -2155,13 +2349,19 @@ export default function TaskTable({
               <button
                 type="button"
                 className="view-tabs-reset-btn"
-                onClick={() => void persistColumnOrder(buildDefaultColumnOrder(customFieldIds))}
+                onClick={() => {
+                  void persistColumnOrder(buildDefaultColumnOrder(customFieldIds));
+                  void persistColumnWidths({});
+                  void persistFrozenColumns(["name"]);
+                }}
               >
                 <RotateCcw size={12} /> Reset
               </button>
             </div>
             <div className="view-tabs-popover-list">
-              {orderedColumnIds.map((colId, idx) => (
+              {displayColumnIds.map((colId, idx) => {
+                const isFrozen = frozenSet.has(colId);
+                return (
                 <div
                   key={colId}
                   className={`view-tabs-popover-item${dragOverColId === colId ? " is-drop-hover" : ""}`}
@@ -2185,8 +2385,30 @@ export default function TaskTable({
                   <span className="view-tabs-grip">
                     <GripVertical size={13} />
                   </span>
-                  <span className="view-tabs-item-name">{getColumnLabel(colId)}</span>
+                  <span className="view-tabs-item-name">
+                    {getColumnLabel(colId)}
+                    {isFrozen && (
+                      <span className="view-tabs-default-badge">Frozen</span>
+                    )}
+                  </span>
                   <div className="view-tabs-step-btns">
+                    <button
+                      type="button"
+                      onClick={() => toggleFreezeColumn(colId)}
+                      aria-label={isFrozen ? `Unfreeze ${getColumnLabel(colId)}` : `Freeze ${getColumnLabel(colId)}`}
+                      title={isFrozen ? "Unfreeze column" : "Freeze column on left"}
+                      style={
+                        isFrozen
+                          ? {
+                              color: "var(--green, #167c58)",
+                              borderColor: "var(--green, #167c58)",
+                              background: "rgba(22, 124, 88, 0.1)",
+                            }
+                          : undefined
+                      }
+                    >
+                      {isFrozen ? <PinOff size={12} /> : <Pin size={12} />}
+                    </button>
                     <button
                       type="button"
                       disabled={idx === 0}
@@ -2197,7 +2419,7 @@ export default function TaskTable({
                     </button>
                     <button
                       type="button"
-                      disabled={idx === orderedColumnIds.length - 1}
+                      disabled={idx === displayColumnIds.length - 1}
                       onClick={() => moveColumnStep(colId, 1)}
                       aria-label={`Move ${getColumnLabel(colId)} right`}
                     >
@@ -2205,24 +2427,42 @@ export default function TaskTable({
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
       </div>
 
       <div className="task-table-wrap" ref={tableWrapRef}>
-        <table className={`task-table${nameColIndex !== 0 ? " has-moved-name-col" : ""}`}>
+        <table
+          className={`task-table has-custom-freeze${nameColIndex !== 0 ? " has-moved-name-col" : ""}`}
+          style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}
+        >
+          <colgroup>
+            {displayColumnIds.map((colId) => (
+              <col key={colId} style={{ width: `${getColumnWidth(colId)}px` }} />
+            ))}
+            <col style={{ width: "44px" }} />
+          </colgroup>
           <thead>
             <tr>
-              {orderedColumnIds.map((colId) => {
+              {displayColumnIds.map((colId) => {
                 const label = getColumnLabel(colId);
                 const isDropTarget = dragOverColId === colId && dragColId !== colId;
+                const width = getColumnWidth(colId);
+                const isFrozen = frozenLeftMap.has(colId);
+                const leftPx = frozenLeftMap.get(colId);
+                const isLastFrozen = colId === lastFrozenColId;
                 return (
                   <th
                     key={colId}
-                    draggable
+                    draggable={!resizingColId}
                     onDragStart={(e) => {
+                      if (resizingColId) {
+                        e.preventDefault();
+                        return;
+                      }
                       setDragColId(colId);
                       e.dataTransfer.effectAllowed = "move";
                       e.dataTransfer.setData("text/plain", colId);
@@ -2244,12 +2484,34 @@ export default function TaskTable({
                     }}
                     className={`task-th-draggable${
                       colId === "name" ? " task-title-th" : ""
-                    }${isDropTarget ? " is-col-drop-target" : ""}`}
-                    title="Drag header to reorder column"
+                    }${isDropTarget ? " is-col-drop-target" : ""}${
+                      isFrozen ? " is-frozen-col" : ""
+                    }${isLastFrozen ? " is-last-frozen-col" : ""}`}
+                    style={{
+                      width: `${width}px`,
+                      minWidth: `${width}px`,
+                      maxWidth: `${width}px`,
+                      position: "sticky",
+                      top: 0,
+                      ...(isFrozen ? { left: `${leftPx}px`, zIndex: 18 } : { zIndex: 10 }),
+                    }}
+                    title="Drag header to reorder · Drag right edge to resize · Click pin to freeze"
                   >
-                    <span className="task-th-inner">
+                    <span className="task-th-inner" style={{ width: "100%", paddingRight: 10 }}>
                       <GripVertical size={11} className="task-th-grip" />
-                      <span>{label}</span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+                      <button
+                        type="button"
+                        className={`th-freeze-btn${isFrozen ? " is-frozen" : ""}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFreezeColumn(colId);
+                        }}
+                        aria-label={isFrozen ? `Unfreeze ${label}` : `Freeze ${label}`}
+                        title={isFrozen ? "Unfreeze column" : "Freeze column on left"}
+                      >
+                        {isFrozen ? <PinOff size={11} /> : <Pin size={11} />}
+                      </button>
                       {["name", "due_date", "priority", "created_by"].includes(colId) && (
                         <button
                           type="button"
@@ -2322,6 +2584,16 @@ export default function TaskTable({
                         </button>
                       )}
                     </span>
+                    <span
+                      className={`col-resize-handle${resizingColId === colId ? " is-resizing" : ""}`}
+                      onMouseDown={(e) => startResizeColumn(e, colId)}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        resetColumnWidth(colId);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      title="Drag to resize column (double-click to reset)"
+                    />
                   </th>
                 );
               })}

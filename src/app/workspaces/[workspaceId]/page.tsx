@@ -7,6 +7,7 @@ import { removeWorkspaceMember, updateWorkspaceMemberRole } from "@/app/actions"
 import WorkspaceProjectsList from "./WorkspaceProjectsList";
 import WorkspaceInviteSection from "./WorkspaceInviteSection";
 import WorkspaceStorageSection from "./WorkspaceStorageSection";
+import DeleteWorkspaceButton from "../DeleteWorkspaceButton";
 import { getWorkspaceStorageConfig } from "@/lib/storage-config";
 import TimesheetExportButton from "@/app/timesheets/TimesheetExportButton";
 
@@ -22,6 +23,7 @@ export default async function WorkspacePage({
     member_updated?: string;
     invited?: string;
     status_updated?: string;
+    project_deleted?: string;
     drive?: string;
     storage?: string;
   }>;
@@ -124,7 +126,7 @@ export default async function WorkspacePage({
       name: people.get(member.user_id) ?? "Team member",
     }));
 
-  const { error, member_added, member_removed, member_updated, invited, status_updated, drive, storage } =
+  const { error, member_added, member_removed, member_updated, invited, status_updated, project_deleted, drive, storage } =
     await searchParams;
 
   const memberErrors: Record<string, string> = {
@@ -136,6 +138,12 @@ export default async function WorkspacePage({
       "The member could not be added. Check the workspace access migration and try again.",
     workspace_member_remove_failed:
       "The member could not be removed. Check your workspace role and the workspace access migration.",
+    workspace_delete_forbidden:
+      "Only an organization owner or admin can permanently delete a workspace.",
+    workspace_delete_confirmation:
+      "Workspace name confirmation did not match.",
+    workspace_delete_failed:
+      "Could not delete this workspace. Please try again.",
   };
 
   return (
@@ -175,6 +183,13 @@ export default async function WorkspacePage({
               scopeName={workspace.name}
               label="Export Timesheets Excel"
             />
+            {Boolean(isOrgAdmin) && (
+              <DeleteWorkspaceButton
+                workspaceId={workspaceId}
+                workspaceName={workspace.name}
+                returnTo={`/organizations/${workspace.organization_id}/workspaces`}
+              />
+            )}
             <div className="workspace-symbol">
               <FolderKanban size={22} />
             </div>
@@ -186,6 +201,7 @@ export default async function WorkspacePage({
         {member_removed && <p className="notice" role="status">Workspace access removed.</p>}
         {member_updated && <p className="notice" role="status">Workspace member role updated.</p>}
         {status_updated && <p className="notice" role="status">Project status updated.</p>}
+        {project_deleted && <p className="notice" role="status">Project permanently deleted.</p>}
         {error && (
           <p className="error" role="alert">
             {memberErrors[error] ?? "That change could not be saved. Check your access and try again."}

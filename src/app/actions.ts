@@ -528,6 +528,59 @@ export async function createWorkspace(formData: FormData) {
   redirect("/dashboard");
 }
 
+export async function deleteWorkspace(formData: FormData) {
+  const parsed = z.object({
+    workspaceId: z.string().uuid(),
+    confirmName: z.string().trim().min(1).max(120),
+    returnTo: z.string().trim().optional(),
+  }).safeParse({
+    workspaceId: formData.get("workspaceId"),
+    confirmName: formData.get("confirmName"),
+    returnTo: formData.get("returnTo") || undefined,
+  });
+  const fallbackReturn = parsed.success && parsed.data.returnTo && parsed.data.returnTo.startsWith("/")
+    ? parsed.data.returnTo
+    : "/dashboard";
+  if (!parsed.success) redirect(`${fallbackReturn}?error=workspace_delete_confirmation`);
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("id, name, organization_id")
+    .eq("id", parsed.data.workspaceId)
+    .maybeSingle();
+
+  if (!workspace) redirect(`${fallbackReturn}?error=workspace_not_found`);
+
+  const { data: isOrgAdmin } = await supabase.rpc("has_org_role", {
+    target_org: workspace.organization_id,
+    allowed_roles: ["owner", "admin"],
+  });
+  if (!isOrgAdmin) {
+    redirect(`/workspaces/${workspace.id}?error=workspace_delete_forbidden`);
+  }
+
+  if (workspace.name.trim().toLowerCase() !== parsed.data.confirmName.trim().toLowerCase()) {
+    redirect(`/workspaces/${workspace.id}?error=workspace_delete_confirmation`);
+  }
+
+  const { error } = await supabase.from("workspaces").delete().eq("id", workspace.id);
+  if (error) {
+    redirect(`/workspaces/${workspace.id}?error=workspace_delete_failed`);
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/organizations/${workspace.organization_id}/workspaces`);
+  const successTarget = parsed.data.returnTo && parsed.data.returnTo.startsWith("/")
+    ? parsed.data.returnTo
+    : `/organizations/${workspace.organization_id}/workspaces`;
+  const sep = successTarget.includes("?") ? "&" : "?";
+  redirect(`${successTarget}${sep}workspace_deleted=1`);
+}
+
 export async function inviteOrganizationMember(formData: FormData) {
   const rawEmails = formData.getAll("email").map((v) => String(v).trim()).filter(Boolean).join(", ");
   const emailValue = rawEmails || String(formData.get("email") || "");
@@ -962,6 +1015,55 @@ export async function toggleProjectActiveStatus(formData: FormData) {
     redirect(`/workspaces/${parsed.data.workspaceId}?status_updated=1`);
   }
   redirect(`/projects/${parsed.data.projectId}?status_updated=1`);
+}
+
+export async function deleteProject(formData: FormData) {
+  const parsed = z.object({
+    projectId: z.string().uuid(),
+    confirmName: z.string().trim().min(1).max(160),
+    workspaceId: z.string().uuid().optional(),
+  }).safeParse({
+    projectId: formData.get("projectId"),
+    confirmName: formData.get("confirmName"),
+    workspaceId: formData.get("workspaceId") || undefined,
+  });
+  if (!parsed.success) redirect("/dashboard?error=project_delete_confirmation");
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, name, workspace_id")
+    .eq("id", parsed.data.projectId)
+    .maybeSingle();
+
+  if (!project) redirect("/dashboard?error=project_not_found");
+
+  const { data: canManage } = await supabase.rpc("can_manage_project", {
+    target_project: project.id,
+  });
+  if (!canManage) {
+    redirect(`/projects/${project.id}?error=project_delete_forbidden`);
+  }
+
+  if (project.name.trim().toLowerCase() !== parsed.data.confirmName.trim().toLowerCase()) {
+    redirect(`/projects/${project.id}?error=project_delete_confirmation`);
+  }
+
+  const { error } = await supabase.from("projects").delete().eq("id", project.id);
+  if (error) {
+    redirect(`/projects/${project.id}?error=project_delete_failed`);
+  }
+
+  const targetWorkspaceId = parsed.data.workspaceId || project.workspace_id;
+  revalidatePath("/dashboard");
+  if (targetWorkspaceId) {
+    revalidatePath(`/workspaces/${targetWorkspaceId}`);
+    redirect(`/workspaces/${targetWorkspaceId}?project_deleted=1`);
+  }
+  redirect("/dashboard?project_deleted=1");
 }
 
 

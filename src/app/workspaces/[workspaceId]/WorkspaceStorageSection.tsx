@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { showAppConfirm } from "@/lib/app-feedback";
 import {
   CheckCircle2,
   HardDrive,
@@ -445,9 +446,23 @@ export default function WorkspaceStorageSection({
                       action="/api/integrations/google-drive/disconnect"
                       method="POST"
                       onSubmit={(e) => {
-                        if (!confirm("Are you sure you want to disconnect Google Drive from this workspace?")) {
-                          e.preventDefault();
+                        const form = e.currentTarget;
+                        if (form.dataset.confirmed === "1") {
+                          delete form.dataset.confirmed;
+                          return;
                         }
+                        e.preventDefault();
+                        void showAppConfirm({
+                          title: "Disconnect Google Drive",
+                          message: "Are you sure you want to disconnect Google Drive from this workspace?",
+                          confirmLabel: "Disconnect",
+                          destructive: true,
+                        }).then((ok) => {
+                          if (ok) {
+                            form.dataset.confirmed = "1";
+                            form.requestSubmit();
+                          }
+                        });
                       }}
                     >
                       <input type="hidden" name="workspaceId" value={workspaceId} />
@@ -618,9 +633,23 @@ export default function WorkspaceStorageSection({
                     <form
                       action={async (formData) => { await disconnectWorkspaceOneDrive(formData); }}
                       onSubmit={(e) => {
-                        if (!confirm("Are you sure you want to disconnect OneDrive from this workspace?")) {
-                          e.preventDefault();
+                        const form = e.currentTarget;
+                        if (form.dataset.confirmed === "1") {
+                          delete form.dataset.confirmed;
+                          return;
                         }
+                        e.preventDefault();
+                        void showAppConfirm({
+                          title: "Disconnect OneDrive",
+                          message: "Are you sure you want to disconnect OneDrive from this workspace?",
+                          confirmLabel: "Disconnect",
+                          destructive: true,
+                        }).then((ok) => {
+                          if (ok) {
+                            form.dataset.confirmed = "1";
+                            form.requestSubmit();
+                          }
+                        });
                       }}
                     >
                       <input type="hidden" name="workspaceId" value={workspaceId} />
@@ -909,9 +938,23 @@ export default function WorkspaceStorageSection({
                     <form
                       action={async (formData) => { await disconnectWorkspaceSharePoint(formData); }}
                       onSubmit={(e) => {
-                        if (!confirm("Are you sure you want to disconnect SharePoint from this workspace?")) {
-                          e.preventDefault();
+                        const form = e.currentTarget;
+                        if (form.dataset.confirmed === "1") {
+                          delete form.dataset.confirmed;
+                          return;
                         }
+                        e.preventDefault();
+                        void showAppConfirm({
+                          title: "Disconnect SharePoint",
+                          message: "Are you sure you want to disconnect SharePoint from this workspace?",
+                          confirmLabel: "Disconnect",
+                          destructive: true,
+                        }).then((ok) => {
+                          if (ok) {
+                            form.dataset.confirmed = "1";
+                            form.requestSubmit();
+                          }
+                        });
                       }}
                     >
                       <input type="hidden" name="workspaceId" value={workspaceId} />

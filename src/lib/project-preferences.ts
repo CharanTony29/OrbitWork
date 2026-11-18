@@ -62,6 +62,57 @@ export const BASE_TABLE_COLUMN_LABELS: Record<BaseTableColumnKey, string> = {
 
 export const PROJECT_TAB_COOKIE = "orbitwork_tab_order";
 export const TABLE_COL_COOKIE = "orbitwork_col_order";
+export const TABLE_COL_WIDTHS_COOKIE = "orbitwork_col_widths";
+export const TABLE_FROZEN_COLS_COOKIE = "orbitwork_frozen_cols";
+
+export const DEFAULT_TABLE_COLUMN_WIDTHS: Record<string, number> = {
+  name: 340,
+  assignee: 145,
+  due_date: 145,
+  priority: 120,
+  status: 135,
+  created_by: 145,
+  estimate: 125,
+  worked: 150,
+  remaining: 125,
+  docs: 135,
+  comments: 115,
+};
+
+export function clampColumnWidth(px: number): number {
+  if (!Number.isFinite(px)) return 140;
+  return Math.max(84, Math.min(680, Math.round(px)));
+}
+
+export function getDefaultColumnWidth(colId: string): number {
+  return DEFAULT_TABLE_COLUMN_WIDTHS[colId] ?? 150;
+}
+
+export function parsePreferenceWidthsCookie(
+  raw: string | undefined | null
+): Record<string, number> {
+  if (!raw) return {};
+  const parse = (str: string): Record<string, number> => {
+    const parsed = JSON.parse(str);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof k === "string" && typeof v === "number" && Number.isFinite(v)) {
+        out[k] = clampColumnWidth(v);
+      }
+    }
+    return out;
+  };
+  try {
+    return parse(decodeURIComponent(raw));
+  } catch {
+    try {
+      return parse(raw);
+    } catch {
+      return {};
+    }
+  }
+}
 
 export function parsePreferenceArrayCookie(raw: string | undefined | null): string[] {
   if (!raw) return [];

@@ -2,11 +2,12 @@
 
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Settings, X, GitBranch, Users, Columns, Archive, RotateCcw, Pencil, Receipt } from "lucide-react";
+import { Settings, X, GitBranch, Users, Columns, Archive, RotateCcw, Pencil, Receipt, Trash2, AlertTriangle } from "lucide-react";
 import {
   addProjectMember,
   createCustomField,
   createProjectStatus,
+  deleteProject,
   deleteProjectStatus,
   removeProjectMember,
   updateProjectMemberRole,
@@ -181,7 +182,12 @@ export default function ProjectSettingsPanel({
                 <FieldsPanel projectId={projectId} customFields={customFields} />
               )}
               {activePanel === "status" && (
-                <StatusPanel projectId={projectId} currentStatus={currentStatus} />
+                <StatusPanel
+                  projectId={projectId}
+                  projectName={projectName}
+                  currentStatus={currentStatus}
+                  canManage={canManage}
+                />
               )}
               {activePanel === "billing" && canManage && (
                 <ProjectBillingPanel
@@ -202,8 +208,22 @@ export default function ProjectSettingsPanel({
 }
 
 /* ── Project Status & Archive ────────────────────────── */
-function StatusPanel({ projectId, currentStatus }: { projectId: string; currentStatus: string }) {
+function StatusPanel({
+  projectId,
+  projectName,
+  currentStatus,
+  canManage,
+}: {
+  projectId: string;
+  projectName: string;
+  currentStatus: string;
+  canManage: boolean;
+}) {
   const isInactive = currentStatus === "archived" || currentStatus === "on_hold";
+  const [confirmDeleteName, setConfirmDeleteName] = useState("");
+  const canConfirmDelete =
+    Boolean(projectName.trim()) &&
+    confirmDeleteName.trim().toLowerCase() === projectName.trim().toLowerCase();
 
   return (
     <div className="admin-panel-section" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -250,8 +270,8 @@ function StatusPanel({ projectId, currentStatus }: { projectId: string; currentS
                   alignItems: "center",
                   gap: 6,
                   fontSize: 12,
-                  borderColor: "#ef4444",
-                  color: "#dc2626",
+                  borderColor: "#f59e0b",
+                  color: "#b45309",
                 }}
               >
                 <Archive size={14} />
@@ -264,6 +284,73 @@ function StatusPanel({ projectId, currentStatus }: { projectId: string; currentS
           When made inactive, tasks, documents, and time entries are safely preserved, and the project can be reactivated at any time from workspace settings.
         </p>
       </div>
+
+      {canManage && (
+        <div
+          style={{
+            marginTop: 4,
+            padding: 14,
+            borderRadius: 10,
+            border: "1px solid #fecaca",
+            background: "rgba(239, 68, 68, 0.04)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 7, color: "#dc2626", fontWeight: 700, fontSize: 13 }}>
+            <AlertTriangle size={15} />
+            <span>Danger Zone — Permanently Delete Project</span>
+          </div>
+          <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
+            Permanently delete <strong>{projectName || "this project"}</strong> and all its tasks, comments,
+            documents, and time logs. This cannot be undone.
+          </p>
+          <form action={deleteProject} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <input type="hidden" name="projectId" value={projectId} />
+            <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 600 }}>
+              <span>Type <strong>{projectName}</strong> to confirm deletion:</span>
+              <input
+                type="text"
+                name="confirmName"
+                value={confirmDeleteName}
+                onChange={(e) => setConfirmDeleteName(e.target.value)}
+                placeholder={projectName}
+                required
+                style={{
+                  height: 36,
+                  padding: "0 10px",
+                  borderRadius: 7,
+                  border: "1px solid #fca5a5",
+                  background: "var(--paper, #fff)",
+                  color: "var(--ink)",
+                  fontSize: 12.5,
+                }}
+              />
+            </label>
+            <div>
+              <button
+                type="submit"
+                disabled={!canConfirmDelete}
+                className="button"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  background: canConfirmDelete ? "#dc2626" : "#f1f5f9",
+                  color: canConfirmDelete ? "#fff" : "#94a3b8",
+                  border: "1px solid " + (canConfirmDelete ? "#b91c1c" : "#e2e8f0"),
+                  cursor: canConfirmDelete ? "pointer" : "not-allowed",
+                }}
+              >
+                <Trash2 size={14} />
+                <span>Delete Project Permanently</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

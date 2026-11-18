@@ -730,6 +730,21 @@ body:has(.project-app-shell) {
 .task-th-inner{display:inline-flex;align-items:center;gap:4px}
 .task-th-grip{opacity:.42;transition:opacity .12s ease}
 .task-th-draggable:hover .task-th-grip{opacity:1}
+.th-freeze-btn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:0;border-radius:4px;background:transparent;color:var(--muted,#94a3b8);cursor:pointer;opacity:0;transition:opacity .12s ease,color .12s ease,background .12s ease;flex-shrink:0}
+.task-th-draggable:hover .th-freeze-btn,.th-freeze-btn.is-frozen{opacity:1}
+.th-freeze-btn:hover{background:color-mix(in srgb,var(--green,#167c58) 12%,transparent);color:var(--green,#167c58)}
+.th-freeze-btn.is-frozen{color:var(--green,#167c58);background:color-mix(in srgb,var(--green,#167c58) 10%,transparent)}
+.col-resize-handle{position:absolute;top:0;right:0;width:7px;height:100%;cursor:col-resize;user-select:none;z-index:20;display:flex;align-items:center;justify-content:center}
+.col-resize-handle::after{content:"";width:2px;height:56%;border-radius:2px;background:transparent;transition:background .12s ease}
+.col-resize-handle:hover::after,.col-resize-handle.is-resizing::after{background:var(--green,#167c58)}
+.task-table.has-custom-freeze thead th.is-frozen-col{background:var(--surface-subtle,#f8faf8) !important}
+.task-table.has-custom-freeze tbody td.is-frozen-col{background:var(--paper,#ffffff) !important}
+.task-table.has-custom-freeze tbody tr:hover td.is-frozen-col{background:var(--soft,#f5f8f5) !important}
+.task-table.has-custom-freeze th.is-last-frozen-col,.task-table.has-custom-freeze td.is-last-frozen-col{box-shadow:3px 0 10px -2px rgba(15,23,20,0.12) !important;border-right:1px solid var(--line,#dfe5e0) !important}
+[data-color-scheme="dark"] .task-table.has-custom-freeze thead th.is-frozen-col{background:#181b20 !important}
+[data-color-scheme="dark"] .task-table.has-custom-freeze tbody td.is-frozen-col{background:#121418 !important}
+[data-color-scheme="dark"] .task-table.has-custom-freeze tbody tr:hover td.is-frozen-col{background:#1b1f26 !important}
+[data-color-scheme="dark"] .task-table.has-custom-freeze th.is-last-frozen-col,[data-color-scheme="dark"] .task-table.has-custom-freeze td.is-last-frozen-col{box-shadow:3px 0 12px -2px rgba(0,0,0,0.45) !important}
 
 /* Responsive View Tabs More / Overflow Menu */
 .view-tabs-more-wrap{position:relative !important;display:inline-flex;align-items:center;z-index:26 !important}
