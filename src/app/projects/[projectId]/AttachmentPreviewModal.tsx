@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import ExcelPreviewViewer from "./ExcelPreviewViewer";
 import WordPreviewViewer from "./WordPreviewViewer";
 import PowerPointPreviewViewer from "./PowerPointPreviewViewer";
@@ -368,14 +369,16 @@ export default function AttachmentPreviewModal({
     } catch {}
   };
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       className="modal-overlay"
       onClick={onClose}
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 9999,
+        zIndex: 10000,
         background: "rgba(15, 23, 42, 0.75)",
         backdropFilter: "blur(4px)",
         display: "flex",
@@ -644,6 +647,7 @@ export default function AttachmentPreviewModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

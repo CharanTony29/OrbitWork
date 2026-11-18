@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { UserPlus, X, Mail, Shield, Loader2 } from "lucide-react";
 import { inviteOrganizationMember } from "@/app/actions";
 
@@ -36,7 +37,7 @@ export default function InviteMemberModal({
         <span>+ Invite Member</span>
       </button>
 
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div
           className="proj-modal-overlay"
           role="dialog"
@@ -166,7 +167,8 @@ export default function InviteMemberModal({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

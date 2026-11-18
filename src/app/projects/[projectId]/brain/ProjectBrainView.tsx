@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -11,6 +11,8 @@ import {
   Brain,
   CheckCircle,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Cpu,
   GitBranch,
@@ -75,6 +77,44 @@ export default function ProjectBrainView({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Dynamic sub-nav horizontal scroll movers (< / >)
+  const subnavRef = useRef<HTMLDivElement | null>(null);
+  const [canScrollSubnavLeft, setCanScrollSubnavLeft] = useState(false);
+  const [canScrollSubnavRight, setCanScrollSubnavRight] = useState(false);
+
+  const updateSubnavScrollState = useCallback(() => {
+    const el = subnavRef.current;
+    if (!el) return;
+    setCanScrollSubnavLeft(el.scrollLeft > 4);
+    setCanScrollSubnavRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  const scrollSubnavBy = useCallback((delta: number) => {
+    const el = subnavRef.current;
+    if (!el) return;
+    el.scrollBy({ left: delta, behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    const el = subnavRef.current;
+    if (!el) return;
+    updateSubnavScrollState();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateSubnavScrollState) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", updateSubnavScrollState);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", updateSubnavScrollState);
+    };
+  }, [loading, data, updateSubnavScrollState]);
+
+  useEffect(() => {
+    const el = subnavRef.current;
+    if (!el) return;
+    const activeEl = el.querySelector<HTMLElement>(".brain-nav-tab.active");
+    activeEl?.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+  }, [activeTab]);
 
   // Selected Category for expansion
   const [expandedCategory, setExpandedCategory] = useState<HealthCategoryKey | null>(null);
@@ -611,8 +651,24 @@ export default function ProjectBrainView({
         </div>
       </div>
 
-      {/* 2. Sub-Nav Tabs */}
-      <div className="brain-subnav">
+      {/* 2. Sub-Nav Tabs with Dynamic < / > Scroll Movers */}
+      <div className="brain-subnav-wrap">
+        {canScrollSubnavLeft && (
+          <button
+            type="button"
+            className="brain-subnav-mover brain-subnav-mover-left"
+            onClick={() => scrollSubnavBy(-240)}
+            aria-label="Scroll tabs left"
+            title="Scroll tabs left"
+          >
+            <ChevronLeft size={15} />
+          </button>
+        )}
+        <div
+          ref={subnavRef}
+          className="brain-subnav"
+          onScroll={updateSubnavScrollState}
+        >
         <button
           className={`brain-nav-tab ${activeTab === "overview" ? "active" : ""}`}
           onClick={() => setActiveTab("overview")}
@@ -683,6 +739,18 @@ export default function ProjectBrainView({
         >
           <Sparkles size={13} /> Task Generator
         </button>
+        </div>
+        {canScrollSubnavRight && (
+          <button
+            type="button"
+            className="brain-subnav-mover brain-subnav-mover-right"
+            onClick={() => scrollSubnavBy(240)}
+            aria-label="Scroll tabs right"
+            title="More tabs"
+          >
+            <ChevronRight size={15} />
+          </button>
+        )}
       </div>
 
       {applySuccessMsg && (

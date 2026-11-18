@@ -4,11 +4,11 @@
 .proj-settings-wrap{position:relative;display:inline-flex}
 .proj-settings-btn{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:var(--surface,#fff);color:#55635b;cursor:pointer;transition:all .15s ease}
 .proj-settings-btn:hover{border-color:#b9d7c3;color:var(--green);background:#f7faf8}
-.proj-settings-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:100;min-width:190px;background:var(--surface,#fff);border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,0.08);padding:6px;display:flex;flex-direction:column;gap:2px}
+.proj-settings-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:800;min-width:190px;background:var(--surface,#fff);border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,0.08);padding:6px;display:flex;flex-direction:column;gap:2px}
 .proj-settings-menu-title{margin:0;padding:6px 10px 4px;font-size:10px;font-weight:700;color:var(--muted,#8c9790);text-transform:uppercase;letter-spacing:.5px}
 .proj-settings-menu-item{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:var(--ink,#3b4740);font:500 12px 'DM Sans',sans-serif;cursor:pointer;text-align:left;transition:background .12s,color .12s}
 .proj-settings-menu-item:hover{background:#f0f6f2;color:var(--green)}
-.proj-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;background:rgba(15,23,20,0.45);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:20px}
+.proj-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;background:rgba(15,23,20,0.45);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:20px}
 .proj-modal{width:min(100%,560px);max-height:85vh;display:flex;flex-direction:column;background:var(--surface,#fff);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,0.16);overflow:hidden;border:1px solid var(--line)}
 .proj-modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line,#edf0ed)}
 .proj-modal-head h2{margin:0;font:700 16px Manrope,sans-serif;color:var(--ink,#26332c)}

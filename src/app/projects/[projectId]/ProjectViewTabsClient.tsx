@@ -155,21 +155,26 @@ export default function ProjectViewTabsClient({
     };
   }, [moreOpen]);
 
-  // Responsive visible tab count based on window width
+  // Responsive visible tab count measured from actual container width (prevents overlapping right-side actions at any resolution)
   useEffect(() => {
-    const updateCount = () => {
+    const el = popoverRef.current;
+    const computeCount = () => {
       if (typeof window === "undefined") return;
-      const w = window.innerWidth;
-      if (w < 640) setVisibleCount(2);
-      else if (w < 900) setVisibleCount(3);
-      else if (w < 1180) setVisibleCount(5);
-      else if (w < 1440) setVisibleCount(7);
-      else setVisibleCount(9);
+      const containerW = el?.getBoundingClientRect().width || window.innerWidth - 360;
+      // Reserve ~195px for "More >" and "Arrange tabs" controls; each tab averages ~106px
+      const usable = Math.max(0, containerW - 195);
+      const fit = Math.floor(usable / 106);
+      setVisibleCount(Math.max(1, Math.min(tabOrder.length, fit)));
     };
-    updateCount();
-    window.addEventListener("resize", updateCount);
-    return () => window.removeEventListener("resize", updateCount);
-  }, []);
+    computeCount();
+    const ro = typeof ResizeObserver !== "undefined" && el ? new ResizeObserver(computeCount) : null;
+    if (ro && el) ro.observe(el);
+    window.addEventListener("resize", computeCount);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", computeCount);
+    };
+  }, [tabOrder.length]);
 
   useEffect(() => {
     if (!customizerOpen && !moreOpen) return;
@@ -364,7 +369,7 @@ export default function ProjectViewTabsClient({
                   position: "fixed",
                   top: `${menuCoords.top}px`,
                   left: `${menuCoords.left}px`,
-                  zIndex: 999999,
+                  zIndex: 800,
                   minWidth: 200,
                   boxShadow: "0 18px 45px rgba(0,0,0,0.32)",
                 }}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   X,
   Send,
@@ -253,7 +254,9 @@ export default function TaskCommentsModal({
       m.email.toLowerCase().includes(mentionFilter.toLowerCase())
   );
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div className="comments-modal-backdrop" onClick={onClose}>
       <div
         className="comments-modal-container"
@@ -611,6 +614,7 @@ export default function TaskCommentsModal({
           </form>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

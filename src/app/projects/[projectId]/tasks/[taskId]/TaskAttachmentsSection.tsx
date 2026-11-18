@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useTransition, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   UploadCloud,
@@ -1146,7 +1147,7 @@ export default function TaskAttachmentsSection({
       </div>
 
       {/* Attachment Preview Modal (Lightbox) */}
-      {previewItem && (
+      {previewItem && typeof document !== "undefined" && createPortal(
         <div
           className="attachment-preview-backdrop"
           style={previewFullscreen ? { padding: 0 } : undefined}
@@ -1333,7 +1334,8 @@ export default function TaskAttachmentsSection({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </section>
   );

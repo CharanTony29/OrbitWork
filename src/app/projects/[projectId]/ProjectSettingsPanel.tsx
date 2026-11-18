@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Settings, X, GitBranch, Users, Columns, Archive, RotateCcw, Pencil, Receipt } from "lucide-react";
 import {
   addProjectMember,
@@ -137,8 +138,8 @@ export default function ProjectSettingsPanel({
         )}
       </div>
 
-      {/* Modal overlay */}
-      {activePanel && (
+      {/* Modal overlay portaled to body so background view tabs never overlay it */}
+      {activePanel && typeof document !== "undefined" && createPortal(
         <div className="proj-modal-overlay" onClick={closePanel}>
           <div
             className="proj-modal"
@@ -193,7 +194,8 @@ export default function ProjectSettingsPanel({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

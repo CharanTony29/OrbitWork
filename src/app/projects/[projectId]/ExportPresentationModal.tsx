@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Presentation,
   Download,
@@ -155,12 +156,14 @@ export default function ExportPresentationModal({
     { id: 5, title: "Paginated Task Catalog", icon: FileSpreadsheet },
   ];
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       className="canvas-modal-backdrop"
       onClick={onClose}
       style={{
-        zIndex: 9999,
+        zIndex: 10000,
         background: "rgba(0, 0, 0, 0.75)",
         backdropFilter: "blur(6px)",
         display: "grid",
@@ -1873,6 +1876,7 @@ export default function ExportPresentationModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

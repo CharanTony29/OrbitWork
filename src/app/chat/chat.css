@@ -1039,7 +1039,7 @@
   background: rgba(10, 15, 13, 0.55);
   display: grid;
   place-items: center;
-  z-index: 900;
+  z-index: 10000;
   padding: 20px;
 }
 

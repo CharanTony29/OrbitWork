@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 import WorkspaceLovPopover from "./WorkspaceLovPopover";
+import { NavRailDynamicItems, type RailNavItem } from "./NavRailOverflowMenu";
 
 type GlobalAppRailProps = {
   organizationId?: string;
@@ -35,6 +36,7 @@ export default function GlobalAppRail({
   const [storedWorkspaceId, setStoredWorkspaceId] = useState<string | null>(null);
   const [storedProjectId, setStoredProjectId] = useState<string | null>(null);
   const [lovOpen, setLovOpen] = useState(false);
+  const railRef = useRef<HTMLElement | null>(null);
 
   // Sync props to localStorage and retrieve stored values
   useEffect(() => {
@@ -84,8 +86,91 @@ export default function GlobalAppRail({
   const isPeopleActive = pathname.includes("/members");
   const isMoreActive = pathname.includes("/calendar");
 
+  const navItems: RailNavItem[] = [
+    {
+      key: "home",
+      label: "Home",
+      title: "Overview",
+      href: "/dashboard",
+      icon: <House size={18} />,
+      isActive: isHomeActive,
+    },
+    {
+      key: "dashboard",
+      label: "Dashboard",
+      title: "Dashboard",
+      href: "/my-dashboard",
+      icon: <LayoutDashboard size={17} />,
+      isActive: isDashboardActive,
+    },
+    {
+      key: "workspace",
+      label: "Workspace",
+      title: "Quick Workspace & Organization Switcher",
+      onClick: () => setLovOpen((prev) => !prev),
+      icon: <FolderKanban size={17} />,
+      isActive: lovOpen,
+    },
+    {
+      key: "inbox",
+      label: "Inbox",
+      title: "Inbox",
+      href: "/inbox",
+      icon: <Bell size={17} />,
+      isActive: isInboxActive,
+    },
+    {
+      key: "planner",
+      label: "Planner",
+      title: "Planner & Meeting Rooms",
+      href: activeOrgId ? `/planner?org=${activeOrgId}` : "/planner",
+      icon: <CalendarDays size={17} />,
+      isActive: isPlannerActive,
+    },
+    {
+      key: "docs",
+      label: "Docs",
+      title: "Docs & Attachments",
+      href: activeProjectId
+        ? `/projects/${activeProjectId}/documents`
+        : activeOrgId
+        ? `/organizations/${activeOrgId}/docs`
+        : "/dashboard",
+      icon: <FileText size={17} />,
+      isActive: isDocsActive,
+    },
+    {
+      key: "time",
+      label: "Time",
+      title: "Workspace Timesheets",
+      href: activeWorkspaceId
+        ? `/workspaces/${activeWorkspaceId}/timesheets`
+        : "/my-dashboard",
+      icon: <Clock3 size={17} />,
+      isActive: isTimeActive,
+    },
+    {
+      key: "chat",
+      label: "Chat",
+      title: "Team & Personal Chat",
+      href: "/chat",
+      icon: <MessageSquare size={17} />,
+      isActive: isChatActive,
+    },
+    {
+      key: "people",
+      label: "People",
+      title: "Members",
+      href: activeOrgId
+        ? `/organizations/${activeOrgId}/members`
+        : "/dashboard",
+      icon: <UsersRound size={17} />,
+      isActive: isPeopleActive,
+    },
+  ];
+
   return (
-    <nav className="work-icon-rail global-app-rail" aria-label="Main navigation">
+    <nav ref={railRef} className="work-icon-rail global-app-rail" aria-label="Main navigation">
       <Link
         className="work-rail-logo"
         href="/dashboard"
@@ -105,137 +190,18 @@ export default function GlobalAppRail({
         <PanelLeft size={17} />
       </button>
 
-      <Link
-        href="/dashboard"
-        prefetch={false}
-        title="Overview"
-        className={isHomeActive ? "is-active" : undefined}
-      >
-        <House size={18} />
-        <span>Home</span>
-      </Link>
-
-      <Link
-        href="/my-dashboard"
-        prefetch={false}
-        title="Dashboard"
-        className={isDashboardActive ? "is-active" : undefined}
-      >
-        <LayoutDashboard size={17} />
-        <span>Dashboard</span>
-      </Link>
-
-      <button
-        type="button"
-        onClick={() => setLovOpen((prev) => !prev)}
-        title="Quick Workspace & Organization LOV Switcher"
-        className={lovOpen ? "is-active" : undefined}
-        style={{
-          background: lovOpen ? "var(--rail-hover)" : "transparent",
-          border: 0,
-          cursor: "pointer",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 4,
-          color: lovOpen ? "var(--rail-strong)" : "var(--rail-ink)",
-          borderRadius: 8,
-          width: 46,
-          minHeight: 47,
-        }}
-      >
-        <FolderKanban size={17} />
-        <span style={{ fontSize: 8, fontWeight: 650 }}>Workspace</span>
-      </button>
-
-      <Link
-        href="/inbox"
-        prefetch={false}
-        title="Inbox"
-        className={isInboxActive ? "is-active" : undefined}
-      >
-        <Bell size={17} />
-        <span>Inbox</span>
-      </Link>
-
-      <Link
-        href={activeOrgId ? `/planner?org=${activeOrgId}` : "/planner"}
-        prefetch={false}
-        title="Planner & Meeting Rooms"
-        className={isPlannerActive ? "is-active" : undefined}
-      >
-        <CalendarDays size={17} />
-        <span>Planner</span>
-      </Link>
-
-      <Link
-        href={
-          activeProjectId
-            ? `/projects/${activeProjectId}/documents`
-            : activeOrgId
-            ? `/organizations/${activeOrgId}/docs`
-            : "/dashboard"
-        }
-        prefetch={false}
-        title="Docs & Attachments"
-        className={isDocsActive ? "is-active" : undefined}
-      >
-        <FileText size={17} />
-        <span>Docs</span>
-      </Link>
-
-      <Link
-        href={
-          activeWorkspaceId
-            ? `/workspaces/${activeWorkspaceId}/timesheets`
-            : "/my-dashboard"
-        }
-        prefetch={false}
-        title="Workspace Timesheets"
-        className={isTimeActive ? "is-active" : undefined}
-      >
-        <Clock3 size={17} />
-        <span>Time</span>
-      </Link>
-
-      <Link
-        href="/chat"
-        prefetch={false}
-        title="Team & Personal Chat"
-        className={isChatActive ? "is-active" : undefined}
-      >
-        <MessageSquare size={17} />
-        <span>Chat</span>
-      </Link>
-
-      <Link
-        href={
-          activeOrgId
-            ? `/organizations/${activeOrgId}/members`
-            : "/dashboard"
-        }
-        prefetch={false}
-        title="Members"
-        className={isPeopleActive ? "is-active" : undefined}
-      >
-        <UsersRound size={17} />
-        <span>People</span>
-      </Link>
-
-      <Link
-        className={`work-rail-more${isMoreActive ? " is-active" : ""}`}
-        href={
+      <NavRailDynamicItems
+        railRef={railRef}
+        items={navItems}
+        moreHref={
           activeOrgId
             ? `/organizations/${activeOrgId}/calendar`
             : "/dashboard"
         }
-        prefetch={false}
-        title="Holidays and leave (People & Availability)"
-      >
-        <Layers3 size={17} />
-        <span>More</span>
-      </Link>
+        moreTitle="Holidays & Leave"
+        moreIsActive={isMoreActive}
+        moreIcon={<Layers3 size={17} />}
+      />
 
       <WorkspaceLovPopover isOpen={lovOpen} onClose={() => setLovOpen(false)} />
     </nav>

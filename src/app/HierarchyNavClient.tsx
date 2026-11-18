@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 import ProjectSublinks from "./ProjectSublinks";
+import { NavRailDynamicItems, type RailNavItem } from "./NavRailOverflowMenu";
 
 type Props = {
   organizationId: string;
@@ -166,6 +167,77 @@ export default function HierarchyNavClient({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggleCollapsed, isMobileOpen]);
 
+  const railRef = useRef<HTMLElement | null>(null);
+
+  const railNavItems: RailNavItem[] = [
+    {
+      key: "home",
+      label: "Home",
+      title: "Overview",
+      href: "/dashboard",
+      icon: <House size={18} />,
+      isActive: pathname === "/dashboard",
+    },
+    {
+      key: "dashboard",
+      label: "Dashboard",
+      title: "Dashboard",
+      href: "/my-dashboard",
+      icon: <LayoutDashboard size={17} />,
+      isActive: pathname === "/my-dashboard",
+    },
+    {
+      key: "inbox",
+      label: "Inbox",
+      title: "Inbox",
+      href: "/inbox",
+      icon: <Bell size={17} />,
+      isActive: pathname.startsWith("/inbox"),
+    },
+    {
+      key: "planner",
+      label: "Planner",
+      title: "Planner & Meeting Rooms",
+      href: organizationId ? `/planner?org=${organizationId}` : "/planner",
+      icon: <CalendarDays size={17} />,
+      isActive: pathname.startsWith("/planner"),
+    },
+    {
+      key: "docs",
+      label: "Docs",
+      title: "Docs & Attachments",
+      href: currentProjectId
+        ? `/projects/${currentProjectId}/documents`
+        : `/organizations/${organizationId}/docs`,
+      icon: <FileText size={17} />,
+      isActive: pathname.includes("/docs") || pathname.includes("/documents"),
+    },
+    {
+      key: "time",
+      label: "Time",
+      title: "Workspace Timesheets",
+      href: `/workspaces/${currentWorkspaceId}/timesheets`,
+      icon: <Clock3 size={17} />,
+      isActive: pathname.includes("/timesheets"),
+    },
+    {
+      key: "chat",
+      label: "Chat",
+      title: "Team & Personal Chat",
+      href: "/chat",
+      icon: <MessageSquare size={17} />,
+      isActive: pathname.startsWith("/chat"),
+    },
+    {
+      key: "people",
+      label: "People",
+      title: "Members",
+      href: `/organizations/${organizationId}/members`,
+      icon: <UsersRound size={17} />,
+      isActive: pathname.includes("/members"),
+    },
+  ];
+
   return (
     <>
       {/* Mobile Drawer Backdrop */}
@@ -178,7 +250,7 @@ export default function HierarchyNavClient({
       {/* Navigation Group Container: Rail + Hierarchy Sidebar */}
       <div className={`hierarchy-nav-group${isCollapsed ? " is-collapsed" : ""}`}>
         {/* Compact Icon Rail */}
-        <nav className="work-icon-rail" aria-label="Main navigation">
+        <nav ref={railRef} className="work-icon-rail" aria-label="Main navigation">
           <Link
             className="work-rail-logo"
             href="/dashboard"
@@ -199,95 +271,14 @@ export default function HierarchyNavClient({
             {isCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
           </button>
 
-          <Link
-            href="/dashboard"
-            prefetch={false}
-            title="Overview"
-            className={pathname === "/dashboard" ? "is-active" : undefined}
-          >
-            <House size={18} />
-            <span>Home</span>
-          </Link>
-          <Link
-            href="/my-dashboard"
-            prefetch={false}
-            title="Dashboard"
-            className={pathname === "/my-dashboard" ? "is-active" : undefined}
-          >
-            <LayoutDashboard size={17} />
-            <span>Dashboard</span>
-          </Link>
-          <Link
-            href="/inbox"
-            prefetch={false}
-            title="Inbox"
-            className={pathname.startsWith("/inbox") ? "is-active" : undefined}
-          >
-            <Bell size={17} />
-            <span>Inbox</span>
-          </Link>
-          <Link
-            href={organizationId ? `/planner?org=${organizationId}` : "/planner"}
-            prefetch={false}
-            title="Planner & Meeting Rooms"
-            className={pathname.startsWith("/planner") ? "is-active" : undefined}
-          >
-            <CalendarDays size={17} />
-            <span>Planner</span>
-          </Link>
-          <Link
-            href={
-              currentProjectId
-                ? `/projects/${currentProjectId}/documents`
-                : `/organizations/${organizationId}/docs`
-            }
-            prefetch={false}
-            title="Docs & Attachments"
-            className={
-              pathname.includes("/docs") || pathname.includes("/documents")
-                ? "is-active"
-                : undefined
-            }
-          >
-            <FileText size={17} />
-            <span>Docs</span>
-          </Link>
-          <Link
-            href={`/workspaces/${currentWorkspaceId}/timesheets`}
-            prefetch={false}
-            title="Workspace Timesheets"
-            className={pathname.includes("/timesheets") ? "is-active" : undefined}
-          >
-            <Clock3 size={17} />
-            <span>Time</span>
-          </Link>
-          <Link
-            href="/chat"
-            prefetch={false}
-            title="Team & Personal Chat"
-            className={pathname.startsWith("/chat") ? "is-active" : undefined}
-          >
-            <MessageSquare size={17} />
-            <span>Chat</span>
-          </Link>
-          <Link
-            href={`/organizations/${organizationId}/members`}
-            prefetch={false}
-            title="Members"
-            className={pathname.includes("/members") ? "is-active" : undefined}
-          >
-            <UsersRound size={17} />
-            <span>People</span>
-          </Link>
-          <Link
-            className={`work-rail-more${pathname.includes("/calendar") ? " is-active" : ""}`}
-            href={`/organizations/${organizationId}/calendar`}
-            prefetch={false}
-            title="Holidays and leave"
-          >
-            <Layers3 size={17} />
-            <span>More</span>
-          </Link>
+          <NavRailDynamicItems
+            railRef={railRef}
+            items={railNavItems}
+            moreHref={`/organizations/${organizationId}/calendar`}
+            moreTitle="Holidays & Leave"
+            moreIsActive={pathname.includes("/calendar")}
+            moreIcon={<Layers3 size={17} />}
+          />
         </nav>
 
         {/* Tree Sidebar */}

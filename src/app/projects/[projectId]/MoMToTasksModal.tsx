@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -144,12 +145,14 @@ export default function MoMToTasksModal({
   const duplicateCount = extractedTasks.filter((t) => t.exists).length;
   const newCount = extractedTasks.filter((t) => !t.exists).length;
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       className="canvas-modal-backdrop"
       onClick={onClose}
       style={{
-        zIndex: 99999,
+        zIndex: 10000,
         position: "fixed",
         inset: 0,
         backgroundColor: "rgba(0, 0, 0, 0.65)",
@@ -606,6 +609,7 @@ export default function MoMToTasksModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

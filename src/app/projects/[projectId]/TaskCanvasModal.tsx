@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import WhiteboardCanvas from "@/app/canvas/WhiteboardCanvas";
 import FlowchartCanvas from "@/app/canvas/FlowchartCanvas";
@@ -50,7 +51,9 @@ export default function TaskCanvasModal({
     onSaved?.();
   };
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div className="canvas-modal-backdrop" onClick={onClose}>
       <div
         className="canvas-modal-container"
@@ -109,6 +112,7 @@ export default function TaskCanvasModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
