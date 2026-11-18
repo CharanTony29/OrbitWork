@@ -438,10 +438,10 @@ export function HomeInteractiveTabs({ isUserLoggedIn }: { isUserLoggedIn: boolea
               </li>
             ))}
           </ul>
-          <Link href={currentTab.ctaHref} className="hp-btn-primary">
+          <a href={currentTab.ctaHref} className="hp-btn-primary">
             {currentTab.ctaLabel}
             <ArrowRight size={15} />
-          </Link>
+          </a>
         </div>
 
         <div className="hp-tab-visual-wrap">
@@ -649,17 +649,17 @@ export function HomeMobileNav({ isUserLoggedIn }: { isUserLoggedIn: boolean }) {
           </nav>
           <div className="hp-mobile-drawer-actions">
             {isUserLoggedIn ? (
-              <Link href="/my-dashboard" className="hp-btn-primary" prefetch={false} onClick={() => setIsOpen(false)}>
+              <a href="/my-dashboard" className="hp-btn-primary" onClick={() => setIsOpen(false)}>
                 Go to Dashboard <ArrowRight size={15} />
-              </Link>
+              </a>
             ) : (
               <>
-                <Link href="/login" className="hp-btn-secondary" prefetch={false} onClick={() => setIsOpen(false)}>
+                <a href="/login" className="hp-btn-secondary" onClick={() => setIsOpen(false)}>
                   Sign In
-                </Link>
-                <Link href="/signup" className="hp-btn-primary" prefetch={false} onClick={() => setIsOpen(false)}>
+                </a>
+                <a href="/signup" className="hp-btn-primary" onClick={() => setIsOpen(false)}>
                   Get Started Free
-                </Link>
+                </a>
               </>
             )}
           </div>

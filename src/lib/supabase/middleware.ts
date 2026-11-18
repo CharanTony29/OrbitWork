@@ -8,6 +8,38 @@ import {
   type HostInfo,
 } from "@/lib/subdomain";
 
+function isRscRequest(request: NextRequest): boolean {
+  return (
+    request.headers.get("rsc") === "1" ||
+    request.headers.get("next-router-prefetch") === "1" ||
+    request.nextUrl.searchParams.has("_rsc")
+  );
+}
+
+/**
+ * Redirects across subdomains safely.
+ * For Next.js App Router client-side RSC fetches (`RSC: 1`), returning a cross-origin 307/308
+ * triggers a browser CORS failure that leaves Next.js stuck on loading.tsx. Returning a
+ * same-origin non-Flight HTML response tells Next.js to perform a clean full-page MPA navigation,
+ * which then follows the 307/308 redirect cleanly without CORS errors.
+ */
+function crossSubdomainRedirect(
+  request: NextRequest,
+  targetUrl: URL,
+  status: 307 | 308
+): NextResponse {
+  if (isRscRequest(request)) {
+    return new NextResponse("", {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+  return NextResponse.redirect(targetUrl, status);
+}
+
 export async function updateSession(request: NextRequest): Promise<NextResponse> {
   const hostInfo = getHostInfo(request);
   const { pathname, search } = request.nextUrl;
@@ -111,19 +143,19 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
       if (hostInfo.isProduction) {
         if (pathname === "/docs" || pathname.startsWith("/docs/")) {
           const docPath = pathname.replace(/^\/docs/, "") || "/";
-          return NextResponse.redirect(new URL(`${docPath}${search}`, "https://docs.orbitwork.org"), 308);
+          return crossSubdomainRedirect(request, new URL(`${docPath}${search}`, "https://docs.orbitwork.org"), 308);
         }
         if (pathname === "/support" || pathname.startsWith("/support/")) {
           const supPath = pathname.replace(/^\/support/, "") || "/";
-          return NextResponse.redirect(new URL(`${supPath}${search}`, "https://support.orbitwork.org"), 308);
+          return crossSubdomainRedirect(request, new URL(`${supPath}${search}`, "https://support.orbitwork.org"), 308);
         }
         if (pathname === "/status" || pathname.startsWith("/status/")) {
           const stPath = pathname.replace(/^\/status/, "") || "/";
-          return NextResponse.redirect(new URL(`${stPath}${search}`, "https://status.orbitwork.org"), 308);
+          return crossSubdomainRedirect(request, new URL(`${stPath}${search}`, "https://status.orbitwork.org"), 308);
         }
         if (pathname === "/blog" || pathname.startsWith("/blog/")) {
           const blPath = pathname.replace(/^\/blog/, "") || "/";
-          return NextResponse.redirect(new URL(`${blPath}${search}`, "https://blog.orbitwork.org"), 308);
+          return crossSubdomainRedirect(request, new URL(`${blPath}${search}`, "https://blog.orbitwork.org"), 308);
         }
       }
       break;
@@ -194,26 +226,27 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
       // In production, route application deep links to app.orbitwork.org
       if (hostInfo.isProduction) {
         if (isAppRoute(pathname)) {
-          return NextResponse.redirect(
+          return crossSubdomainRedirect(
+            request,
             new URL(`${pathname}${search}`, "https://app.orbitwork.org"),
             307
           );
         }
         if (pathname === "/docs" || pathname.startsWith("/docs/")) {
           const docPath = pathname.replace(/^\/docs/, "") || "/";
-          return NextResponse.redirect(new URL(`${docPath}${search}`, "https://docs.orbitwork.org"), 308);
+          return crossSubdomainRedirect(request, new URL(`${docPath}${search}`, "https://docs.orbitwork.org"), 308);
         }
         if (pathname === "/support" || pathname.startsWith("/support/")) {
           const supPath = pathname.replace(/^\/support/, "") || "/";
-          return NextResponse.redirect(new URL(`${supPath}${search}`, "https://support.orbitwork.org"), 308);
+          return crossSubdomainRedirect(request, new URL(`${supPath}${search}`, "https://support.orbitwork.org"), 308);
         }
         if (pathname === "/status" || pathname.startsWith("/status/")) {
           const stPath = pathname.replace(/^\/status/, "") || "/";
-          return NextResponse.redirect(new URL(`${stPath}${search}`, "https://status.orbitwork.org"), 308);
+          return crossSubdomainRedirect(request, new URL(`${stPath}${search}`, "https://status.orbitwork.org"), 308);
         }
         if (pathname === "/blog" || pathname.startsWith("/blog/")) {
           const blPath = pathname.replace(/^\/blog/, "") || "/";
-          return NextResponse.redirect(new URL(`${blPath}${search}`, "https://blog.orbitwork.org"), 308);
+          return crossSubdomainRedirect(request, new URL(`${blPath}${search}`, "https://blog.orbitwork.org"), 308);
         }
       }
       break;
@@ -290,7 +323,11 @@ async function handleSessionAndResponse(
       },
     });
 
-    await supabase.auth.getUser();
+    // Guard with a tight timeout so a slow/stalled Supabase Auth response never hangs page loads
+    await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+    ]);
   } catch (err) {
     console.error("Supabase session update error in middleware:", err);
   }

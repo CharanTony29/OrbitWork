@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -232,9 +233,29 @@ export default async function Home({
   let configError: string | null = null;
 
   try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
+    const cookieStore = await cookies();
+    const hasSessionCookie = cookieStore
+      .getAll()
+      .some(({ name }) => name.startsWith("sb-"));
+
+    if (hasSessionCookie) {
+      const supabase = await createClient();
+      const authResult = await Promise.race([
+        supabase.auth.getUser(),
+        new Promise<{ data: { user: null } }>((resolve) =>
+          setTimeout(() => resolve({ data: { user: null } }), 2500)
+        ),
+      ]);
+      user = authResult.data.user;
+    } else if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !(
+        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )
+    ) {
+      await createClient();
+    }
   } catch (err) {
     console.error("Home page initialization error:", err);
     configError = err instanceof Error ? err.message : String(err);
@@ -338,18 +359,18 @@ export default async function Home({
             <div className="hp-hero-cta-group">
               {isLoggedIn ? (
                 <>
-                  <Link href="/my-dashboard" className="hp-btn-primary hp-btn-lg" prefetch={false}>
+                  <a href="/my-dashboard" className="hp-btn-primary hp-btn-lg">
                     Open Your Dashboard <ArrowRight size={17} />
-                  </Link>
+                  </a>
                   <a href="#how-it-works" className="hp-btn-secondary hp-btn-lg">
                     See How It Works
                   </a>
                 </>
               ) : (
                 <>
-                  <Link href="/signup" className="hp-btn-primary hp-btn-lg" prefetch={false}>
+                  <a href="/signup" className="hp-btn-primary hp-btn-lg">
                     Start Free Workspace <ArrowRight size={17} />
-                  </Link>
+                  </a>
                   <a href="#how-it-works" className="hp-btn-secondary hp-btn-lg">
                     See How It Works
                   </a>
@@ -537,14 +558,14 @@ export default async function Home({
 
                 <div className="hp-cta-buttons">
                   {isLoggedIn ? (
-                    <Link href="/my-dashboard" className="hp-btn-primary hp-btn-lg" prefetch={false}>
+                    <a href="/my-dashboard" className="hp-btn-primary hp-btn-lg">
                       Open Your Dashboard <ArrowRight size={17} />
-                    </Link>
+                    </a>
                   ) : (
                     <>
-                      <Link href="/signup" className="hp-btn-primary hp-btn-lg" prefetch={false}>
+                      <a href="/signup" className="hp-btn-primary hp-btn-lg">
                         Create Free Workspace <ArrowRight size={17} />
-                      </Link>
+                      </a>
                       <Link href="/contact" className="hp-btn-secondary hp-btn-lg">
                         Contact Our Team
                       </Link>

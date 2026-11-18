@@ -89,18 +89,18 @@ export function PublicSiteHeader({
                 />
                 {userEmail?.split("@")[0]}
               </span>
-              <Link href="/my-dashboard" className="hp-btn-primary" prefetch={false}>
+              <a href="/my-dashboard" className="hp-btn-primary">
                 Dashboard <ArrowRight size={15} />
-              </Link>
+              </a>
             </>
           ) : (
             <>
-              <Link href="/login" className="hp-btn-text" prefetch={false}>
+              <a href="/login" className="hp-btn-text">
                 Sign In
-              </Link>
-              <Link href="/signup" className="hp-btn-primary" prefetch={false}>
+              </a>
+              <a href="/signup" className="hp-btn-primary">
                 Get Started Free
-              </Link>
+              </a>
             </>
           )}
           <HomeMobileNav isUserLoggedIn={isLoggedIn} />
@@ -190,7 +190,7 @@ export function PublicSiteFooter() {
                 <Link href="/#storage">Drive, OneDrive &amp; SharePoint</Link>
               </li>
               <li>
-                <Link href="/signup" prefetch={false}>Create Free Workspace</Link>
+                <a href="/signup">Create Free Workspace</a>
               </li>
             </ul>
           </div>
@@ -199,10 +199,10 @@ export function PublicSiteFooter() {
             <h5>Account &amp; Compliance</h5>
             <ul>
               <li>
-                <Link href="/login" prefetch={false}>Sign In</Link>
+                <a href="/login">Sign In</a>
               </li>
               <li>
-                <Link href="/dashboard" prefetch={false}>Workspace Overview</Link>
+                <a href="/dashboard">Workspace Overview</a>
               </li>
               <li>
                 <Link href="/privacy">Privacy Policy</Link>

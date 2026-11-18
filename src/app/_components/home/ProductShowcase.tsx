@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   ArrowRight,
   Bot,
@@ -216,14 +215,13 @@ export function ProductShowcase({ isUserLoggedIn }: { isUserLoggedIn: boolean })
             </ul>
 
             <div className="hp-showcase-cta">
-              <Link
+              <a
                 href={isUserLoggedIn ? "/my-dashboard" : "/signup"}
                 className="hp-btn-primary"
-                prefetch={false}
               >
                 {isUserLoggedIn ? "Open Workspace" : `Try ${current.label} Free`}
                 <ArrowRight size={15} />
-              </Link>
+              </a>
             </div>
           </div>
 
