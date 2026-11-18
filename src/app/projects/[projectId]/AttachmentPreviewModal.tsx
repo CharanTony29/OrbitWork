@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import ExcelPreviewViewer from "./ExcelPreviewViewer";
 import WordPreviewViewer from "./WordPreviewViewer";
+import PowerPointPreviewViewer from "./PowerPointPreviewViewer";
 import {
   X,
   Download,
   FileText,
   FileCode,
   FileSpreadsheet,
+  Presentation,
   Image as ImageIcon,
   ChevronLeft,
   ChevronRight,
@@ -289,33 +291,44 @@ export default function AttachmentPreviewModal({
   const [renderHtml, setRenderHtml] = useState(false);
 
   const previewUrl = `/api/attachments/${attachment.id}`;
-  const isImage = attachment.mime_type.startsWith("image/");
-  const isPdf = attachment.mime_type === "application/pdf" || attachment.file_name.toLowerCase().endsWith(".pdf");
+  const lowerFileName = attachment.file_name.toLowerCase();
+  const lowerMime = (attachment.mime_type || "").toLowerCase();
+  const isImage = lowerMime.startsWith("image/");
+  const isPdf = lowerMime === "application/pdf" || lowerFileName.endsWith(".pdf");
   const isExcel =
-    attachment.mime_type.includes("sheet") ||
-    attachment.mime_type.includes("excel") ||
-    attachment.file_name.toLowerCase().endsWith(".xlsx") ||
-    attachment.file_name.toLowerCase().endsWith(".xls");
+    lowerMime.includes("spreadsheetml") ||
+    lowerMime.includes("ms-excel") ||
+    lowerFileName.endsWith(".xlsx") ||
+    lowerFileName.endsWith(".xls");
   const isWord =
-    attachment.mime_type.includes("wordprocessingml") ||
-    attachment.mime_type.includes("msword") ||
-    attachment.file_name.toLowerCase().endsWith(".docx");
+    lowerMime.includes("wordprocessingml") ||
+    lowerFileName.endsWith(".docx");
+  const isPowerPoint =
+    lowerMime.includes("presentationml") ||
+    lowerMime.includes("powerpoint") ||
+    lowerFileName.endsWith(".pptx");
+  const isBinaryOffice =
+    isExcel ||
+    isWord ||
+    isPowerPoint ||
+    lowerMime.includes("openxmlformats") ||
+    lowerFileName.endsWith(".doc") ||
+    lowerFileName.endsWith(".ppt");
   const isTextOrCode =
-    !isExcel &&
-    !isWord &&
-    (attachment.mime_type.startsWith("text/") ||
-      attachment.mime_type.includes("json") ||
-      attachment.mime_type.includes("javascript") ||
-      attachment.mime_type.includes("xml") ||
-      attachment.mime_type.includes("yaml") ||
-      attachment.file_name.endsWith(".txt") ||
-      attachment.file_name.endsWith(".md") ||
-      attachment.file_name.endsWith(".csv") ||
-      attachment.file_name.endsWith(".json") ||
-      attachment.file_name.endsWith(".html") ||
-      attachment.file_name.endsWith(".ts") ||
-      attachment.file_name.endsWith(".js") ||
-      attachment.file_name.endsWith(".css"));
+    !isBinaryOffice &&
+    (lowerMime.startsWith("text/") ||
+      lowerMime.includes("json") ||
+      lowerMime.includes("javascript") ||
+      (lowerMime.includes("xml") && !lowerMime.includes("openxmlformats")) ||
+      lowerMime.includes("yaml") ||
+      lowerFileName.endsWith(".txt") ||
+      lowerFileName.endsWith(".md") ||
+      lowerFileName.endsWith(".csv") ||
+      lowerFileName.endsWith(".json") ||
+      lowerFileName.endsWith(".html") ||
+      lowerFileName.endsWith(".ts") ||
+      lowerFileName.endsWith(".js") ||
+      lowerFileName.endsWith(".css"));
 
   const isHtml = attachment.mime_type === "text/html" || attachment.file_name.toLowerCase().endsWith(".html");
 
@@ -373,7 +386,7 @@ export default function AttachmentPreviewModal({
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
-          maxWidth: isPdf ? "960px" : isImage ? "880px" : "800px",
+          maxWidth: isPdf || isExcel || isWord || isPowerPoint ? "1020px" : isImage ? "880px" : "800px",
           maxHeight: "92vh",
           display: "flex",
           flexDirection: "column",
@@ -404,6 +417,8 @@ export default function AttachmentPreviewModal({
               <FileSpreadsheet size={18} color="#16a34a" style={{ flexShrink: 0 }} />
             ) : isWord ? (
               <FileText size={18} color="#2563eb" style={{ flexShrink: 0 }} />
+            ) : isPowerPoint ? (
+              <Presentation size={18} color="#ea580c" style={{ flexShrink: 0 }} />
             ) : isTextOrCode ? (
               <FileCode size={18} color="#7c3aed" style={{ flexShrink: 0 }} />
             ) : (
@@ -520,6 +535,8 @@ export default function AttachmentPreviewModal({
             <ExcelPreviewViewer url={previewUrl} />
           ) : isWord ? (
             <WordPreviewViewer url={previewUrl} />
+          ) : isPowerPoint ? (
+            <PowerPointPreviewViewer url={previewUrl} />
           ) : isTextOrCode ? (
             textLoading ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, color: "var(--muted)" }}>

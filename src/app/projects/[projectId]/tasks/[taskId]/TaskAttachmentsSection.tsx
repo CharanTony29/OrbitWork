@@ -28,6 +28,9 @@ import {
   Link2,
 } from "lucide-react";
 import { removeTaskAttachment, createAndAttachCanvas } from "@/app/actions";
+import ExcelPreviewViewer from "../../ExcelPreviewViewer";
+import WordPreviewViewer from "../../WordPreviewViewer";
+import PowerPointPreviewViewer from "../../PowerPointPreviewViewer";
 
 export type AttachmentItem = {
   id: string;
@@ -400,17 +403,53 @@ export default function TaskAttachmentsSection({
   const canvasUploadRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
+  const isExcelType = (fileName: string, mimeType: string) => {
+    const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+    const mime = (mimeType || "").toLowerCase();
+    return (
+      ["xlsx", "xls"].includes(ext) ||
+      mime.includes("spreadsheetml") ||
+      mime.includes("ms-excel")
+    );
+  };
+
+  const isWordType = (fileName: string, mimeType: string) => {
+    const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+    const mime = (mimeType || "").toLowerCase();
+    return ext === "docx" || mime.includes("wordprocessingml");
+  };
+
+  const isPowerPointType = (fileName: string, mimeType: string) => {
+    const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+    const mime = (mimeType || "").toLowerCase();
+    return (
+      ext === "pptx" ||
+      mime.includes("presentationml") ||
+      mime.includes("powerpoint")
+    );
+  };
+
   const isTextType = (fileName: string, mimeType: string) => {
     const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+    const mime = (mimeType || "").toLowerCase();
+    if (
+      isExcelType(fileName, mimeType) ||
+      isWordType(fileName, mimeType) ||
+      isPowerPointType(fileName, mimeType) ||
+      mime.includes("openxmlformats") ||
+      ["doc", "ppt", "zip", "pdf"].includes(ext)
+    ) {
+      return false;
+    }
     return (
       [
         "txt", "xml", "html", "htm", "json", "csv", "md", "log", "js", "ts",
         "tsx", "jsx", "css", "scss", "sql", "yaml", "yml", "ini", "env", "sh", "py"
       ].includes(ext) ||
-      mimeType.startsWith("text/") ||
-      mimeType.includes("xml") ||
-      mimeType.includes("json") ||
-      mimeType.includes("javascript")
+      mime.startsWith("text/") ||
+      (mime.includes("xml") && !mime.includes("openxmlformats")) ||
+      mime.includes("json") ||
+      mime.includes("javascript")
     );
   };
 
@@ -1166,6 +1205,12 @@ export default function TaskAttachmentsSection({
                   url={`/api/attachments/${previewItem.id}`}
                   fileName={previewItem.file_name}
                 />
+              ) : isExcelType(previewItem.file_name, previewItem.mime_type) ? (
+                <ExcelPreviewViewer url={`/api/attachments/${previewItem.id}`} />
+              ) : isWordType(previewItem.file_name, previewItem.mime_type) ? (
+                <WordPreviewViewer url={`/api/attachments/${previewItem.id}`} />
+              ) : isPowerPointType(previewItem.file_name, previewItem.mime_type) ? (
+                <PowerPointPreviewViewer url={`/api/attachments/${previewItem.id}`} />
               ) : isTextType(previewItem.file_name, previewItem.mime_type) ? (
                 <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "var(--paper, #fff)", borderRadius: 8, overflow: "hidden" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px", borderBottom: "1px solid var(--line, #e2e8f0)", background: "var(--nav-hover, #f8fafc)", fontSize: 11 }}>
