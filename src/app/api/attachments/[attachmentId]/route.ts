@@ -17,6 +17,36 @@ export async function GET(request: Request, { params }: { params: Promise<{ atta
     .maybeSingle();
   if (error || !attachment) return new Response("Attachment not found", { status: 404 });
 
+  // If a browser opens /api/attachments/:id directly in a top-level tab (not fetch/img/iframe
+  // and not an explicit ?download=1), redirect Office & previewable files to our full-tab viewer
+  // so the browser renders PPTX/DOCX/XLSX inline instead of forcing a direct download.
+  const secFetchDest = (request.headers.get("sec-fetch-dest") || "").toLowerCase();
+  const acceptHeader = (request.headers.get("accept") || "").toLowerCase();
+  const isTopLevelTabNavigation =
+    !isDownload &&
+    (secFetchDest === "document" ||
+      (!secFetchDest && acceptHeader.includes("text/html") && !acceptHeader.includes("application/json")));
+
+  const rawLowerName = (attachment.file_name || "").toLowerCase();
+  const rawLowerMime = (attachment.mime_type || "").toLowerCase();
+  const isOfficeAttachment =
+    rawLowerName.endsWith(".pptx") ||
+    rawLowerName.endsWith(".ppt") ||
+    rawLowerName.endsWith(".docx") ||
+    rawLowerName.endsWith(".doc") ||
+    rawLowerName.endsWith(".xlsx") ||
+    rawLowerName.endsWith(".xls") ||
+    rawLowerMime.includes("presentationml") ||
+    rawLowerMime.includes("powerpoint") ||
+    rawLowerMime.includes("wordprocessingml") ||
+    rawLowerMime.includes("spreadsheetml") ||
+    rawLowerMime.includes("ms-excel") ||
+    rawLowerMime.includes("openxmlformats");
+
+  if (isTopLevelTabNavigation && isOfficeAttachment) {
+    return Response.redirect(new URL(`/attachments/${attachment.id}`, request.url), 302);
+  }
+
   // 1. Live OneDrive Storage
   const isOneDriveItem =
     attachment.storage_provider === "onedrive" &&
@@ -160,6 +190,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ atta
     else if (lowerName.endsWith(".pptx")) contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
     else if (lowerName.endsWith(".docx")) contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     else if (lowerName.endsWith(".xlsx")) contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    else if (lowerName.endsWith(".xls")) contentType = "application/vnd.ms-excel";
 
     const totalBytes = buffer.byteLength;
     const disposition = isDownload ? "attachment" : "inline";
@@ -206,6 +237,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ atta
     else if (lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg")) contentType = "image/jpeg";
     else if (lowerName.endsWith(".webp")) contentType = "image/webp";
     else if (lowerName.endsWith(".gif")) contentType = "image/gif";
+    else if (lowerName.endsWith(".pptx")) contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    else if (lowerName.endsWith(".docx")) contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    else if (lowerName.endsWith(".xlsx")) contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    else if (lowerName.endsWith(".xls")) contentType = "application/vnd.ms-excel";
 
     const totalBytes = driveFile.buffer.byteLength;
     const rangeHeader = request.headers.get("range");

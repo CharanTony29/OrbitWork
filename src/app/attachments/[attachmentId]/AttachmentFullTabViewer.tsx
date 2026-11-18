@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ExcelPreviewViewer from "@/app/projects/[projectId]/ExcelPreviewViewer";
 import WordPreviewViewer from "@/app/projects/[projectId]/WordPreviewViewer";
 import PowerPointPreviewViewer from "@/app/projects/[projectId]/PowerPointPreviewViewer";
@@ -15,6 +15,8 @@ import {
   Copy,
   Check,
   Eye,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 type ViewerAttachment = {
@@ -40,6 +42,26 @@ export default function AttachmentFullTabViewer({
   const [textLoading, setTextLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [renderHtml, setRenderHtml] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const viewerRootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    if (viewerRootRef.current?.requestFullscreen) {
+      await viewerRootRef.current.requestFullscreen().catch(() => undefined);
+    }
+  }, []);
 
   const fileUrl = `/api/attachments/${attachment.id}`;
   const lowerName = attachment.file_name.toLowerCase();
@@ -141,10 +163,11 @@ export default function AttachmentFullTabViewer({
 
   return (
     <div
+      ref={viewerRootRef}
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 50,
+        zIndex: 9990,
         display: "flex",
         flexDirection: "column",
         background: "var(--paper, #fff)",
@@ -243,6 +266,24 @@ export default function AttachmentFullTabViewer({
               <span>{copied ? "Copied" : "Copy"}</span>
             </button>
           )}
+
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={toggleFullscreen}
+            style={{
+              padding: "4px 10px",
+              fontSize: 11,
+              height: 30,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+            title={isFullscreen ? "Exit Full Screen (Esc)" : "Full Screen"}
+          >
+            {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            <span>{isFullscreen ? "Exit Full Screen" : "Full Screen"}</span>
+          </button>
 
           <a
             href={`${fileUrl}?download=1`}

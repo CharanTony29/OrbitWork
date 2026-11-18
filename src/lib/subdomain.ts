@@ -48,6 +48,7 @@ export const APP_ROUTE_PREFIXES = [
   "/invite",
   "/reset-password",
   "/organizations",
+  "/attachments",
 ] as const;
 
 export function isAppRoute(pathname: string): boolean {

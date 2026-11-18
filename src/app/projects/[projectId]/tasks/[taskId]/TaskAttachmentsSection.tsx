@@ -26,6 +26,8 @@ import {
   ZoomIn,
   ZoomOut,
   Link2,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { removeTaskAttachment, createAndAttachCanvas } from "@/app/actions";
 import ExcelPreviewViewer from "../../ExcelPreviewViewer";
@@ -390,6 +392,7 @@ export default function TaskAttachmentsSection({
   const [isCreatingCanvas, startCreateCanvasTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
   const [previewItem, setPreviewItem] = useState<AttachmentItem | null>(null);
+  const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [loadingText, setLoadingText] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
@@ -457,6 +460,7 @@ export default function TaskAttachmentsSection({
     if (!previewItem) {
       setTextContent(null);
       setShowHtmlRendered(false);
+      setPreviewFullscreen(false);
       return;
     }
 
@@ -1145,12 +1149,25 @@ export default function TaskAttachmentsSection({
       {previewItem && (
         <div
           className="attachment-preview-backdrop"
+          style={previewFullscreen ? { padding: 0 } : undefined}
           onClick={() => setPreviewItem(null)}
           role="dialog"
           aria-modal="true"
         >
           <div
             className="attachment-preview-modal"
+            style={
+              previewFullscreen
+                ? {
+                    width: "100vw",
+                    height: "100vh",
+                    maxWidth: "100vw",
+                    maxHeight: "100vh",
+                    borderRadius: 0,
+                    border: "none",
+                  }
+                : undefined
+            }
             onClick={(e) => e.stopPropagation()}
           >
             <div className="attachment-preview-header">
@@ -1160,6 +1177,16 @@ export default function TaskAttachmentsSection({
                 <span>({formatFileSize(previewItem.file_size_bytes)})</span>
               </div>
               <div className="attachment-preview-actions">
+                <button
+                  type="button"
+                  onClick={() => setPreviewFullscreen((v) => !v)}
+                  className="button button-secondary"
+                  style={{ padding: "4px 10px", fontSize: "11px", minHeight: "28px", display: "inline-flex", alignItems: "center", gap: 5 }}
+                  title={previewFullscreen ? "Exit Full Screen" : "Full Screen"}
+                >
+                  {previewFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                  <span>{previewFullscreen ? "Exit Full Screen" : "Full Screen"}</span>
+                </button>
                 <a
                   href={`/attachments/${previewItem.id}`}
                   target="_blank"
@@ -1191,13 +1218,17 @@ export default function TaskAttachmentsSection({
               </div>
             </div>
 
-            <div className="attachment-preview-body">
+            <div
+              className="attachment-preview-body"
+              style={previewFullscreen ? { padding: 0, height: "calc(100vh - 54px)" } : undefined}
+            >
               {previewItem.mime_type.startsWith("image/") || ["png", "jpg", "jpeg", "svg", "webp", "gif"].some((ext) => previewItem.file_name.toLowerCase().endsWith(ext)) ? (
                 <div className="preview-image-wrap">
                   <img
                     src={`/api/attachments/${previewItem.id}`}
                     alt={previewItem.file_name}
                     className="preview-img"
+                    style={previewFullscreen ? { maxHeight: "calc(100vh - 80px)" } : undefined}
                   />
                 </div>
               ) : previewItem.mime_type === "application/pdf" || previewItem.file_name.toLowerCase().endsWith(".pdf") ? (
@@ -1206,11 +1237,21 @@ export default function TaskAttachmentsSection({
                   fileName={previewItem.file_name}
                 />
               ) : isExcelType(previewItem.file_name, previewItem.mime_type) ? (
-                <ExcelPreviewViewer url={`/api/attachments/${previewItem.id}`} />
+                <ExcelPreviewViewer
+                  url={`/api/attachments/${previewItem.id}`}
+                  height={previewFullscreen ? "100%" : "76vh"}
+                />
               ) : isWordType(previewItem.file_name, previewItem.mime_type) ? (
-                <WordPreviewViewer url={`/api/attachments/${previewItem.id}`} />
+                <WordPreviewViewer
+                  url={`/api/attachments/${previewItem.id}`}
+                  height={previewFullscreen ? "100%" : "76vh"}
+                />
               ) : isPowerPointType(previewItem.file_name, previewItem.mime_type) ? (
-                <PowerPointPreviewViewer url={`/api/attachments/${previewItem.id}`} />
+                <PowerPointPreviewViewer
+                  url={`/api/attachments/${previewItem.id}`}
+                  height={previewFullscreen ? "100%" : "76vh"}
+                  fullScreen={previewFullscreen}
+                />
               ) : isTextType(previewItem.file_name, previewItem.mime_type) ? (
                 <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "var(--paper, #fff)", borderRadius: 8, overflow: "hidden" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px", borderBottom: "1px solid var(--line, #e2e8f0)", background: "var(--nav-hover, #f8fafc)", fontSize: 11 }}>

@@ -21,6 +21,8 @@ import {
   Check,
   Eye,
   ExternalLink,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 type PreviewAttachment = {
@@ -289,6 +291,7 @@ export default function AttachmentPreviewModal({
   const [textLoading, setTextLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [renderHtml, setRenderHtml] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const previewUrl = `/api/attachments/${attachment.id}`;
   const lowerFileName = attachment.file_name.toLowerCase();
@@ -378,23 +381,30 @@ export default function AttachmentPreviewModal({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "24px",
+        padding: isFullscreen ? 0 : "24px",
       }}
     >
       <div
         className="modal-container"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "100%",
-          maxWidth: isPdf || isExcel || isWord || isPowerPoint ? "1020px" : isImage ? "880px" : "800px",
-          maxHeight: "92vh",
+          width: isFullscreen ? "100vw" : "100%",
+          height: isFullscreen ? "100vh" : undefined,
+          maxWidth: isFullscreen
+            ? "100vw"
+            : isPdf || isExcel || isWord || isPowerPoint
+            ? "1020px"
+            : isImage
+            ? "880px"
+            : "800px",
+          maxHeight: isFullscreen ? "100vh" : "92vh",
           display: "flex",
           flexDirection: "column",
           background: "var(--paper, #fff)",
-          borderRadius: 12,
+          borderRadius: isFullscreen ? 0 : 12,
           boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)",
           overflow: "hidden",
-          border: "1px solid var(--line, #e2e8f0)",
+          border: isFullscreen ? "none" : "1px solid var(--line, #e2e8f0)",
         }}
       >
         {/* Header */}
@@ -472,6 +482,24 @@ export default function AttachmentPreviewModal({
                 <span>{copied ? "Copied" : "Copy"}</span>
               </button>
             )}
+
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() => setIsFullscreen((v) => !v)}
+              style={{
+                padding: "4px 10px",
+                fontSize: 11,
+                height: 30,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+              }}
+              title={isFullscreen ? "Exit Full Screen" : "Full Screen"}
+            >
+              {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+              <span>{isFullscreen ? "Exit Full Screen" : "Full Screen"}</span>
+            </button>
 
             <a
               href={`/attachments/${attachment.id}`}
@@ -552,11 +580,15 @@ export default function AttachmentPreviewModal({
           ) : isPdf ? (
             <PdfPreviewViewer url={previewUrl} />
           ) : isExcel ? (
-            <ExcelPreviewViewer url={previewUrl} />
+            <ExcelPreviewViewer url={previewUrl} height={isFullscreen ? "100%" : "76vh"} />
           ) : isWord ? (
-            <WordPreviewViewer url={previewUrl} />
+            <WordPreviewViewer url={previewUrl} height={isFullscreen ? "100%" : "76vh"} />
           ) : isPowerPoint ? (
-            <PowerPointPreviewViewer url={previewUrl} />
+            <PowerPointPreviewViewer
+              url={previewUrl}
+              height={isFullscreen ? "100%" : "76vh"}
+              fullScreen={isFullscreen}
+            />
           ) : isTextOrCode ? (
             textLoading ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, color: "var(--muted)" }}>
