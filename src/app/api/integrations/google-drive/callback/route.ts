@@ -149,7 +149,7 @@ export async function GET(request: Request) {
 
       const { data: existingPersonal } = await supabase
         .from("user_cloud_connections")
-        .select("id, refresh_token_ciphertext")
+        .select("id, refresh_token_encrypted, access_token_encrypted")
         .eq("user_id", user.id)
         .eq("provider", "google_drive")
         .maybeSingle();
@@ -158,9 +158,12 @@ export async function GET(request: Request) {
         return failure(request, "", "missing_refresh_token", "", undefined, true);
       }
 
-      const encrypted = refreshToken
+      const encryptedRefresh = refreshToken
         ? encryptRefreshToken(refreshToken)
-        : existingPersonal!.refresh_token_ciphertext;
+        : existingPersonal!.refresh_token_encrypted || existingPersonal!.access_token_encrypted;
+      const encryptedAccess = tokenPayload.access_token
+        ? encryptRefreshToken(tokenPayload.access_token)
+        : encryptedRefresh;
 
       // Deactivate other personal providers so newly connected one becomes active
       await supabase
@@ -173,7 +176,8 @@ export async function GET(request: Request) {
           user_id: user.id,
           provider: "google_drive",
           account_email: accountEmail || null,
-          refresh_token_ciphertext: encrypted,
+          access_token_encrypted: encryptedAccess,
+          refresh_token_encrypted: encryptedRefresh,
           folder_name: "Orbitwork Chat",
           is_active: true,
           updated_at: new Date().toISOString(),

@@ -170,7 +170,7 @@ export async function GET(request: NextRequest) {
           const key = String(r.thread_key);
           const ts = new Date(String(r.last_read_at)).getTime();
           receiptMap.set(key, ts);
-          if (key.startsWith("channel:")) {
+          if (key.startsWith("ch:") || key.startsWith("channel:")) {
             const parts = key.split(":");
             const chName = parts[parts.length - 1];
             if (chName && ts > (channelReceiptMax.get(chName) ?? 0)) {

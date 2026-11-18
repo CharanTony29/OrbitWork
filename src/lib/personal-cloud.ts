@@ -33,7 +33,8 @@ export interface UserCloudConnectionRow {
   user_id: string;
   provider: PersonalCloudProvider;
   account_email: string | null;
-  refresh_token_ciphertext: string;
+  access_token_encrypted: string;
+  refresh_token_encrypted: string | null;
   folder_name: string;
   is_active: boolean;
   connected_at: string;
@@ -222,7 +223,7 @@ export async function getUserPersonalCloudConnections(
 ): Promise<{ connections: UserCloudConnectionRow[]; migrationMissing: boolean }> {
   const { data, error } = await supabase
     .from("user_cloud_connections")
-    .select("id, user_id, provider, account_email, refresh_token_ciphertext, folder_name, is_active, connected_at, updated_at")
+    .select("id, user_id, provider, account_email, access_token_encrypted, refresh_token_encrypted, folder_name, is_active, connected_at, updated_at")
     .eq("user_id", userId)
     .order("is_active", { ascending: false })
     .order("updated_at", { ascending: false });
@@ -282,7 +283,8 @@ async function getPersonalOneDriveAccessToken(
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new OneDriveError("configuration");
-  const refreshToken = decryptOneDriveToken(connection.refresh_token_ciphertext);
+  const encryptedRefresh = connection.refresh_token_encrypted || connection.access_token_encrypted;
+  const refreshToken = decryptOneDriveToken(encryptedRefresh);
   const response = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -304,7 +306,7 @@ async function getPersonalOneDriveAccessToken(
       const rotated = encryptOneDriveToken(payload.refresh_token);
       await dbClient
         .from("user_cloud_connections")
-        .update({ refresh_token_ciphertext: rotated, updated_at: new Date().toISOString() })
+        .update({ refresh_token_encrypted: rotated, updated_at: new Date().toISOString() })
         .eq("id", connection.id);
     } catch {
       // non-fatal
@@ -325,7 +327,8 @@ export async function uploadChatFileToPersonalCloud(
   const storedName = `${uniquePrefix}_${fileName}`;
 
   if (connection.provider === "google_drive") {
-    const accessToken = await getPersonalGoogleAccessToken(connection.refresh_token_ciphertext);
+    const encryptedRefresh = connection.refresh_token_encrypted || connection.access_token_encrypted;
+    const accessToken = await getPersonalGoogleAccessToken(encryptedRefresh);
     const uploaded = await uploadPersonalDriveFile(accessToken, folder, storedName, mimeType, bytes);
     return { provider: "google_drive", externalFileId: uploaded.id };
   }
@@ -343,7 +346,7 @@ export async function downloadChatFileFromPersonalCloud(
 ): Promise<Buffer> {
   const { data: conn, error } = await dbClient
     .from("user_cloud_connections")
-    .select("id, user_id, provider, account_email, refresh_token_ciphertext, folder_name, is_active, connected_at, updated_at")
+    .select("id, user_id, provider, account_email, access_token_encrypted, refresh_token_encrypted, folder_name, is_active, connected_at, updated_at")
     .eq("user_id", ownerUserId)
     .eq("provider", provider)
     .maybeSingle();
@@ -354,7 +357,8 @@ export async function downloadChatFileFromPersonalCloud(
 
   const row = conn as UserCloudConnectionRow;
   if (provider === "google_drive") {
-    const accessToken = await getPersonalGoogleAccessToken(row.refresh_token_ciphertext);
+    const encryptedRefresh = row.refresh_token_encrypted || row.access_token_encrypted;
+    const accessToken = await getPersonalGoogleAccessToken(encryptedRefresh);
     const { buffer } = await getDriveFile(accessToken, externalFileId);
     return buffer;
   }

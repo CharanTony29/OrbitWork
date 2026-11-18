@@ -158,15 +158,22 @@ export async function GET(request: Request) {
 
       const { data: existingPersonal } = await supabase
         .from("user_cloud_connections")
-        .select("id, refresh_token_ciphertext")
+        .select("id, refresh_token_encrypted, access_token_encrypted")
         .eq("user_id", user.id)
         .eq("provider", "onedrive")
         .maybeSingle();
 
-      const finalCiphertext = refreshTokenCiphertext || existingPersonal?.refresh_token_ciphertext;
-      if (!finalCiphertext) {
+      const finalRefresh =
+        refreshTokenCiphertext ||
+        existingPersonal?.refresh_token_encrypted ||
+        existingPersonal?.access_token_encrypted;
+      if (!finalRefresh) {
         return failure(request, "", "missing_refresh_token", "", undefined, true);
       }
+
+      const finalAccess = tokenPayload.access_token
+        ? encryptOneDriveToken(tokenPayload.access_token)
+        : finalRefresh;
 
       await supabase
         .from("user_cloud_connections")
@@ -178,7 +185,8 @@ export async function GET(request: Request) {
           user_id: user.id,
           provider: "onedrive",
           account_email: accountEmail || null,
-          refresh_token_ciphertext: finalCiphertext,
+          access_token_encrypted: finalAccess,
+          refresh_token_encrypted: finalRefresh,
           folder_name: "Orbitwork Chat",
           is_active: true,
           updated_at: new Date().toISOString(),

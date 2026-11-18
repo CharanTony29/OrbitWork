@@ -60,33 +60,43 @@ export async function POST(request: Request) {
 
     let persisted = true;
     if (itemKeys.length > 0) {
-      const rows = itemKeys.map((itemKey) => {
-        const base: Record<string, unknown> = {
-          user_id: user.id,
-          item_key: itemKey,
-          updated_at: nowIso,
-        };
-        if (body.action === "clear_all") {
-          base.bucket = "cleared";
-          base.is_read = true;
-        } else if (body.action === "set_bucket" && body.bucket) {
-          base.bucket = body.bucket;
-          if (body.bucket === "cleared") base.is_read = true;
-        } else if (body.action === "set_read") {
-          base.is_read = Boolean(body.isRead);
-        } else if (body.action === "mark_all_read") {
-          base.is_read = true;
+      if (body.action === "set_bucket" && body.bucket === "other") {
+        // Restoring an "other" item back to its natural default bucket: clear override row
+        const { error } = await supabase
+          .from("user_inbox_states")
+          .delete()
+          .eq("user_id", user.id)
+          .in("item_key", itemKeys);
+        if (error) persisted = false;
+      } else {
+        const rows = itemKeys.map((itemKey) => {
+          const base: Record<string, unknown> = {
+            user_id: user.id,
+            item_key: itemKey,
+            updated_at: nowIso,
+          };
+          if (body.action === "clear_all") {
+            base.bucket = "cleared";
+            base.is_read = true;
+          } else if (body.action === "set_bucket" && body.bucket) {
+            base.bucket = body.bucket;
+            if (body.bucket === "cleared") base.is_read = true;
+          } else if (body.action === "set_read") {
+            base.is_read = Boolean(body.isRead);
+          } else if (body.action === "mark_all_read") {
+            base.is_read = true;
+          }
+          return base;
+        });
+
+        const { error } = await supabase
+          .from("user_inbox_states")
+          .upsert(rows, { onConflict: "user_id,item_key" });
+
+        if (error) {
+          // Table may not be migrated yet — degrade gracefully without failing UI
+          persisted = false;
         }
-        return base;
-      });
-
-      const { error } = await supabase
-        .from("user_inbox_states")
-        .upsert(rows, { onConflict: "user_id,item_key" });
-
-      if (error) {
-        // Table may not be migrated yet — degrade gracefully without failing UI
-        persisted = false;
       }
     }
 
