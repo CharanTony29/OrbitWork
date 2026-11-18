@@ -2,15 +2,17 @@
 
 @media(max-width:850px){.auth-shell{grid-template-columns:1fr;min-height:100vh}.auth-card{padding:44px 25px;max-width:500px}.auth-aside{min-height:380px;padding:40px 30px}.aside-copy h2{font-size:35px}.aside-foot{left:30px}.dashboard-layout{grid-template-columns:1fr}.sidebar{display:none}.dashboard-content{padding:33px 22px}.topbar{padding:0 20px}}@media(max-width:480px){.auth-card h1{font-size:29px}.aside-stats{gap:20px}.welcome-row h1{font-size:25px}.inline-create{display:grid}.inline-create input{max-width:none}.user-chip{display:none}.reset-form{align-items:stretch;flex-direction:column}.reset-form .text-button{text-align:left;padding:3px 0}}
 
-/* Compact Auth Screen Styling - Non-scrollable Desktop View */
+/* Compact Auth Screen Styling - Clean Desktop View */
 @media(min-width: 851px) {
   .auth-shell {
+    min-height: 100vh;
     height: 100vh;
-    max-height: 100vh;
     overflow: hidden;
   }
   .auth-card {
     padding: 32px 42px;
+    max-height: 100vh;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -58,15 +60,57 @@
   gap: 12px;
 }
 
-.auth-compact-stack label {
+.auth-compact-stack > label {
   gap: 5px;
   font-size: 11.5px;
 }
 
-.auth-compact-stack input {
+.auth-compact-stack input:not([type="checkbox"]):not([type="radio"]) {
   padding: 10px 12px;
   font-size: 13px;
   height: 40px;
+}
+
+.auth-consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 4px 0 2px;
+}
+
+.form-stack input.auth-consent-checkbox,
+.auth-compact-stack input.auth-consent-checkbox {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  flex: 0 0 16px;
+  padding: 0;
+  margin: 2px 0 0;
+  border-radius: 4px;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
+.form-stack label.auth-consent-label,
+.auth-compact-stack label.auth-consent-label {
+  display: block;
+  gap: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--muted, #64748b);
+  cursor: pointer;
+}
+
+.auth-consent-label a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.auth-consent-label a:hover {
+  color: var(--green);
 }
 
 .auth-footer-link {

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import {
   MessageSquare,
   Sparkles,
@@ -42,7 +43,34 @@ const SUGGESTED_PROMPTS = [
   "✉️ Draft a concise progress update for the team",
 ];
 
+const HIDDEN_AI_DRAWER_EXACT_ROUTES = new Set([
+  "/",
+  "/login",
+  "/signup",
+  "/reset-password",
+  "/about",
+  "/contact",
+  "/privacy",
+  "/terms",
+  "/services",
+  "/projects-case-studies",
+  "/project-management-software",
+  "/free-project-management-software",
+  "/jira-alternative",
+  "/free-jira-alternative",
+  "/asana-alternative",
+  "/clickup-alternative",
+  "/monday-alternative",
+]);
+
+function shouldHideAiDrawer(pathname: string | null): boolean {
+  if (!pathname) return false;
+  if (HIDDEN_AI_DRAWER_EXACT_ROUTES.has(pathname)) return true;
+  return pathname.startsWith("/auth/") || pathname.startsWith("/services/");
+}
+
 export default function AIChatDrawer({ context }: AIChatDrawerProps) {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [input, setInput] = useState("");
@@ -181,6 +209,10 @@ export default function AIChatDrawer({ context }: AIChatDrawerProps) {
       setMessages([]);
     }
   };
+
+  if (shouldHideAiDrawer(pathname)) {
+    return null;
+  }
 
   return (
     <>
