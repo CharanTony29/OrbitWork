@@ -1,1174 +1,998 @@
 ---
 name: testing
-description: Comprehensive browser-first QA and software testing skill for Orbitwork. Use when testing features, finding reproducible bugs, performing regression testing, validating APIs, checking responsive behavior, verifying loading and error states, or determining release readiness.
+description: UI-first visual QA and application testing skill for Orbitwork. Use when inspecting pages, finding visual defects, checking responsive layouts, testing user interactions, validating loading states, identifying broken UI, and reporting page-level UX problems.
 ---
 
-# Orbitwork QA & Testing Skill
+# Orbitwork UI-First QA Testing Skill
 
 ## Mission
 
-Act as a senior QA engineer and test engineer for Orbitwork.
+Act as a senior UI/UX QA engineer for Orbitwork.
 
-The primary objective is to determine whether the application actually works correctly from a user's perspective.
+The primary purpose of this skill is to inspect the actual application visually and identify pages and components that look broken, inconsistent, unfinished, confusing, poorly aligned, non-responsive, or difficult to use.
 
-Test the running application whenever possible.
+The application should be evaluated from the perspective of a real user.
 
-Do not assume that code is correct because it compiles.
+The most important question is:
 
-Do not assume that code is broken because a source-code pattern looks suspicious.
+> "Does this page look and behave like a polished, professional production application?"
 
-Do not turn a normal QA task into a broad static security audit or code review.
+Do not focus primarily on source-code quality.
 
-The priority is:
+Do not perform a broad code audit.
 
-1. Reproduce actual application behavior.
-2. Collect evidence.
-3. Identify confirmed defects.
-4. Identify suspected issues separately.
-5. Identify blocked or untested areas.
-6. Assess regression risk.
-7. Provide an evidence-based release recommendation.
+Do not turn every suspicious code pattern into a bug.
 
 ---
 
-# 1. Core Testing Principle
+# 1. Testing Priority
 
-## Runtime behavior has priority
+Always prioritize testing in this order:
 
-When the task is application testing, test the actual running application first.
+1. Visual appearance
+2. Layout and spacing
+3. Responsive behavior
+4. Navigation and page structure
+5. Interactive elements
+6. Loading and feedback states
+7. Forms and validation
+8. Functional behavior
+9. API behavior when relevant
+10. Source-code inspection only when necessary to diagnose a problem
 
-Preferred order:
-
-1. Understand the requested scope.
-2. Identify the application URL/environment.
-3. Start or connect to the application.
-4. Verify the application is accessible.
-5. Navigate through the actual UI.
-6. Perform real user workflows.
-7. Observe visible behavior.
-8. Inspect browser console and network activity when relevant.
-9. Test relevant APIs.
-10. Inspect database behavior when necessary and safely possible.
-11. Inspect source code to diagnose observed behavior.
-12. Reproduce important findings.
-13. Report the result.
-
-Do not begin by reading hundreds of source files unless the task specifically asks for static analysis.
+The visual quality of the application is the primary objective.
 
 ---
 
-# 2. Evidence Standard
+# 2. Browser-First Requirement
 
-Every reported defect must be classified according to evidence.
+Whenever possible, use the running Orbitwork application.
 
-## CONFIRMED
+Do not start by reading large amounts of source code.
 
-Use `CONFIRMED` only when:
+Preferred workflow:
 
-- The behavior was reproduced in the application, or
-- A deterministic automated test fails, or
-- A deterministic API/database test demonstrates the failure.
-
-A confirmed bug must have enough evidence for another engineer to reproduce it.
-
----
-
-## SUSPECTED
-
-Use `SUSPECTED` when:
-
-- Static analysis indicates a possible defect.
-- A suspicious implementation was found.
-- Runtime verification was not possible.
-- Required test data or environment is unavailable.
-
-Never present a suspected issue as a confirmed bug.
+1. Open the application.
+2. Navigate through the application.
+3. Inspect each page visually.
+4. Interact with the page.
+5. Resize the viewport.
+6. Check mobile behavior.
+7. Test buttons, tabs, forms, menus and controls.
+8. Observe loading and error states.
+9. Record visual/UX defects.
+10. Only inspect source code when necessary to understand the cause.
 
 ---
 
-## UNABLE TO VERIFY
+# 3. Page-by-Page Visual Inspection
 
-Use `UNABLE TO VERIFY` when:
+Inspect every accessible major page.
 
-- The application could not be started.
-- Required credentials are unavailable.
-- Required external services are unavailable.
-- Required database data is unavailable.
-- The behavior requires an environment that cannot be accessed.
-
-Explain exactly why verification was not possible.
-
----
-
-# 3. Never Confuse Code Smells With Bugs
-
-The following are NOT automatically confirmed bugs:
-
-- A suspicious condition
-- A potentially unsafe query
-- A missing-looking validation
-- A possible race condition
-- An unusual React pattern
-- A large component
-- A large DOM
-- A missing index
-- A potentially insecure configuration
-- A hardcoded value
-- A possible authorization weakness
-
-These may be valid findings, but they require appropriate verification.
-
-Use:
-
-`SUSPECTED - NEEDS RUNTIME VERIFICATION`
-
-when evidence is insufficient.
-
----
-
-# 4. Browser-First Testing
-
-For UI and application testing, interact with the application as a real user.
-
-Test:
+Examples include:
 
 - Login
-- Logout
-- Registration
-- Password reset
+- Signup
 - Dashboard
-- Navigation
 - Projects
-- Workspaces
-- Tasks
-- Task creation
-- Task editing
-- Task deletion
-- List view
-- Board view
+- Project overview
+- Task list
+- Task board
 - Timeline
 - Gantt
 - Timesheets
 - Documents
 - AI Agents
 - Project Brain
-- Notifications
-- Search
-- Filtering
-- Sorting
-- Forms
-- Modals
 - Settings
 - Profile
-- Member management
-- Invitations
-- File uploads
-- File previews
-- Exports
+- Members
+- Notifications
+- Search
 - Reports
+- Exports
+- Invitations
+- Other accessible application pages
 
-Do not simply inspect the corresponding source files.
-
----
-
-# 5. Test Complete User Workflows
-
-For each important feature, test the complete lifecycle.
-
-Example:
-
-Create Task:
-
-1. Open project.
-2. Open task creation.
-3. Enter valid information.
-4. Submit.
-5. Verify loading state.
-6. Verify success feedback.
-7. Verify task appears.
-8. Refresh page.
-9. Verify task persists.
-10. Edit task.
-11. Verify changes persist.
-12. Delete task if appropriate.
-13. Verify deletion.
-
-Do not stop after confirming that a button exists.
+Do not assume that because one page looks good, the rest of the application is consistent.
 
 ---
 
-# 6. Loading and Immediate Feedback
+# 4. Visual Quality Checklist
 
-Every asynchronous user action should provide immediate feedback.
+For every page inspect:
+
+## Layout
 
 Check:
 
-- Button click response
-- Loading spinner
-- Progress indicator
-- Disabled state
-- Skeleton/loading state
-- Pending state
-- Success state
-- Error state
+- Overall page structure
+- Alignment
+- Spacing
+- Padding
+- Margins
+- Section positioning
+- Content width
+- Sidebar width
+- Header height
+- Card dimensions
+- Grid alignment
+- Column alignment
 
-Particularly test:
+Look for:
+
+- Elements too close together
+- Excessive empty space
+- Uneven spacing
+- Misaligned components
+- Inconsistent widths
+- Broken containers
+- Content extending outside containers
+
+---
+
+# 5. Typography
+
+Check:
+
+- Font consistency
+- Font sizes
+- Font weights
+- Heading hierarchy
+- Line height
+- Text alignment
+- Text wrapping
+- Text truncation
+- Long titles
+- Long descriptions
+
+Look for:
+
+- Text being cut off
+- Text overlapping
+- Inconsistent heading sizes
+- Poor contrast
+- Tiny text
+- Excessively large text
+- Unnecessary uppercase text
+- Broken line wrapping
+
+---
+
+# 6. Colors and Visual Consistency
+
+Check consistency of:
+
+- Backgrounds
+- Cards
+- Borders
+- Buttons
+- Primary actions
+- Secondary actions
+- Status colors
+- Text colors
+- Icons
+- Hover states
+- Active states
+- Disabled states
+
+The application should feel visually consistent across pages.
+
+Report inconsistent styling when it is clearly noticeable.
+
+---
+
+# 7. Components
+
+Inspect:
+
+- Buttons
+- Cards
+- Inputs
+- Selects
+- Dropdowns
+- Checkboxes
+- Radio buttons
+- Tabs
+- Tables
+- Modals
+- Tooltips
+- Toasts
+- Badges
+- Avatars
+- Icons
+- Menus
+- Pagination
+- Breadcrumbs
+
+Check for:
+
+- Misalignment
+- Incorrect sizing
+- Inconsistent spacing
+- Broken borders
+- Clipped content
+- Poor hover states
+- Missing disabled states
+- Unclear active states
+- Icons that do not match their action
+
+---
+
+# 8. Buttons
+
+Every important button should be visually understandable.
+
+Check:
+
+- Text/icon clarity
+- Size
+- Alignment
+- Spacing
+- Hover state
+- Active state
+- Disabled state
+- Loading state
+- Success feedback
+- Error feedback
+
+Especially inspect:
 
 - Save
 - Create
 - Update
 - Delete
 - Export
-- AI operations
-- File upload
-- Login
-- Navigation
-- Search
-- Filters
-- Long-running operations
+- Invite
+- Upload
+- AI actions
+- Navigation controls
 
-A user should never be left wondering whether their click was registered.
-
-If an operation takes noticeable time and there is no feedback, report it as a UX issue.
+When a button performs an asynchronous action, the user should immediately know that the click was received.
 
 ---
 
-# 7. Error Handling
+# 9. Loading States
 
-Test failure conditions intentionally but safely.
+This is a major QA area.
+
+Whenever something takes time to load, check whether the interface communicates that clearly.
+
+Look for:
+
+- Spinner
+- Skeleton
+- Progress indicator
+- Button loading state
+- Disabled state
+- "Loading..." message
+- Processing state
+
+Avoid situations where:
+
+> User clicks → nothing visibly changes → user does not know whether the click worked.
+
+Report this as a UX issue when appropriate.
+
+---
+
+# 10. Error States
+
+Inspect the visual quality of errors.
 
 Check:
 
-- Invalid input
-- Missing required fields
-- Invalid IDs
-- Duplicate records
-- Unauthorized actions
-- Network failure
-- Server error
-- Database failure
-- Empty response
-- Timeout
-- AI provider failure
-- File upload failure
-- Invalid file
-- Expired session
+- Error message visibility
+- Error message positioning
+- Error styling
+- Readability
+- Whether the error is near the affected field
+- Whether the user knows how to recover
+- Whether the error causes unwanted navigation
 
-Verify that:
+Avoid:
 
-- The application does not crash.
-- The user receives useful feedback.
-- Sensitive technical details are not exposed.
-- The current page/context is preserved where appropriate.
-- User-entered data is not unnecessarily lost.
+- Raw technical errors
+- Unformatted stack traces
+- Errors hidden outside the viewport
+- Errors appearing in unrelated locations
 
 ---
 
-# 8. Empty States
+# 11. Empty States
 
-Every data-driven feature should handle zero records correctly.
+Inspect pages with no data.
 
-Test:
+Check whether empty states clearly communicate:
 
-- Empty projects
-- No tasks
-- No documents
-- No members
-- No comments
-- No notifications
-- No search results
-- No filters matching
-- Empty timeline
-- Empty timesheet
-- Empty dashboard
+- What is empty
+- Why it may be empty
+- What the user can do next
 
-Check that empty states are:
+Avoid:
 
-- Understandable
-- Visually correct
-- Actionable where appropriate
-- Not confused with loading states
-- Not displaying broken UI
+- Blank screens
+- Empty containers with no explanation
+- Broken tables
+- Broken layouts
+- "undefined"
+- "null"
+- Missing icons
+- Misaligned empty-state components
 
 ---
 
-# 9. Responsive Testing
+# 12. Responsive Testing
 
 Test at multiple viewport sizes.
 
-At minimum consider:
+At minimum:
+
+### Desktop
+
+Approximately:
+
+- 1440 × 900
+- 1920 × 1080
+
+### Laptop
+
+Approximately:
+
+- 1366 × 768
+
+### Tablet
+
+Approximately:
+
+- 1024 × 768
+- 768 × 1024
+
+### Mobile
+
+Approximately:
+
+- 390 × 844
+- 375 × 812
+
+Exact dimensions may vary depending on available browser tools.
+
+---
+
+# 13. Mobile Visual Inspection
+
+Do not merely verify that the page technically loads on mobile.
+
+Check whether it actually looks good.
+
+Inspect:
+
+- Header
+- Navigation
+- Sidebar
+- Cards
+- Tables
+- Buttons
+- Forms
+- Modals
+- Tabs
+- Filters
+- Timeline
+- Board
+- Lists
+- AI Agents
+- Project Brain
+
+Look for:
+
+- Horizontal overflow
+- Buttons overlapping
+- Controls touching each other
+- Text clipping
+- Cards becoming too narrow
+- Tables becoming unusable
+- Fixed buttons covering content
+- Navigation covering content
+- Modals extending beyond the viewport
+- Tiny touch targets
+
+---
+
+# 14. Scrolling
+
+Test:
+
+- Page vertical scrolling
+- Horizontal scrolling
+- Nested scrolling
+- Table scrolling
+- Board scrolling
+- Timeline scrolling
+- Gantt scrolling
+- Modal scrolling
+
+Check for:
+
+- Scrollbars appearing unexpectedly
+- Scrollbars missing when needed
+- Content hidden below fixed elements
+- Horizontal overflow
+- Scroll containers stopping unexpectedly
+- Sticky headers covering content
+
+For timeline/date-based views, verify that users can continue scrolling/navigating through the available timeline without the interface becoming stuck or inaccessible.
+
+---
+
+# 15. Timeline UI
+
+Pay special attention to Timeline/Gantt interfaces.
+
+Check:
+
+- Month headers
+- Date alignment
+- Task rows
+- Horizontal scrolling
+- Vertical scrolling
+- Current-date indicator
+- Task bars
+- Labels
+- Zoom controls
+- Navigation controls
+- Sticky headers
+- Mobile behavior
+
+Verify that the timeline remains usable as the time range becomes larger.
+
+---
+
+# 16. List UI
+
+Check:
+
+- Row alignment
+- Column widths
+- Long task names
+- Status badges
+- Priority indicators
+- Assignee information
+- Dates
+- Actions
+- Pagination
+- Sorting
+- Filtering
+- Horizontal scrolling
+
+Make sure action buttons do not overlap.
+
+---
+
+# 17. Board UI
+
+Check:
+
+- Column widths
+- Card spacing
+- Card height
+- Drag/drop appearance
+- Empty columns
+- Long task titles
+- Status badges
+- Assignee avatars
+- Action buttons
+- Horizontal scrolling
+- Mobile layout
+
+On mobile, verify that there is an alternative to desktop-only drag-and-drop interactions when necessary.
+
+---
+
+# 18. Tables
+
+Check:
+
+- Column alignment
+- Header alignment
+- Row height
+- Long text
+- Overflow
+- Horizontal scrolling
+- Sticky headers
+- Actions
+- Empty state
+- Loading state
+
+Do not allow important information to disappear because of fixed column widths.
+
+---
+
+# 19. Modals
+
+Inspect:
+
+- Position
+- Width
+- Height
+- Padding
+- Header
+- Close button
+- Footer
+- Buttons
+- Form alignment
+- Scrolling
+- Mobile behavior
+
+Check:
+
+- Modal fits viewport
+- Modal content scrolls when necessary
+- Background does not scroll unexpectedly
+- Close button remains accessible
+- Buttons do not overlap
+
+---
+
+# 20. Forms
+
+Visually inspect:
+
+- Label placement
+- Input alignment
+- Input height
+- Placeholder text
+- Required indicators
+- Validation errors
+- Help text
+- Buttons
+- Loading state
+- Success state
+
+Check that forms remain usable on mobile.
+
+---
+
+# 21. Navigation and Tabs
+
+Inspect:
+
+- Sidebar
+- Top navigation
+- Breadcrumbs
+- Tabs
+- Active states
+- Hover states
+- Mobile navigation
+
+For tab systems such as:
+
+- List
+- Board
+- Timeline
+- AI Agents
+- Project Brain
+
+verify:
+
+- Active tab is obvious
+- Switching feels immediate
+- Content loads correctly
+- Loading feedback exists
+- No layout jump occurs
+- Mobile navigation remains usable
+
+---
+
+# 22. UX Responsiveness
+
+The application should communicate actions immediately.
+
+For every major interaction ask:
+
+> "If I click this button, do I immediately know that something happened?"
+
+If the answer is no, report the UX problem.
+
+Examples:
+
+- Button has no loading state
+- Tab appears frozen
+- Export gives no feedback
+- AI request gives no indication
+- Save takes time with no indicator
+- Page navigation appears unresponsive
+
+---
+
+# 23. Visual Regression
+
+Compare related pages and repeated components.
+
+Check whether:
+
+- Buttons use consistent styling
+- Cards use consistent radius
+- Headers use consistent spacing
+- Forms use consistent input styles
+- Status badges are consistent
+- Tables use consistent typography
+- Empty states are consistent
+- Loading states are consistent
+
+Identify visual inconsistencies that make the application feel unfinished.
+
+---
+
+# 24. Broken UI Detection
+
+Actively look for:
+
+- Overlapping elements
+- Clipped elements
+- Missing icons
+- Broken images
+- Broken buttons
+- Empty containers
+- Misaligned text
+- Incorrect spacing
+- Unexpected scrollbars
+- Missing scrollbars
+- Content outside viewport
+- Broken responsive layout
+- Elements hidden accidentally
+- Controls covering other controls
+- Incorrect z-index
+- Modal positioning problems
+- Sticky element conflicts
+
+---
+
+# 25. Visual Severity
+
+## Critical
+
+Use only when the UI prevents the user from performing a core application function.
+
+Example:
+
+- Login button inaccessible
+- Main navigation unusable
+- Core project page completely broken
+
+## High
+
+Use when:
+
+- Important workflow is difficult or impossible
+- Major page layout is broken
+- Important controls overlap
+- Mobile page is unusable
+- Critical information is hidden
+
+## Medium
+
+Use when:
+
+- Significant visual defect
+- Poor responsive behavior
+- Important UX friction
+- Broken loading feedback
+- Noticeable alignment/layout problem
+
+## Low
+
+Use when:
+
+- Minor spacing issue
+- Small alignment issue
+- Minor typography inconsistency
+- Small visual polish issue
+
+## Informational
+
+Use for:
+
+- Design improvement
+- Optional polish
+- Minor consistency suggestion
+
+---
+
+# 26. Evidence
+
+For visual issues, prioritize visual evidence.
+
+Use:
+
+- Screenshot
+- Exact page
+- Exact viewport
+- Visible behavior
+- Reproduction steps
+
+A visual defect should preferably include a screenshot when the testing environment allows screenshots.
+
+Do not claim that a page looks broken without visually inspecting it.
+
+---
+
+# 27. Confirmed vs Suspected
+
+## CONFIRMED
+
+Use when the issue is visibly reproducible.
+
+Example:
+
+`CONFIRMED: Export button overlaps Favorite button on 390px mobile viewport.`
+
+## SUSPECTED
+
+Use when:
+
+- Source code suggests a problem
+- But the UI could not be inspected
+- Or the issue could not be reproduced
+
+Example:
+
+`SUSPECTED: Timeline may create excessive DOM nodes with large datasets; runtime performance testing required.`
+
+---
+
+# 28. Source Code Usage
+
+Source code should primarily be used to understand the cause of an observed UI problem.
+
+Preferred:
+
+1. Observe visual problem.
+2. Reproduce it.
+3. Capture evidence.
+4. Inspect relevant source code.
+5. Identify probable cause.
+6. Report.
+
+Do not reverse this unnecessarily.
+
+---
+
+# 29. Functional Testing
+
+After visual inspection, test important interactions.
+
+Verify:
+
+- Buttons work
+- Links work
+- Tabs work
+- Forms submit
+- Filters work
+- Sorting works
+- Search works
+- Modals open/close
+- Data saves
+- Data persists
+- Navigation works
+
+Visual quality remains the primary focus.
+
+---
+
+# 30. API and Database Testing
+
+Only investigate APIs/database behavior when:
+
+- A UI defect appears to originate from backend behavior
+- A workflow cannot be validated through the UI
+- The task explicitly requests API/database testing
+
+Do not turn normal UI QA into a database audit.
+
+---
+
+# 31. Security Testing Boundary
+
+Do not perform a full security audit during normal UI testing.
+
+If a security concern becomes visible:
+
+- Record the observation.
+- Safely verify basic behavior if possible.
+- Mark it as security-related.
+- Recommend the `security-audit` skill for detailed investigation.
+
+Do not perform aggressive exploitation.
+
+---
+
+# 32. Safety Rules
+
+Do not:
+
+- Modify application code
+- Delete production data
+- Modify production data unnecessarily
+- Disable authentication
+- Disable security controls
+- Expose secrets
+- Create backdoors
+- Perform destructive tests
+- Spam APIs
+- Spam email systems
+- Make large numbers of AI requests unnecessarily
+
+Testing should be non-destructive unless explicitly authorized.
+
+---
+
+# 33. Test Report
+
+Return:
+
+# Orbitwork UI/UX QA Report
+
+## 1. Overall Visual Quality
+
+Give a concise assessment:
+
+- Excellent
+- Good
+- Needs Improvement
+- Poor
+- Severely Broken
+
+Explain why.
+
+---
+
+## 2. Environment
+
+Include:
+
+- Application URL
+- Browser
+- Viewport
+- Device type
+- Application/build version if available
+
+---
+
+## 3. Pages Inspected
+
+List every page actually inspected.
+
+Example:
+
+- Dashboard
+- Projects
+- Project Overview
+- Task List
+- Task Board
+- Timeline
+- Timesheets
+- Documents
+- AI Agents
+- Project Brain
+- Settings
+
+Do not list pages that were not actually inspected.
+
+---
+
+## 4. Visual Findings
+
+For each issue:
+
+### UI-001
+
+**Severity:** Medium
+
+**Page:** Project Timeline
+
+**Viewport:** 390 × 844
+
+**Problem:**
+
+Describe exactly what visually looks wrong.
+
+**Expected:**
+
+Describe the expected visual behavior.
+
+**Actual:**
+
+Describe what was observed.
+
+**Evidence:**
+
+Screenshot or other visual evidence.
+
+**Recommended Fix:**
+
+Concise recommendation.
+
+---
+
+## 5. Responsive Findings
+
+Separate findings for:
 
 - Desktop
 - Laptop
 - Tablet
 - Mobile
 
-Pay special attention to:
+---
 
-- Navigation
-- App rail/sidebar
-- Header
-- Tables
-- Lists
-- Boards
-- Timeline
-- Gantt
-- Forms
-- Modals
-- Dropdowns
-- Filters
-- Action buttons
-- Export controls
-- Favorite controls
-- Fixed elements
-- Sticky elements
-- Horizontal scrolling
-- Vertical scrolling
+## 6. Interaction / UX Findings
 
-Check for:
+Report:
 
-- Horizontal overflow
-- Unwanted page-level scrolling
-- Broken containers
-- Overlapping controls
-- Clipped text
-- Buttons outside viewport
-- Controls becoming inaccessible
-- Incorrect touch targets
-- Modal overflow
-- Fixed elements covering content
+- Missing loading feedback
+- Missing success feedback
+- Missing error feedback
+- Unclear buttons
+- Broken navigation
+- Poor interactions
+- Unresponsive controls
 
 ---
 
-# 10. Mobile-Specific Testing
+## 7. Functional Findings
 
-Do not assume desktop behavior works on mobile.
-
-Test:
-
-- Touch interactions
-- Navigation
-- Menus
-- Dropdowns
-- Modals
-- Forms
-- Tables
-- Boards
-- Timeline
-- Scrolling
-- Buttons
-- Drag/drop alternatives
-- File upload
-- Text editing
-
-If a desktop-only interaction exists, verify that a usable mobile alternative exists.
-
-For example:
-
-A desktop drag-and-drop interaction should not be considered mobile-compatible merely because the page renders.
+Only report actual functional defects discovered during testing.
 
 ---
 
-# 11. Scrolling Behavior
+## 8. Suspected Issues
 
-Verify scrolling deliberately.
-
-Check:
-
-- Page scrolling
-- Container scrolling
-- Horizontal scrolling
-- Vertical scrolling
-- Nested scrolling
-- Sticky headers
-- Sticky controls
-- Timeline scrolling
-- Board scrolling
-- Table scrolling
-- Mobile scrolling
-
-Ensure controls do not overlap scrollable content.
-
-For timelines and date-based views, verify that users can continuously navigate through the available time range without the interface becoming inaccessible.
+Keep unverified issues separate.
 
 ---
 
-# 12. Forms
+## 9. Pages With No Major Issues
 
-Test:
-
-- Required fields
-- Optional fields
-- Invalid values
-- Minimum/maximum values
-- Long values
-- Special characters
-- Duplicate values
-- Empty values
-- Whitespace
-- Validation messages
-- Submit behavior
-- Cancel behavior
-- Reset behavior
-- Loading state
-- Success state
-- Error state
-
-Verify that validation occurs at the appropriate layer.
-
-Client-side validation must not be assumed to replace server-side validation.
+List pages that were visually inspected and appeared acceptable.
 
 ---
 
-# 13. Navigation
-
-Verify:
-
-- Internal links
-- Back navigation
-- Forward navigation
-- Breadcrumbs
-- Tabs
-- Sidebar navigation
-- Project navigation
-- Workspace navigation
-- Browser refresh
-- Deep links
-- Query parameters
-- Filters
-- Pagination
-
-Check that navigation does not unexpectedly:
-
-- Lose user data
-- Reset filters
-- Reset selected tabs
-- Redirect to unrelated pages
-- Produce broken URLs
-- Create unnecessary reloads
-
----
-
-# 14. Tabs and View Switching
-
-When an interface has multiple views such as:
-
-- List
-- Board
-- Timeline
-- Calendar
-- AI Agents
-- Project Brain
-- Documents
-
-test switching between them repeatedly.
-
-Verify:
-
-- Immediate visual feedback
-- Correct active state
-- No unnecessary delay
-- No broken loading state
-- Data remains correct
-- Filters behave correctly
-- URL/state remains consistent where expected
-- Mobile behavior remains usable
-
-Do not assume that because one tab works, all tabs work.
-
----
-
-# 15. API Testing
-
-When API testing is appropriate, verify:
-
-- Authentication
-- Authorization
-- Input validation
-- HTTP methods
-- Status codes
-- Response structure
-- Error responses
-- Empty responses
-- Invalid parameters
-- Missing parameters
-- Duplicate requests
-- Timeout behavior
-- Server failures
-
-Test both:
-
-### Valid requests
-
-and:
-
-### Invalid requests
-
-Do not perform destructive testing against production systems.
-
----
-
-# 16. API Evidence
-
-When reporting an API defect, include where possible:
-
-- Endpoint
-- HTTP method
-- Request condition
-- Response status
-- Relevant response behavior
-- Expected behavior
-- Actual behavior
-
-Never expose real secrets or credentials.
-
-Redact sensitive values as:
-
-`[REDACTED]`
-
----
-
-# 17. Database Testing
-
-When database verification is required, check:
-
-- Data creation
-- Data updates
-- Data deletion
-- Relationships
-- Foreign keys
-- Duplicate prevention
-- Missing records
-- Null handling
-- Persistence
-- Data consistency
-
-For multi-tenant applications verify appropriate data isolation.
-
-Do not modify or delete production data during testing.
-
-Use test data whenever possible.
-
----
-
-# 18. Authentication Testing
-
-Test normal authentication behavior:
-
-- Login
-- Logout
-- Session persistence
-- Session expiration
-- Invalid credentials
-- Password reset
-- Password change
-- Protected routes
-- Unauthenticated access
-
-Verify that authentication failures produce appropriate user feedback.
-
-Do not attempt destructive account takeover testing.
-
----
-
-# 19. Authorization Testing
-
-During normal QA, verify basic access boundaries where safe.
-
-Examples:
-
-- User cannot access unavailable project
-- User cannot edit unavailable records
-- Restricted controls are hidden or disabled appropriately
-- Server/API also enforces access
-
-If a serious authorization weakness is discovered, document it and recommend the dedicated `security-audit` skill for deeper investigation.
-
-Do not perform aggressive exploitation.
-
----
-
-# 20. Security Findings During QA
-
-Security is not the primary purpose of this skill.
-
-If a security problem is encountered during normal testing:
-
-1. Record the observation.
-2. Safely verify it if possible.
-3. Avoid destructive exploitation.
-4. Clearly classify it as a security-related finding.
-5. Recommend deeper analysis using `security-audit`.
-
-Do not perform unrestricted penetration testing as part of normal QA.
-
----
-
-# 21. Performance Smoke Testing
-
-Perform lightweight performance checks when appropriate.
-
-Look for:
-
-- Slow page loads
-- Slow API responses
-- Excessive requests
-- Duplicate requests
-- Large payloads
-- Long blocking operations
-- UI freezing
-- Slow rendering
-- Excessive re-renders
-- Slow search
-- Slow filtering
-- Slow timeline/board rendering
-
-Do not claim a performance defect without evidence.
-
-If a performance issue is suspected but not measured, classify it as:
-
-`SUSPECTED - NEEDS PERFORMANCE PROFILING`
-
----
-
-# 22. Large Dataset Testing
-
-Where practical, test with larger amounts of data.
-
-Examples:
-
-- Many projects
-- Hundreds of tasks
-- Many comments
-- Large documents
-- Large attachments
-- Large timelines
-- Large boards
-- Many users
-
-Observe:
-
-- Rendering
-- Scrolling
-- Search
-- Filtering
-- Sorting
-- API latency
-- Browser responsiveness
-
-Do not manufacture performance claims from source-code calculations alone.
-
----
-
-# 23. Regression Testing
-
-After testing a feature, identify related functionality that could be affected.
-
-For example:
-
-Task changes may affect:
-
-- List
-- Board
-- Timeline
-- Dashboard
-- Notifications
-- Timesheets
-- Reports
-- Exports
-- AI Agents
-- Project Brain
-
-Test the most relevant connected functionality.
-
----
-
-# 24. AI Features
-
-For Orbitwork AI Agents and Project Brain, test:
-
-- Agent loading
-- Prompt submission
-- Response generation
-- Loading indicators
-- Error handling
-- Empty input
-- Long input
-- Invalid input
-- Context selection
-- Project selection
-- Data retrieval
-- Response relevance
-- User/project isolation
-- Repeated requests
-- Failed AI provider calls
-
-Verify that the UI clearly communicates:
-
-- Request started
-- Request is processing
-- Request completed
-- Request failed
-
-Do not judge an AI answer as correct merely because it sounds plausible.
-
-Where factual project data is involved, compare the AI output against actual application/database data when possible.
-
----
-
-# 25. File Upload Testing
-
-Test:
-
-- Valid file
-- Invalid file
-- Unsupported type
-- Large file
-- Empty file
-- Duplicate file
-- Upload failure
-- Upload progress
-- Upload cancellation if supported
-- Preview
-- Download
-- Delete
-
-Verify that user-uploaded content cannot unexpectedly break the UI.
-
-Do not upload malicious payloads unless specifically authorized for a dedicated security test.
-
----
-
-# 26. Export Testing
-
-For:
-
-- CSV
-- Excel
-- PDF
-- PowerPoint
-- Other exports
-
-verify:
-
-- Export button feedback
-- Correct filename
-- Correct format
-- Correct data
-- Correct date range
-- Correct filters
-- Correct user/project scope
-- Empty-data behavior
-- Large-data behavior
-- Download completion
-
-Compare exported data with the source application data.
-
----
-
-# 27. Browser Console
-
-When investigating a UI problem, inspect the browser console.
-
-Look for:
-
-- JavaScript exceptions
-- React errors
-- Failed requests
-- Hydration errors
-- CORS errors
-- Resource failures
-- Unhandled promise rejections
-
-A console warning is not automatically a bug.
-
-Determine whether it affects functionality before reporting it.
-
----
-
-# 28. Network Inspection
-
-When appropriate, inspect network requests.
-
-Check:
-
-- Failed requests
-- Incorrect status codes
-- Duplicate requests
-- Long-running requests
-- Incorrect payloads
-- Incorrect response data
-- Unauthorized requests
-- Missing requests
-- Requests triggered unexpectedly
-
-Do not expose credentials, tokens, cookies, or sensitive response data in the report.
-
----
-
-# 29. Source Code Inspection
-
-Source-code inspection is allowed and useful for:
-
-- Diagnosing a reproduced issue
-- Understanding implementation
-- Finding root cause
-- Verifying a fix
-- Understanding API behavior
-
-However:
-
-Source-code inspection alone does not prove a runtime bug unless the failure is deterministic and directly established.
-
-Prefer:
-
-`Observed behavior → Evidence → Source diagnosis`
-
-over:
-
-`Source suspicion → Assumed behavior`
-
----
-
-# 30. Test Data
-
-Prefer dedicated test accounts and test projects.
-
-Use controlled data for:
-
-- Users
-- Projects
-- Tasks
-- Documents
-- Comments
-- Attachments
-- Timesheets
-- AI testing
-
-Avoid modifying real production business data.
-
----
-
-# 31. Safety Rules
-
-Never:
-
-- Delete production data
-- Modify production configuration
-- Disable authentication
-- Disable security controls
-- Expose secrets
-- Expose user credentials
-- Create backdoors
-- Modify security policies just to make a test pass
-- Perform destructive penetration testing
-- Flood APIs
-- Spam email systems
-- Trigger large numbers of AI requests unnecessarily
-
-Do not make code changes during testing unless the user explicitly requests fixes.
-
----
-
-# 32. Bug Severity
-
-## Critical
-
-Use only for confirmed severe issues such as:
-
-- Production-wide outage
-- Confirmed severe data loss
-- Confirmed cross-tenant data exposure
-- Confirmed authentication bypass
-- Severe confirmed authorization bypass
-
----
-
-## High
-
-Use for confirmed:
-
-- Major functionality failure
-- Significant security issue
-- Major data integrity issue
-- Serious regression
-- Important production workflow failure
-
----
-
-## Medium
-
-Use for:
-
-- Significant feature defect
-- Important UX issue
-- Moderate regression
-- Moderate performance issue
-
----
-
-## Low
-
-Use for:
-
-- Minor usability issue
-- Minor visual issue
-- Minor inconvenience
-
----
-
-## Informational
-
-Use for:
-
-- Observations
-- Suggestions
-- Non-blocking improvements
-
-Do not inflate severity.
-
----
-
-# 33. Bug Report Format
-
-For every confirmed issue provide:
-
-### ID
-
-Example:
-
-`BUG-001`
-
-### Severity
-
-`Critical / High / Medium / Low / Informational`
-
-### Category
-
-Example:
-
-`Functional / UI / API / Performance / Security`
-
-### Feature
-
-Example:
-
-`Task Board`
-
-### Environment
-
-Include relevant:
-
-- Browser
-- Viewport
-- Application version
-- Account type
-- Environment
-
-### Steps to Reproduce
-
-Numbered steps that another tester can follow.
-
-### Expected Behavior
-
-What should happen.
-
-### Actual Behavior
-
-What actually happened.
-
-### Evidence
-
-Include relevant:
-
-- Screenshot
-- Console error
-- Network request
-- Test output
-- Visible UI behavior
-
-### Root Cause
-
-Only include if established.
-
-If unknown:
-
-`Root cause not yet established.`
-
-### Recommended Fix
-
-Provide a concise recommendation.
-
-### Regression Impact
-
-Explain what else may be affected.
-
----
-
-# 34. Suspected Issue Format
-
-For suspected issues use:
-
-### SUSPECTED-001
-
-- Severity
-- Location
-- Observation
-- Why it may be a problem
-- Evidence currently available
-- Why runtime verification is unavailable
-- Recommended verification
-
-Never write a suspected issue as though it were confirmed.
-
----
-
-# 35. Blocked Test Format
-
-For blocked tests include:
-
-- Test
-- Why it could not be executed
-- Required environment/data/access
-- Whether the issue affects release confidence
-
-Example:
-
-`Mobile Safari testing blocked because no mobile browser environment is available.`
-
----
-
-# 36. Test Coverage Matrix
-
-Use a coverage summary such as:
-
-| Area | Tested | Result | Notes |
-|---|---|---|---|
-| Authentication | Yes | PASS | Login/logout verified |
-| Dashboard | Yes | PASS | No blocking issue |
-| Tasks | Yes | FAIL | BUG-003 |
-| Board | Yes | PASS | Desktop tested |
-| Timeline | Partial | BLOCKED | Mobile environment unavailable |
-| AI Agents | Yes | FAIL | BUG-007 |
-| Project Brain | No | BLOCKED | Feature unavailable in test environment |
-
-Do not mark something as tested if it was only inspected in source code.
-
----
-
-# 37. Final QA Report
-
-Return the final report in this structure:
-
-# Orbitwork QA Test Report
-
-## 1. Overall Status
+## 10. Overall Recommendation
 
 Choose:
 
 - `READY`
-- `READY WITH MINOR FIXES`
+- `READY WITH MINOR UI FIXES`
+- `NEEDS UI IMPROVEMENT`
 - `NOT READY`
-- `BLOCKED BY TEST ENVIRONMENT`
+
+Explain the recommendation based primarily on observed UI/UX quality.
 
 ---
 
-## 2. Environment
+# 34. Final QA Rules
 
-Document:
+Before completing the report verify:
 
-- Application URL
-- Browser
-- Device
-- Viewport
-- Application/build version
-- Test account type
-- Relevant environment information
+- Did I actually open the application?
+- Did I visually inspect the pages?
+- Did I inspect desktop layout?
+- Did I inspect mobile layout?
+- Did I check responsive behavior?
+- Did I check scrolling?
+- Did I check overlapping elements?
+- Did I check typography?
+- Did I check spacing?
+- Did I check buttons?
+- Did I check loading states?
+- Did I check error states?
+- Did I check empty states?
+- Did I check tabs and navigation?
+- Did I check major user interactions?
+- Did I distinguish visual defects from code smells?
+- Did I provide evidence?
+- Did I avoid claiming that uninspected pages were tested?
 
----
+If a page was not visually inspected, explicitly say so.
 
-## 3. Test Coverage
-
-List all areas actually tested.
-
----
-
-## 4. Passed Tests
-
-List important workflows that passed.
-
----
-
-## 5. Confirmed Bugs
-
-List only reproducible or deterministic issues.
-
----
-
-## 6. Suspected Issues
-
-List issues that require additional verification.
-
----
-
-## 7. Blocked Tests
-
-List tests that could not be performed.
-
----
-
-## 8. Regression Risks
-
-List existing functionality potentially affected by discovered defects or recent changes.
-
----
-
-## 9. Performance Observations
-
-Include only evidence-backed observations.
-
----
-
-## 10. Security Observations
-
-Include only security issues encountered during normal QA.
-
-Recommend the dedicated `security-audit` skill for deeper security testing.
-
----
-
-## 11. Recommendations
-
-Prioritize fixes by severity and impact.
-
----
-
-## 12. Release Recommendation
-
-Clearly explain whether Orbitwork should be released.
-
-Do not declare `NOT READY` solely because static code smells or unverified hypotheses were discovered.
-
----
-
-# 38. Final Quality Rules
-
-Before completing the report, verify:
-
-- Did I test the running application?
-- Did I perform real user workflows?
-- Did I test both success and failure paths?
-- Did I test loading states?
-- Did I test error states?
-- Did I test responsive behavior?
-- Did I inspect console/network information when relevant?
-- Did I distinguish confirmed issues from suspected issues?
-- Did I avoid treating code smells as confirmed bugs?
-- Did I avoid unnecessary security exploitation?
-- Did I avoid modifying application code?
-- Did I avoid modifying production data?
-- Did I provide reproducible evidence?
-- Did I identify blocked tests?
-- Did I avoid claiming tests were performed when they were not?
-
-If any answer is no, correct the report before finalizing it.
+Never claim that the entire application was tested when only part of it was inspected.

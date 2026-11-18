@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { generateTextWithFallback } from "@/lib/ai/client.ts";
+import { generateTextWithFallback, isAILimitError } from "@/lib/ai/client.ts";
 import { AGENT_SYSTEM_PROMPT } from "@/lib/ai/agent/index.ts";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +57,7 @@ Be concise, practical, and direct. Use markdown formatting with bolding and bull
       prompt,
       system: AGENT_SYSTEM_PROMPT,
       temperature: 0.3,
+      maxOutputTokens: 650,
     });
 
     return NextResponse.json({
@@ -66,6 +67,9 @@ Be concise, practical, and direct. Use markdown formatting with bolding and bull
   } catch (err: unknown) {
     console.error("[AI Agent Diagnose Error]:", err);
     const msg = err instanceof Error ? err.message : "Failed to analyze task";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json(
+      { error: msg },
+      { status: isAILimitError(err) ? 429 : 500 }
+    );
   }
 }

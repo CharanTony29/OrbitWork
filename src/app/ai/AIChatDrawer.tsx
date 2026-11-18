@@ -137,6 +137,20 @@ export default function AIChatDrawer({ context }: AIChatDrawerProps) {
           )
         );
       }
+
+      if (!accumulated.trim()) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  content:
+                    "Daily free AI limit reached across all providers. Please try again tomorrow.",
+                }
+              : msg
+          )
+        );
+      }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") {
         return;
@@ -196,7 +210,7 @@ export default function AIChatDrawer({ context }: AIChatDrawerProps) {
                 <span className="ai-status-pill">Active</span>
               </div>
               <div className="ai-header-sub">
-                Gemini &bull; Groq failover
+                Multi-AI Free &bull; Low Token
               </div>
             </div>
           </div>
@@ -299,10 +313,14 @@ export default function AIChatDrawer({ context }: AIChatDrawerProps) {
                         __html: markdownToSafeHtml(msg.content),
                       }}
                     />
-                  ) : (
+                  ) : isStreaming ? (
                     <div className="ai-msg-loading">
                       <Loader2 size={14} className="spin" />
                       <span>Thinking…</span>
+                    </div>
+                  ) : (
+                    <div className="ai-msg-text doc-markdown-body">
+                      Daily free AI limit reached across all providers. Please try again tomorrow.
                     </div>
                   )}
                 </div>

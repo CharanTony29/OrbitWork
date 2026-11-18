@@ -59,9 +59,12 @@ export async function polishText({
     .filter(Boolean)
     .join("\n");
 
+  const maxOutputTokens = Math.min(900, Math.max(250, Math.ceil(trimmed.length / 2)));
+
   const response = await generateTextWithFallback({
     prompt,
     temperature: mode === "grammar" ? 0.2 : 0.4,
+    maxOutputTokens,
   });
 
   return response.text.trim();

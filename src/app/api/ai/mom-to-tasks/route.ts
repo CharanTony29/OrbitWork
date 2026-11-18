@@ -106,22 +106,27 @@ Output ONLY a valid JSON array of objects with the structure:
   }
 ]`;
 
-    const userPrompt = `MEETING MINUTES TEXT:
+    const compactExistingList = existingSummaryList
+      .slice(0, 80)
+      .map((t) => `${t.id}|${t.title}`)
+      .join("\n");
+
+    const userPrompt = `MEETING MINUTES:
 """
-${momText}
+${momText.slice(0, 12000)}
 """
 
-EXISTING PROJECT TASKS (${existingSummaryList.length} tasks currently in project):
-${JSON.stringify(existingSummaryList, null, 2)}
+EXISTING TASKS (id|title):
+${compactExistingList || "None"}
 
-TEAM MEMBERS IN PROJECT:
-${JSON.stringify(memberNames)}`;
+TEAM MEMBERS: ${memberNames.join(", ") || "None"}`;
 
     let rawOutput = "";
     try {
       const aiResponse = await generateTextWithFallback({
         prompt: `${systemPrompt}\n\n${userPrompt}`,
         temperature: 0.2,
+        maxOutputTokens: 1200,
       });
       rawOutput = aiResponse.text;
     } catch (aiErr) {

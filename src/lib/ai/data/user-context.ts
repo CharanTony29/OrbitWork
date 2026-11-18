@@ -54,7 +54,47 @@ function getMemberAliases(name: string): string[] {
   return [...aliases];
 }
 
-export async function getUserLiveAIContext(userId: string): Promise<UserAIContext | null> {
+export interface UserAIContextOptions {
+  /** "personal" formats only the current user's tasks (much lower tokens for briefings). */
+  scope?: "personal" | "workspace";
+  /** Maximum tasks included in formattedPromptContext to keep token usage low. */
+  maxTasks?: number;
+  /** Whether to include the workspace member roster in formattedPromptContext. */
+  includeTeam?: boolean;
+}
+
+const PRIORITY_RANK: Record<string, number> = {
+  urgent: 0,
+  high: 1,
+  normal: 2,
+  medium: 2,
+  low: 3,
+};
+
+function sortTasksForContext(tasks: UserTaskContext[]): UserTaskContext[] {
+  return [...tasks].sort((a, b) => {
+    if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
+    if (a.isDueToday !== b.isDueToday) return a.isDueToday ? -1 : 1;
+    const pa = PRIORITY_RANK[a.priority.toLowerCase()] ?? 2;
+    const pb = PRIORITY_RANK[b.priority.toLowerCase()] ?? 2;
+    if (pa !== pb) return pa - pb;
+    if (Boolean(a.isAssignedToCurrentUser) !== Boolean(b.isAssignedToCurrentUser)) {
+      return a.isAssignedToCurrentUser ? -1 : 1;
+    }
+    if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+    if (a.dueDate) return -1;
+    if (b.dueDate) return 1;
+    return 0;
+  });
+}
+
+export async function getUserLiveAIContext(
+  userId: string,
+  options: UserAIContextOptions = {}
+): Promise<UserAIContext | null> {
+  const scope = options.scope ?? "workspace";
+  const maxTasks = options.maxTasks ?? (scope === "personal" ? 25 : 50);
+  const includeTeam = options.includeTeam ?? scope === "workspace";
   const supabase = await createClient();
 
   // 1. Fetch current user identity
@@ -197,66 +237,52 @@ export async function getUserLiveAIContext(userId: string): Promise<UserAIContex
     }
   }
 
-  // 7. Format structured context for the AI prompt
-  const todayFormatted = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  // 7. Format ultra-compact context for low token usage
+  const sourceTasks = scope === "personal" ? userTasks : allTeamTasks;
+  const prioritizedTasks = sortTasksForContext(sourceTasks);
+  const includedTasks = prioritizedTasks.slice(0, maxTasks);
+  const omittedCount = Math.max(0, prioritizedTasks.length - includedTasks.length);
 
-  let formatted = `
-### CURRENT USER IDENTITY
-- Name: ${displayName} (Current User / You)
-- Email: ${email}
-- Today's Date: ${todayFormatted}
+  const lines: string[] = [
+    `USER: ${displayName} | DATE: ${todayStr}`,
+  ];
 
-### RECOGNIZED WORKSPACE TEAM MEMBERS:
-`;
-
-  for (const p of profileMap.values()) {
-    const isMe = p.id === userId;
-    const aliases = getMemberAliases(p.name);
-    const aliasStr = aliases.length ? ` (Recognized aliases/short names: ${aliases.join(", ")})` : "";
-    formatted += `- **${p.name}**${isMe ? " (Current User / You)" : ""}${aliasStr} (Email: ${p.email || "N/A"})\n`;
+  if (includeTeam && profileMap.size > 0) {
+    const memberEntries: string[] = [];
+    for (const p of profileMap.values()) {
+      const aliases = getMemberAliases(p.name).filter(
+        (a) => a.toLowerCase() !== p.name.toLowerCase()
+      );
+      const tag = p.id === userId ? "(You)" : "";
+      const aliasPart = aliases.length ? `[${aliases.slice(0, 3).join(",")}]` : "";
+      memberEntries.push(`${p.name}${tag}${aliasPart}`);
+    }
+    lines.push(`TEAM: ${memberEntries.slice(0, 40).join("; ")}`);
   }
 
-  formatted += `
-### ALL LIVE ACTIVE TASKS ACROSS ACCESSIBLE PROJECTS (${allTeamTasks.length} active tasks)
-`;
+  const label = scope === "personal" ? "MY ACTIVE TASKS" : "ACTIVE TASKS";
+  lines.push(`${label} (${includedTasks.length}/${prioritizedTasks.length}):`);
 
-  if (allTeamTasks.length === 0) {
-    formatted += `There are currently no active tasks in the workspace projects.\n`;
+  if (includedTasks.length === 0) {
+    lines.push("None.");
   } else {
-    for (const t of allTeamTasks) {
-      formatted += `- Task Name: **${t.title}**\n`;
-      formatted += `  - Assigned To: ${t.assignees?.join(", ") || "Unassigned"}\n`;
-      formatted += `  - Priority: ${t.priority.toUpperCase()}\n`;
-      formatted += `  - Status: ${t.statusName}\n`;
-      formatted += `  - Project: ${t.projectName}\n`;
-      formatted += `  - Due Date: ${t.dueDate || "No deadline set"}${t.isOverdue ? " (⚠️ OVERDUE)" : t.isDueToday ? " (⚠️ DUE TODAY)" : ""}\n`;
+    for (const t of includedTasks) {
+      const dueTag = t.dueDate
+        ? `${t.dueDate}${t.isOverdue ? " OVERDUE" : t.isDueToday ? " TODAY" : ""}`
+        : "none";
+      const byPart = scope === "personal" ? "" : ` | By:${t.assignees?.join(",") || "Unassigned"}`;
+      lines.push(
+        `- **${t.title.slice(0, 100)}** | P:${t.priority.toUpperCase()} | S:${t.statusName} | Proj:${t.projectName}${byPart} | Due:${dueTag}`
+      );
+    }
+    if (omittedCount > 0) {
+      lines.push(`(+${omittedCount} lower-priority tasks omitted)`);
     }
   }
 
-  formatted += `
-### MANDATORY INSTRUCTIONS FOR RECOGNIZING MEMBERS & FORMATTING RESPONSES:
-1. TEAM MEMBER RECOGNITION (E.G. LEELA, LEELAVATHI, LAVANYA, TONY, CHARAN, ETC.):
-   - When the user asks about ANY team member (e.g. "leela", "Leela", "leelavathi", "leelavathiamarapinni", "Lavanya", "Tony", "Kusuma"), match their name fuzzily, by prefix, nickname, or substring against the "RECOGNIZED WORKSPACE TEAM MEMBERS" list above.
-   - Specifically: **"Leela"**, **"leela"**, **"Leelavathi"**, and **"leelavathi"** ALL refer directly to **leelavathiamarapinni**!
-   - Look through the tasks above and list all tasks where "Assigned To" matches that person.
-   - If the user asks about "my tasks" or "tasks for me", look for tasks assigned to "${displayName}".
-
-2. TASK NAME FORMATTING ONLY (STRICT USER MANDATE):
-   - NEVER output task IDs, UUIDs, or raw task link URLs (e.g., NEVER output "/projects/.../tasks/..." or "TASK-xxxx" or "[task-uuid]").
-   - Mention ONLY the clean Task Name in bold (e.g., "**Prepare the mobile application for release**").
-   - List tasks using clean markdown bullets with their Task Name, Priority, Status, and Project. For example:
-     * **Prepare the mobile application for release** — Priority: High, Status: New (Project: TEST)
-     * **Create an employee onboarding process** — Priority: High, Status: New (Project: TEST)
-
-3. ZERO HALLUCINATION GUARANTEE:
-   - ONLY mention real tasks listed in the real live data above. Never invent fake or generic tasks.
-   - If a person has no tasks matching a filter (e.g. no urgent tasks), explicitly state: "[Person Name] has no urgent tasks right now in Orbitwork."
-`;
+  lines.push(
+    `RULES: Match member nicknames/prefixes (e.g. Leela/Leelavathi -> leelavathiamarapinni) against TEAM. Refer to tasks ONLY by bold **Task Name** (never IDs, UUIDs, or URLs). Only cite tasks listed above; never invent tasks; if none match, state that clearly. Keep answers brief.`
+  );
 
   return {
     displayName,
@@ -264,6 +290,6 @@ export async function getUserLiveAIContext(userId: string): Promise<UserAIContex
     tasks: userTasks,
     allTasks: allTeamTasks,
     projects: (projects ?? []).map((p) => ({ id: p.id, name: p.name })),
-    formattedPromptContext: formatted.trim(),
+    formattedPromptContext: lines.join("\n").trim(),
   };
 }

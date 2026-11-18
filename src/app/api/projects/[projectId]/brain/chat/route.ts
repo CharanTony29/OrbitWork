@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildProjectBrainContext } from "@/lib/brain/context-builder";
 import { analyzeDependencies, analyzeWorkload, computeProjectHealth } from "@/lib/brain/analytics";
 import { streamProjectBrainChat } from "@/lib/brain/ai-service";
+import { isAILimitError } from "@/lib/ai/client";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +80,9 @@ export async function POST(
   } catch (err: unknown) {
     console.error("[Project Brain Chat Error]:", err);
     const msg = err instanceof Error ? err.message : "Internal chat error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json(
+      { error: msg },
+      { status: isAILimitError(err) ? 429 : 500 }
+    );
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { polishText, PolishMode } from "@/lib/ai/utilities/polish";
+import { isAILimitError } from "@/lib/ai/client";
 
 export const dynamic = "force-dynamic";
 
@@ -56,12 +57,8 @@ export async function POST(req: NextRequest) {
     console.error("[AI Polish Error]:", err);
 
     return NextResponse.json(
-      {
-        error: message.includes("API key")
-          ? "Gemini API key is missing or invalid. Check your environment variables."
-          : message,
-      },
-      { status: 500 }
+      { error: message },
+      { status: isAILimitError(err) ? 429 : 500 }
     );
   }
 }

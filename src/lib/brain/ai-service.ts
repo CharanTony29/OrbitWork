@@ -80,9 +80,10 @@ Keep it professional, direct, and under 180 words.
 
   try {
     const res = await generateTextWithFallback({
-      prompt: `${prompt}\n\nPROJECT DATA:\n${formattedContext}`,
+      prompt: `${prompt}\n\nPROJECT DATA:\n${formattedContext.slice(0, 6000)}`,
       system: BRAIN_SYSTEM_PROMPT,
       temperature: 0.3,
+      maxOutputTokens: 360,
     });
 
     return {
@@ -134,15 +135,15 @@ export async function streamProjectBrainChat(options: {
 }) {
   const { messages, formattedLLMContext, health, deps, workload } = options;
 
-  const dynamicContext = `
-${formattedLLMContext}
+  const trimmedMessages = messages.slice(-6).map((m) => ({
+    role: m.role,
+    content: m.content.length > 1500 ? `${m.content.slice(0, 1500)}…` : m.content,
+  }));
 
-### REAL-TIME DETERMINISTIC ENGINE METRICS:
-- Overall Health: ${health.overallScore}% (${health.statusLabel})
-- Schedule Score: ${health.categories.schedule.score}% (${health.categories.schedule.metricLabel})
-- Dependencies Score: ${health.categories.dependencies.score}% (${health.categories.dependencies.metricLabel})
-- Blockers: ${deps.blockedTaskCount} blocked tasks, ${deps.blockingTaskCount} active blocking tasks
-- Workload Status: ${workload.overloadedCount} overloaded members, ${workload.unassignedTaskCount} unassigned tasks
+  const dynamicContext = `
+${formattedLLMContext.slice(0, 6000)}
+
+METRICS: Health ${health.overallScore}% (${health.statusLabel}) | Schedule ${health.categories.schedule.score}% | Deps ${health.categories.dependencies.score}% | Blocked ${deps.blockedTaskCount} | Blocking ${deps.blockingTaskCount} | Overloaded ${workload.overloadedCount} | Unassigned ${workload.unassignedTaskCount}
 `.trim();
 
   const system = `
@@ -153,9 +154,10 @@ ${dynamicContext}
 `.trim();
 
   return streamTextWithFallback({
-    messages,
+    messages: trimmedMessages,
     system,
     temperature: 0.4,
+    maxOutputTokens: 650,
   });
 }
 
@@ -333,6 +335,7 @@ Rules:
       prompt,
       system: "You are a technical project manager assistant. Respond ONLY with valid JSON.",
       temperature: 0.2,
+      maxOutputTokens: 1400,
       abortSignal: AbortSignal.timeout(60000),
     });
 

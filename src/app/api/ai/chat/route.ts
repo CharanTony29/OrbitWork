@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { streamTextWithFallback } from "@/lib/ai/client.ts";
+import { streamTextWithFallback, isAILimitError } from "@/lib/ai/client.ts";
 import { CHATBOT_SYSTEM_PROMPT } from "@/lib/ai/chatbot/index.ts";
 import { getUserLiveAIContext } from "@/lib/ai/data/user-context.ts";
 
 export const dynamic = "force-dynamic";
+
+const SMALLTALK_REGEX =
+  /^(hi+|hello+|hey+|hlo|yo|sup|good\s*(morning|afternoon|evening)|thanks?|thank\s*you|thx|ok(ay)?|cool|great|bye|goodbye)[!.,?\s]*$/i;
 
 const chatRequestSchema = z.object({
   messages: z.array(
@@ -49,44 +52,64 @@ export async function POST(req: NextRequest) {
 
     const { messages, context } = parsed.data;
 
-    // 3. Fetch real live user data (tasks, projects, overdue status)
+    // Keep only the most recent 6 messages and cap length to save tokens
+    const trimmedMessages = messages.slice(-6).map((m) => ({
+      role: m.role,
+      content: m.content.length > 1500 ? `${m.content.slice(0, 1500)}…` : m.content,
+    }));
+
+    const latestUserMsg =
+      [...trimmedMessages].reverse().find((m) => m.role === "user")?.content.trim() || "";
+    const isSimpleGreeting =
+      trimmedMessages.length <= 2 && SMALLTALK_REGEX.test(latestUserMsg);
+
+    // Fetch live workspace context only when the message is not trivial smalltalk
     let userContextString = "";
-    try {
-      const liveContext = await getUserLiveAIContext(user.id);
-      if (liveContext?.formattedPromptContext) {
-        userContextString = `\n${liveContext.formattedPromptContext}\n`;
+    if (!isSimpleGreeting) {
+      try {
+        const liveContext = await getUserLiveAIContext(user.id, {
+          scope: "workspace",
+          maxTasks: 45,
+          includeTeam: true,
+        });
+        if (liveContext?.formattedPromptContext) {
+          userContextString = `\n${liveContext.formattedPromptContext}\n`;
+        }
+      } catch (dataErr) {
+        console.warn("[AI Chat] Failed to load user live context:", dataErr);
       }
-    } catch (dataErr) {
-      console.warn("[AI Chat] Failed to load user live context:", dataErr);
     }
 
     const contextLines: string[] = [];
     if (context?.workspaceName) contextLines.push(`Workspace: ${context.workspaceName}`);
-    if (context?.projectTitle) contextLines.push(`Current Project: ${context.projectTitle}`);
-    if (context?.taskTitle) contextLines.push(`Current Task: ${context.taskTitle}`);
-    if (context?.taskDescription) contextLines.push(`Task Details: ${context.taskDescription.slice(0, 500)}`);
-    if (context?.pageTitle) contextLines.push(`Active Document: ${context.pageTitle}`);
+    if (context?.projectTitle) contextLines.push(`Project: ${context.projectTitle}`);
+    if (context?.taskTitle) contextLines.push(`Task: ${context.taskTitle}`);
+    if (context?.taskDescription) contextLines.push(`Details: ${context.taskDescription.slice(0, 350)}`);
+    if (context?.pageTitle) contextLines.push(`Doc: ${context.pageTitle}`);
 
     const systemPrompt = [
       CHATBOT_SYSTEM_PROMPT,
       userContextString,
-      contextLines.length > 0 ? "\n--- Currently Viewed Page Context ---" : "",
-      ...contextLines,
-      "\nProvide crisp, helpful answers formatted in clean markdown (bullet points, numbered lists, checklists, bold text). When listing or referring to tasks, ALWAYS output ONLY the clean Task Name in bold (e.g., **Task Name**). NEVER output task IDs, keys, UUIDs, or raw URL links (do not output /projects/.../tasks/...).",
+      contextLines.length > 0 ? `Page: ${contextLines.join(" | ")}` : "",
+      "Be concise and use clean markdown. Refer to tasks ONLY by bold **Task Name** (never IDs, UUIDs, or URLs).",
     ]
       .filter(Boolean)
       .join("\n");
 
     const stream = await streamTextWithFallback({
-      messages,
+      messages: trimmedMessages,
       system: systemPrompt,
-      temperature: 0.5,
+      temperature: 0.4,
+      maxOutputTokens: isSimpleGreeting ? 120 : 650,
     });
 
     return stream.toTextStreamResponse();
   } catch (err: unknown) {
     console.error("[AI Chat Route Error]:", err);
     const message = err instanceof Error ? err.message : "Internal chat error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: isAILimitError(err) ? 429 : 500 }
+    );
   }
 }

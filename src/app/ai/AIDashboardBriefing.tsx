@@ -71,8 +71,11 @@ export default function AIDashboardBriefing() {
       }
     }
 
-    // Automatically generate or refresh whenever user logs in or lands on Dashboard
-    handleGenerate(hasCached);
+    // Use today's cached briefing to save AI tokens; only auto-generate if not yet generated today.
+    // Users can click Refresh anytime for a live regeneration.
+    if (!hasCached) {
+      handleGenerate(false);
+    }
   }, [todayKey]);
 
   return (

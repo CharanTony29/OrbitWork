@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { generateTextWithFallback } from "@/lib/ai/client.ts";
+import { generateTextWithFallback, isAILimitError } from "@/lib/ai/client.ts";
 import { getUserLiveAIContext } from "@/lib/ai/data/user-context.ts";
 import { AGENT_SYSTEM_PROMPT } from "@/lib/ai/agent/index.ts";
 
@@ -18,8 +18,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch real live task data
-    const liveContext = await getUserLiveAIContext(user.id);
+    // Fetch compact personal task context (keeps token consumption minimal)
+    const liveContext = await getUserLiveAIContext(user.id, {
+      scope: "personal",
+      maxTasks: 25,
+      includeTeam: false,
+    });
     if (!liveContext) {
       return NextResponse.json({ error: "Could not load user workspace context" }, { status: 500 });
     }
@@ -33,29 +37,22 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const prompt = `
-You are the Orbitwork Executive Project Agent.
-Generate a concise, highly structured Daily Standup & Action Briefing for ${displayName}.
-
-Analyze the following REAL tasks assigned to them:
+    const prompt = `Create a brief Daily Standup for ${displayName} from these real tasks:
 ${liveContext.formattedPromptContext}
 
-Structure your response with these exact sections:
-1. 🎯 **Primary Focus Today**: 1 to 3 highest priority or due-today tasks they should tackle first (using the clean Task Name in bold: **Task Name**).
-2. ⏳ **Deadlines & Overdue Watch**: Clearly highlight any overdue tasks or tasks due in the next 48 hours. If none are overdue, mention that everything is on track!
-3. 🚀 **Quick Wins & Next Steps**: 1 or 2 smaller tasks to knock out for immediate momentum.
-4. 💡 **Productivity Tip**: A single punchy sentence on execution strategy for today.
+Sections (under 180 words total):
+1. 🎯 **Primary Focus Today**: Top 1-3 priority/due tasks (**Task Name**).
+2. ⏳ **Deadlines & Overdue Watch**: Overdue or due within 48h (or note all on track).
+3. 🚀 **Quick Wins**: 1-2 smaller next steps.
+4. 💡 **Tip**: One short sentence.
 
-Rules:
-- Base this strictly on the real tasks provided above. NEVER invent fake task names.
-- Mention tasks ONLY by their clean Task Name in bold (**Task Name**). NEVER output raw task IDs, keys, or UUID URLs.
-- Keep it concise, motivational, and easy to scan in 30 seconds.
-`.trim();
+Use only real tasks above in bold **Task Name**. No IDs or URLs.`;
 
     const response = await generateTextWithFallback({
       prompt,
       system: AGENT_SYSTEM_PROMPT,
       temperature: 0.3,
+      maxOutputTokens: 420,
     });
 
     return NextResponse.json({
@@ -67,6 +64,9 @@ Rules:
   } catch (err: unknown) {
     console.error("[AI Agent Briefing Error]:", err);
     const msg = err instanceof Error ? err.message : "Failed to generate briefing";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json(
+      { error: msg },
+      { status: isAILimitError(err) ? 429 : 500 }
+    );
   }
 }
