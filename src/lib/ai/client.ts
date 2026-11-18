@@ -26,7 +26,7 @@ export function isAILimitError(err: unknown): err is AILimitReachedError {
   );
 }
 
-type ProviderKind = "google" | "openrouter" | "groq" | "nvidia" | "cloudflare" | "huggingface";
+type ProviderKind = "google" | "openrouter" | "groq" | "apinex" | "nvidia" | "cloudflare" | "huggingface";
 
 export interface ModelEntry {
   id: string;
@@ -72,6 +72,18 @@ const FALLBACK_GROQ_MODELS = [
   "openai/gpt-oss-120b",
 ];
 
+/**
+ * Fallback APInex strictly free-prefixed models (used only if live discovery fails).
+ */
+const FALLBACK_APINEX_FREE_MODELS = [
+  "free/gemini-3.8-flash",
+  "free/deepseek-v4.1-flash",
+  "free/glm-5.3-flash",
+  "free/minimax-m3.1-flash",
+  "free/qwen-3.8-max",
+  "free/claude-sonnet-4.6",
+];
+
 const DEFAULT_MAX_OUTPUT_TOKENS = 600;
 const MODEL_CATALOG_TTL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -83,6 +95,7 @@ const globalModelDisabledUntil = new Map<string, number>();
 // Cached live free-model discovery
 let cachedOpenRouterFreeModels: { fetchedAt: number; models: string[] } | null = null;
 let cachedGroqModels: { fetchedAt: number; models: string[] } | null = null;
+let cachedApinexFreeModels: { fetchedAt: number; models: string[] } | null = null;
 
 function cleanKey(val: string | undefined): string | null {
   const trimmed = val?.trim();
@@ -230,6 +243,55 @@ async function discoverGroqModels(apiKey: string): Promise<string[]> {
 }
 
 /**
+ * Dynamically discovers strictly free-tier (`free/*`) chat models from APInex.
+ * Paid models (which omit the `free/` prefix) are never included.
+ */
+async function discoverApinexFreeModels(apiKey: string): Promise<string[]> {
+  const now = Date.now();
+  if (cachedApinexFreeModels && now - cachedApinexFreeModels.fetchedAt < MODEL_CATALOG_TTL_MS) {
+    return cachedApinexFreeModels.models;
+  }
+
+  const baseUrl = (process.env.APINEX_BASE_URL || "https://api.apinex.bond/v1").replace(/\/+$/, "");
+  try {
+    const res = await fetch(`${baseUrl}/models`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(4000),
+      cache: "no-store",
+    });
+
+    if (res.ok) {
+      const json = (await res.json()) as { data?: Array<{ id?: string }> };
+      const excludedPattern = /(whisper|tts|audio|image|embed|rerank|video|flux|dall-e|lyria)/i;
+      const freeIds = (json.data || [])
+        .map((m) => m.id || "")
+        .filter((id) => id.startsWith("free/") && !excludedPattern.test(id));
+
+      if (freeIds.length > 0) {
+        // Prefer fast / low-token flash models first, then strong general models
+        const scoreApinex = (id: string): number => {
+          const lower = id.toLowerCase();
+          if (lower.includes("flash")) return 1;
+          if (lower.includes("mini") || lower.includes("lite")) return 2;
+          if (lower.includes("sonnet") || lower.includes("qwen") || lower.includes("glm")) return 3;
+          if (lower.includes("opus") || lower.includes("pro") || lower.includes("max")) return 4;
+          return 5;
+        };
+        freeIds.sort((a, b) => scoreApinex(a) - scoreApinex(b));
+        const selected = freeIds.slice(0, 8);
+        cachedApinexFreeModels = { fetchedAt: now, models: selected };
+        return selected;
+      }
+    }
+  } catch {
+    // Fall back silently to static free/* defaults
+  }
+
+  cachedApinexFreeModels = { fetchedAt: now, models: FALLBACK_APINEX_FREE_MODELS };
+  return FALLBACK_APINEX_FREE_MODELS;
+}
+
+/**
  * Individual Provider Factory Helpers (kept exported for backwards compatibility)
  */
 export function getGoogleModel(
@@ -264,6 +326,18 @@ export function getGroqModel(
   if (!apiKey) return null;
   const provider = createOpenAI({
     baseURL: "https://api.groq.com/openai/v1",
+    apiKey,
+  });
+  return provider.chat(modelName);
+}
+
+export function getApinexModel(
+  modelName = FALLBACK_APINEX_FREE_MODELS[0],
+  apiKey = cleanKey(process.env.APINEX_API_KEY)
+): LanguageModel | null {
+  if (!apiKey) return null;
+  const provider = createOpenAI({
+    baseURL: (process.env.APINEX_BASE_URL || "https://api.apinex.bond/v1").replace(/\/+$/, ""),
     apiKey,
   });
   return provider.chat(modelName);
@@ -356,6 +430,34 @@ export async function buildFreeModelFallbackChain(): Promise<ModelEntry[]> {
           provider: "groq",
           modelId,
           name: `Groq (${envName} / ${modelId})`,
+          model: provider.chat(modelId),
+          supportsSystem: true,
+        });
+      }
+    }
+  }
+
+  // 8: APInex key(s) (strictly free/* models only)
+  const apinexKeys = collectUniqueKeys([
+    "APINEX_API_KEY",
+    "APINEX_API_KEY_1",
+    "APINEX_API_KEY_2",
+  ]);
+  if (apinexKeys.length > 0) {
+    const apinexBaseUrl = (process.env.APINEX_BASE_URL || "https://api.apinex.bond/v1").replace(/\/+$/, "");
+    const apinexModels = await discoverApinexFreeModels(apinexKeys[0].apiKey);
+    for (const { envName, apiKey } of apinexKeys) {
+      const provider = createOpenAI({
+        baseURL: apinexBaseUrl,
+        apiKey,
+      });
+      for (const modelId of apinexModels) {
+        chain.push({
+          id: `apinex:${envName}:${modelId}`,
+          keyGroup: `apinex:${envName}`,
+          provider: "apinex",
+          modelId,
+          name: `APInex (${envName} / ${modelId})`,
           model: provider.chat(modelId),
           supportsSystem: true,
         });
@@ -492,6 +594,26 @@ export function getModelFallbackChain(): ModelEntry[] {
     }
   }
 
+  for (const { envName, apiKey } of collectUniqueKeys([
+    "APINEX_API_KEY",
+    "APINEX_API_KEY_1",
+    "APINEX_API_KEY_2",
+  ])) {
+    const modelId = FALLBACK_APINEX_FREE_MODELS[0];
+    const model = getApinexModel(modelId, apiKey);
+    if (model) {
+      chain.push({
+        id: `apinex:${envName}:${modelId}`,
+        keyGroup: `apinex:${envName}`,
+        provider: "apinex",
+        modelId,
+        name: `APInex (${envName} / ${modelId})`,
+        model,
+        supportsSystem: true,
+      });
+    }
+  }
+
   if (chain.length === 0) {
     throw new AILimitReachedError();
   }
@@ -555,14 +677,17 @@ function recordFailureAndCooldown(entry: ModelEntry, err: unknown): void {
   const isPaidOrUnavailable =
     status === 402 ||
     status === 404 ||
-    /unavailable for free|paid version|requires billing|billing|insufficient[_ ]credits|payment required|add credits|no credits|not found|no longer available|deprecated|decommissioned|model_decommissioned|does not exist|not supported for generatecontent|no endpoints found/i.test(
+    /unavailable for free|paid version|requires billing|billing|insufficient[_ ]credits|insufficient[_ ]balance|top[- ]?up|payment required|add credits|no credits|not found|no longer available|deprecated|decommissioned|model_decommissioned|does not exist|not supported for generatecontent|no endpoints found/i.test(
       lower
     );
 
   if (isPaidOrUnavailable) {
-    // If OpenRouter says account has insufficient credits (paid model attempted) vs model paid-only
-    if (entry.provider === "openrouter" && /insufficient credits|never purchased|more credits/i.test(lower)) {
-      globalModelDisabledUntil.set(`${entry.provider}:${entry.modelId}`, now + TWELVE_HOURS);
+    if (
+      entry.provider === "apinex" &&
+      /top[- ]?up|insufficient[_ ]balance|insufficient[_ ]credits|add credits|deposit|payment required/i.test(lower)
+    ) {
+      // Account-level top-up/balance requirement on APInex -> skip the whole key
+      keyCooldownUntil.set(entry.keyGroup, now + SIX_HOURS);
     } else {
       globalModelDisabledUntil.set(`${entry.provider}:${entry.modelId}`, now + TWELVE_HOURS);
     }
