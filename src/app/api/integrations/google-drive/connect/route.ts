@@ -1,7 +1,7 @@
 import { createHmac, randomBytes } from "node:crypto";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthCookieDomain } from "@/lib/subdomain";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -41,11 +41,14 @@ export async function GET(request: Request) {
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const origin = new URL(request.url).origin;
+  const reqUrl = new URL(request.url);
+  const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || reqUrl.protocol.replace(":", "");
+  const origin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : reqUrl.origin;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${origin}/api/integrations/google-drive/callback`;
   if (!clientId || !clientSecret || !process.env.GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY) {
     const errorTarget = targetWsId ? `/workspaces/${targetWsId}?drive=not_configured` : `/organizations/${targetOrgId}/integrations?drive=not_configured`;
-    return NextResponse.redirect(new URL(errorTarget, request.url));
+    return NextResponse.redirect(new URL(errorTarget, origin));
   }
 
   const nonce = randomBytes(32).toString("base64url");
@@ -57,6 +60,7 @@ export async function GET(request: Request) {
       nonce,
       issuedAt: Date.now(),
       redirectUri,
+      returnOrigin: origin,
     })
   ).toString("base64url");
 
@@ -75,14 +79,16 @@ export async function GET(request: Request) {
     state,
   }).toString();
 
-  const cookieStore = await cookies();
-  cookieStore.set("orbitwork_drive_oauth_nonce", nonce, {
+  const cookieDomain = getAuthCookieDomain(forwardedHost || reqUrl.hostname);
+  const response = NextResponse.redirect(authUrl);
+  response.cookies.set("orbitwork_drive_oauth_nonce", nonce, {
     httpOnly: true,
     sameSite: "lax",
-    secure: new URL(request.url).protocol === "https:",
-    path: "/api/integrations/google-drive/callback",
+    secure: forwardedProto === "https",
+    path: "/",
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
     maxAge: 600,
   });
 
-  return NextResponse.redirect(authUrl);
+  return response;
 }

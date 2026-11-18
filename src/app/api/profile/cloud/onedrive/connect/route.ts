@@ -1,8 +1,8 @@
 import { createHmac, randomBytes } from "node:crypto";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserApplicableOrgPolicies } from "@/lib/personal-cloud";
+import { getAuthCookieDomain } from "@/lib/subdomain";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -27,12 +27,15 @@ export async function GET(request: Request) {
 
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const origin = new URL(request.url).origin;
+  const reqUrl = new URL(request.url);
+  const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || reqUrl.protocol.replace(":", "");
+  const origin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : reqUrl.origin;
   const redirectUri =
     process.env.MICROSOFT_REDIRECT_URI || `${origin}/api/integrations/onedrive/callback`;
 
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(new URL("/profile?cloud_error=not_configured", request.url));
+    return NextResponse.redirect(new URL("/profile?cloud_error=not_configured", origin));
   }
 
   const nonce = randomBytes(32).toString("base64url");
@@ -44,6 +47,7 @@ export async function GET(request: Request) {
       nonce,
       issuedAt: Date.now(),
       redirectUri,
+      returnOrigin: origin,
     })
   ).toString("base64url");
 
@@ -61,14 +65,16 @@ export async function GET(request: Request) {
     state,
   }).toString();
 
-  const cookieStore = await cookies();
-  cookieStore.set("orbitwork_onedrive_oauth_nonce", nonce, {
+  const cookieDomain = getAuthCookieDomain(forwardedHost || reqUrl.hostname);
+  const response = NextResponse.redirect(authUrl);
+  response.cookies.set("orbitwork_onedrive_oauth_nonce", nonce, {
     httpOnly: true,
     sameSite: "lax",
-    secure: new URL(request.url).protocol === "https:",
-    path: "/api/integrations/onedrive/callback",
+    secure: forwardedProto === "https",
+    path: "/",
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
     maxAge: 600,
   });
 
-  return NextResponse.redirect(authUrl);
+  return response;
 }

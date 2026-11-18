@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { encryptRefreshToken } from "@/lib/google-drive";
+import { getAuthCookieDomain } from "@/lib/subdomain";
 import {
   getUserApplicableOrgPolicies,
   validateAccountAgainstPolicies,
@@ -16,7 +17,28 @@ type OAuthState = {
   nonce: string;
   issuedAt: number;
   redirectUri?: string;
+  returnOrigin?: string;
 };
+
+function safeReturnBase(returnOrigin: string | undefined, requestUrl: string): string {
+  if (!returnOrigin) return requestUrl;
+  try {
+    const parsed = new URL(returnOrigin);
+    const req = new URL(requestUrl);
+    if (
+      parsed.origin === req.origin ||
+      parsed.hostname === "orbitwork.org" ||
+      parsed.hostname.endsWith(".orbitwork.org") ||
+      parsed.hostname === "localhost" ||
+      parsed.hostname.endsWith(".localhost")
+    ) {
+      return parsed.origin;
+    }
+  } catch {
+    // fallback
+  }
+  return requestUrl;
+}
 
 function failure(
   request: Request,
@@ -24,20 +46,22 @@ function failure(
   reason: string,
   workspaceId?: string,
   errorDetail?: string,
-  isPersonal?: boolean
+  isPersonal?: boolean,
+  returnOrigin?: string
 ) {
+  const base = safeReturnBase(returnOrigin, request.url);
   if (isPersonal) {
     const detailParam = errorDetail ? `&cloud_detail=${encodeURIComponent(errorDetail)}` : "";
     return NextResponse.redirect(
-      new URL(`/profile?cloud_error=${encodeURIComponent(reason)}${detailParam}`, request.url)
+      new URL(`/profile?cloud_error=${encodeURIComponent(reason)}${detailParam}`, base)
     );
   }
   const detailParam = errorDetail ? `&drive_error=${encodeURIComponent(errorDetail)}` : "";
   if (workspaceId && /^[0-9a-f-]{36}$/i.test(workspaceId)) {
-    return NextResponse.redirect(new URL(`/workspaces/${workspaceId}?drive=${encodeURIComponent(reason)}${detailParam}`, request.url));
+    return NextResponse.redirect(new URL(`/workspaces/${workspaceId}?drive=${encodeURIComponent(reason)}${detailParam}`, base));
   }
   const target = organizationId && /^[0-9a-f-]{36}$/i.test(organizationId) ? `/organizations/${organizationId}/integrations` : "/dashboard";
-  return NextResponse.redirect(new URL(`${target}?drive=${encodeURIComponent(reason)}${detailParam}`, request.url));
+  return NextResponse.redirect(new URL(`${target}?drive=${encodeURIComponent(reason)}${detailParam}`, base));
 }
 
 export async function GET(request: Request) {
@@ -62,10 +86,21 @@ export async function GET(request: Request) {
 
   const cookieStore = await cookies();
   const nonceCookie = cookieStore.get("orbitwork_drive_oauth_nonce")?.value;
+  const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const cookieDomain = getAuthCookieDomain(forwardedHost || url.hostname);
+  const isSecure = (request.headers.get("x-forwarded-proto") || url.protocol.replace(":", "")) === "https";
   cookieStore.set("orbitwork_drive_oauth_nonce", "", {
     httpOnly: true,
     sameSite: "lax",
-    secure: url.protocol === "https:",
+    secure: isSecure,
+    path: "/",
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
+    maxAge: 0,
+  });
+  cookieStore.set("orbitwork_drive_oauth_nonce", "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isSecure,
     path: "/api/integrations/google-drive/callback",
     maxAge: 0,
   });
@@ -73,18 +108,20 @@ export async function GET(request: Request) {
   const orgId = decoded?.organizationId ?? "";
   const wsId = decoded?.workspaceId ?? "";
   const isPersonal = decoded?.mode === "user_personal";
+  const returnOrigin = decoded?.returnOrigin;
+  const returnBase = safeReturnBase(returnOrigin, request.url);
 
   if (!decoded || !nonceCookie || decoded.nonce !== nonceCookie || Date.now() - decoded.issuedAt > 600000 || Date.now() < decoded.issuedAt - 30000) {
-    return failure(request, orgId, "invalid_state", wsId, undefined, isPersonal);
+    return failure(request, orgId, "invalid_state", wsId, undefined, isPersonal, returnOrigin);
   }
   if (oauthError || !code) {
-    return failure(request, orgId, "cancelled", wsId, undefined, isPersonal);
+    return failure(request, orgId, "cancelled", wsId, undefined, isPersonal, returnOrigin);
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || user.id !== decoded.userId) {
-    return failure(request, orgId, "session_changed", wsId, undefined, isPersonal);
+    return failure(request, orgId, "session_changed", wsId, undefined, isPersonal, returnOrigin);
   }
 
   // Permission check: Personal connections belong to the user; Workspace/Org require management roles
@@ -102,7 +139,7 @@ export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
   const redirectUri = decoded?.redirectUri || process.env.GOOGLE_REDIRECT_URI || `${origin}/api/integrations/google-drive/callback`;
   if (!clientId || !clientSecret || !process.env.GOOGLE_DRIVE_TOKEN_ENCRYPTION_KEY) {
-    return failure(request, orgId, "not_configured", wsId, undefined, isPersonal);
+    return failure(request, orgId, "not_configured", wsId, undefined, isPersonal, returnOrigin);
   }
 
   try {
@@ -119,7 +156,7 @@ export async function GET(request: Request) {
       cache: "no-store",
     });
 
-    if (!tokenResponse.ok) return failure(request, orgId, "token_exchange_failed", wsId, undefined, isPersonal);
+    if (!tokenResponse.ok) return failure(request, orgId, "token_exchange_failed", wsId, undefined, isPersonal, returnOrigin);
     const tokenPayload = (await tokenResponse.json()) as { access_token?: string; refresh_token?: string };
 
     // Fetch connected Google Account email
@@ -144,7 +181,7 @@ export async function GET(request: Request) {
       const policies = await getUserApplicableOrgPolicies(supabase, user.id);
       const policyCheck = validateAccountAgainstPolicies("google_drive", accountEmail, policies);
       if (!policyCheck.ok) {
-        return failure(request, "", "policy_violation", "", policyCheck.reason, true);
+        return failure(request, "", "policy_violation", "", policyCheck.reason, true, returnOrigin);
       }
 
       const { data: existingPersonal } = await supabase
@@ -155,7 +192,7 @@ export async function GET(request: Request) {
         .maybeSingle();
 
       if (!refreshToken && !existingPersonal) {
-        return failure(request, "", "missing_refresh_token", "", undefined, true);
+        return failure(request, "", "missing_refresh_token", "", undefined, true, returnOrigin);
       }
 
       const encryptedRefresh = refreshToken
@@ -187,10 +224,10 @@ export async function GET(request: Request) {
 
       if (upsertErr) {
         console.error("[Google Drive Callback] Personal cloud save failed:", upsertErr);
-        return failure(request, "", "save_failed", "", upsertErr.message, true);
+        return failure(request, "", "save_failed", "", upsertErr.message, true, returnOrigin);
       }
 
-      return NextResponse.redirect(new URL("/profile?cloud_connected=google_drive", request.url));
+      return NextResponse.redirect(new URL("/profile?cloud_connected=google_drive", returnBase));
     }
 
     // Handle Workspace-Level Storage Connection
@@ -362,6 +399,6 @@ export async function GET(request: Request) {
   } catch (err) {
     console.error("[Google Drive Callback] Unexpected exception:", err);
     const msg = err instanceof Error ? err.message : String(err);
-    return failure(request, orgId, "connection_failed", wsId, msg, isPersonal);
+    return failure(request, orgId, "connection_failed", wsId, msg, isPersonal, returnOrigin);
   }
 }

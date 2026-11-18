@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { encryptOneDriveToken } from "@/lib/onedrive";
+import { getAuthCookieDomain } from "@/lib/subdomain";
 import {
   getUserApplicableOrgPolicies,
   validateAccountAgainstPolicies,
@@ -16,7 +17,28 @@ type OAuthState = {
   nonce: string;
   issuedAt: number;
   redirectUri?: string;
+  returnOrigin?: string;
 };
+
+function safeReturnBase(returnOrigin: string | undefined, requestUrl: string): string {
+  if (!returnOrigin) return requestUrl;
+  try {
+    const parsed = new URL(returnOrigin);
+    const req = new URL(requestUrl);
+    if (
+      parsed.origin === req.origin ||
+      parsed.hostname === "orbitwork.org" ||
+      parsed.hostname.endsWith(".orbitwork.org") ||
+      parsed.hostname === "localhost" ||
+      parsed.hostname.endsWith(".localhost")
+    ) {
+      return parsed.origin;
+    }
+  } catch {
+    // fallback
+  }
+  return requestUrl;
+}
 
 function failure(
   request: Request,
@@ -24,25 +46,27 @@ function failure(
   reason: string,
   workspaceId?: string,
   detail?: string,
-  isPersonal?: boolean
+  isPersonal?: boolean,
+  returnOrigin?: string
 ) {
+  const base = safeReturnBase(returnOrigin, request.url);
   if (isPersonal) {
     const detailParam = detail ? `&cloud_detail=${encodeURIComponent(detail)}` : "";
     return NextResponse.redirect(
-      new URL(`/profile?cloud_error=${encodeURIComponent(reason)}${detailParam}`, request.url)
+      new URL(`/profile?cloud_error=${encodeURIComponent(reason)}${detailParam}`, base)
     );
   }
   const param = `storage=${encodeURIComponent(reason)}${detail ? `&storage_error=${encodeURIComponent(detail)}` : ""}`;
   if (workspaceId && /^[0-9a-f-]{36}$/i.test(workspaceId)) {
     return NextResponse.redirect(
-      new URL(`/workspaces/${workspaceId}?${param}`, request.url)
+      new URL(`/workspaces/${workspaceId}?${param}`, base)
     );
   }
   const target =
     organizationId && /^[0-9a-f-]{36}$/i.test(organizationId)
       ? `/organizations/${organizationId}/integrations`
       : "/dashboard";
-  return NextResponse.redirect(new URL(`${target}?${param}`, request.url));
+  return NextResponse.redirect(new URL(`${target}?${param}`, base));
 }
 
 export async function GET(request: Request) {
@@ -68,10 +92,21 @@ export async function GET(request: Request) {
 
   const cookieStore = await cookies();
   const nonceCookie = cookieStore.get("orbitwork_onedrive_oauth_nonce")?.value;
+  const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const cookieDomain = getAuthCookieDomain(forwardedHost || url.hostname);
+  const isSecure = (request.headers.get("x-forwarded-proto") || url.protocol.replace(":", "")) === "https";
   cookieStore.set("orbitwork_onedrive_oauth_nonce", "", {
     httpOnly: true,
     sameSite: "lax",
-    secure: url.protocol === "https:",
+    secure: isSecure,
+    path: "/",
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
+    maxAge: 0,
+  });
+  cookieStore.set("orbitwork_onedrive_oauth_nonce", "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isSecure,
     path: "/api/integrations/onedrive/callback",
     maxAge: 0,
   });
@@ -79,6 +114,8 @@ export async function GET(request: Request) {
   const orgId = decoded?.organizationId ?? "";
   const wsId = decoded?.workspaceId ?? "";
   const isPersonal = decoded?.mode === "user_personal";
+  const returnOrigin = decoded?.returnOrigin;
+  const returnBase = safeReturnBase(returnOrigin, request.url);
 
   if (
     !decoded ||
@@ -87,10 +124,10 @@ export async function GET(request: Request) {
     Date.now() - decoded.issuedAt > 600000 ||
     Date.now() < decoded.issuedAt - 30000
   ) {
-    return failure(request, orgId, "invalid_state", wsId, undefined, isPersonal);
+    return failure(request, orgId, "invalid_state", wsId, undefined, isPersonal, returnOrigin);
   }
   if (oauthError || !code) {
-    return failure(request, orgId, "cancelled", wsId, undefined, isPersonal);
+    return failure(request, orgId, "cancelled", wsId, undefined, isPersonal, returnOrigin);
   }
 
   const supabase = await createClient();
@@ -98,7 +135,7 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user || user.id !== decoded.userId) {
-    return failure(request, orgId, "session_changed", wsId, undefined, isPersonal);
+    return failure(request, orgId, "session_changed", wsId, undefined, isPersonal, returnOrigin);
   }
 
   const clientId = process.env.MICROSOFT_CLIENT_ID;
@@ -122,7 +159,7 @@ export async function GET(request: Request) {
       cache: "no-store",
     });
 
-    if (!tokenResponse.ok) return failure(request, orgId, "token_exchange_failed", wsId, undefined, isPersonal);
+    if (!tokenResponse.ok) return failure(request, orgId, "token_exchange_failed", wsId, undefined, isPersonal, returnOrigin);
 
     const tokenPayload = (await tokenResponse.json()) as { access_token?: string; refresh_token?: string };
 
@@ -153,7 +190,7 @@ export async function GET(request: Request) {
       const policies = await getUserApplicableOrgPolicies(supabase, user.id);
       const policyCheck = validateAccountAgainstPolicies("onedrive", accountEmail, policies);
       if (!policyCheck.ok) {
-        return failure(request, "", "policy_violation", "", policyCheck.reason, true);
+        return failure(request, "", "policy_violation", "", policyCheck.reason, true, returnOrigin);
       }
 
       const { data: existingPersonal } = await supabase
@@ -168,7 +205,7 @@ export async function GET(request: Request) {
         existingPersonal?.refresh_token_encrypted ||
         existingPersonal?.access_token_encrypted;
       if (!finalRefresh) {
-        return failure(request, "", "missing_refresh_token", "", undefined, true);
+        return failure(request, "", "missing_refresh_token", "", undefined, true, returnOrigin);
       }
 
       const finalAccess = tokenPayload.access_token
@@ -196,10 +233,10 @@ export async function GET(request: Request) {
 
       if (upsertErr) {
         console.error("[OneDrive Callback] Personal cloud save failed:", upsertErr);
-        return failure(request, "", "save_failed", "", upsertErr.message, true);
+        return failure(request, "", "save_failed", "", upsertErr.message, true, returnOrigin);
       }
 
-      return NextResponse.redirect(new URL("/profile?cloud_connected=onedrive", request.url));
+      return NextResponse.redirect(new URL("/profile?cloud_connected=onedrive", returnBase));
     }
 
     if (wsId) {
@@ -308,6 +345,6 @@ export async function GET(request: Request) {
       new URL(`/organizations/${orgId}/integrations?storage=onedrive_connected`, request.url)
     );
   } catch {
-    return failure(request, orgId, "connection_failed", wsId, undefined, isPersonal);
+    return failure(request, orgId, "connection_failed", wsId, undefined, isPersonal, returnOrigin);
   }
 }
