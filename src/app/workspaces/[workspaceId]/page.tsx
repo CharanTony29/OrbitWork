@@ -1,13 +1,14 @@
 import { notFound, redirect } from "next/navigation";
 import AppTopBar from "@/app/AppTopBar";
 import Link from "next/link";
-import { ArrowLeft, FolderKanban } from "lucide-react";
+import { ArrowLeft, Clock3, FolderKanban } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { removeWorkspaceMember, updateWorkspaceMemberRole } from "@/app/actions";
 import WorkspaceProjectsList from "./WorkspaceProjectsList";
 import WorkspaceInviteSection from "./WorkspaceInviteSection";
 import WorkspaceStorageSection from "./WorkspaceStorageSection";
 import { getWorkspaceStorageConfig } from "@/lib/storage-config";
+import TimesheetExportButton from "@/app/timesheets/TimesheetExportButton";
 
 export default async function WorkspacePage({
   params,
@@ -159,8 +160,24 @@ export default async function WorkspacePage({
               {workspace.description || "Projects and shared work in one place."}
             </p>
           </div>
-          <div className="workspace-symbol">
-            <FolderKanban size={22} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Link
+              href={`/workspaces/${workspaceId}/timesheets`}
+              className="button button-secondary"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px", minHeight: 34 }}
+            >
+              <Clock3 size={14} />
+              <span>Timesheets</span>
+            </Link>
+            <TimesheetExportButton
+              scope="workspace"
+              targetId={workspaceId}
+              scopeName={workspace.name}
+              label="Export Timesheets Excel"
+            />
+            <div className="workspace-symbol">
+              <FolderKanban size={22} />
+            </div>
           </div>
         </div>
 

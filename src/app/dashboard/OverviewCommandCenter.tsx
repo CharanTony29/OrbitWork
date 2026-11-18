@@ -37,6 +37,7 @@ import {
   deleteOrganization,
 } from "@/app/actions";
 import MultiEmailInviteForm from "@/app/MultiEmailInviteForm";
+import TimesheetExportButton from "@/app/timesheets/TimesheetExportButton";
 
 type Props = {
   displayName: string;
@@ -497,6 +498,13 @@ export default function OverviewCommandCenter({
                         Integrations
                       </Link>
                       <Link href={`/organizations/${org.id}/docs`}>Docs</Link>
+                      <TimesheetExportButton
+                        scope="organization"
+                        targetId={org.id}
+                        scopeName={org.name}
+                        label="Export Timesheets"
+                        variant="tile-link"
+                      />
                     </div>
                   </article>
                 );
@@ -555,6 +563,13 @@ export default function OverviewCommandCenter({
                 </div>
 
                 <div className="ov-org-strip-actions">
+                  <TimesheetExportButton
+                    scope="organization"
+                    targetId={activeOrg.id}
+                    scopeName={activeOrg.name}
+                    label="Export Timesheets"
+                    variant="ghost"
+                  />
                   <Link
                     href={`/organizations/${activeOrg.id}/workspaces`}
                     className="ov-btn ov-btn-ghost"
@@ -800,6 +815,12 @@ export default function OverviewCommandCenter({
                                 </span>
                               </span>
                               <div className="ov-ws-foot-actions">
+                                <TimesheetExportButton
+                                  scope="workspace"
+                                  targetId={ws.id}
+                                  scopeName={ws.name}
+                                  variant="icon"
+                                />
                                 <Link
                                   href={`/workspaces/${ws.id}/timesheets`}
                                   className="ov-ws-icon-link"

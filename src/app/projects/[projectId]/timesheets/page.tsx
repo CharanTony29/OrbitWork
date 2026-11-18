@@ -6,6 +6,7 @@ import { Clock3, Calendar, ListFilter, BarChart3, Settings } from "lucide-react"
 import { reviewProjectTimesheet, signOut, submitProjectTimesheet } from "@/app/actions";
 import { createClient } from "@/lib/supabase/server";
 import DateInput from "@/app/DateInput";
+import TimesheetExportButton from "@/app/timesheets/TimesheetExportButton";
 
 function isoWeekStart(value: string | undefined) {
   const parsed = value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : new Date();
@@ -184,6 +185,11 @@ export default async function ProjectTimesheetsPage({
           </div>
 
           <div className="timesheet-period-controls">
+            <TimesheetExportButton
+              scope="project"
+              targetId={projectId}
+              scopeName={project.name}
+            />
             {/* Manager Target Hours Setting */}
             {canManage && (
               <form method="get" className="timesheet-target-form" title="Set required work hours per day to calculate workload">

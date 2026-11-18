@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Download, Presentation, FileSpreadsheet, ChevronDown } from "lucide-react";
+import { Download, Presentation, FileSpreadsheet, ChevronDown, Clock3 } from "lucide-react";
 import ProjectExportModal from "./ProjectExportModal";
 import ExportPresentationModal from "./ExportPresentationModal";
+import TimesheetExportModal from "@/app/timesheets/TimesheetExportModal";
 
 interface ProjectExportButtonProps {
   projectId: string;
@@ -25,6 +26,7 @@ export default function ProjectExportButton({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isTasksModalOpen, setIsTasksModalOpen] = useState(false);
   const [isPresentationModalOpen, setIsPresentationModalOpen] = useState(false);
+  const [isTimesheetModalOpen, setIsTimesheetModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -199,6 +201,70 @@ export default function ProjectExportButton({
               </p>
             </div>
           </button>
+
+          {/* Option 3: Multi-Sheet Timesheets Report (Excel) */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsDropdownOpen(false);
+              setIsTimesheetModalOpen(true);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "10px",
+              padding: "8px 10px",
+              borderRadius: "8px",
+              border: 0,
+              background: "transparent",
+              color: "var(--ink, #0f172a)",
+              textAlign: "left",
+              cursor: "pointer",
+              transition: "background 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--surface-subtle, #f1f5f9)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "6px",
+                background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
+                display: "grid",
+                placeItems: "center",
+                color: "#ffffff",
+                flexShrink: 0,
+                marginTop: 2,
+              }}
+            >
+              <Clock3 size={15} />
+            </div>
+            <div>
+              <div style={{ fontSize: "12px", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                Export Timesheets (Excel)
+                <span
+                  style={{
+                    background: "rgba(22, 163, 74, 0.14)",
+                    color: "#15803d",
+                    fontSize: "9px",
+                    fontWeight: 800,
+                    padding: "1px 5px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  Per User
+                </span>
+              </div>
+              <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--muted, #64748b)", lineHeight: 1.3 }}>
+                Multi-sheet Excel workbook by team member for yearly, monthly, or custom dates.
+              </p>
+            </div>
+          </button>
         </div>
       )}
 
@@ -220,6 +286,15 @@ export default function ProjectExportButton({
         onClose={() => setIsPresentationModalOpen(false)}
         projectId={projectId}
         projectName={projectName}
+      />
+
+      {/* Modal 3: Multi-Sheet Timesheets Excel Exporter */}
+      <TimesheetExportModal
+        isOpen={isTimesheetModalOpen}
+        onClose={() => setIsTimesheetModalOpen(false)}
+        scope="project"
+        targetId={projectId}
+        scopeName={projectName}
       />
     </div>
   );

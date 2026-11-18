@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { Calendar, ListFilter, Settings, FolderKanban } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import DateInput from "@/app/DateInput";
+import TimesheetExportButton from "@/app/timesheets/TimesheetExportButton";
 
 function isoWeekStart(value: string | undefined) {
   const parsed = value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : new Date();
@@ -195,6 +196,11 @@ export default async function WorkspaceTimesheetsPage({
         </div>
 
         <div className="timesheet-period-controls">
+          <TimesheetExportButton
+            scope="workspace"
+            targetId={workspaceId}
+            scopeName={workspace.name}
+          />
           {canManage && (
             <form method="get" className="timesheet-target-form" title="Set daily target hours to calculate workload">
               <input type="hidden" name="period" value={period} />

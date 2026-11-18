@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ExcelPreviewViewer from "./ExcelPreviewViewer";
+import WordPreviewViewer from "./WordPreviewViewer";
 import {
   X,
   Download,
@@ -289,20 +291,31 @@ export default function AttachmentPreviewModal({
   const previewUrl = `/api/attachments/${attachment.id}`;
   const isImage = attachment.mime_type.startsWith("image/");
   const isPdf = attachment.mime_type === "application/pdf" || attachment.file_name.toLowerCase().endsWith(".pdf");
+  const isExcel =
+    attachment.mime_type.includes("sheet") ||
+    attachment.mime_type.includes("excel") ||
+    attachment.file_name.toLowerCase().endsWith(".xlsx") ||
+    attachment.file_name.toLowerCase().endsWith(".xls");
+  const isWord =
+    attachment.mime_type.includes("wordprocessingml") ||
+    attachment.mime_type.includes("msword") ||
+    attachment.file_name.toLowerCase().endsWith(".docx");
   const isTextOrCode =
-    attachment.mime_type.startsWith("text/") ||
-    attachment.mime_type.includes("json") ||
-    attachment.mime_type.includes("javascript") ||
-    attachment.mime_type.includes("xml") ||
-    attachment.mime_type.includes("yaml") ||
-    attachment.file_name.endsWith(".txt") ||
-    attachment.file_name.endsWith(".md") ||
-    attachment.file_name.endsWith(".csv") ||
-    attachment.file_name.endsWith(".json") ||
-    attachment.file_name.endsWith(".html") ||
-    attachment.file_name.endsWith(".ts") ||
-    attachment.file_name.endsWith(".js") ||
-    attachment.file_name.endsWith(".css");
+    !isExcel &&
+    !isWord &&
+    (attachment.mime_type.startsWith("text/") ||
+      attachment.mime_type.includes("json") ||
+      attachment.mime_type.includes("javascript") ||
+      attachment.mime_type.includes("xml") ||
+      attachment.mime_type.includes("yaml") ||
+      attachment.file_name.endsWith(".txt") ||
+      attachment.file_name.endsWith(".md") ||
+      attachment.file_name.endsWith(".csv") ||
+      attachment.file_name.endsWith(".json") ||
+      attachment.file_name.endsWith(".html") ||
+      attachment.file_name.endsWith(".ts") ||
+      attachment.file_name.endsWith(".js") ||
+      attachment.file_name.endsWith(".css"));
 
   const isHtml = attachment.mime_type === "text/html" || attachment.file_name.toLowerCase().endsWith(".html");
 
@@ -387,6 +400,10 @@ export default function AttachmentPreviewModal({
               <ImageIcon size={18} color="#0891b2" style={{ flexShrink: 0 }} />
             ) : isPdf ? (
               <FileText size={18} color="#dc2626" style={{ flexShrink: 0 }} />
+            ) : isExcel ? (
+              <FileSpreadsheet size={18} color="#16a34a" style={{ flexShrink: 0 }} />
+            ) : isWord ? (
+              <FileText size={18} color="#2563eb" style={{ flexShrink: 0 }} />
             ) : isTextOrCode ? (
               <FileCode size={18} color="#7c3aed" style={{ flexShrink: 0 }} />
             ) : (
@@ -499,6 +516,10 @@ export default function AttachmentPreviewModal({
             </div>
           ) : isPdf ? (
             <PdfPreviewViewer url={previewUrl} />
+          ) : isExcel ? (
+            <ExcelPreviewViewer url={previewUrl} />
+          ) : isWord ? (
+            <WordPreviewViewer url={previewUrl} />
           ) : isTextOrCode ? (
             textLoading ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, color: "var(--muted)" }}>

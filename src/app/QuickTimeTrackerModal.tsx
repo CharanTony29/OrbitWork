@@ -14,6 +14,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
+import TimesheetExportButton from "@/app/timesheets/TimesheetExportButton";
 
 interface QuickTask {
   id: string;
@@ -777,14 +778,25 @@ export default function QuickTimeTrackerModal({
             <ExternalLink size={12} />
           </Link>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="button button-secondary"
-            style={{ minHeight: 32, padding: "4px 14px", fontSize: 12 }}
-          >
-            Close
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {(workspaceId || projectId) && (
+              <TimesheetExportButton
+                scope={projectId ? "project" : "workspace"}
+                targetId={(projectId || workspaceId)!}
+                scopeName={projectId ? "Current Project" : "Current Workspace"}
+                label="Export Excel"
+                variant="secondary"
+              />
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="button button-secondary"
+              style={{ minHeight: 32, padding: "4px 14px", fontSize: 12 }}
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>

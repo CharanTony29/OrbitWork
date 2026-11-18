@@ -4,6 +4,7 @@ import AppRailLayout from "@/app/AppRailLayout";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, FolderKanban, Layers3 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import TimesheetExportButton from "@/app/timesheets/TimesheetExportButton";
 
 export default async function OrganizationWorkspacesPage({
   params,
@@ -79,10 +80,17 @@ export default async function OrganizationWorkspacesPage({
               Workspaces inside {organization.name}, including projects and active members.
             </p>
           </div>
-          <span className="organization-members-count">
-            <Layers3 size={16} />
-            {workspaces?.length ?? 0} workspaces
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <TimesheetExportButton
+              scope="organization"
+              targetId={organizationId}
+              scopeName={organization.name}
+            />
+            <span className="organization-members-count">
+              <Layers3 size={16} />
+              {workspaces?.length ?? 0} workspaces
+            </span>
+          </div>
         </header>
         <div className="organization-members-table-wrap">
           <table className="organization-members-table">

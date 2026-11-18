@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import DateInput from "@/app/DateInput";
 import CountryHolidayImporter from "./CountryHolidayImporter";
 import LeaveRequestFormClient from "./LeaveRequestFormClient";
+import TimesheetExportButton from "@/app/timesheets/TimesheetExportButton";
 
 export default async function OrganizationCalendarPage({ params, searchParams }: { params: Promise<{ organizationId: string }>; searchParams: Promise<{ error?: string }> }) {
   const { organizationId } = await params;
@@ -128,7 +129,15 @@ export default async function OrganizationCalendarPage({ params, searchParams }:
               </Link>
             </p>
           </div>
-          <CalendarDays size={24} />
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <TimesheetExportButton
+              scope="organization"
+              targetId={organizationId}
+              scopeName={organization.name}
+              label="Export Org Timesheets"
+            />
+            <CalendarDays size={24} />
+          </div>
         </div>
         {error && (
           <p className="error" role="alert">
