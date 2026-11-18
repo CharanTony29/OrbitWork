@@ -338,7 +338,7 @@ export default async function Home({
             <div className="hp-hero-cta-group">
               {isLoggedIn ? (
                 <>
-                  <Link href="/my-dashboard" className="hp-btn-primary hp-btn-lg">
+                  <Link href="/my-dashboard" className="hp-btn-primary hp-btn-lg" prefetch={false}>
                     Open Your Dashboard <ArrowRight size={17} />
                   </Link>
                   <a href="#how-it-works" className="hp-btn-secondary hp-btn-lg">
@@ -347,7 +347,7 @@ export default async function Home({
                 </>
               ) : (
                 <>
-                  <Link href="/signup" className="hp-btn-primary hp-btn-lg">
+                  <Link href="/signup" className="hp-btn-primary hp-btn-lg" prefetch={false}>
                     Start Free Workspace <ArrowRight size={17} />
                   </Link>
                   <a href="#how-it-works" className="hp-btn-secondary hp-btn-lg">
@@ -537,12 +537,12 @@ export default async function Home({
 
                 <div className="hp-cta-buttons">
                   {isLoggedIn ? (
-                    <Link href="/my-dashboard" className="hp-btn-primary hp-btn-lg">
+                    <Link href="/my-dashboard" className="hp-btn-primary hp-btn-lg" prefetch={false}>
                       Open Your Dashboard <ArrowRight size={17} />
                     </Link>
                   ) : (
                     <>
-                      <Link href="/signup" className="hp-btn-primary hp-btn-lg">
+                      <Link href="/signup" className="hp-btn-primary hp-btn-lg" prefetch={false}>
                         Create Free Workspace <ArrowRight size={17} />
                       </Link>
                       <Link href="/contact" className="hp-btn-secondary hp-btn-lg">

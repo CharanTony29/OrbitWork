@@ -141,10 +141,76 @@ function GlobalFeedbackManager() {
 
     // 4. Intercept window.fetch to provide immediate loading & duplicate-click prevention
     const origFetch = window.fetch;
+    const isNextInternalPrefetch = (args: Parameters<typeof origFetch>): boolean => {
+      try {
+        const [input, init] = args;
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input instanceof Request
+                ? input.url
+                : "";
+
+        if (url.includes("_rsc=")) return true;
+
+        const checkHeaders = (h: HeadersInit | Headers | undefined): boolean => {
+          if (!h) return false;
+          if (h instanceof Headers) {
+            return (
+              h.has("RSC") ||
+              h.has("Next-Router-Prefetch") ||
+              h.has("Next-Router-State-Tree")
+            );
+          }
+          if (Array.isArray(h)) {
+            return h.some(([k]) => {
+              const lk = k.toLowerCase();
+              return (
+                lk === "rsc" ||
+                lk === "next-router-prefetch" ||
+                lk === "next-router-state-tree"
+              );
+            });
+          }
+          const keys = Object.keys(h);
+          return keys.some((k) => {
+            const lk = k.toLowerCase();
+            return (
+              lk === "rsc" ||
+              lk === "next-router-prefetch" ||
+              lk === "next-router-state-tree"
+            );
+          });
+        };
+
+        if (checkHeaders(init?.headers)) return true;
+        if (input instanceof Request && checkHeaders(input.headers)) return true;
+      } catch {
+        // Fallback safely
+      }
+      return false;
+    };
+
+    const getRequestMethod = (args: Parameters<typeof origFetch>): string => {
+      const [input, init] = args;
+      if (init?.method) return init.method.toUpperCase();
+      if (input instanceof Request && input.method) return input.method.toUpperCase();
+      return "GET";
+    };
+
     window.fetch = async function (...args: Parameters<typeof origFetch>) {
+      // Never intercept Next.js internal RSC / router prefetch fetches
+      if (isNextInternalPrefetch(args)) {
+        return origFetch.apply(this, args);
+      }
+
       const now = Date.now();
       const recentBtn = (now - lastInteractedTimeRef.current < 450) ? lastInteractedBtnRef.current : null;
       const applyBtn = recentBtn && !shouldIgnoreButton(recentBtn) ? recentBtn : null;
+      const method = getRequestMethod(args);
+      const isMutation = method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
 
       if (applyBtn) {
         setButtonBusy(applyBtn, true);
@@ -161,8 +227,15 @@ function GlobalFeedbackManager() {
         if (applyBtn) {
           flashButtonError(applyBtn);
         }
-        // Surface network failure toast
-        if (err instanceof TypeError && err.message.toLowerCase().includes("fetch")) {
+        // Only surface network failure toast for user-initiated requests or mutations (not silent background polls/prefetches)
+        const isAbort = err instanceof DOMException && err.name === "AbortError";
+        const isUserAction = Boolean(applyBtn) || isMutation;
+        if (
+          !isAbort &&
+          isUserAction &&
+          err instanceof TypeError &&
+          err.message.toLowerCase().includes("fetch")
+        ) {
           setToast({
             type: "error",
             message: "Network request failed. Please check your connection.",

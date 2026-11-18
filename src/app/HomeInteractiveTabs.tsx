@@ -649,15 +649,15 @@ export function HomeMobileNav({ isUserLoggedIn }: { isUserLoggedIn: boolean }) {
           </nav>
           <div className="hp-mobile-drawer-actions">
             {isUserLoggedIn ? (
-              <Link href="/my-dashboard" className="hp-btn-primary" onClick={() => setIsOpen(false)}>
+              <Link href="/my-dashboard" className="hp-btn-primary" prefetch={false} onClick={() => setIsOpen(false)}>
                 Go to Dashboard <ArrowRight size={15} />
               </Link>
             ) : (
               <>
-                <Link href="/login" className="hp-btn-secondary" onClick={() => setIsOpen(false)}>
+                <Link href="/login" className="hp-btn-secondary" prefetch={false} onClick={() => setIsOpen(false)}>
                   Sign In
                 </Link>
-                <Link href="/signup" className="hp-btn-primary" onClick={() => setIsOpen(false)}>
+                <Link href="/signup" className="hp-btn-primary" prefetch={false} onClick={() => setIsOpen(false)}>
                   Get Started Free
                 </Link>
               </>

@@ -219,6 +219,7 @@ export function ProductShowcase({ isUserLoggedIn }: { isUserLoggedIn: boolean })
               <Link
                 href={isUserLoggedIn ? "/my-dashboard" : "/signup"}
                 className="hp-btn-primary"
+                prefetch={false}
               >
                 {isUserLoggedIn ? "Open Workspace" : `Try ${current.label} Free`}
                 <ArrowRight size={15} />
