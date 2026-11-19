@@ -867,6 +867,158 @@ export async function updateOrganizationMemberManager(formData: FormData) {
   redirect(`/organizations/${organizationId}/members?hierarchy_updated=1`);
 }
 
+export async function createOrganizationDesignation(formData: FormData) {
+  const parsed = z.object({
+    organizationId: z.string().uuid(),
+    name: z.string().trim().min(2).max(80),
+    category: z.string().trim().max(50).default("Custom"),
+    hierarchyLevel: z.coerce.number().min(1).max(10).default(5),
+    description: z.string().trim().max(500).default(""),
+    color: z.string().trim().default("#3b82f6"),
+  }).safeParse({
+    organizationId: formData.get("organizationId"),
+    name: formData.get("name"),
+    category: formData.get("category") || "Custom",
+    hierarchyLevel: formData.get("hierarchyLevel") || 5,
+    description: formData.get("description") || "",
+    color: formData.get("color") || "#3b82f6",
+  });
+  if (!parsed.success) redirect("/dashboard?error=invalid_designation");
+  const { organizationId, name, category, hierarchyLevel, description, color } = parsed.data;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+
+  // Admin, Manager, or Owner can define designations
+  const { data: canManage } = await supabase.rpc("has_org_role", {
+    target_org: organizationId,
+    allowed_roles: ["owner", "admin", "manager"],
+  });
+  if (!canManage) redirect(`/organizations/${organizationId}/members?error=forbidden`);
+
+  const { error } = await supabase
+    .from("organization_designations")
+    .upsert({
+      organization_id: organizationId,
+      name,
+      category,
+      hierarchy_level: hierarchyLevel,
+      description,
+      color,
+      created_by: user.id,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "organization_id,name" });
+
+  if (error) {
+    console.error("createOrganizationDesignation error:", error);
+    redirect(`/organizations/${organizationId}/members?error=designation_save_failed`);
+  }
+  revalidatePath(`/organizations/${organizationId}/members`);
+  redirect(`/organizations/${organizationId}/members?designation_created=1`);
+}
+
+export async function deleteOrganizationDesignation(formData: FormData) {
+  const parsed = z.object({
+    organizationId: z.string().uuid(),
+    designationId: z.string().uuid(),
+  }).safeParse({
+    organizationId: formData.get("organizationId"),
+    designationId: formData.get("designationId"),
+  });
+  if (!parsed.success) redirect("/dashboard?error=invalid_designation_delete");
+  const { organizationId, designationId } = parsed.data;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+
+  const { data: canManage } = await supabase.rpc("has_org_role", {
+    target_org: organizationId,
+    allowed_roles: ["owner", "admin"],
+  });
+  if (!canManage) redirect(`/organizations/${organizationId}/members?error=forbidden`);
+
+  await supabase
+    .from("organization_designations")
+    .delete()
+    .eq("id", designationId)
+    .eq("organization_id", organizationId);
+
+  revalidatePath(`/organizations/${organizationId}/members`);
+  redirect(`/organizations/${organizationId}/members?designation_deleted=1`);
+}
+
+export async function updateMemberDesignations(formData: FormData) {
+  const parsed = z.object({
+    organizationId: z.string().uuid(),
+    userId: z.string().uuid(),
+    primaryDesignation: z.string().trim().optional(),
+  }).safeParse({
+    organizationId: formData.get("organizationId"),
+    userId: formData.get("userId"),
+    primaryDesignation: formData.get("primaryDesignation") || undefined,
+  });
+  if (!parsed.success) redirect("/dashboard?error=invalid_member_designation");
+  const { organizationId, userId, primaryDesignation } = parsed.data;
+
+  const rawDesignations = formData.getAll("designations");
+  const designations = Array.from(new Set(
+    rawDesignations
+      .map((d) => String(d).trim())
+      .filter((d) => d.length > 0)
+  ));
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+
+  const { data: canManage } = await supabase.rpc("has_org_role", {
+    target_org: organizationId,
+    allowed_roles: ["owner", "admin", "manager"],
+  });
+  if (!canManage) redirect(`/organizations/${organizationId}/members?error=forbidden`);
+
+  const chosenPrimary = primaryDesignation && designations.includes(primaryDesignation)
+    ? primaryDesignation
+    : designations[0] || null;
+
+  try {
+    await supabase
+      .from("organization_members")
+      .update({
+        designations,
+        primary_designation: chosenPrimary,
+      })
+      .eq("organization_id", organizationId)
+      .eq("user_id", userId);
+  } catch (err) {
+    console.warn("organization_members.designations update fallback:", err);
+  }
+
+  try {
+    await supabase
+      .from("profiles")
+      .update({
+        designation: chosenPrimary || (designations.length > 0 ? designations.join(", ") : null),
+        designations,
+      })
+      .eq("id", userId);
+  } catch (profErr) {
+    console.warn("profiles.designations update fallback:", profErr);
+    await supabase
+      .from("profiles")
+      .update({
+        designation: chosenPrimary || (designations.length > 0 ? designations.join(", ") : null),
+      })
+      .eq("id", userId);
+  }
+
+  revalidatePath(`/organizations/${organizationId}/members`);
+  revalidatePath(`/organizations/${organizationId}/calendar`);
+  redirect(`/organizations/${organizationId}/members?member_updated=1`);
+}
+
 export async function createProject(formData: FormData) {
   const parsed = z.object({
     workspaceId: z.string().uuid(),

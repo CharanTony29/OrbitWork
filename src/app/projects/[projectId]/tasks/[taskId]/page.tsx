@@ -24,6 +24,7 @@ import MultiValueFieldInput from "@/app/MultiValueFieldInput";
 import TaskCommentForm from "./TaskCommentForm";
 import FavoriteButton from "@/app/FavoriteButton";
 import DateInput from "@/app/DateInput";
+import { normalizeMemberDesignations } from "@/lib/designations";
 
 const attachmentMessages: Record<string, string> = {
   uploaded: "File uploaded to workspace Google Drive storage.",
@@ -123,9 +124,9 @@ export default async function TaskDetailPage({ params, searchParams }: {
   }
   const workspace = Array.isArray(project.workspaces) ? project.workspaces[0] : project.workspaces;
   const orgId = workspace?.organization_id;
-  const { data: orgMembers } = orgId ? await supabase.from("organization_members").select("user_id").eq("organization_id", orgId).eq("status", "active") : { data: [] };
+  const { data: orgMembers } = orgId ? await supabase.from("organization_members").select("user_id, role, designations, primary_designation").eq("organization_id", orgId).eq("status", "active") : { data: [] };
   const peopleIds = [...new Set([...(comments ?? []).map((comment) => comment.author_id), ...(timeEntries ?? []).map((entry) => entry.user_id), ...(attachments ?? []).map((item) => item.uploaded_by), ...(activityEvents ?? []).map((event) => event.actor_id).filter((id): id is string => Boolean(id)), ...(orgMembers ?? []).map((member) => member.user_id), task.created_by, anyRunningTimer?.user_id, ...[task.primary_assignee_id, task.secondary_assignee_id].filter((id): id is string => Boolean(id)), ...(subtasks ?? []).flatMap((s) => [s.primary_assignee_id, s.secondary_assignee_id].filter((id): id is string => Boolean(id))), ...(subtaskAssigneesRaw ?? []).map((row) => row.user_id).filter((id): id is string => Boolean(id))].filter((id): id is string => Boolean(id)))];
-  const { data: authors } = peopleIds.length ? await supabase.from("profiles").select("id, display_name, email, avatar_url").in("id", peopleIds) : { data: [] };
+  const { data: authors } = peopleIds.length ? await supabase.from("profiles").select("id, display_name, email, avatar_url, designation, designations").in("id", peopleIds) : { data: [] };
   const profileById = new Map((authors ?? []).map((profile) => [profile.id, profile]));
   const profileLabel = (id: string) => { const profile = profileById.get(id); return profile?.display_name?.trim() || profile?.email || "Team member"; };
   const subtaskAssigneesMap = new Map<string, string[]>();
@@ -138,11 +139,20 @@ export default async function TaskDetailPage({ params, searchParams }: {
     }
     subtaskAssigneesMap.set(s.id, [...ids]);
   }
-  const members = (orgMembers ?? []).map((member) => ({
-    id: member.user_id,
-    label: profileLabel(member.user_id),
-    avatarUrl: resolveProfileAvatarSrc(member.user_id, profileById.get(member.user_id)?.avatar_url),
-  }));
+  const members = (orgMembers ?? []).map((member: any) => {
+    const prof = profileById.get(member.user_id);
+    const desigs = normalizeMemberDesignations(
+      member.designations || prof?.designations,
+      member.primary_designation || prof?.designation
+    );
+    return {
+      id: member.user_id,
+      label: profileLabel(member.user_id),
+      avatarUrl: resolveProfileAvatarSrc(member.user_id, prof?.avatar_url),
+      designations: desigs,
+      role: member.role,
+    };
+  });
   const taskInitialAssignees = [
     ...new Set([
       ...(task.primary_assignee_id ? [task.primary_assignee_id] : []),

@@ -3,19 +3,29 @@
 import React, { useState } from "react";
 import DateInput from "@/app/DateInput";
 import { createLeaveRequest } from "@/app/actions";
+import { canDelegateRoleAligned } from "@/lib/designations";
 
 export default function LeaveRequestFormClient({
   organizationId,
   today,
   managerName,
   teammates,
+  userDesignations = [],
 }: {
   organizationId: string;
   today: string;
   managerName: string | null;
-  teammates: Array<{ id: string; label: string }>;
+  teammates: Array<{ id: string; label: string; designations?: string[]; role?: string }>;
+  userDesignations?: string[];
 }) {
   const [outOfOffice, setOutOfOffice] = useState(false);
+  const [selectedDelegateId, setSelectedDelegateId] = useState("");
+
+  const selectedDelegate = teammates.find((t) => t.id === selectedDelegateId);
+  const delegationRoleCheck =
+    selectedDelegate && userDesignations.length > 0
+      ? canDelegateRoleAligned(userDesignations, selectedDelegate.designations || [])
+      : null;
 
   return (
     <form action={createLeaveRequest} className="people-calendar-form">
@@ -93,18 +103,49 @@ export default function LeaveRequestFormClient({
         </label>
 
         {outOfOffice && (
-          <label style={{ display: "grid", gap: "5px", fontSize: "10.5px", color: "var(--muted)" }}>
+          <label style={{ display: "grid", gap: "6px", fontSize: "10.5px", color: "var(--muted)" }}>
             Delegate Urgent &amp; High priority tasks to (optional)
-            <select name="delegateUserId" defaultValue="">
+            <select
+              name="delegateUserId"
+              value={selectedDelegateId}
+              onChange={(e) => setSelectedDelegateId(e.target.value)}
+              style={{ fontSize: "12px", padding: "6px 8px", borderRadius: 6, border: "1px solid var(--border-color, #cbd5e1)" }}
+            >
               <option value="">Do not delegate tasks</option>
-              {teammates.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.label}
-                </option>
-              ))}
+              {teammates.map((member) => {
+                const desigStr = member.designations?.length ? ` (${member.designations.join(", ")})` : "";
+                return (
+                  <option key={member.id} value={member.id}>
+                    {member.label}{desigStr}
+                  </option>
+                );
+              })}
             </select>
+
+            {delegationRoleCheck && (
+              <div
+                style={{
+                  padding: "6px 9px",
+                  borderRadius: "6px",
+                  fontSize: "11px",
+                  lineHeight: 1.4,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  backgroundColor: delegationRoleCheck.isAllowed ? "rgba(16, 185, 129, 0.1)" : "rgba(245, 158, 11, 0.12)",
+                  color: delegationRoleCheck.isAllowed ? "#065f46" : "#92400e",
+                  border: `1px solid ${delegationRoleCheck.isAllowed ? "rgba(16, 185, 129, 0.3)" : "rgba(245, 158, 11, 0.35)"}`,
+                }}
+              >
+                <span>{delegationRoleCheck.isAllowed ? "✓" : "⚠️"}</span>
+                <span>
+                  <strong>{delegationRoleCheck.isAllowed ? "Role aligned" : "Role advisory"}:</strong> {delegationRoleCheck.reason}
+                </span>
+              </div>
+            )}
+
             <small style={{ fontSize: "10px", lineHeight: 1.4, color: "var(--muted)" }}>
-              Only your open <strong>Urgent</strong> and <strong>High</strong> priority tasks will be assigned to this teammate; Normal and Low priority tasks stay with you. Manager, delegate, and you will be emailed &amp; notified in Inbox.
+              Only your open <strong>Urgent</strong> and <strong>High</strong> priority tasks will be assigned to this teammate; Normal and Low priority tasks stay with you. Teammate must hold compatible designations (e.g. Developer to Developer).
             </small>
           </label>
         )}

@@ -24,6 +24,7 @@ import ProjectLiveTracker from "./ProjectLiveTracker";
 import ProjectExportButton from "./ProjectExportButton";
 import FavoriteButton from "@/app/FavoriteButton";
 import { resolveProfileAvatarSrc } from "@/lib/chat";
+import { normalizeMemberDesignations } from "@/lib/designations";
 import {
   DEFAULT_PROJECT_TAB_ORDER,
   normalizeTabOrder,
@@ -179,7 +180,7 @@ export default async function ProjectPage({ params, searchParams }: {
   ]);
   const workspace = Array.isArray(project.workspaces) ? project.workspaces[0] : project.workspaces;
   const orgId = workspace?.organization_id;
-  const { data: orgMembers } = orgId ? await supabase.from("organization_members").select("user_id").eq("organization_id", orgId).eq("status", "active") : { data: [] };
+  const { data: orgMembers } = orgId ? await supabase.from("organization_members").select("user_id, role, designations, primary_designation").eq("organization_id", orgId).eq("status", "active") : { data: [] };
   const monthKey = filters.month && /^\d{4}-\d{2}$/.test(filters.month) ? filters.month : today.slice(0, 7);
   const currentYear = Number(monthKey.slice(0, 4));
   const rangeStart = view === "gantt" ? `${currentYear}-01-01` : `${monthKey}-01`;
@@ -241,7 +242,7 @@ export default async function ProjectPage({ params, searchParams }: {
     ]),
   ];
   const { data: profiles } = peopleIds.length
-    ? await supabase.from("profiles").select("id, display_name, email, avatar_url").in("id", peopleIds)
+    ? await supabase.from("profiles").select("id, display_name, email, avatar_url, designation, designations").in("id", peopleIds)
     : { data: [] };
 
   const profileAvatars = new Map(
@@ -307,11 +308,21 @@ export default async function ProjectPage({ params, searchParams }: {
     taskAssigneeMap.set(row.task_id, list);
   }
   const createdBy = new Map((tasks ?? []).map((task) => [task.created_by, people.get(task.created_by) ?? "Team member"]));
-  const members = (orgMembers ?? []).map((member) => ({
-    id: member.user_id,
-    label: people.get(member.user_id) ?? "Team member",
-    avatarUrl: profileAvatars.get(member.user_id) ?? null,
-  }));
+  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+  const members = (orgMembers ?? []).map((member: any) => {
+    const prof = profileMap.get(member.user_id);
+    const desigs = normalizeMemberDesignations(
+      member.designations || prof?.designations,
+      member.primary_designation || prof?.designation
+    );
+    return {
+      id: member.user_id,
+      label: people.get(member.user_id) ?? "Team member",
+      avatarUrl: profileAvatars.get(member.user_id) ?? null,
+      designations: desigs,
+      role: member.role,
+    };
+  });
 
   const getTaskAssignees = (task: { id: string; primary_assignee_id?: string | null; secondary_assignee_id?: string | null }) => {
     const fromMap = taskAssigneeMap.get(task.id) ?? [];

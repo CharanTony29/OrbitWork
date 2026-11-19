@@ -6,13 +6,23 @@ import { ArrowLeft, GitBranch, UsersRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { updateOrganizationMemberManager, updateOrganizationMemberRole } from "@/app/actions";
 import InviteMemberModal from "./InviteMemberModal";
+import DesignationsManagerModal from "./DesignationsManagerModal";
+import MemberDesignationsEditor from "./MemberDesignationsEditor";
+import { normalizeMemberDesignations, type OrganizationDesignation } from "@/lib/designations";
 
 export default async function OrganizationMembersPage({
   params,
   searchParams,
 }: {
   params: Promise<{ organizationId: string }>;
-  searchParams: Promise<{ error?: string; hierarchy_updated?: string; member_updated?: string; invited?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    hierarchy_updated?: string;
+    member_updated?: string;
+    invited?: string;
+    designation_created?: string;
+    designation_deleted?: string;
+  }>;
 }) {
   const { organizationId } = await params;
   const sp = await searchParams;
@@ -24,30 +34,63 @@ export default async function OrganizationMembersPage({
 
   const extMemberQuery = await supabase
     .from("organization_members")
-    .select("user_id, role, status, joined_at, manager_id")
+    .select("user_id, role, status, joined_at, manager_id, designations, primary_designation")
     .eq("organization_id", organizationId)
     .order("joined_at");
 
   const hierarchySupported = !extMemberQuery.error;
-  const memberships: Array<{
+  let memberships: Array<{
     user_id: string;
     role: string;
     status: string;
     joined_at: string;
     manager_id?: string | null;
-  }> = extMemberQuery.error
-    ? (await supabase
+    designations?: string[] | null;
+    primary_designation?: string | null;
+  }> = [];
+
+  if (extMemberQuery.error) {
+    const fallbackQuery = await supabase
+      .from("organization_members")
+      .select("user_id, role, status, joined_at, manager_id")
+      .eq("organization_id", organizationId)
+      .order("joined_at");
+    if (fallbackQuery.error) {
+      memberships = (await supabase
         .from("organization_members")
         .select("user_id, role, status, joined_at")
         .eq("organization_id", organizationId)
-        .order("joined_at")).data ?? []
-    : extMemberQuery.data ?? [];
+        .order("joined_at")).data ?? [];
+    } else {
+      memberships = fallbackQuery.data ?? [];
+    }
+  } else {
+    memberships = extMemberQuery.data ?? [];
+  }
 
   const [{ data: workspaces }, { data: canManageOrg }, { data: isOwner }] = await Promise.all([
     supabase.from("workspaces").select("id, name").eq("organization_id", organizationId).order("name"),
     supabase.rpc("has_org_role", { target_org: organizationId, allowed_roles: ["owner", "admin"] }),
     supabase.rpc("has_org_role", { target_org: organizationId, allowed_roles: ["owner"] }),
   ]);
+
+  // Fetch custom organization designations
+  const { data: rawCustomDesignations } = await supabase
+    .from("organization_designations")
+    .select("id, organization_id, name, category, hierarchy_level, description, color")
+    .eq("organization_id", organizationId)
+    .order("hierarchy_level", { ascending: true })
+    .order("name", { ascending: true });
+
+  const customDesignations: OrganizationDesignation[] = (rawCustomDesignations ?? []).map((d: any) => ({
+    id: d.id,
+    organization_id: d.organization_id,
+    name: d.name,
+    category: d.category || "Custom",
+    hierarchy_level: Number(d.hierarchy_level) || 5,
+    description: d.description || "",
+    color: d.color || "#3b82f6",
+  }));
 
   const memberIds = memberships.map((member) => member.user_id);
   const currentUserMembership = memberships.find((m) => m.user_id === user.id);
@@ -57,9 +100,12 @@ export default async function OrganizationMembersPage({
     currentUserMembership?.role === "owner" ||
     currentUserMembership?.role === "admin"
   );
+  const isManagerOrHigher = Boolean(
+    isOrgAdminOrOwner || currentUserMembership?.role === "manager"
+  );
   const workspaceIds = (workspaces ?? []).map((workspace) => workspace.id);
   const [{ data: profiles }, { data: workspaceMembers }] = await Promise.all([
-    memberIds.length ? supabase.from("profiles").select("id, display_name, email, avatar_url, designation, department, contact_information").in("id", memberIds) : Promise.resolve({ data: [] }),
+    memberIds.length ? supabase.from("profiles").select("id, display_name, email, avatar_url, designation, designations, department, contact_information").in("id", memberIds) : Promise.resolve({ data: [] }),
     workspaceIds.length ? supabase.from("workspace_members").select("workspace_id, user_id, role, status").in("workspace_id", workspaceIds).in("user_id", memberIds) : Promise.resolve({ data: [] }),
   ]);
   const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
@@ -134,22 +180,35 @@ export default async function OrganizationMembersPage({
               <h1>Members, roles &amp; hierarchy</h1>
               <p className="muted">People with access to {organization.name}, workspace roles, and reporting lines for leave approvals.</p>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span className="organization-members-count"><UsersRound size={16}/>{memberships.length} members</span>
+              <DesignationsManagerModal
+                organizationId={organizationId}
+                organizationName={organization.name}
+                customDesignations={customDesignations}
+                canManage={isManagerOrHigher}
+              />
               {isOrgAdminOrOwner && (
                 <InviteMemberModal organizationId={organizationId} organizationName={organization.name} />
               )}
             </div>
           </header>
   {sp.invited && <p className="notice" role="status">Invitation sent successfully ({sp.invited} teammate{Number(sp.invited) > 1 ? "s" : ""}).</p>}
+  {sp.designation_created && <p className="notice" role="status">Designation / role created successfully.</p>}
+  {sp.designation_deleted && <p className="notice" role="status">Designation removed successfully.</p>}
   {sp.error && <p className="error" role="alert">Hierarchy or role update could not be saved ({sp.error}). Check permissions and avoid circular reporting.</p>}
   {(sp.hierarchy_updated || sp.member_updated) && <p className="notice" role="status">Organization member settings updated.</p>}
   {!hierarchySupported && <p className="error" role="alert">Run <code>supabase/migrations/202611120003_platform_enhancements.sql</code> in Supabase to enable reporting hierarchy management.</p>}
-  <div className="organization-members-table-wrap"><table className="organization-members-table"><thead><tr><th>Member</th><th>Organization role</th><th>Reports to (Manager)</th><th>Workspace access and role</th><th>Status</th><th>Joined</th></tr></thead><tbody>{memberships.map((membership) => {
+  <div className="organization-members-table-wrap"><table className="organization-members-table"><thead><tr><th>Member</th><th>Organization role</th><th>Designations (Multi-Role)</th><th>Reports to (Manager)</th><th>Workspace access and role</th><th>Status</th><th>Joined</th></tr></thead><tbody>{memberships.map((membership) => {
     const profile = profileById.get(membership.user_id);
     const name = getMemberLabel(membership.user_id);
+    const memberDesignations = normalizeMemberDesignations(
+      membership.designations,
+      profile?.designation
+    );
+    const primaryDesignation = membership.primary_designation || profile?.designation || memberDesignations[0] || null;
     const workspaceRoles = workspaceRoleByUser.get(membership.user_id) ?? [];
-    const profileDetails = [profile?.designation, profile?.department, profile?.contact_information].filter(Boolean).join(" · ");
+    const profileDetails = [profile?.department, profile?.contact_information].filter(Boolean).join(" · ");
     const currentManagerName = membership.manager_id ? getMemberLabel(membership.manager_id) : "Top level (No manager)";
     return <tr key={membership.user_id}><td><div className="organization-member-person"><span className="organization-member-avatar">{profile?.avatar_url ? <img src={profile.avatar_url} alt={name} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /> : (name[0]?.toUpperCase() ?? "U")}</span><span><strong>{name}</strong>{profile?.email && profile.display_name?.trim() && <small>{profile.email}</small>}{profileDetails && <small>{profileDetails}</small>}</span></div></td><td>{canManageOrg && membership.role !== "owner" ? (
       <form action={updateOrganizationMemberRole} style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center" }}>
@@ -165,7 +224,7 @@ export default async function OrganizationMembersPage({
       </form>
     ) : (
       <span className={`organization-role-badge role-${membership.role}`}>{membership.role}</span>
-    )}</td><td>{isOwner && hierarchySupported ? (
+    )}</td><td><MemberDesignationsEditor organizationId={organizationId} userId={membership.user_id} memberName={name} currentDesignations={memberDesignations} primaryDesignation={primaryDesignation} allAvailableDesignations={customDesignations} canManage={isManagerOrHigher} /></td><td>{isOwner && hierarchySupported ? (
       <form action={updateOrganizationMemberManager} style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center" }}>
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="userId" value={membership.user_id} />

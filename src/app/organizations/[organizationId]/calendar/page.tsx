@@ -66,11 +66,16 @@ export default async function OrganizationCalendarPage({ params, searchParams }:
 
   const extMemQuery = await supabase
     .from("organization_members")
-    .select("user_id, role, manager_id, status")
+    .select("user_id, role, manager_id, status, designations")
     .eq("organization_id", organizationId)
     .eq("status", "active");
 
-  const orgMembers: Array<{ user_id: string; role: string; manager_id?: string | null }> = extMemQuery.error
+  const orgMembers: Array<{
+    user_id: string;
+    role: string;
+    manager_id?: string | null;
+    designations?: string[] | null;
+  }> = extMemQuery.error
     ? (await supabase
         .from("organization_members")
         .select("user_id, role, status")
@@ -96,10 +101,20 @@ export default async function OrganizationCalendarPage({ params, searchParams }:
       ...orgMembers.map((m) => m.user_id),
     ]),
   ];
-  const { data: profiles } = userIds.length ? await supabase.from("profiles").select("id, display_name, email").in("id", userIds) : { data: [] };
+  const { data: profiles } = userIds.length
+    ? await supabase.from("profiles").select("id, display_name, email, designation, designations").in("id", userIds)
+    : { data: [] };
   const people = new Map((profiles ?? []).map((profile) => [profile.id, profile.display_name?.trim() || profile.email || "Teammate"]));
+  const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
 
   const myMembership = orgMembers.find((m) => m.user_id === user.id);
+  const myProfile = profileMap.get(user.id);
+  const myDesignations = [
+    ...(myMembership?.designations ?? []),
+    ...(myProfile?.designations ?? []),
+    myProfile?.designation,
+  ].filter((d): d is string => Boolean(d && typeof d === "string"));
+
   const myImmediateManagerId =
     myMembership?.manager_id && myMembership.manager_id !== user.id
       ? myMembership.manager_id
@@ -110,7 +125,20 @@ export default async function OrganizationCalendarPage({ params, searchParams }:
 
   const teammates = orgMembers
     .filter((m) => m.user_id !== user.id)
-    .map((m) => ({ id: m.user_id, label: people.get(m.user_id) ?? "Teammate" }));
+    .map((m) => {
+      const prof = profileMap.get(m.user_id);
+      const desigs = [
+        ...(m.designations ?? []),
+        ...(prof?.designations ?? []),
+        prof?.designation,
+      ].filter((d): d is string => Boolean(d && typeof d === "string"));
+      return {
+        id: m.user_id,
+        label: people.get(m.user_id) ?? "Teammate",
+        designations: desigs,
+        role: m.role,
+      };
+    });
 
   return (
     <AppRailLayout organizationId={organizationId}>
@@ -215,6 +243,7 @@ export default async function OrganizationCalendarPage({ params, searchParams }:
               today={today}
               managerName={managerName}
               teammates={teammates}
+              userDesignations={myDesignations}
             />
           </section>
         </div>

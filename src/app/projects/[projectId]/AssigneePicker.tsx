@@ -1,10 +1,17 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
-import { User, UserPlus, Check, X } from "lucide-react";
+import { User, UserPlus, Check, X, Sparkles, Loader2, Bot } from "lucide-react";
 import { setTaskAssignees } from "@/app/actions";
+import { memberMatchesRole } from "@/lib/designations";
 
-type Member = { id: string; label: string; avatarUrl?: string | null };
+export type Member = {
+  id: string;
+  label: string;
+  avatarUrl?: string | null;
+  designations?: string[];
+  role?: string;
+};
 
 const AVATAR_COLORS = [
   "#167c58", // Green
@@ -38,12 +45,37 @@ export default function AssigneePicker({
 }) {
   const [assignees, setAssignees] = useState<string[]>(initialAssignees);
   const [isOpen, setIsOpen] = useState(false);
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [isAiAssigning, setIsAiAssigning] = useState(false);
+  const [aiNotice, setAiNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setAssignees(initialAssignees);
   }, [initialAssignees]);
+
+  async function handleAIAssignSingle() {
+    setIsAiAssigning(true);
+    setAiNotice(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/tasks/ai-assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.assignments?.[0]) {
+        const assignedId = data.assignments[0].assignedUserId;
+        commit([assignedId]);
+        setAiNotice(`Assigned to ${data.assignments[0].assignedUserName} (${data.assignments[0].requiredRole})`);
+      }
+    } catch (err) {
+      console.warn("AI Single Assign error:", err);
+    } finally {
+      setIsAiAssigning(false);
+    }
+  }
 
   // Close popover on outside click
   useEffect(() => {
@@ -190,14 +222,14 @@ export default function AssigneePicker({
             top: "calc(100% + 4px)",
             left: 0,
             zIndex: 100,
-            width: 220,
-            maxHeight: 260,
+            width: 250,
+            maxHeight: 310,
             overflowY: "auto",
             backgroundColor: "var(--surface, #ffffff)",
             border: "1px solid var(--line, #e2e8f0)",
             borderRadius: 8,
             boxShadow: "0 10px 25px rgba(0,0,0,0.18)",
-            padding: "6px",
+            padding: "8px",
           }}
         >
           <div
@@ -205,7 +237,7 @@ export default function AssigneePicker({
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              padding: "4px 8px 6px",
+              padding: "2px 4px 6px",
               borderBottom: "1px solid var(--line, #e2e8f0)",
               fontSize: 10,
               fontWeight: 700,
@@ -215,67 +247,153 @@ export default function AssigneePicker({
             }}
           >
             <span>Assign Members</span>
-            {pending && <span style={{ color: "var(--green, #167c58)" }}>Saving…</span>}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {pending && <span style={{ color: "var(--green, #167c58)" }}>Saving…</span>}
+              <button
+                type="button"
+                onClick={handleAIAssignSingle}
+                disabled={isAiAssigning}
+                title="AI Auto-Assign — Analyzes task and assigns to lowest-workload member"
+                style={{
+                  border: 0,
+                  background: "rgba(124, 58, 237, 0.1)",
+                  color: "#7c3aed",
+                  borderRadius: 4,
+                  padding: "2px 5px",
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 3,
+                }}
+              >
+                {isAiAssigning ? (
+                  <Loader2 size={10} className="animate-spin" />
+                ) : (
+                  <Sparkles size={10} />
+                )}
+                <span>AI Auto</span>
+              </button>
+            </div>
+          </div>
+
+          {aiNotice && (
+            <div
+              style={{
+                fontSize: 10,
+                color: "#059669",
+                background: "rgba(16, 185, 129, 0.08)",
+                padding: "3px 6px",
+                borderRadius: 4,
+                marginTop: 4,
+              }}
+            >
+              ✓ {aiNotice}
+            </div>
+          )}
+
+          {/* Quick Role Filters */}
+          <div style={{ display: "flex", gap: 3, marginTop: 5, paddingBottom: 4 }}>
+            {[
+              { id: "all", label: "All" },
+              { id: "developer", label: "Dev" },
+              { id: "tester", label: "QA" },
+              { id: "support", label: "Support" },
+            ].map((rf) => (
+              <button
+                key={rf.id}
+                type="button"
+                onClick={() => setRoleFilter(rf.id)}
+                style={{
+                  border: 0,
+                  borderRadius: 4,
+                  padding: "2px 6px",
+                  fontSize: 9.5,
+                  fontWeight: roleFilter === rf.id ? 700 : 500,
+                  backgroundColor: roleFilter === rf.id ? "var(--ink, #1f2d26)" : "var(--soft, #f1f5f9)",
+                  color: roleFilter === rf.id ? "#ffffff" : "var(--muted, #64748b)",
+                  cursor: "pointer",
+                }}
+              >
+                {rf.label}
+              </button>
+            ))}
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
-            {members.map((member) => {
-              const isAssigned = assignees.includes(member.id);
-              return (
-                <button
-                  key={member.id}
-                  type="button"
-                  onClick={() => toggleMember(member.id)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "6px 8px",
-                    border: 0,
-                    borderRadius: 6,
-                    background: isAssigned ? "rgba(22, 124, 88, 0.1)" : "transparent",
-                    color: "var(--ink, #1f2d26)",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    textAlign: "left",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span
-                      style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: "50%",
-                        backgroundColor: getAvatarColor(member.id),
-                        color: "#fff",
-                        fontSize: 9,
-                        fontWeight: 700,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        overflow: "hidden",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {member.avatarUrl ? (
-                        <img
-                          src={member.avatarUrl}
-                          alt={member.label}
-                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
-                      ) : (
-                        member.label.charAt(0).toUpperCase()
-                      )}
-                    </span>
-                    <span style={{ fontWeight: isAssigned ? 600 : 400 }}>{member.label}</span>
-                  </div>
-                  {isAssigned && <Check size={13} style={{ color: "var(--green, #167c58)" }} />}
-                </button>
-              );
-            })}
+            {members
+              .filter((m) => {
+                if (roleFilter === "all") return true;
+                return memberMatchesRole(m.designations || [], roleFilter);
+              })
+              .map((member) => {
+                const isAssigned = assignees.includes(member.id);
+                const firstDesig = member.designations?.[0] || member.role || "";
+                return (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => toggleMember(member.id)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "5px 6px",
+                      border: 0,
+                      borderRadius: 6,
+                      background: isAssigned ? "rgba(22, 124, 88, 0.1)" : "transparent",
+                      color: "var(--ink, #1f2d26)",
+                      cursor: "pointer",
+                      fontSize: 11.5,
+                      textAlign: "left",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, overflow: "hidden" }}>
+                      <span
+                        style={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: "50%",
+                          backgroundColor: getAvatarColor(member.id),
+                          color: "#fff",
+                          fontSize: 9,
+                          fontWeight: 700,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          overflow: "hidden",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {member.avatarUrl ? (
+                          <img
+                            src={member.avatarUrl}
+                            alt={member.label}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          member.label.charAt(0).toUpperCase()
+                        )}
+                      </span>
+                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <span style={{ fontWeight: isAssigned ? 600 : 400, display: "block" }}>
+                          {member.label}
+                        </span>
+                        {firstDesig && (
+                          <span style={{ fontSize: 9.5, color: "var(--muted)", display: "block" }}>
+                            {firstDesig}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {isAssigned && <Check size={13} style={{ color: "var(--green, #167c58)", flexShrink: 0 }} />}
+                  </button>
+                );
+              })}
           </div>
         </div>
       )}

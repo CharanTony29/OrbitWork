@@ -20,10 +20,12 @@ import {
   Tag,
   Palette,
   Sparkles,
+  Bot,
 } from "lucide-react";
 import UniversalCreateModal from "@/app/UniversalCreateModal";
 import CustomThemeStudioModal from "@/app/CustomThemeStudioModal";
 import MoMToTasksModal from "./MoMToTasksModal";
+import AIAssignModal from "./AIAssignModal";
 
 type WorkflowStatus = { id: string; name: string; color: string; category?: string };
 type Member = { id: string; label: string };
@@ -66,6 +68,7 @@ export default function TaskFilterToolbar({
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [isUniversalCreateOpen, setIsUniversalCreateOpen] = useState(false);
   const [isMoMOpen, setIsMoMOpen] = useState(false);
+  const [isAIAssignOpen, setIsAIAssignOpen] = useState(false);
   const [isThemeStudioOpen, setIsThemeStudioOpen] = useState(false);
 
   const filterRef = useRef<HTMLDivElement>(null);
@@ -507,6 +510,18 @@ export default function TaskFilterToolbar({
           <Sparkles size={13} className="pill-icon" />
           <span>MoM to Tasks</span>
         </button>
+
+        {/* AI Auto-Assign unassigned tasks */}
+        <button
+          type="button"
+          className="toolbar-pill"
+          onClick={() => setIsAIAssignOpen(true)}
+          title="AI Auto-Assign — Triages unassigned tasks to role-aligned teammates with lowest workload"
+          style={{ color: "#7c3aed", fontWeight: 650 }}
+        >
+          <Bot size={13} className="pill-icon" />
+          <span>AI Auto-Assign</span>
+        </button>
       </div>
 
       {/* Right side pills */}
@@ -694,6 +709,14 @@ export default function TaskFilterToolbar({
       <CustomThemeStudioModal
         isOpen={isThemeStudioOpen}
         onClose={() => setIsThemeStudioOpen(false)}
+      />
+
+      <AIAssignModal
+        isOpen={isAIAssignOpen}
+        onClose={() => setIsAIAssignOpen(false)}
+        projectId={projectId}
+        projectName={projectName}
+        members={members}
       />
     </div>
   );

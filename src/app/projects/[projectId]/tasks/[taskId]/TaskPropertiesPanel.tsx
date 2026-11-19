@@ -273,30 +273,28 @@ export default function TaskPropertiesPanel({
           {remainingLabel}
         </strong>
       </div>
-      {isSubtask && (
-        <div className="property-line property-line-assignees">
-          <span>Assignees</span>
-          <div>
-            {canEdit ? (
-              <AssigneePicker
-                projectId={projectId}
-                taskId={taskId}
-                members={members}
-                initialAssignees={initialAssignees}
-              />
-            ) : (
-              <strong>
-                {initialAssignees.length > 0
-                  ? members
-                      .filter((m) => initialAssignees.includes(m.id))
-                      .map((m) => m.label)
-                      .join(", ") || "Unassigned"
-                  : "Unassigned"}
-              </strong>
-            )}
-          </div>
+      <div className="property-line property-line-assignees">
+        <span>Assignees</span>
+        <div>
+          {canEdit ? (
+            <AssigneePicker
+              projectId={projectId}
+              taskId={taskId}
+              members={members}
+              initialAssignees={initialAssignees}
+            />
+          ) : (
+            <strong>
+              {initialAssignees.length > 0
+                ? members
+                    .filter((m) => initialAssignees.includes(m.id))
+                    .map((m) => m.label)
+                    .join(", ") || "Unassigned"
+                : "Unassigned"}
+            </strong>
+          )}
         </div>
-      )}
+      </div>
       <div className="property-line">
         <span>Created by</span>
         <strong>{createdByLabel}</strong>

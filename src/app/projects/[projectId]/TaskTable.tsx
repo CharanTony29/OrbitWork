@@ -49,7 +49,7 @@ type TaskRow = {
 };
 
 type WorkflowStatus = { id: string; name: string; color: string };
-type Person = { id: string; label: string; avatarUrl?: string | null };
+type Person = { id: string; label: string; avatarUrl?: string | null; designations?: string[]; role?: string };
 type CustomField = { id: string; name: string; field_type: string };
 
 const AVATAR_COLORS = [
