@@ -2,7 +2,7 @@ import Link from "next/link";
 import AppTopBar from "@/app/AppTopBar";
 import AppRailLayout from "@/app/AppRailLayout";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, FolderKanban, Layers3 } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Brain, FolderKanban, Layers3 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import TimesheetExportButton from "@/app/timesheets/TimesheetExportButton";
 import DeleteWorkspaceButton from "@/app/workspaces/DeleteWorkspaceButton";
@@ -91,6 +91,14 @@ export default async function OrganizationWorkspacesPage({
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Link
+              href={`/organizations/${organizationId}/brain`}
+              className="button button-secondary"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, padding: "7px 12px", height: 36 }}
+            >
+              <Brain size={15} color="#4f46e5" />
+              <span>Organization Brain</span>
+            </Link>
             <TimesheetExportButton
               scope="organization"
               targetId={organizationId}

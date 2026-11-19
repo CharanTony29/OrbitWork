@@ -1,0 +1,81 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { buildOrganizationBrain, TaskCatalogFilter } from "@/lib/brain/portfolio-brain";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ organizationId: string }> }
+) {
+  try {
+    const { organizationId } = await params;
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (!user || authError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const projectsParam = searchParams.get("projects");
+    const prioritiesParam = searchParams.get("priorities");
+
+    const filter: TaskCatalogFilter = {};
+    if (projectsParam) {
+      filter.selectedProjectIds = projectsParam.split(",").filter(Boolean);
+    }
+    if (prioritiesParam) {
+      filter.priorities = prioritiesParam.split(",").filter(Boolean);
+    }
+
+    const brainData = await buildOrganizationBrain(organizationId, user.id, filter);
+    return NextResponse.json({ ok: true, data: brainData });
+  } catch (err: any) {
+    console.error("Organization Brain API error:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to load Organization Brain" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ organizationId: string }> }
+) {
+  try {
+    const { organizationId } = await params;
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (!user || authError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const filter: TaskCatalogFilter = {
+      selectedProjectIds: body.selectedProjectIds,
+      priorities: body.priorities,
+      statusCategories: body.statusCategories,
+      searchQuery: body.searchQuery,
+    };
+
+    const brainData = await buildOrganizationBrain(organizationId, user.id, filter);
+    return NextResponse.json({ ok: true, data: brainData });
+  } catch (err: any) {
+    console.error("Organization Brain POST error:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to calculate Organization Brain" },
+      { status: 500 }
+    );
+  }
+}

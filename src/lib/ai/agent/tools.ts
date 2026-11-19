@@ -1,6 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { generateProjectScope, generateTaskScope } from "@/lib/ai/utilities/scope-writer";
+import { buildWorkspaceBrain } from "@/lib/brain/portfolio-brain";
 
 export interface AgentToolsContext {
   supabase: SupabaseClient;
@@ -1893,6 +1895,148 @@ export function createAutonomousAgentTools(context: AgentToolsContext) {
           nodesCount: nodes.length,
           edgesCount: edges.length,
         };
+      },
+    }),
+
+    generate_project_scope: tool({
+      description:
+        "Drafts a formal, executive-ready Project Scope document grounded in current tasks, goals, and meeting notes/MoM, saving it directly into project documents.",
+      inputSchema: z.object({
+        meetingNotes: z.string().optional().describe("Meeting minutes or discussion notes to extract scope requirements from"),
+        goalText: z.string().optional().describe("High-level project objective or vision statement"),
+        saveAsDocument: z.boolean().default(true).describe("Whether to permanently save as an official project document"),
+      }),
+      execute: async ({ meetingNotes, goalText, saveAsDocument }: { meetingNotes?: string; goalText?: string; saveAsDocument?: boolean }) => {
+        try {
+          const result = await generateProjectScope({
+            projectId,
+            meetingNotes,
+            goalText,
+            saveAsDocument,
+          });
+
+          actionLog.push(`Generated official Project Scope specification "${result.title}".`);
+          if (result.savedDocumentId) {
+            verifiedUpdates.push({
+              taskId: result.savedDocumentId,
+              taskTitle: result.title,
+              field: "created official project scope document",
+              oldValue: null,
+              newValue: result.savedDocumentId,
+              timestamp: new Date().toLocaleTimeString(),
+            });
+          }
+
+          return {
+            success: true,
+            title: result.title,
+            executiveSummary: result.executiveSummary,
+            savedDocumentId: result.savedDocumentId,
+            scopePreview: result.scopeMarkdown.slice(0, 500) + "...",
+          };
+        } catch (err: any) {
+          failedUpdates.push({
+            taskId: "project_scope",
+            reason: err?.message || "Failed to generate project scope",
+            timestamp: new Date().toLocaleTimeString(),
+          });
+          return { error: `Scope generation failed: ${err?.message}` };
+        }
+      },
+    }),
+
+    generate_task_scope: tool({
+      description:
+        "Writes an engineering-grade Task Scope & Technical Specification (User Story, Scope of Work, Acceptance Criteria, Story Points, Estimated Hours) from a task title or meeting snippet, and updates the task in the database.",
+      inputSchema: z.object({
+        taskId: z.string().uuid().optional().describe("Task UUID to update. If omitted, uses active task if present"),
+        taskTitle: z.string().describe("Title or core requirement of the task"),
+        meetingSnippet: z.string().optional().describe("Discussion notes or client feedback regarding this task"),
+        updateTask: z.boolean().default(true).describe("Whether to update the task description and estimate in the database"),
+      }),
+      execute: async ({ taskId, taskTitle, meetingSnippet, updateTask }: { taskId?: string; taskTitle: string; meetingSnippet?: string; updateTask?: boolean }) => {
+        try {
+          const targetId = taskId || targetTaskId;
+          const result = await generateTaskScope({
+            taskTitle,
+            taskId: targetId,
+            projectId,
+            meetingSnippet,
+            updateTask: Boolean(updateTask && targetId),
+          });
+
+          actionLog.push(`Generated task scope and acceptance criteria for "${taskTitle}".`);
+          if (result.updatedTaskId) {
+            verifiedUpdates.push({
+              taskId: result.updatedTaskId,
+              taskTitle,
+              field: "updated description with user story and acceptance criteria",
+              oldValue: null,
+              newValue: `${result.acceptanceCriteria.length} criteria, ${result.estimatedHours}h`,
+              timestamp: new Date().toLocaleTimeString(),
+            });
+          }
+
+          return {
+            success: true,
+            taskTitle: result.title,
+            acceptanceCriteriaCount: result.acceptanceCriteria.length,
+            acceptanceCriteria: result.acceptanceCriteria,
+            estimatedHours: result.estimatedHours,
+            storyPoints: result.storyPoints,
+            updatedTaskId: result.updatedTaskId,
+          };
+        } catch (err: any) {
+          failedUpdates.push({
+            taskId: taskId || "task_scope",
+            taskTitle,
+            reason: err?.message || "Failed to generate task scope",
+            timestamp: new Date().toLocaleTimeString(),
+          });
+          return { error: `Task scope generation failed: ${err?.message}` };
+        }
+      },
+    }),
+
+    inspect_portfolio_brain: tool({
+      description:
+        "Analyzes Workspace Brain or Organization Brain intelligence, returning cross-project health, multi-project team workload, and cross-project blocking dependencies.",
+      inputSchema: z.object({
+        filterPriority: z.string().optional().describe("Optional priority filter (urgent, high, normal, low)"),
+      }),
+      execute: async ({ filterPriority }: { filterPriority?: string }) => {
+        try {
+          // Fetch workspaceId from project
+          const { data: proj } = await supabase
+            .from("projects")
+            .select("workspace_id")
+            .eq("id", projectId)
+            .maybeSingle();
+
+          if (!proj?.workspace_id) {
+            return { error: "Project workspace not found" };
+          }
+
+          const brain = await buildWorkspaceBrain(proj.workspace_id, userId, {
+            priorities: filterPriority ? [filterPriority] : undefined,
+          });
+
+          actionLog.push(`Inspected Workspace Brain: ${brain.scopeName} (${brain.health.overallScore}% health).`);
+          return {
+            success: true,
+            scopeName: brain.scopeName,
+            overallScore: brain.health.overallScore,
+            statusLabel: brain.health.statusLabel,
+            totalProjects: brain.metrics.totalProjects,
+            totalTasks: brain.metrics.totalTasks,
+            overdueTasks: brain.metrics.overdueTasks,
+            crossProjectDependenciesCount: brain.crossProjectDependencies.length,
+            overloadedMembersCount: brain.workload.filter((w) => w.status === "overloaded").length,
+            aiSummaryHeadline: brain.aiExecutiveSummary.headline,
+          };
+        } catch (err: any) {
+          return { error: `Portfolio Brain inspection failed: ${err?.message}` };
+        }
       },
     }),
   };

@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const excelBuffer = generateTimesheetWorkbook(
+    const excelBuffer = await generateTimesheetWorkbook(
       {
         type: scopeType as any,
         name: scopeName,

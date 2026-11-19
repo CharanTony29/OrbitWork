@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import AppTopBar from "@/app/AppTopBar";
 import Link from "next/link";
-import { ArrowLeft, Clock3, FolderKanban } from "lucide-react";
+import { ArrowLeft, Brain, Clock3, FolderKanban } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { removeWorkspaceMember, updateWorkspaceMemberRole } from "@/app/actions";
 import WorkspaceProjectsList from "./WorkspaceProjectsList";
@@ -169,6 +169,14 @@ export default async function WorkspacePage({
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Link
+              href={`/workspaces/${workspaceId}/brain`}
+              className="button button-secondary"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px", minHeight: 34 }}
+            >
+              <Brain size={14} color="#6366f1" />
+              <span>Workspace Brain</span>
+            </Link>
             <Link
               href={`/workspaces/${workspaceId}/timesheets`}
               className="button button-secondary"
