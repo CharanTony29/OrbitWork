@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { searchAttachmentAndDocConcepts } from "@/lib/ai/rag/index-service";
 
 export interface UserTaskContext {
   id: string;
@@ -441,7 +442,40 @@ export async function getUserRelevantDocumentContext(
       seenDocIds.add(pd.id);
     }
 
-    // 4. Query project / workspace / organization attachments (files)
+    // 4. Query project / workspace / organization attachments via RAG concept search
+    const { data: accessibleProjects } = await supabase
+      .from("projects")
+      .select("id")
+      .limit(60);
+    const accessibleProjectIds = (accessibleProjects ?? []).map((p) => p.id);
+
+    if (accessibleProjectIds.length > 0) {
+      try {
+        const conceptMatches = await searchAttachmentAndDocConcepts({
+          supabase,
+          projectIds: accessibleProjectIds,
+          query: term,
+          limit: 6,
+        });
+
+        for (const cm of conceptMatches) {
+          if (seenDocIds.has(cm.id)) continue;
+          foundDocs.push({
+            id: cm.id,
+            title: `📎 ${cm.title} [${cm.section}]`,
+            scope: "project",
+            scopeName: `Project Task: ${cm.taskTitle} (${cm.taskKey})`,
+            excerpt: cm.snippet,
+            link: cm.href,
+          });
+          seenDocIds.add(cm.id);
+        }
+      } catch (ragErr) {
+        console.warn("[Document AI Context] RAG concept search warning:", ragErr);
+      }
+    }
+
+    // 5. Query attachments by file name match fallback
     const { data: matchedAttachments } = await supabase
       .from("task_attachments")
       .select("id, project_id, task_id, file_name, mime_type, file_size_bytes, tasks(title, generated_key, is_private), projects(name)")
@@ -449,6 +483,7 @@ export async function getUserRelevantDocumentContext(
       .limit(4);
 
     for (const att of matchedAttachments ?? []) {
+      if (seenDocIds.has(att.id)) continue;
       const taskObj = att.tasks as any;
       if (taskObj?.is_private) continue;
       const projName = (att.projects as any)?.name || "Project";
@@ -461,6 +496,7 @@ export async function getUserRelevantDocumentContext(
         excerpt: `Attachment (${sizeMb} MB, ${att.mime_type}) on task ${taskObj?.generated_key || ""}`,
         link: `/projects/${att.project_id}/tasks/${att.task_id}`,
       });
+      seenDocIds.add(att.id);
     }
   } catch (err) {
     console.warn("[Document AI Context] Error retrieving documents:", err);

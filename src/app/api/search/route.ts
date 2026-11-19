@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { searchAttachmentAndDocConcepts } from "@/lib/ai/rag/index-service";
 
 function sanitizePattern(q: string): string {
   return q.replace(/[%_\\,()]/g, " ").trim();
@@ -369,6 +370,47 @@ export async function GET(request: Request) {
         mimeType: att.mime_type,
         fileSizeBytes: att.file_size_bytes,
       });
+    }
+  }
+
+  // D2. RAG Concept Search across Attachment Contents (PPTX, DOCX, PDF, XLSX, TXT)
+  if (scopedProjectIds.length > 0) {
+    try {
+      const conceptMatches = await searchAttachmentAndDocConcepts({
+        supabase,
+        projectIds: scopedProjectIds,
+        query: cleanQ,
+        limit: 10,
+      });
+
+      for (const cm of conceptMatches) {
+        if (!documentsMap.has(cm.id)) {
+          const proj = projectMap.get(cm.projectId);
+          const wsId = proj?.workspace_id || targetWorkspaceIds[0] || "";
+          const wsName = wsId ? workspaceMap.get(wsId)?.name : "Workspace";
+          const taskKey = cm.taskKey ? `[${cm.taskKey}] ` : "";
+
+          documentsMap.set(cm.id, {
+            id: cm.id,
+            projectId: cm.projectId,
+            projectName: proj?.name || cm.projectName || "Project",
+            workspaceId: wsId,
+            workspaceName: wsName,
+            title: cm.title,
+            snippet: `[${cm.section}] ${cm.snippet}`,
+            updatedAt: new Date().toISOString(),
+            scope: "project",
+            isPrivate: false,
+            href: cm.href,
+            type: "document",
+            isAttachment: cm.sourceType === "attachment",
+            mimeType: cm.mimeType,
+            fileSizeBytes: cm.fileSizeBytes,
+          });
+        }
+      }
+    } catch (conceptErr) {
+      console.warn("[Search] Attachment concept search error:", conceptErr);
     }
   }
 

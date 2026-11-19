@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { searchAttachmentAndDocConcepts } from "@/lib/ai/rag/index-service";
 
 function formatBytes(bytes: number): string {
   if (!bytes || bytes <= 0) return "0 B";
@@ -332,6 +333,44 @@ export async function GET(
         mimeType: att.mime_type,
         fileSizeBytes: att.file_size_bytes,
       });
+    }
+  }
+
+  // RAG Concept Search across Attachment Contents (PPTX, DOCX, PDF, XLSX, TXT)
+  if (projectIds.length > 0) {
+    try {
+      const conceptMatches = await searchAttachmentAndDocConcepts({
+        supabase,
+        projectIds,
+        query: cleanQuery,
+        limit: 10,
+      });
+
+      for (const cm of conceptMatches) {
+        if (!documentsMap.has(cm.id)) {
+          const projName = projectMap.get(cm.projectId) ?? cm.projectName ?? "Project";
+
+          documentsMap.set(cm.id, {
+            id: cm.id,
+            projectId: cm.projectId,
+            projectName: projName,
+            workspaceId,
+            workspaceName: wsName,
+            title: cm.title,
+            snippet: `[${cm.section}] ${cm.snippet}`,
+            updatedAt: new Date().toISOString(),
+            scope: "project",
+            isPrivate: false,
+            href: cm.href,
+            type: "document",
+            isAttachment: cm.sourceType === "attachment",
+            mimeType: cm.mimeType,
+            fileSizeBytes: cm.fileSizeBytes,
+          });
+        }
+      }
+    } catch (conceptErr) {
+      console.warn("[WorkspaceSearch] Attachment concept search error:", conceptErr);
     }
   }
 

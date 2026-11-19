@@ -3,6 +3,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { deleteDriveFile, GoogleDriveError, googleDriveAccessToken, uploadProjectDriveFile } from "@/lib/google-drive";
 import { deleteOneDriveFile, getOneDriveAccessToken, uploadProjectOneDriveFile } from "@/lib/onedrive";
 import { getWorkspaceStorageConfig } from "@/lib/storage-config";
+import { indexAttachment } from "@/lib/ai/rag/index-service";
 
 const maxBytes = 15 * 1024 * 1024;
 
@@ -158,6 +159,16 @@ export async function POST(request: Request) {
           uploaded_by: user.id,
         }).select("id").maybeSingle();
         if (!error && insertedDrive?.id) {
+          void indexAttachment({
+            supabase,
+            attachmentId: insertedDrive.id,
+            buffer: Buffer.from(fileBytes),
+            fileName: uploaded.name,
+            mimeType: uploaded.mimeType || contentType,
+            projectId,
+            taskId,
+          }).catch(() => undefined);
+
           if (wantsJson) {
             return NextResponse.json({
               ok: true,
@@ -208,6 +219,16 @@ export async function POST(request: Request) {
           uploaded_by: user.id,
         }).select("id").maybeSingle();
         if (!odErr && insertedOd?.id) {
+          void indexAttachment({
+            supabase,
+            attachmentId: insertedOd.id,
+            buffer: Buffer.from(fileBytes),
+            fileName: uploaded.name,
+            mimeType: contentType,
+            projectId,
+            taskId,
+          }).catch(() => undefined);
+
           if (wantsJson) {
             return NextResponse.json({
               ok: true,
@@ -264,6 +285,16 @@ export async function POST(request: Request) {
       await supabase.from("task_attachments").delete().eq("id", inserted.id);
       return failResponse(fileErr?.message || "Failed to save attachment bytes", 500, "save_failed");
     }
+
+    void indexAttachment({
+      supabase,
+      attachmentId: inserted.id,
+      buffer: Buffer.from(fileBytes),
+      fileName: safeName,
+      mimeType: contentType,
+      projectId,
+      taskId,
+    }).catch(() => undefined);
 
     if (wantsJson) {
       return NextResponse.json({
