@@ -60,8 +60,8 @@ export default function DesignationsManagerModal({
           }}
           style={{ zIndex: 9999 }}
         >
-          <div className="proj-modal" style={{ maxWidth: 680, maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
-            <div className="proj-modal-head" style={{ borderBottom: "1px solid var(--line, #e2e8f0)", paddingBottom: "12px" }}>
+          <div className="proj-modal" style={{ maxWidth: 720, height: "85vh", maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
+            <div className="proj-modal-head" style={{ borderBottom: "1px solid var(--line, #e2e8f0)", padding: "14px 20px", flexShrink: 0 }}>
               <div>
                 <h2 id="designations-modal-title" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, margin: 0 }}>
                   <Briefcase size={18} style={{ color: "var(--green, #167c58)" }} />
@@ -81,9 +81,9 @@ export default function DesignationsManagerModal({
               </button>
             </div>
 
-            <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1, display: "grid", gap: "16px" }}>
+            <div className="proj-modal-body" style={{ padding: "16px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: "16px" }}>
               {/* Header with Add Button */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, flexShrink: 0 }}>
                 <div>
                   <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--ink, #1f2d26)" }}>
                     Active Organization Roles ({allDesignations.length})
@@ -124,6 +124,7 @@ export default function DesignationsManagerModal({
                     border: "1px solid var(--line, #e2e8f0)",
                     display: "grid",
                     gap: "10px",
+                    flexShrink: 0,
                   }}
                 >
                   <input type="hidden" name="organizationId" value={organizationId} />
@@ -216,16 +217,16 @@ export default function DesignationsManagerModal({
                 </form>
               )}
 
-              {/* Designations List Table */}
-              <div style={{ border: "1px solid var(--line, #e2e8f0)", borderRadius: 8, overflow: "hidden" }}>
+              {/* Designations List Table with dedicated scrollable container */}
+              <div style={{ border: "1px solid var(--line, #e2e8f0)", borderRadius: 8, overflowY: "auto", overflowX: "auto", flex: "1 1 auto", minHeight: 260, maxHeight: "55vh", background: "var(--paper, #fff)" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
-                  <thead style={{ background: "var(--soft, #f8fafc)", borderBottom: "1px solid var(--line, #e2e8f0)" }}>
+                  <thead style={{ position: "sticky", top: 0, zIndex: 2, background: "var(--soft, #f8fafc)", borderBottom: "1px solid var(--line, #e2e8f0)" }}>
                     <tr>
-                      <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 700, color: "var(--muted)" }}>Role &amp; Badge</th>
-                      <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 700, color: "var(--muted)" }}>Category</th>
-                      <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 700, color: "var(--muted)" }}>Tier</th>
-                      <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 700, color: "var(--muted)" }}>Description</th>
-                      {canManage && <th style={{ textAlign: "right", padding: "8px 12px", fontWeight: 700, color: "var(--muted)" }}>Actions</th>}
+                      <th style={{ textAlign: "left", padding: "9px 12px", fontWeight: 700, color: "var(--muted)", background: "var(--soft, #f8fafc)" }}>Role &amp; Badge</th>
+                      <th style={{ textAlign: "left", padding: "9px 12px", fontWeight: 700, color: "var(--muted)", background: "var(--soft, #f8fafc)" }}>Category</th>
+                      <th style={{ textAlign: "left", padding: "9px 12px", fontWeight: 700, color: "var(--muted)", background: "var(--soft, #f8fafc)" }}>Tier</th>
+                      <th style={{ textAlign: "left", padding: "9px 12px", fontWeight: 700, color: "var(--muted)", background: "var(--soft, #f8fafc)" }}>Description</th>
+                      {canManage && <th style={{ textAlign: "right", padding: "9px 12px", fontWeight: 700, color: "var(--muted)", background: "var(--soft, #f8fafc)" }}>Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -296,7 +297,7 @@ export default function DesignationsManagerModal({
               </div>
             </div>
 
-            <div style={{ padding: "12px 20px", borderTop: "1px solid var(--line, #e2e8f0)", display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ padding: "12px 20px", borderTop: "1px solid var(--line, #e2e8f0)", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
               <button
                 type="button"
                 onClick={() => setOpen(false)}

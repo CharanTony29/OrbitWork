@@ -1695,6 +1695,94 @@ export async function updateTaskField(formData: FormData) {
   revalidatePath(`/projects/${base.data.projectId}`);
 }
 
+export async function deleteTask(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const parsed = z.object({
+    taskId: z.string().uuid(),
+    projectId: z.string().uuid(),
+  }).safeParse({
+    taskId: formData.get("taskId"),
+    projectId: formData.get("projectId"),
+  });
+
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid task or project ID" };
+  }
+
+  const { taskId, projectId } = parsed.data;
+  const supabase = await createClient();
+  const adminClient = createAdminClient();
+  const db = adminClient ?? supabase;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Unauthorized" };
+
+  const [{ data: canEdit }, { data: task }] = await Promise.all([
+    supabase.rpc("can_edit_project_tasks", { target_project: projectId }),
+    db.from("tasks").select("id, title, created_by, project_id").eq("id", taskId).eq("project_id", projectId).maybeSingle(),
+  ]);
+
+  if (!task) {
+    return { ok: false, error: "Task not found" };
+  }
+
+  const isCreator = task.created_by === user.id;
+
+  const { data: project } = await db
+    .from("projects")
+    .select("workspace_id, workspaces ( organization_id )")
+    .eq("id", projectId)
+    .maybeSingle();
+
+  const ws = Array.isArray(project?.workspaces) ? project?.workspaces[0] : project?.workspaces;
+  const orgId = ws?.organization_id;
+  const workspaceId = project?.workspace_id;
+
+  let isManagerOrAbove = Boolean(canEdit || isCreator);
+  if (!isManagerOrAbove && (workspaceId || orgId)) {
+    const [{ data: wsRole }, { data: orgRole }] = await Promise.all([
+      workspaceId
+        ? db.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", user.id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      orgId
+        ? db.from("organization_members").select("role, designations").eq("organization_id", orgId).eq("user_id", user.id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    const hasDesignationManager = Boolean(
+      Array.isArray(orgRole?.designations) &&
+      orgRole.designations.some((d: string) => /manager|lead|director|vp|head|chief|ceo|coo|cto|admin/i.test(d))
+    );
+
+    isManagerOrAbove =
+      wsRole?.role === "admin" ||
+      wsRole?.role === "manager" ||
+      wsRole?.role === "owner" ||
+      orgRole?.role === "owner" ||
+      orgRole?.role === "admin" ||
+      orgRole?.role === "manager" ||
+      hasDesignationManager;
+  }
+
+  if (!isManagerOrAbove) {
+    return { ok: false, error: "Permission denied: Managers, Admins, or task creators can delete tasks" };
+  }
+
+  try {
+    await db.from("task_dependencies").delete().or(`task_id.eq.${taskId},linked_task_id.eq.${taskId}`);
+    await db.from("task_assignees").delete().eq("task_id", taskId);
+    await db.from("task_checklists").delete().eq("task_id", taskId);
+    await db.from("task_comments").delete().eq("task_id", taskId);
+    await db.from("task_attachments").delete().eq("task_id", taskId);
+    await db.from("tasks").delete().eq("id", taskId).eq("project_id", projectId);
+  } catch (err: any) {
+    console.error("Task deletion error:", err);
+    return { ok: false, error: err?.message || "Failed to delete task" };
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  return { ok: true };
+}
+
 export async function autoSaveTaskProperty(formData: FormData): Promise<{ ok: boolean; error?: string }> {
   const base = z.object({
     taskId: z.string().uuid(),

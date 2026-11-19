@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { autoSaveTaskProperty } from "@/app/actions";
+import { useRouter } from "next/navigation";
+import { autoSaveTaskProperty, deleteTask } from "@/app/actions";
+import { Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import DateInput from "@/app/DateInput";
 import AssigneePicker from "../../AssigneePicker";
 
@@ -61,6 +63,31 @@ export default function TaskPropertiesPanel({
   const [startDate, setStartDate] = useState(initialStartDate ?? "");
   const [dueDate, setDueDate] = useState(initialDueDate ?? "");
   const [estimate, setEstimate] = useState(initialEstimateFormatted);
+
+  const router = useRouter();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDeleteTask = async () => {
+    setIsDeleting(true);
+    setDeleteError(null);
+    const fd = new FormData();
+    fd.set("projectId", projectId);
+    fd.set("taskId", taskId);
+    try {
+      const res = await deleteTask(fd);
+      if (res.ok) {
+        router.push(`/projects/${projectId}`);
+      } else {
+        setDeleteError(res.error || "Failed to delete task");
+        setIsDeleting(false);
+      }
+    } catch (err: any) {
+      setDeleteError(err?.message || "Failed to delete task");
+      setIsDeleting(false);
+    }
+  };
 
   const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "error">("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -303,6 +330,100 @@ export default function TaskPropertiesPanel({
         <span>Created</span>
         <strong>{createdAtFormatted}</strong>
       </div>
+
+      {canEdit && (
+        <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--line, #e2e8f0)" }}>
+          <p className="eyebrow" style={{ margin: "0 0 8px", color: "#dc2626" }}>DANGER ZONE</p>
+          {!showDeleteConfirm ? (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              style={{
+                width: "100%",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                padding: "7px 12px",
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: "#dc2626",
+                background: "rgba(220, 38, 38, 0.06)",
+                border: "1px solid rgba(220, 38, 38, 0.25)",
+                borderRadius: 7,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(220, 38, 38, 0.12)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(220, 38, 38, 0.06)"; }}
+            >
+              <Trash2 size={13} />
+              <span>Delete Task</span>
+            </button>
+          ) : (
+            <div
+              style={{
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: 8,
+                padding: "10px 12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 12, color: "#991b1b" }}>
+                <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span>Permanently delete this task and all related subtasks, checklists, and attachments?</span>
+              </div>
+              {deleteError && (
+                <p style={{ margin: 0, fontSize: 11.5, color: "#dc2626" }}>{deleteError}</p>
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={handleDeleteTask}
+                  disabled={isDeleting}
+                  style={{
+                    flex: 1,
+                    padding: "6px 10px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#ffffff",
+                    background: "#dc2626",
+                    border: 0,
+                    borderRadius: 6,
+                    cursor: isDeleting ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 4,
+                  }}
+                >
+                  {isDeleting && <Loader2 size={12} className="spin" />}
+                  <span>{isDeleting ? "Deleting..." : "Yes, Delete"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  style={{
+                    padding: "6px 10px",
+                    fontSize: 12,
+                    color: "#64748b",
+                    background: "transparent",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }

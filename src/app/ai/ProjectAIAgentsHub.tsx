@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import type { CustomAIAgent } from "@/lib/ai/agent/custom-agent-types";
 import CustomAgentBuilderModal from "./CustomAgentBuilderModal";
-import { triggerAIAgentRun } from "@/lib/ai/agent/background-runner";
+import { triggerAIAgentRun, getActiveAIAgentJobs } from "@/lib/ai/agent/background-runner";
 
 interface ProjectAIAgentsHubProps {
   projectId: string;
@@ -53,9 +53,29 @@ export default function ProjectAIAgentsHub({
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<CustomAIAgent | null>(null);
   const [togglePendingId, setTogglePendingId] = useState<string | null>(null);
-  const [runningAgentId, setRunningAgentId] = useState<string | null>(null);
+  const [runningAgentIds, setRunningAgentIds] = useState<Set<string>>(new Set());
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [runFeedback, setRunFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    const updateActiveJobsState = () => {
+      const active = getActiveAIAgentJobs();
+      const runningIds = new Set<string>();
+      let runningAll = false;
+      active.forEach((j) => {
+        if (j.status === "running") {
+          if (j.agentId) runningIds.add(j.agentId);
+          if (j.runAllAgents) runningAll = true;
+        }
+      });
+      setRunningAgentIds(runningIds);
+      setIsRunningAll(runningAll);
+    };
+
+    updateActiveJobsState();
+    window.addEventListener("orbitwork:ai-agent-jobs-change", updateActiveJobsState);
+    return () => window.removeEventListener("orbitwork:ai-agent-jobs-change", updateActiveJobsState);
+  }, []);
   const [backgroundJobs, setBackgroundJobs] = useState<Array<{ id: string; title: string; startedAt: Date }>>([]);
   const [completionPopup, setCompletionPopup] = useState<{
     title: string;
@@ -170,10 +190,9 @@ export default function ProjectAIAgentsHub({
   };
 
   const handleRunOnProject = (agent: CustomAIAgent) => {
-    setRunningAgentId(agent.id);
     setRunFeedback({
       type: "success",
-      text: `AI Agent "${agent.name}" is now executing in the background. You can freely switch to List or any other view! Confirmation will appear at the bottom right.`,
+      text: `AI Agent "${agent.name}" is now executing across project tasks. Click the toast at bottom-right to inspect live progress!`,
     });
 
     triggerAIAgentRun({
@@ -181,8 +200,6 @@ export default function ProjectAIAgentsHub({
       agentId: agent.id,
       agentName: agent.name,
       runAllTasks: true,
-    }).finally(() => {
-      setRunningAgentId(null);
     });
   };
 
@@ -195,18 +212,15 @@ export default function ProjectAIAgentsHub({
       return;
     }
 
-    setIsRunningAll(true);
     setRunFeedback({
       type: "success",
-      text: `Running all ${activeCount} active AI agents in the background. You can freely navigate away! Confirmation will appear at the bottom right.`,
+      text: `Running all ${activeCount} active AI agents across project tasks. Click the toast at bottom-right to inspect live progress!`,
     });
 
     triggerAIAgentRun({
       projectId,
       agentName: "All Active Automations",
       runAllAgents: true,
-    }).finally(() => {
-      setIsRunningAll(false);
     });
   };
 
@@ -358,7 +372,7 @@ export default function ProjectAIAgentsHub({
         <div className="ai-agents-grid">
           {agents.map((agent) => {
             const isToggling = togglePendingId === agent.id;
-            const isRunningThis = runningAgentId === agent.id;
+            const isRunningThis = runningAgentIds.has(agent.id);
             return (
               <div
                 key={agent.id}
@@ -425,7 +439,7 @@ export default function ProjectAIAgentsHub({
                 )}
 
                 <div className="ai-card-footer">
-                  <div className="ai-card-stats">
+                  <div className="ai-card-stats" style={{ minWidth: 0, whiteSpace: "nowrap" }}>
                     <span>
                       Ran <strong>{agent.runs_count || 0}</strong> time
                       {agent.runs_count === 1 ? "" : "s"}
@@ -437,7 +451,7 @@ export default function ProjectAIAgentsHub({
                     )}
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginLeft: "auto" }}>
                     <button
                       type="button"
                       className="ai-card-btn-run"

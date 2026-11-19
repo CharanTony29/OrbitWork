@@ -2,8 +2,9 @@
 
 import { useState, useRef, useTransition, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Pencil, Circle, Check, ChevronRight, Loader2, FileText, AlignLeft, Paperclip } from "lucide-react";
-import { updateTaskField, quickCreateSubtask, updateTaskStatus } from "@/app/actions";
+import { useRouter } from "next/navigation";
+import { Plus, Pencil, Circle, Check, ChevronRight, Loader2, FileText, AlignLeft, Paperclip, Trash2 } from "lucide-react";
+import { updateTaskField, quickCreateSubtask, updateTaskStatus, deleteTask } from "@/app/actions";
 
 export default function TaskNameCell({
   projectId,
@@ -54,6 +55,26 @@ export default function TaskNameCell({
   const [isSubtaskPending, startSubtaskTransition] = useTransition();
   const [isRenamePending, startRenameTransition] = useTransition();
   const [isStatusPending, startStatusTransition] = useTransition();
+  const [isDeletePending, startDeleteTransition] = useTransition();
+  const router = useRouter();
+
+  const handleDeleteTask = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!canEdit || isDeletePending) return;
+    if (!window.confirm(`Permanently delete "${title}"?`)) return;
+
+    startDeleteTransition(async () => {
+      const fd = new FormData();
+      fd.set("projectId", projectId);
+      fd.set("taskId", taskId);
+      const res = await deleteTask(fd);
+      if (res.ok) {
+        router.refresh();
+      } else {
+        alert(res.error || "Failed to delete task");
+      }
+    });
+  };
 
   const handleMouseEnter = () => {
     if (!description?.trim()) return;
@@ -277,6 +298,16 @@ export default function TaskNameCell({
               onClick={handleStartEdit}
             >
               <Pencil size={11} />
+            </button>
+            <button
+              type="button"
+              className="task-hover-btn"
+              title="Delete Task"
+              onClick={handleDeleteTask}
+              disabled={isDeletePending}
+              style={{ color: "#ef4444" }}
+            >
+              {isDeletePending ? <Loader2 size={11} className="spin" /> : <Trash2 size={11} />}
             </button>
           </div>
         )}

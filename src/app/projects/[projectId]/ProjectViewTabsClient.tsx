@@ -431,16 +431,6 @@ export default function ProjectViewTabsClient({
         </button>
       </div>
 
-      {pendingView && (
-        <div className="view-tab-transition-bar" role="status" aria-live="polite">
-          <div className="view-tab-transition-inner">
-            <Loader2 size={13} className="spin tab-loading-spinner" />
-            <span>Switching to <strong>{PROJECT_TAB_LABELS[pendingView]}</strong> view...</span>
-          </div>
-          <div className="view-tab-transition-shimmer" />
-        </div>
-      )}
-
       {customizerOpen && (
         <div
           className="view-tabs-popover"
