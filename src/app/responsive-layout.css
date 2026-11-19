@@ -119,39 +119,36 @@
 }
 
 @container task-sidebar (max-width: 430px) {
-  .dependency-form {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
+  .dependency-form,
+  .task-dependency-link-form {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
     gap: 8px;
   }
 
   .dependency-form-fields {
-    display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(86px, .85fr);
+    display: flex;
+    flex-direction: column;
     width: 100%;
     gap: 8px;
   }
 
   .dependency-task-select,
-  .dependency-type-select {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    width: 100%;
-    min-width: 0;
-    height: 40px;
-    padding-inline: 9px;
-    padding-block: 0 !important;
-    line-height: 1.2;
-    text-align: left;
-    text-align-last: left;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .dependency-type-select,
+  .dependency-task-dropdown {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    padding: 0 10px !important;
+    line-height: normal !important;
+    font-size: 12px !important;
+    box-sizing: border-box !important;
   }
 
-  .dependency-submit-btn {
+  .dependency-submit-btn,
+  .dependency-submit-button {
     width: 100%;
     height: 38px;
   }
@@ -179,7 +176,9 @@
 
 @container task-sidebar (max-width: 280px) {
   .dependency-form-fields {
-    grid-template-columns: minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
+    width: 100%;
   }
 }
 

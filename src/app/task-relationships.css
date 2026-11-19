@@ -207,8 +207,8 @@
 /* Dependency Form (Styled & Clean) */
 .dependency-form {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  flex-direction: column;
+  gap: 10px;
   margin-top: 12px;
   padding-top: 14px;
   border-top: 1px solid var(--line, #edf1ee);
@@ -216,21 +216,21 @@
 
 .dependency-form-fields {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  flex: 1;
-  min-width: 0;
+  width: 100%;
 }
 
 .dependency-task-select {
-  flex: 1.6;
-  min-width: 0;
-  height: 36px;
+  display: block;
+  width: 100%;
+  height: 38px;
   padding: 0 10px;
   border: 1.5px solid var(--line, #d8e1da);
   border-radius: 8px;
   background: var(--surface, #fff);
   color: var(--ink, #1f2d26);
-  font-size: 11.5px;
+  font-size: 12px;
   font-family: inherit;
   outline: none;
   cursor: pointer;
@@ -242,15 +242,15 @@
 }
 
 .dependency-type-select {
-  flex: 1;
-  min-width: 0;
-  height: 36px;
+  display: block;
+  width: 100%;
+  height: 38px;
   padding: 0 10px;
   border: 1.5px solid var(--line, #d8e1da);
   border-radius: 8px;
   background: var(--surface, #fff);
   color: var(--ink, #1f2d26);
-  font-size: 11.5px;
+  font-size: 12px;
   font-family: inherit;
   outline: none;
   cursor: pointer;
@@ -262,24 +262,216 @@
 }
 
 .dependency-submit-btn {
-  height: 36px;
+  width: 100%;
+  height: 38px;
   padding: 0 14px;
   border: 0;
   border-radius: 8px;
   background: var(--green, #176a44);
   color: #fff;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
-  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   transition: background 0.15s ease;
 }
 
 .dependency-submit-btn:hover {
   background: #135537;
+}
+
+/* Modern Task Dependency Link Form */
+.task-dependency-link-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line, #edf1ee);
+}
+
+.dependency-field-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink, #1f2d26);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.dependency-filter-count {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted, #7c8a81);
+}
+
+.dependency-relation-selector {
+  display: flex;
+  flex-direction: column;
+}
+
+.dependency-relation-pills {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.dependency-relation-pill {
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line, #d8e1da);
+  background: var(--surface, #fff);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink, #1f2d26);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dependency-relation-pill:hover {
+  background: var(--nav-hover, #f8faf8);
+  border-color: #cbd5cd;
+}
+
+.dependency-relation-pill.rel-related.is-active {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #3b82f6;
+  font-weight: 700;
+}
+
+.dependency-relation-pill.rel-blocks.is-active {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #ef4444;
+  font-weight: 700;
+}
+
+.dependency-relation-pill.rel-blocked_by.is-active {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #f59e0b;
+  font-weight: 700;
+}
+
+.dependency-relation-pill.rel-duplicate.is-active {
+  background: #faf5ff;
+  color: #6b21a8;
+  border-color: #a855f7;
+  font-weight: 700;
+}
+
+.dependency-task-selector {
+  display: flex;
+  flex-direction: column;
+}
+
+.dependency-search-box {
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.dependency-search-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted, #8b978f);
+  pointer-events: none;
+}
+
+.dependency-search-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 28px 0 28px;
+  border: 1px solid var(--line, #d8e1da);
+  border-radius: 6px;
+  font-size: 11.5px;
+  background: var(--surface, #fff);
+  color: var(--ink, #1f2d26);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.dependency-search-input:focus {
+  border-color: var(--green, #176a44);
+}
+
+.dependency-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--muted, #8b978f);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.dependency-task-dropdown {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 38px !important;
+  padding: 0 10px !important;
+  border: 1.5px solid var(--line, #d8e1da) !important;
+  border-radius: 8px !important;
+  background: var(--surface, #fff) !important;
+  color: var(--ink, #1f2d26) !important;
+  font-size: 12px !important;
+  font-family: inherit !important;
+  outline: none !important;
+  cursor: pointer !important;
+  box-sizing: border-box !important;
+  transition: border-color 0.15s ease !important;
+}
+
+.dependency-task-dropdown:focus {
+  border-color: var(--green, #176a44) !important;
+}
+
+.dependency-task-dropdown:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dependency-submit-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 38px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--green, #176a44);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  margin-top: 2px;
+}
+
+.dependency-submit-button:hover:not(:disabled) {
+  background: #135537;
+}
+
+.dependency-submit-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Subtasks inside Task Detail Page */
@@ -679,11 +871,19 @@
 
 [data-color-scheme="dark"] .dependency-task-select,
 [data-color-scheme="dark"] .dependency-type-select,
+[data-color-scheme="dark"] .dependency-task-dropdown,
+[data-color-scheme="dark"] .dependency-search-input,
+[data-color-scheme="dark"] .dependency-relation-pill,
 [data-color-scheme="dark"] .relationship-input,
 [data-color-scheme="dark"] .relationship-form input {
   background: #141715;
   border-color: #2b352e;
   color: #f0f6fc;
+}
+
+[data-color-scheme="dark"] .dependency-relation-pill:hover {
+  background: #1d221e;
+  border-color: #3b463f;
 }
 
 @media (max-width: 820px) {

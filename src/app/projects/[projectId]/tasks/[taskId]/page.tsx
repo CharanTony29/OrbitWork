@@ -17,6 +17,7 @@ import AIAgentSubtaskPlanner from "@/app/ai/AIAgentSubtaskPlanner";
 import SubtaskCreateForm from "./SubtaskCreateForm";
 import SubtaskStatusPicker from "./SubtaskStatusPicker";
 import TaskChecklistsSection from "./TaskChecklistsSection";
+import TaskDependenciesSection from "./TaskDependenciesSection";
 import AssigneePicker from "../../AssigneePicker";
 import { resolveProfileAvatarSrc } from "@/lib/chat";
 import MultiValueFieldInput from "@/app/MultiValueFieldInput";
@@ -537,71 +538,21 @@ export default async function TaskDetailPage({ params, searchParams }: {
               </section>
 
               {/* Dependencies Section */}
-              <section className="task-dependencies">
-                <div className="relationship-heading">
-                  <div>
-                    <p className="eyebrow">RELATED WORK</p>
-                    <h2>Dependencies <span className="count-pill">{dependencies?.length ?? 0}</span></h2>
-                  </div>
-                  <div className="relationship-header-icon"><GitBranch size={17}/></div>
-                </div>
-                <div className="dependency-list">
-                  {dependencies?.map((dependency) => {
-                    const linked = linkedTaskMap.get(dependency.linked_task_id);
-                    return (
-                      <div className="dependency-row" key={`${dependency.linked_task_id}-${dependency.relation}`}>
-                        <span className={`dependency-badge rel-${dependency.relation}`}>
-                          {dependency.relation.replace("_", " ")}
-                        </span>
-                        {linked ? (
-                          <Link href={`/projects/${projectId}/tasks/${linked.id}`} className="dependency-task-link">
-                            <span className="dependency-task-title">{linked.title}</span>
-                          </Link>
-                        ) : (
-                          <span className="dependency-task-title muted">Unknown task</span>
-                        )}
-                        {canEdit && (
-                          <form action={removeTaskDependency} className="dependency-remove-form">
-                            <input type="hidden" name="projectId" value={projectId}/>
-                            <input type="hidden" name="taskId" value={taskId}/>
-                            <input type="hidden" name="linkedTaskId" value={dependency.linked_task_id}/>
-                            <input type="hidden" name="relation" value={dependency.relation}/>
-                            <button className="dependency-remove-btn" aria-label="Remove dependency" title="Remove dependency">×</button>
-                          </form>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {(!dependencies || dependencies.length === 0) && (
-                    <div className="relationship-empty-state">
-                      <GitBranch size={22} className="empty-state-icon" />
-                      <p>No dependencies linked yet</p>
-                      <small>Link tasks that block this task, are blocked by it, or are related.</small>
-                    </div>
-                  )}
-                </div>
-                {canEdit && (
-                  <form action={createTaskDependency} className="dependency-form">
-                    <input type="hidden" name="projectId" value={projectId}/>
-                    <input type="hidden" name="taskId" value={taskId}/>
-                    <div className="dependency-form-fields">
-                      <select name="linkedTaskId" required defaultValue="" className="dependency-task-select">
-                        <option value="" disabled>Choose a task to link…</option>
-                        {projectTasks?.filter((item) => item.id !== taskId && !(dependencies ?? []).some((dependency) => dependency.linked_task_id === item.id)).map((item) => (
-                          <option key={item.id} value={item.id}>{item.title}</option>
-                        ))}
-                      </select>
-                      <select name="relation" defaultValue="related" className="dependency-type-select">
-                        <option value="blocks">Blocks</option>
-                        <option value="blocked_by">Blocked by</option>
-                        <option value="related">Related</option>
-                        <option value="duplicate">Duplicate of</option>
-                      </select>
-                    </div>
-                    <button className="dependency-submit-btn">+ Link task</button>
-                  </form>
-                )}
-              </section>
+              <TaskDependenciesSection
+                projectId={projectId}
+                taskId={taskId}
+                canEdit={canEdit}
+                initialDependencies={(dependencies ?? []).map((dependency) => ({
+                  linked_task_id: dependency.linked_task_id,
+                  relation: dependency.relation,
+                  linked_task: linkedTaskMap.get(dependency.linked_task_id) || null,
+                }))}
+                projectTasks={(projectTasks ?? []).map((t) => ({
+                  id: t.id,
+                  generated_key: t.generated_key,
+                  title: t.title,
+                }))}
+              />
 
               {/* Custom Fields Section */}
               {!!customFields?.length && <section className="task-custom-fields"><div className="custom-fields-heading"><div><p className="eyebrow">CUSTOM FIELDS</p><h2>Project details</h2></div></div><div className="custom-field-grid">{customFields.map((field) => {
