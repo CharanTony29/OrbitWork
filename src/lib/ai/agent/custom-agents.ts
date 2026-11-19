@@ -1,5 +1,5 @@
-import { createClient } from "../../supabase/server.ts";
-import { runAutonomousAgent } from "./autonomous-runner.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { runAutonomousAgent, type RunAutonomousAgentResult } from "./autonomous-runner.ts";
 import type {
   AgentTriggerType,
   AgentActionType,
@@ -14,6 +14,7 @@ export { AGENT_TEMPLATES };
  * Fetch all declared custom AI agents for a project
  */
 export async function getProjectCustomAgents(projectId: string): Promise<CustomAIAgent[]> {
+  const { createClient } = await import("../../supabase/server.ts");
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("custom_ai_agents")
@@ -30,111 +31,48 @@ export async function getProjectCustomAgents(projectId: string): Promise<CustomA
 }
 
 /**
- * Execute an agent against a task using the autonomous tool-calling engine
+ * Generic AI Agent Execution Engine.
+ * Executes ANY custom agent based on its name, natural-language instructions, trigger, and project context.
+ * Performs real tool calls against the Orbitwork database, verifies persistence, and logs results.
  */
 export async function executeCustomAgent({
   agent,
-  taskId,
   projectId,
   userId,
+  taskId,
+  scope = taskId ? "task" : "project",
+  supabaseClient,
 }: {
   agent: CustomAIAgent;
-  taskId: string;
   projectId: string;
   userId: string;
-}): Promise<{ ok: boolean; summary: string }> {
-  const supabase = await createClient();
-
-  // 1. Verify task exists
-  const { data: task } = await supabase
-    .from("tasks")
-    .select("id, project_id, title, parent_task_id, primary_assignee_id")
-    .eq("id", taskId)
-    .single();
-
-  if (!task) {
-    return { ok: false, summary: "Task not found" };
+  taskId?: string;
+  scope?: "project" | "task";
+  supabaseClient?: SupabaseClient;
+}): Promise<RunAutonomousAgentResult> {
+  let supabase: SupabaseClient;
+  if (supabaseClient) {
+    supabase = supabaseClient;
+  } else {
+    const { createClient } = await import("../../supabase/server.ts");
+    supabase = await createClient();
   }
 
-  // 1b. Fast path for direct rule automations (Subtask Auto-Inheritor)
-  if (
-    agent.action_type === "auto_assign_parent" ||
-    agent.name.toLowerCase().includes("subtask auto-inheritor")
-  ) {
-    if (task.parent_task_id) {
-      const { data: parent } = await supabase
-        .from("tasks")
-        .select("id, title, primary_assignee_id")
-        .eq("id", task.parent_task_id)
-        .single();
-
-      if (parent?.primary_assignee_id) {
-        if (task.primary_assignee_id !== parent.primary_assignee_id) {
-          await supabase
-            .from("tasks")
-            .update({ primary_assignee_id: parent.primary_assignee_id })
-            .eq("id", taskId);
-
-          await supabase.from("task_assignees").upsert({
-            project_id: projectId,
-            task_id: taskId,
-            user_id: parent.primary_assignee_id,
-            assigned_by: userId,
-          });
-
-          return {
-            ok: true,
-            summary: `Subtask "${task.title}" inherited parent assignee from "${parent.title}".`,
-          };
-        }
-        return {
-          ok: true,
-          summary: `Subtask "${task.title}" already matches parent assignee.`,
-        };
-      }
-      return {
-        ok: true,
-        summary: `Parent task "${parent?.title || "Parent"}" has no primary assignee set yet.`,
-      };
-    } else {
-      return {
-        ok: true,
-        summary: `Task "${task.title}" is a parent task.`,
-      };
-    }
-  }
-
-  // 2. Determine effective instructions
+  // Determine effective instructions from agent definition
   let effectiveInstructions = agent.system_instructions?.trim() || "";
-
   if (!effectiveInstructions) {
-    switch (agent.action_type as string) {
-      case "auto_assign":
-      case "auto_assign_parent":
-        effectiveInstructions =
-          "If this task is a subtask with a parent task, check the parent task's primary assignee and assign this subtask to that same assignee.";
-        break;
-      case "generate_checklist":
-        effectiveInstructions =
-          "Inspect this task's title and description. Generate 3 to 5 concrete, actionable acceptance criteria checklist items for this task.";
-        break;
-      case "estimate_time":
-        effectiveInstructions =
-          "Inspect the task scope. Estimate a realistic duration in minutes and assign an appropriate priority level (low, normal, high, urgent).";
-        break;
-      default:
-        effectiveInstructions =
-          "Analyze the task requirements and perform any appropriate planning, subtask creation, or checklist generation.";
-        break;
+    if (agent.description?.trim()) {
+      effectiveInstructions = agent.description.trim();
+    } else {
+      effectiveInstructions = `Execute actions appropriate for agent "${agent.name}" on project data. Inspect current tasks and apply necessary updates.`;
     }
   }
 
-  // 3. Run autonomous agent loop with dynamic tool access
-  let summary = "";
-  let success = false;
+  // Execute using the generic autonomous reasoning engine
+  let result: RunAutonomousAgentResult;
 
   try {
-    const result = await runAutonomousAgent({
+    result = await runAutonomousAgent({
       supabase,
       projectId,
       userId,
@@ -142,17 +80,24 @@ export async function executeCustomAgent({
       agentName: agent.name,
       systemInstructions: effectiveInstructions,
       triggerEvent: agent.trigger_type,
+      scope,
     });
-
-    summary = result.summary;
-    success = result.ok;
   } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Agent execution failed";
     console.error(`[Custom Agent "${agent.name}" Execution Error]:`, err);
-    summary = err instanceof Error ? err.message : "Agent execution failed";
-    success = false;
+    result = {
+      ok: false,
+      status: "failed",
+      summary: `Execution encountered an error: ${errorMsg}`,
+      actionLog: [`Execution error: ${errorMsg}`],
+      verifiedUpdates: [],
+      failedUpdates: [{ taskId: taskId || "project", reason: errorMsg, timestamp: new Date().toLocaleTimeString() }],
+      verifiedCount: 0,
+      failedCount: 1,
+    };
   }
 
-  // 4. Update agent statistics and audit log
+  // Update agent statistics in custom_ai_agents
   try {
     await supabase
       .from("custom_ai_agents")
@@ -161,55 +106,72 @@ export async function executeCustomAgent({
         last_run_at: new Date().toISOString(),
       })
       .eq("id", agent.id);
-
-    await supabase.from("custom_ai_agent_logs").insert({
-      agent_id: agent.id,
-      task_id: taskId,
-      project_id: projectId,
-      status: success ? "success" : "failed",
-      summary: summary.slice(0, 500),
-    });
   } catch (statErr) {
     console.warn("[CustomAgents] Stats update warning:", statErr);
   }
 
-  return { ok: success, summary };
+  // Write detailed execution log to custom_ai_agent_logs table
+  try {
+    const dbStatus: "success" | "failed" | "skipped" =
+      result.status === "failed" ? "failed" : result.verifiedCount === 0 ? "skipped" : "success";
+
+    await supabase.from("custom_ai_agent_logs").insert({
+      agent_id: agent.id,
+      task_id: taskId || null,
+      project_id: projectId,
+      status: dbStatus,
+      summary: result.summary.slice(0, 1000),
+    });
+  } catch (logErr) {
+    console.warn("[CustomAgents] Audit log insert warning:", logErr);
+  }
+
+  return result;
 }
 
 /**
- * Trigger active agents matching a specific trigger event (e.g. on_subtask_created, on_task_created)
+ * Trigger active agents matching a specific trigger event (e.g. on_subtask_created, on_task_created, on_status_change)
  */
 export async function triggerAgentsForEvent({
   triggerType,
   projectId,
   taskId,
   userId,
+  supabaseClient,
 }: {
   triggerType: AgentTriggerType;
   projectId: string;
   taskId: string;
   userId: string;
+  supabaseClient?: SupabaseClient;
 }) {
-  const supabase = await createClient();
-  const { data: agents } = await supabase
+  let supabase: SupabaseClient;
+  if (supabaseClient) {
+    supabase = supabaseClient;
+  } else {
+    const { createClient } = await import("../../supabase/server.ts");
+    supabase = await createClient();
+  }
+  const { data: agents, error } = await supabase
     .from("custom_ai_agents")
     .select("*")
     .eq("project_id", projectId)
     .eq("trigger_type", triggerType)
     .eq("enabled", true);
 
-  if (!agents || agents.length === 0) return;
+  if (error || !agents || agents.length === 0) return;
 
   for (const agent of agents) {
     try {
       await executeCustomAgent({
         agent: agent as CustomAIAgent,
-        taskId,
         projectId,
         userId,
+        taskId,
+        scope: "task",
       });
     } catch (err) {
-      console.error(`[CustomAgent Trigger Error for ${agent.name}]:`, err);
+      console.error(`[CustomAgent Trigger Error for "${agent.name}"]:`, err);
     }
   }
 }

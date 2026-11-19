@@ -57,6 +57,8 @@ export interface PresentationReportOptions {
   templateId?: string;
   customColors?: PresentationCustomColors;
   aiPrompt?: string;
+  selectedSections?: string[];
+  selectedCharts?: string[];
 }
 
 export interface StatusMetric {
@@ -1818,6 +1820,11 @@ function renderCreativeLayeredDeck(ctx: DeckContext) {
 function renderTaskCatalog(ctx: DeckContext) {
   const { pptx, tasks, options } = ctx;
   if (!options.includeCatalog || tasks.length === 0) return;
+  if (options.selectedSections && options.selectedSections.length > 0) {
+    if (!options.selectedSections.includes("catalog") && !options.selectedSections.includes("tasks")) {
+      return;
+    }
+  }
 
   const pageSize = 12;
   const totalPages = Math.ceil(tasks.length / pageSize);

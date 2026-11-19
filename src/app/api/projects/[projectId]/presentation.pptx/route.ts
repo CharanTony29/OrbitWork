@@ -9,11 +9,29 @@ import {
   TaskReportItem,
 } from "@/lib/export-presentation";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+interface PptxExportConfig {
+  period?: ReportPeriodType;
+  startDate?: string;
+  endDate?: string;
+  month?: string;
+  year?: string;
+  includeCatalog?: boolean;
+  aiPrompt?: string;
+  templateId?: string;
+  style?: string;
+  customPrimary?: string;
+  customSecondary?: string;
+  customAccent?: string;
+  customBg?: string;
+  selectedTaskIds?: string[];
+  selectedSections?: string[];
+  selectedCharts?: string[];
+}
+
+async function handleGeneratePptx(
+  projectId: string,
+  config: PptxExportConfig
 ) {
-  const { projectId } = await params;
   const supabase = await createClient();
   const {
     data: { user },
@@ -34,16 +52,18 @@ export async function GET(
     return new Response("Project not found or access denied", { status: 404 });
   }
 
-  // Parse query parameters
-  const searchParams = request.nextUrl.searchParams;
-  const period = (searchParams.get("period") as ReportPeriodType) || "all";
-  const customStartDate = searchParams.get("startDate");
-  const customEndDate = searchParams.get("endDate");
-  const monthParam = searchParams.get("month"); // e.g. "2026-11"
-  const yearParam = searchParams.get("year"); // e.g. "2026"
-  const includeCatalog = searchParams.get("includeCatalog") !== "false";
-  const aiPrompt = searchParams.get("aiPrompt") || undefined;
-  const templateId = searchParams.get("templateId") || searchParams.get("style") || "pitch_sage";
+  const period: ReportPeriodType = config.period || "all";
+  const customStartDate = config.startDate;
+  const customEndDate = config.endDate;
+  const monthParam = config.month;
+  const yearParam = config.year;
+  const includeCatalog = config.includeCatalog !== false;
+  const aiPrompt = config.aiPrompt || undefined;
+  const templateId = config.templateId || config.style || "pitch_sage";
+  const selectedTaskSet =
+    config.selectedTaskIds && config.selectedTaskIds.length > 0
+      ? new Set(config.selectedTaskIds)
+      : null;
 
   // Determine period boundaries and human label
   const now = new Date();
@@ -52,7 +72,6 @@ export async function GET(
   let periodLabel = "All Active Tasks (Full Snapshot)";
 
   if (period === "weekly") {
-    // Current or specified week (Monday to Sunday)
     const curr = new Date();
     const firstDay = curr.getDate() - curr.getDay() + 1; // Monday
     const startOfWeek = new Date(curr.setDate(firstDay));
@@ -142,20 +161,23 @@ export async function GET(
   const filteredTasks: TaskReportItem[] = [];
 
   for (const t of rawTasks) {
+    // If selective tasks are requested, filter strictly
+    if (selectedTaskSet && !selectedTaskSet.has(t.id)) {
+      continue;
+    }
+
     const taskCreated = new Date(t.created_at);
     const taskDue = t.due_date ? new Date(t.due_date) : null;
 
     // Apply period filtering if set
     if (filterStart || filterEnd) {
       let matches = false;
-      // If task created in period
       if (
         (!filterStart || taskCreated >= filterStart) &&
         (!filterEnd || taskCreated <= filterEnd)
       ) {
         matches = true;
       }
-      // Or if task due in period
       if (
         taskDue &&
         (!filterStart || taskDue >= filterStart) &&
@@ -164,7 +186,6 @@ export async function GET(
         matches = true;
       }
       if (!matches) {
-        // Skip tasks completely outside the window unless period is "all"
         continue;
       }
     }
@@ -198,7 +219,6 @@ export async function GET(
         stName.includes("qa"));
 
     const isPending = !isCompleted && !isHold && !isInProgress;
-
     const isOverdue = Boolean(t.due_date && t.due_date < todayStr && !isCompleted);
 
     const userIds = Array.from(taskAssigneeMap.get(t.id) ?? []);
@@ -229,7 +249,7 @@ export async function GET(
     });
   }
 
-  // Calculate status counts
+  // Calculate status counts based on selected/filtered tasks
   const statusCounts = new Map<string, number>();
   for (const t of filteredTasks) {
     statusCounts.set(t.statusId, (statusCounts.get(t.statusId) || 0) + 1);
@@ -242,7 +262,7 @@ export async function GET(
     count: statusCounts.get(s.id) || 0,
   }));
 
-  // Calculate resource metrics ("Who is working on it")
+  // Calculate resource metrics based on selected/filtered tasks
   const resourceStats = new Map<string, ResourceMetric>();
 
   for (const t of filteredTasks) {
@@ -309,11 +329,11 @@ export async function GET(
       : orgObj.name
     : undefined;
 
-  const style = (searchParams.get("style") as any) || "executive";
-  const customPrimary = searchParams.get("customPrimary");
-  const customSecondary = searchParams.get("customSecondary");
-  const customAccent = searchParams.get("customAccent");
-  const customBg = searchParams.get("customBg");
+  const style = (config.style as any) || "executive";
+  const customPrimary = config.customPrimary;
+  const customSecondary = config.customSecondary;
+  const customAccent = config.customAccent;
+  const customBg = config.customBg;
 
   const options: PresentationReportOptions = {
     projectName: project.name,
@@ -336,6 +356,8 @@ export async function GET(
           }
         : undefined,
     aiPrompt,
+    selectedSections: config.selectedSections,
+    selectedCharts: config.selectedCharts,
   };
 
   // Build the presentation deck
@@ -355,4 +377,57 @@ export async function GET(
       "Cache-Control": "private, no-store",
     },
   });
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  const { projectId } = await params;
+  const searchParams = request.nextUrl.searchParams;
+
+  const taskIdsParam = searchParams.get("taskIds");
+  const selectedTaskIds = taskIdsParam ? taskIdsParam.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+
+  const sectionsParam = searchParams.get("sections");
+  const selectedSections = sectionsParam ? sectionsParam.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+
+  const chartsParam = searchParams.get("charts");
+  const selectedCharts = chartsParam ? chartsParam.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+
+  const config: PptxExportConfig = {
+    period: (searchParams.get("period") as ReportPeriodType) || "all",
+    startDate: searchParams.get("startDate") || undefined,
+    endDate: searchParams.get("endDate") || undefined,
+    month: searchParams.get("month") || undefined,
+    year: searchParams.get("year") || undefined,
+    includeCatalog: searchParams.get("includeCatalog") !== "false",
+    aiPrompt: searchParams.get("aiPrompt") || undefined,
+    templateId: searchParams.get("templateId") || searchParams.get("style") || "pitch_sage",
+    style: searchParams.get("style") || undefined,
+    customPrimary: searchParams.get("customPrimary") || undefined,
+    customSecondary: searchParams.get("customSecondary") || undefined,
+    customAccent: searchParams.get("customAccent") || undefined,
+    customBg: searchParams.get("customBg") || undefined,
+    selectedTaskIds,
+    selectedSections,
+    selectedCharts,
+  };
+
+  return handleGeneratePptx(projectId, config);
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  const { projectId } = await params;
+  let body: PptxExportConfig = {};
+  try {
+    body = await request.json();
+  } catch {
+    body = {};
+  }
+
+  return handleGeneratePptx(projectId, body);
 }

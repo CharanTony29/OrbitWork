@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   Presentation,
@@ -20,6 +20,16 @@ import {
   Calendar,
   Check,
   FileSpreadsheet,
+  CheckSquare,
+  Square,
+  PieChart,
+  Building2,
+  Eye,
+  Sliders,
+  FileText,
+  Clock,
+  ShieldCheck,
+  Filter,
 } from "lucide-react";
 import {
   PRESENTATION_TEMPLATES,
@@ -30,6 +40,7 @@ import {
   ARCHETYPE_SYSTEMS,
   DesignArchetype,
 } from "@/lib/presentation/templates";
+import { createClient } from "@/lib/supabase/client";
 
 interface ExportPresentationModalProps {
   projectId: string;
@@ -39,6 +50,20 @@ interface ExportPresentationModalProps {
   defaultPeriod?: "weekly" | "monthly" | "yearly" | "custom" | "all";
 }
 
+export interface ProjectTaskSelectionItem {
+  id: string;
+  key: string;
+  title: string;
+  priority: string;
+  dueDate: string | null;
+  statusName: string;
+  statusCategory: string;
+  statusColor?: string;
+  isCompleted: boolean;
+  isOverdue: boolean;
+  isPending: boolean;
+}
+
 export default function ExportPresentationModal({
   projectId,
   projectName,
@@ -46,11 +71,13 @@ export default function ExportPresentationModal({
   onClose,
   defaultPeriod = "monthly",
 }: ExportPresentationModalProps) {
+  const [activeTab, setActiveTab] = useState<"templates" | "selection" | "preview">("templates");
   const [period, setPeriod] = useState<"weekly" | "monthly" | "yearly" | "custom" | "all">(
     defaultPeriod
   );
 
   const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
   const currentMonth = today.toISOString().slice(0, 7);
   const currentYear = String(today.getFullYear());
 
@@ -75,22 +102,143 @@ export default function ExportPresentationModal({
   const [aiPrompt, setAiPrompt] = useState("");
   const [isExporting, setIsExporting] = useState(false);
 
+  // Task & Content Selection State
+  const [tasks, setTasks] = useState<ProjectTaskSelectionItem[]>([]);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskPriorityFilter, setTaskPriorityFilter] = useState<string>("all");
+  const [taskStatusCategoryFilter, setTaskStatusCategoryFilter] = useState<string>("all");
+
+  // Granular Sections & Charts toggles
+  const [selectedSections, setSelectedSections] = useState<Set<string>>(
+    new Set(["overview", "status", "workload", "critical", "catalog"])
+  );
+  const [selectedCharts, setSelectedCharts] = useState<Set<string>>(
+    new Set(["completion", "workload", "priority", "status"])
+  );
+
+  // Company Template Upload State
+  const [uploadedCompanyTemplates, setUploadedCompanyTemplates] = useState<PresentationTemplate[]>([]);
+  const [isUploadingCompanyTemplate, setIsUploadingCompanyTemplate] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch project tasks on mount/open
+  useEffect(() => {
+    if (!isOpen || !projectId) return;
+    let isCancelled = false;
+
+    async function fetchTasks() {
+      setIsLoadingTasks(true);
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("tasks")
+          .select("id, generated_key, title, priority, due_date, status_id, project_statuses(name, category, color)")
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("Error fetching tasks for presentation export:", error);
+          return;
+        }
+
+        if (data && !isCancelled) {
+          const mapped: ProjectTaskSelectionItem[] = data.map((t: any) => {
+            const st = Array.isArray(t.project_statuses) ? t.project_statuses[0] : t.project_statuses;
+            const stName = (st?.name || "To Do").toLowerCase();
+            const stCategory = st?.category || "not_started";
+            const isCompleted =
+              stCategory === "completed" ||
+              stCategory === "cancelled" ||
+              stName.includes("done") ||
+              stName.includes("complete") ||
+              stName.includes("closed");
+            const isOverdue = Boolean(t.due_date && t.due_date < todayStr && !isCompleted);
+            const isPending = !isCompleted;
+
+            return {
+              id: t.id,
+              key: t.generated_key || `#${t.id.slice(0, 6)}`,
+              title: t.title,
+              priority: t.priority || "normal",
+              dueDate: t.due_date,
+              statusName: st?.name || "To Do",
+              statusCategory: stCategory,
+              statusColor: st?.color,
+              isCompleted,
+              isOverdue,
+              isPending,
+            };
+          });
+
+          setTasks(mapped);
+          setSelectedTaskIds(new Set(mapped.map((t) => t.id)));
+        }
+      } catch (err) {
+        console.error("Failed to load tasks:", err);
+      } finally {
+        if (!isCancelled) setIsLoadingTasks(false);
+      }
+    }
+
+    fetchTasks();
+    return () => {
+      isCancelled = true;
+    };
+  }, [isOpen, projectId, todayStr]);
+
+  // Handle Company Template Upload
+  const handleCompanyTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingCompanyTemplate(true);
+    setUploadError(null);
+    try {
+      const { parseAndRegisterCompanyTemplate, companyTemplateToPresentationTemplate } = await import("@/lib/presentation/company-template");
+      const buffer = await file.arrayBuffer();
+      const cleanName = file.name.replace(/\.pptx$/i, "").replace(/[-_]/g, " ");
+      const companyDef = await parseAndRegisterCompanyTemplate(new Uint8Array(buffer), {
+        templateName: cleanName,
+        companyName: cleanName,
+      });
+      const newTemplate = companyTemplateToPresentationTemplate(companyDef);
+      setUploadedCompanyTemplates((prev) => [newTemplate, ...prev.filter((t) => t.id !== newTemplate.id)]);
+      setSelectedTemplateId(newTemplate.id);
+      setActiveCategory("custom");
+    } catch (err: any) {
+      console.error("Company template upload failed:", err);
+      setUploadError(err?.message || "Failed to parse PPTX template");
+    } finally {
+      setIsUploadingCompanyTemplate(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Combine built-in templates with uploaded company templates
+  const allAvailableTemplates = useMemo(() => {
+    return [...uploadedCompanyTemplates, ...PRESENTATION_TEMPLATES];
+  }, [uploadedCompanyTemplates]);
+
   // Filter templates
   const filteredTemplates = useMemo(() => {
-    return PRESENTATION_TEMPLATES.filter((t) => {
+    return allAvailableTemplates.filter((t) => {
       const matchesCat = activeCategory === "all" || t.category === activeCategory;
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
         t.name.toLowerCase().includes(q) ||
         t.tagline.toLowerCase().includes(q) ||
-        t.category.toLowerCase().includes(q);
+        t.category.toLowerCase().includes(q) ||
+        (t.industry && t.industry.toLowerCase().includes(q));
       return matchesCat && matchesSearch;
     });
-  }, [activeCategory, searchQuery]);
+  }, [allAvailableTemplates, activeCategory, searchQuery]);
 
   const activeTemplate = useMemo(() => {
-    const t = getTemplateById(selectedTemplateId);
+    const found = allAvailableTemplates.find((t) => t.id === selectedTemplateId);
+    const t = found || getTemplateById(selectedTemplateId);
     if (selectedTemplateId === "custom_brand") {
       return {
         ...t,
@@ -100,51 +248,171 @@ export default function ExportPresentationModal({
       };
     }
     return t;
-  }, [selectedTemplateId, customPrimary, customCard, customAccent]);
+  }, [allAvailableTemplates, selectedTemplateId, customPrimary, customCard, customAccent]);
 
   const archetype: DesignArchetype = getArchetype(activeTemplate);
   const archetypeSystem = ARCHETYPE_SYSTEMS[archetype];
 
+  // Task selection helpers
+  const handleSelectAllTasks = () => {
+    setSelectedTaskIds(new Set(tasks.map((t) => t.id)));
+  };
+
+  const handleSelectNoTasks = () => {
+    setSelectedTaskIds(new Set());
+  };
+
+  const handleSelectCompletedOnly = () => {
+    const completed = tasks.filter((t) => t.isCompleted);
+    setSelectedTaskIds(new Set(completed.map((t) => t.id)));
+  };
+
+  const handleSelectPendingOnly = () => {
+    const pending = tasks.filter((t) => t.isPending);
+    setSelectedTaskIds(new Set(pending.map((t) => t.id)));
+  };
+
+  const handleSelectOverdueOnly = () => {
+    const overdue = tasks.filter((t) => t.isOverdue);
+    setSelectedTaskIds(new Set(overdue.map((t) => t.id)));
+  };
+
+  const handleSelectUrgentHighOnly = () => {
+    const critical = tasks.filter((t) => t.priority === "urgent" || t.priority === "high");
+    setSelectedTaskIds(new Set(critical.map((t) => t.id)));
+  };
+
+  const toggleTask = (taskId: string) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSection = (sectionKey: string) => {
+    setSelectedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionKey)) {
+        next.delete(sectionKey);
+      } else {
+        next.add(sectionKey);
+      }
+      return next;
+    });
+  };
+
+  const toggleChart = (chartKey: string) => {
+    setSelectedCharts((prev) => {
+      const next = new Set(prev);
+      if (next.has(chartKey)) {
+        next.delete(chartKey);
+      } else {
+        next.add(chartKey);
+      }
+      return next;
+    });
+  };
+
+  // Filter tasks in the list view
+  const visibleTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (taskSearch.trim()) {
+        const q = taskSearch.toLowerCase().trim();
+        const matches = t.title.toLowerCase().includes(q) || t.key.toLowerCase().includes(q);
+        if (!matches) return false;
+      }
+      if (taskPriorityFilter !== "all" && t.priority !== taskPriorityFilter) {
+        return false;
+      }
+      if (taskStatusCategoryFilter === "completed" && !t.isCompleted) return false;
+      if (taskStatusCategoryFilter === "pending" && !t.isPending) return false;
+      if (taskStatusCategoryFilter === "overdue" && !t.isOverdue) return false;
+      return true;
+    });
+  }, [tasks, taskSearch, taskPriorityFilter, taskStatusCategoryFilter]);
+
+  // Counts for quick filter pills
+  const counts = useMemo(() => {
+    const total = tasks.length;
+    const completed = tasks.filter((t) => t.isCompleted).length;
+    const pending = tasks.filter((t) => t.isPending).length;
+    const overdue = tasks.filter((t) => t.isOverdue).length;
+    const urgentHigh = tasks.filter((t) => t.priority === "urgent" || t.priority === "high").length;
+    return { total, completed, pending, overdue, urgentHigh };
+  }, [tasks]);
+
   if (!isOpen) return null;
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     setIsExporting(true);
 
-    const params = new URLSearchParams();
-    params.set("period", period);
-    if (period === "monthly") {
-      params.set("month", selectedMonth);
-    } else if (period === "yearly") {
-      params.set("year", selectedYear);
-    } else if (period === "custom") {
-      params.set("startDate", startDate);
-      params.set("endDate", endDate);
-    }
-    params.set("includeCatalog", includeCatalog ? "true" : "false");
-    params.set("templateId", selectedTemplateId);
-    if (selectedTemplateId === "custom_brand") {
-      params.set("style", "custom");
-      params.set("customPrimary", customPrimary);
-      params.set("customSecondary", customCard);
-      params.set("customAccent", customAccent);
-    }
-    if (aiPrompt.trim()) {
-      params.set("aiPrompt", aiPrompt.trim());
-    }
+    try {
+      const payload = {
+        period,
+        month: period === "monthly" ? selectedMonth : undefined,
+        year: period === "yearly" ? selectedYear : undefined,
+        startDate: period === "custom" ? startDate : undefined,
+        endDate: period === "custom" ? endDate : undefined,
+        includeCatalog,
+        templateId: selectedTemplateId,
+        style: selectedTemplateId === "custom_brand" ? "custom" : undefined,
+        customPrimary: selectedTemplateId === "custom_brand" ? customPrimary : undefined,
+        customSecondary: selectedTemplateId === "custom_brand" ? customCard : undefined,
+        customAccent: selectedTemplateId === "custom_brand" ? customAccent : undefined,
+        aiPrompt: aiPrompt.trim() || undefined,
+        selectedTaskIds: Array.from(selectedTaskIds),
+        selectedSections: Array.from(selectedSections),
+        selectedCharts: Array.from(selectedCharts),
+      };
 
-    const exportUrl = `/api/projects/${projectId}/presentation.pptx?${params.toString()}`;
+      const res = await fetch(`/api/projects/${projectId}/presentation.pptx`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-    const link = document.createElement("a");
-    link.href = exportUrl;
-    link.download = `${projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${selectedTemplateId}.pptx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      if (!res.ok) {
+        throw new Error(`Export failed: ${res.statusText}`);
+      }
 
-    setTimeout(() => {
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${selectedTemplateId}.pptx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      setTimeout(() => {
+        setIsExporting(false);
+        onClose();
+      }, 1000);
+    } catch (err) {
+      console.error("Presentation download failed:", err);
       setIsExporting(false);
-      onClose();
-    }, 1200);
+      alert("Failed to export presentation. Please try again.");
+    }
+  };
+
+  const presetBtnStyle: React.CSSProperties = {
+    padding: "5px 10px",
+    borderRadius: 6,
+    border: "1px solid rgba(255,255,255,0.1)",
+    background: "rgba(255,255,255,0.04)",
+    color: "#d1d5db",
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.1s ease",
   };
 
   const slidesMeta = [
@@ -236,7 +504,7 @@ export default function ExportPresentationModal({
                     letterSpacing: "0.5px",
                   }}
                 >
-                  32+ TEMPLATES
+                  262+ TEMPLATES
                 </span>
                 <span style={{ fontSize: 12, color: "#9ca3af" }}>{projectName}</span>
               </div>
@@ -315,6 +583,85 @@ export default function ExportPresentationModal({
             scrollbarWidth: "thin",
           }}
         >
+          {/* Top Level Step & View Tabs */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+              paddingBottom: 14,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setActiveTab("templates")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: activeTab === "templates" ? "1px solid #3b82f6" : "1px solid rgba(255, 255, 255, 0.08)",
+                background: activeTab === "templates" ? "rgba(59, 130, 246, 0.18)" : "rgba(255, 255, 255, 0.03)",
+                color: activeTab === "templates" ? "#60a5fa" : "#9ca3af",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Layers size={15} />
+              <span>1. Template Catalog ({allAvailableTemplates.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("selection")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: activeTab === "selection" ? "1px solid #10b981" : "1px solid rgba(255, 255, 255, 0.08)",
+                background: activeTab === "selection" ? "rgba(16, 185, 129, 0.18)" : "rgba(255, 255, 255, 0.03)",
+                color: activeTab === "selection" ? "#34d399" : "#9ca3af",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <CheckSquare size={15} />
+              <span>2. Task &amp; Content Selection ({selectedTaskIds.size} / {tasks.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("preview")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: activeTab === "preview" ? "1px solid #a855f7" : "1px solid rgba(255, 255, 255, 0.08)",
+                background: activeTab === "preview" ? "rgba(168, 85, 247, 0.18)" : "rgba(255, 255, 255, 0.03)",
+                color: activeTab === "preview" ? "#c084fc" : "#9ca3af",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Eye size={15} />
+              <span>3. Live Slide Deck Preview (6 Slides)</span>
+            </button>
+          </div>
+
+          {activeTab === "preview" && (
+            <>
           {/* Timeframe Selector Pills */}
           <div
             style={{
@@ -1568,81 +1915,645 @@ export default function ExportPresentationModal({
               })}
             </div>
           </div>
+            </>
+          )}
 
-          {/* SECTION 2: TEMPLATE EXPLORER & CATEGORIES (30+ STYLES) */}
-          <div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#ffffff" }}>
-                  Select Presentation Style &amp; Template ({filteredTemplates.length} Available)
-                </h3>
-                <p style={{ margin: "2px 0 0", fontSize: 12, color: "#9ca3af" }}>
-                  Pick from executive, tech, strategy consulting, creative, and data-heavy slide designs.
-                </p>
-              </div>
-
-              {/* Search input */}
+          {/* SECTION 2: GRANULAR TASK & CONTENT SELECTION */}
+          {activeTab === "selection" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Timeframe Selector Pills */}
               <div
                 style={{
+                  background: "rgba(255, 255, 255, 0.03)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  borderRadius: 12,
+                  padding: "12px 16px",
                   display: "flex",
+                  flexWrap: "wrap",
                   alignItems: "center",
-                  gap: 6,
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: 8,
-                  padding: "6px 10px",
-                  width: 220,
+                  justifyContent: "space-between",
+                  gap: 12,
                 }}
               >
-                <Search size={14} style={{ color: "#9ca3af" }} />
-                <input
-                  type="text"
-                  placeholder="Search 32+ templates..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    border: 0,
-                    outline: "none",
-                    background: "transparent",
-                    color: "#ffffff",
-                    fontSize: 12,
-                    width: "100%",
-                  }}
-                />
-              </div>
-            </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase" }}>
+                    Timeframe:
+                  </span>
+                  <div style={{ display: "flex", gap: 4, background: "rgba(0,0,0,0.3)", padding: 3, borderRadius: 8 }}>
+                    {(
+                      [
+                        { id: "weekly", label: "Weekly" },
+                        { id: "monthly", label: "Monthly" },
+                        { id: "yearly", label: "Yearly" },
+                        { id: "custom", label: "Custom Dates" },
+                        { id: "all", label: "All Tasks" },
+                      ] as const
+                    ).map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setPeriod(tab.id)}
+                        style={{
+                          border: 0,
+                          borderRadius: 6,
+                          padding: "5px 10px",
+                          fontSize: 12,
+                          fontWeight: period === tab.id ? 700 : 500,
+                          color: period === tab.id ? "#ffffff" : "#9ca3af",
+                          background: period === tab.id ? "#2563eb" : "transparent",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Category Filter Chips */}
-            <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", paddingBottom: 4 }}>
-              {[
-                { id: "all", label: `All (${PRESENTATION_TEMPLATES.length})` },
-                { id: "executive", label: "Executive & Boardroom (8)" },
-                { id: "tech", label: "Tech & SaaS (8)" },
-                { id: "consulting", label: "Strategy & Consulting (8)" },
-                { id: "creative", label: "Creative & Nature (8)" },
-                { id: "data", label: "Data & Metrics (5)" },
-                { id: "custom", label: "Custom Brand" },
-              ].map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setActiveCategory(cat.id as TemplateCategory)}
+                {period === "monthly" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, color: "#9ca3af" }}>Month:</span>
+                    <input
+                      type="month"
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #4b5563",
+                        background: "#1f2937",
+                        color: "#ffffff",
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+                )}
+                {period === "yearly" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, color: "#9ca3af" }}>Year:</span>
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(e.target.value)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #4b5563",
+                        background: "#1f2937",
+                        color: "#ffffff",
+                        fontSize: 12,
+                      }}
+                    >
+                      <option value="2026">2026</option>
+                      <option value="2025">2025</option>
+                      <option value="2024">2024</option>
+                    </select>
+                  </div>
+                )}
+                {period === "custom" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #4b5563",
+                        background: "#1f2937",
+                        color: "#ffffff",
+                        fontSize: 12,
+                      }}
+                    />
+                    <span style={{ color: "#9ca3af" }}>→</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #4b5563",
+                        background: "#1f2937",
+                        color: "#ffffff",
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Select Presets Bar */}
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.03)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  borderRadius: 12,
+                  padding: "12px 16px",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase" }}>
+                    Quick Select:
+                  </span>
+                  <button type="button" onClick={handleSelectAllTasks} style={presetBtnStyle}>
+                    Select All ({counts.total})
+                  </button>
+                  <button type="button" onClick={handleSelectNoTasks} style={presetBtnStyle}>
+                    Select None
+                  </button>
+                  <button type="button" onClick={handleSelectCompletedOnly} style={presetBtnStyle}>
+                    Completed ({counts.completed})
+                  </button>
+                  <button type="button" onClick={handleSelectPendingOnly} style={presetBtnStyle}>
+                    Pending ({counts.pending})
+                  </button>
+                  <button type="button" onClick={handleSelectOverdueOnly} style={{ ...presetBtnStyle, color: "#f87171" }}>
+                    Overdue ({counts.overdue})
+                  </button>
+                  <button type="button" onClick={handleSelectUrgentHighOnly} style={{ ...presetBtnStyle, color: "#fb923c" }}>
+                    Urgent / High ({counts.urgentHigh})
+                  </button>
+                </div>
+
+                <div style={{ fontSize: 12, color: "#34d399", fontWeight: 700 }}>
+                  {selectedTaskIds.size} of {tasks.length} selected
+                </div>
+              </div>
+
+              {/* Granular Section & Chart Configuration */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 14,
+                  background: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid rgba(255, 255, 255, 0.07)",
+                  borderRadius: 12,
+                  padding: "14px 16px",
+                }}
+              >
+                {/* Sections */}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                    <Layers size={13} />
+                    <span>Included Deck Sections</span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {[
+                      { id: "overview", label: "Executive KPI Dashboard" },
+                      { id: "status", label: "Status Lifecycle Breakdown" },
+                      { id: "workload", label: "Team Workload & Capacity" },
+                      { id: "critical", label: "Critical & Overdue Deliverables" },
+                      { id: "catalog", label: "Itemized Task Catalog" },
+                    ].map((sec) => {
+                      const isChecked = selectedSections.has(sec.id);
+                      return (
+                        <label
+                          key={sec.id}
+                          onClick={() => toggleSection(sec.id)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "5px 10px",
+                            borderRadius: 6,
+                            border: isChecked ? "1px solid #3b82f6" : "1px solid rgba(255,255,255,0.1)",
+                            background: isChecked ? "rgba(59, 130, 246, 0.15)" : "rgba(255,255,255,0.03)",
+                            color: isChecked ? "#93c5fd" : "#9ca3af",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {isChecked ? <CheckSquare size={13} style={{ color: "#60a5fa" }} /> : <Square size={13} />}
+                          <span>{sec.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Charts */}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                    <PieChart size={13} />
+                    <span>Included Vector Charts</span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {[
+                      { id: "completion", label: "Completion Rate Donut" },
+                      { id: "workload", label: "Member Workload Bars" },
+                      { id: "priority", label: "Priority Distribution" },
+                      { id: "status", label: "Status Breakdown" },
+                    ].map((ch) => {
+                      const isChecked = selectedCharts.has(ch.id);
+                      return (
+                        <label
+                          key={ch.id}
+                          onClick={() => toggleChart(ch.id)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "5px 10px",
+                            borderRadius: 6,
+                            border: isChecked ? "1px solid #10b981" : "1px solid rgba(255,255,255,0.1)",
+                            background: isChecked ? "rgba(16, 185, 129, 0.15)" : "rgba(255,255,255,0.03)",
+                            color: isChecked ? "#6ee7b7" : "#9ca3af",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {isChecked ? <CheckSquare size={13} style={{ color: "#34d399" }} /> : <Square size={13} />}
+                          <span>{ch.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Task Search & Filter Row */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <div
                   style={{
-                    padding: "6px 12px",
-                    borderRadius: 20,
-                    border: activeCategory === cat.id ? "1px solid #3b82f6" : "1px solid rgba(255,255,255,0.08)",
-                    background: activeCategory === cat.id ? "rgba(59, 130, 246, 0.2)" : "rgba(255,255,255,0.03)",
-                    color: activeCategory === cat.id ? "#60a5fa" : "#9ca3af",
-                    fontSize: 12,
-                    fontWeight: activeCategory === cat.id ? 700 : 500,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    flex: 1,
+                    maxWidth: 340,
                   }}
                 >
-                  {cat.label}
-                </button>
-              ))}
+                  <Search size={14} style={{ color: "#9ca3af" }} />
+                  <input
+                    type="text"
+                    placeholder="Filter tasks by key or title..."
+                    value={taskSearch}
+                    onChange={(e) => setTaskSearch(e.target.value)}
+                    style={{
+                      border: 0,
+                      outline: "none",
+                      background: "transparent",
+                      color: "#ffffff",
+                      fontSize: 12,
+                      width: "100%",
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <select
+                    value={taskPriorityFilter}
+                    onChange={(e) => setTaskPriorityFilter(e.target.value)}
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: "#1f2937",
+                      color: "#ffffff",
+                      fontSize: 12,
+                    }}
+                  >
+                    <option value="all">All Priorities</option>
+                    <option value="urgent">Urgent</option>
+                    <option value="high">High</option>
+                    <option value="normal">Normal</option>
+                    <option value="low">Low</option>
+                  </select>
+
+                  <select
+                    value={taskStatusCategoryFilter}
+                    onChange={(e) => setTaskStatusCategoryFilter(e.target.value)}
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: "#1f2937",
+                      color: "#ffffff",
+                      fontSize: 12,
+                    }}
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="completed">Completed Only</option>
+                    <option value="pending">Pending / Active</option>
+                    <option value="overdue">Overdue Only</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Scrollable Tasks Table */}
+              <div
+                style={{
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 10,
+                  maxHeight: 280,
+                  overflowY: "auto",
+                  background: "rgba(0,0,0,0.2)",
+                }}
+              >
+                {isLoadingTasks ? (
+                  <div style={{ padding: 32, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>
+                    <Loader2 size={18} className="spin" style={{ margin: "0 auto 8px" }} />
+                    Loading project tasks...
+                  </div>
+                ) : visibleTasks.length === 0 ? (
+                  <div style={{ padding: 32, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>
+                    No tasks match the filter criteria.
+                  </div>
+                ) : (
+                  visibleTasks.map((t) => {
+                    const isSelected = selectedTaskIds.has(t.id);
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => toggleTask(t.id)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "8px 14px",
+                          borderBottom: "1px solid rgba(255,255,255,0.05)",
+                          background: isSelected ? "rgba(59, 130, 246, 0.08)" : "transparent",
+                          cursor: "pointer",
+                          transition: "background 0.1s ease",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            style={{ width: 15, height: 15, accentColor: "#2563eb", cursor: "pointer" }}
+                          />
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              fontFamily: "monospace",
+                              color: "#93c5fd",
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              background: "rgba(59, 130, 246, 0.15)",
+                            }}
+                          >
+                            {t.key}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: isSelected ? "#ffffff" : "#9ca3af",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {t.title}
+                          </span>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              textTransform: "uppercase",
+                              background:
+                                t.priority === "urgent"
+                                  ? "rgba(239, 68, 68, 0.2)"
+                                  : t.priority === "high"
+                                  ? "rgba(249, 115, 22, 0.2)"
+                                  : "rgba(107, 114, 128, 0.2)",
+                              color:
+                                t.priority === "urgent"
+                                  ? "#f87171"
+                                  : t.priority === "high"
+                                  ? "#fb923c"
+                                  : "#9ca3af",
+                            }}
+                          >
+                            {t.priority}
+                          </span>
+
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              padding: "2px 8px",
+                              borderRadius: 10,
+                              background: t.statusColor ? `${t.statusColor}25` : "rgba(255,255,255,0.08)",
+                              color: t.statusColor || "#d1d5db",
+                              border: `1px solid ${t.statusColor || "#4b5563"}40`,
+                            }}
+                          >
+                            {t.statusName}
+                          </span>
+
+                          {t.dueDate && (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                color: t.isOverdue ? "#f87171" : "#9ca3af",
+                                fontWeight: t.isOverdue ? 700 : 400,
+                              }}
+                            >
+                              <Clock size={11} />
+                              {t.dueDate}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
+          )}
+
+          {/* SECTION 3: TEMPLATE EXPLORER & CATEGORIES (260+ STYLES) */}
+          {activeTab === "templates" && (
+            <div>
+              {/* Company Template Upload Banner */}
+              <div
+                style={{
+                  marginBottom: 16,
+                  background: "linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)",
+                  border: "1px dashed rgba(59, 130, 246, 0.4)",
+                  borderRadius: 12,
+                  padding: "14px 18px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 16,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 8,
+                      background: "rgba(59, 130, 246, 0.2)",
+                      border: "1px solid rgba(59, 130, 246, 0.4)",
+                      display: "grid",
+                      placeItems: "center",
+                      color: "#60a5fa",
+                    }}
+                  >
+                    <Building2 size={18} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#ffffff" }}>
+                      Import Corporate Presentation Template (.pptx)
+                    </div>
+                    <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
+                      Non-destructively parses corporate theme color scheme, major/minor fonts, and preserves company logos &amp; legal disclaimers.
+                    </div>
+                    {uploadError && (
+                      <div style={{ fontSize: 11, color: "#f87171", marginTop: 4 }}>
+                        {uploadError}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pptx"
+                    onChange={handleCompanyTemplateUpload}
+                    style={{ display: "none" }}
+                    id="company-pptx-upload"
+                  />
+                  <label
+                    htmlFor="company-pptx-upload"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "7px 14px",
+                      borderRadius: 8,
+                      background: "#2563eb",
+                      color: "#ffffff",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: isUploadingCompanyTemplate ? "wait" : "pointer",
+                      boxShadow: "0 2px 8px rgba(37, 99, 235, 0.3)",
+                    }}
+                  >
+                    {isUploadingCompanyTemplate ? (
+                      <>
+                        <Loader2 size={14} className="spin" />
+                        <span>Parsing Template...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={14} />
+                        <span>Upload PPTX</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#ffffff" }}>
+                    Select Presentation Style &amp; Template ({filteredTemplates.length} Available)
+                  </h3>
+                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "#9ca3af" }}>
+                    Pick from 16 corporate categories, strategy consulting, engineering, finance, or upload your company deck.
+                  </p>
+                </div>
+
+                {/* Search input */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    width: 240,
+                  }}
+                >
+                  <Search size={14} style={{ color: "#9ca3af" }} />
+                  <input
+                    type="text"
+                    placeholder="Search 262+ templates..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      border: 0,
+                      outline: "none",
+                      background: "transparent",
+                      color: "#ffffff",
+                      fontSize: 12,
+                      width: "100%",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Category Filter Chips */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", paddingBottom: 6 }}>
+                {[
+                  { id: "all", label: `All (${allAvailableTemplates.length})` },
+                  { id: "executive", label: `Executive (${allAvailableTemplates.filter((t) => t.category === "executive").length})` },
+                  { id: "strategy", label: `Strategy (${allAvailableTemplates.filter((t) => t.category === "strategy").length})` },
+                  { id: "project", label: `Project (${allAvailableTemplates.filter((t) => t.category === "project").length})` },
+                  { id: "tech", label: `Tech & Cloud (${allAvailableTemplates.filter((t) => t.category === "tech").length})` },
+                  { id: "product", label: `Product (${allAvailableTemplates.filter((t) => t.category === "product").length})` },
+                  { id: "sales", label: `Sales (${allAvailableTemplates.filter((t) => t.category === "sales").length})` },
+                  { id: "marketing", label: `Marketing (${allAvailableTemplates.filter((t) => t.category === "marketing").length})` },
+                  { id: "finance", label: `Finance (${allAvailableTemplates.filter((t) => t.category === "finance").length})` },
+                  { id: "consulting", label: `Consulting (${allAvailableTemplates.filter((t) => t.category === "consulting").length})` },
+                  { id: "engineering", label: `Engineering (${allAvailableTemplates.filter((t) => t.category === "engineering").length})` },
+                  { id: "hr", label: `HR (${allAvailableTemplates.filter((t) => t.category === "hr").length})` },
+                  { id: "operations", label: `Operations (${allAvailableTemplates.filter((t) => t.category === "operations").length})` },
+                  { id: "compliance", label: `Compliance (${allAvailableTemplates.filter((t) => t.category === "compliance").length})` },
+                  { id: "data", label: `Data Science (${allAvailableTemplates.filter((t) => t.category === "data").length})` },
+                  { id: "creative", label: `Creative (${allAvailableTemplates.filter((t) => t.category === "creative").length})` },
+                  { id: "custom", label: `Company & Custom (${1 + uploadedCompanyTemplates.length})` },
+                ].map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setActiveCategory(cat.id as TemplateCategory)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 20,
+                      border: activeCategory === cat.id ? "1px solid #3b82f6" : "1px solid rgba(255,255,255,0.08)",
+                      background: activeCategory === cat.id ? "rgba(59, 130, 246, 0.2)" : "rgba(255,255,255,0.03)",
+                      color: activeCategory === cat.id ? "#60a5fa" : "#9ca3af",
+                      fontSize: 12,
+                      fontWeight: activeCategory === cat.id ? 700 : 500,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
 
             {/* Template Cards Grid */}
             <div
@@ -1772,69 +2683,71 @@ export default function ExportPresentationModal({
                 );
               })}
             </div>
-          </div>
 
-          {/* Custom Brand Suite Options (when custom_brand selected) */}
-          {selectedTemplateId === "custom_brand" && (
-            <div
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: 12,
-                padding: "16px 20px",
-                display: "grid",
-                gap: 14,
-              }}
-            >
-              <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#ffffff" }}>
-                Custom Brand RGB Palette &amp; AI Prompt
-              </h4>
-              <div style={{ display: "flex", gap: 16 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 4 }}>Canvas Background</label>
-                  <input
-                    type="color"
-                    value={customPrimary}
-                    onChange={(e) => setCustomPrimary(e.target.value)}
-                    style={{ width: 44, height: 32, borderRadius: 6, border: 0, cursor: "pointer" }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 4 }}>Card Surface</label>
-                  <input
-                    type="color"
-                    value={customCard}
-                    onChange={(e) => setCustomCard(e.target.value)}
-                    style={{ width: 44, height: 32, borderRadius: 6, border: 0, cursor: "pointer" }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 4 }}>Accent Highlight</label>
-                  <input
-                    type="color"
-                    value={customAccent}
-                    onChange={(e) => setCustomAccent(e.target.value)}
-                    style={{ width: 44, height: 32, borderRadius: 6, border: 0, cursor: "pointer" }}
-                  />
-                </div>
-              </div>
-              <textarea
-                placeholder="Optional AI Prompt (e.g. Create McKinsey-style 2x2 matrix, interactive drill-down slides...)"
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                rows={2}
+            {/* Custom Brand Suite Options (when custom_brand selected) */}
+            {selectedTemplateId === "custom_brand" && (
+              <div
                 style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  border: "1px solid #4b5563",
-                  background: "#1f2937",
-                  color: "#ffffff",
-                  fontSize: 12,
+                  marginTop: 16,
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 12,
+                  padding: "16px 20px",
+                  display: "grid",
+                  gap: 14,
                 }}
-              />
-            </div>
-          )}
+              >
+                <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#ffffff" }}>
+                  Custom Brand RGB Palette &amp; AI Prompt
+                </h4>
+                <div style={{ display: "flex", gap: 16 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 4 }}>Canvas Background</label>
+                    <input
+                      type="color"
+                      value={customPrimary}
+                      onChange={(e) => setCustomPrimary(e.target.value)}
+                      style={{ width: 44, height: 32, borderRadius: 6, border: 0, cursor: "pointer" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 4 }}>Card Surface</label>
+                    <input
+                      type="color"
+                      value={customCard}
+                      onChange={(e) => setCustomCard(e.target.value)}
+                      style={{ width: 44, height: 32, borderRadius: 6, border: 0, cursor: "pointer" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 4 }}>Accent Highlight</label>
+                    <input
+                      type="color"
+                      value={customAccent}
+                      onChange={(e) => setCustomAccent(e.target.value)}
+                      style={{ width: 44, height: 32, borderRadius: 6, border: 0, cursor: "pointer" }}
+                    />
+                  </div>
+                </div>
+                <textarea
+                  placeholder="Optional AI Prompt (e.g. Create McKinsey-style 2x2 matrix, interactive drill-down slides...)"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  rows={2}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #4b5563",
+                    background: "#1f2937",
+                    color: "#ffffff",
+                    fontSize: 12,
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        )}
         </div>
 
         {/* Modal Footer */}
@@ -1849,17 +2762,66 @@ export default function ExportPresentationModal({
             justifyContent: "space-between",
           }}
         >
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer", color: "#d1d5db" }}>
-            <input
-              type="checkbox"
-              checked={includeCatalog}
-              onChange={(e) => setIncludeCatalog(e.target.checked)}
-              style={{ width: 16, height: 16, accentColor: "#2563eb", cursor: "pointer" }}
-            />
-            Include detailed itemized task catalog table slides
-          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#34d399",
+                background: "rgba(16, 185, 129, 0.15)",
+                border: "1px solid rgba(16, 185, 129, 0.3)",
+                padding: "3px 10px",
+                borderRadius: 12,
+              }}
+            >
+              {selectedTaskIds.size} of {tasks.length} tasks selected
+            </span>
+
+            <span
+              style={{
+                fontSize: 12,
+                color: "#93c5fd",
+                background: "rgba(59, 130, 246, 0.15)",
+                border: "1px solid rgba(59, 130, 246, 0.3)",
+                padding: "3px 10px",
+                borderRadius: 12,
+                fontWeight: 600,
+              }}
+            >
+              Template: {activeTemplate.name}
+            </span>
+
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer", color: "#d1d5db" }}>
+              <input
+                type="checkbox"
+                checked={includeCatalog}
+                onChange={(e) => setIncludeCatalog(e.target.checked)}
+                style={{ width: 15, height: 15, accentColor: "#2563eb", cursor: "pointer" }}
+              />
+              Include itemized catalog slides
+            </label>
+          </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {activeTab !== "preview" && (
+              <button
+                type="button"
+                onClick={() => setActiveTab(activeTab === "templates" ? "selection" : "preview")}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "#ffffff",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {activeTab === "templates" ? "Next: Select Tasks →" : "Next: Preview Deck →"}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onClose}

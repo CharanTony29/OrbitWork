@@ -43,13 +43,12 @@ export interface ModelEntry {
  * and highest-quota to larger models.
  */
 const DEFAULT_GOOGLE_FREE_MODELS = [
-  "gemini-3.1-flash-lite",
-  "gemini-3.5-flash-lite",
-  "gemini-3.6-flash",
+  "gemini-3.1-flash-lite-preview",
   "gemini-3.8-flash",
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
   "gemma-4-26b-a4b-it",
   "gemma-4-31b-it",
-  "gemini-2.5-flash",
 ];
 
 /**
@@ -538,24 +537,30 @@ export async function buildFreeModelFallbackChain(): Promise<ModelEntry[]> {
 export function getModelFallbackChain(): ModelEntry[] {
   const chain: ModelEntry[] = [];
 
-  for (const { envName, apiKey } of collectUniqueKeys([
-    "GOOGLE_GENERATIVE_AI_API_KEY",
-    "GEMINI_API_KEY",
-    "GOOGLE_GENERATIVE_AI_API_KEY_2",
-    "GOOGLE_GENERATIVE_AI_API_KEY_3",
-  ])) {
-    const modelId = getGoogleFreeModels()[0];
-    const model = getGoogleModel(modelId, apiKey);
-    if (model) {
-      chain.push({
-        id: `google:${envName}:${modelId}`,
-        keyGroup: `google:${envName}`,
-        provider: "google",
-        modelId,
-        name: `Google (${envName} / ${modelId})`,
-        model,
-        supportsSystem: !modelId.toLowerCase().startsWith("gemma"),
-      });
+  const googleCandidates = [
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3.8-flash",
+    "gemini-3.5-flash",
+  ];
+  for (const modelId of googleCandidates) {
+    for (const { envName, apiKey } of collectUniqueKeys([
+      "GOOGLE_GENERATIVE_AI_API_KEY",
+      "GEMINI_API_KEY",
+      "GOOGLE_GENERATIVE_AI_API_KEY_2",
+      "GOOGLE_GENERATIVE_AI_API_KEY_3",
+    ])) {
+      const model = getGoogleModel(modelId, apiKey);
+      if (model) {
+        chain.push({
+          id: `google:${envName}:${modelId}`,
+          keyGroup: `google:${envName}`,
+          provider: "google",
+          modelId,
+          name: `Google (${envName} / ${modelId})`,
+          model,
+          supportsSystem: !modelId.toLowerCase().startsWith("gemma"),
+        });
+      }
     }
   }
 

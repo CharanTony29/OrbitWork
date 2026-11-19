@@ -92,7 +92,8 @@ export default function AIAgentGlobalNotifier() {
           {jobs.map((job) => {
             const isRunning = job.status === "running";
             const isCompleted = job.status === "completed";
-            const isError = job.status === "error";
+            const isPartiallyCompleted = job.status === "partially_completed";
+            const isError = job.status === "error" || job.status === "failed";
             const isCancelled = job.status === "cancelled";
 
             let borderColor = "var(--line, #cbd5e1)";
@@ -103,6 +104,10 @@ export default function AIAgentGlobalNotifier() {
               borderColor = "var(--green, #167c58)";
               iconBg = "rgba(22, 124, 88, 0.15)";
               iconColor = "var(--green, #167c58)";
+            } else if (isPartiallyCompleted) {
+              borderColor = "#f59e0b";
+              iconBg = "rgba(245, 158, 11, 0.15)";
+              iconColor = "#d97706";
             } else if (isError) {
               borderColor = "#ef4444";
               iconBg = "rgba(239, 68, 68, 0.15)";
@@ -163,6 +168,7 @@ export default function AIAgentGlobalNotifier() {
                   >
                     {isRunning && <Loader2 size={18} className="spin" style={{ animation: "spin 1s linear infinite" }} />}
                     {isCompleted && <CheckCircle2 size={18} />}
+                    {isPartiallyCompleted && <AlertCircle size={18} />}
                     {isCancelled && <AlertCircle size={18} />}
                     {isError && <AlertCircle size={18} />}
                   </div>
@@ -186,6 +192,7 @@ export default function AIAgentGlobalNotifier() {
                           </span>
                         )}
                         {isCompleted && <span style={{ color: "var(--green, #167c58)" }}>AI Agent Completed!</span>}
+                        {isPartiallyCompleted && <span style={{ color: "#d97706" }}>Partially Completed</span>}
                         {isCancelled && <span style={{ color: "#d97706" }}>AI Agent Cancelled</span>}
                         {isError && <span style={{ color: "#ef4444" }}>AI Agent Execution Failed</span>}
                       </span>

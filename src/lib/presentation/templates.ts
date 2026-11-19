@@ -4,10 +4,20 @@
 export type TemplateCategory =
   | "all"
   | "executive"
+  | "strategy"
+  | "project"
   | "tech"
+  | "product"
+  | "sales"
+  | "marketing"
+  | "finance"
   | "consulting"
-  | "creative"
+  | "engineering"
+  | "hr"
+  | "operations"
+  | "compliance"
   | "data"
+  | "creative"
   | "custom";
 
 export type DesignArchetype =
@@ -22,7 +32,7 @@ export type DesignArchetype =
 export interface PresentationTemplate {
   id: string;
   name: string;
-  category: "executive" | "tech" | "consulting" | "creative" | "data" | "custom";
+  category: TemplateCategory;
   archetype: DesignArchetype;
   tagline: string;
   bg: string;              // Slide canvas background (hex without #)
@@ -38,9 +48,14 @@ export interface PresentationTemplate {
   badgeStyle: "pill" | "rounded" | "sharp";
   transition: "fade" | "push" | "wipe" | "none";
   isDark: boolean;
+  industry?: string;
+  recommendedUse?: string;
+  visualStyle?: string;
+  supportedSlideTypes?: string[];
+  version?: string;
 }
 
-export const PRESENTATION_TEMPLATES: PresentationTemplate[] = [
+const BASE_PRESENTATION_TEMPLATES: PresentationTemplate[] = [
   // ==========================================
   // 1. EXECUTIVE & BOARDROOM
   // ==========================================
@@ -826,10 +841,52 @@ export const PRESENTATION_TEMPLATES: PresentationTemplate[] = [
   },
 ];
 
+import { CORPORATE_CATALOG } from "./corporate-catalog.ts";
+import {
+  getCompanyTemplateById,
+  companyTemplateToPresentationTemplate,
+} from "./company-template.ts";
+
+/**
+ * Full Orbitwork Enterprise Presentation Template Library (260+ Curated Templates)
+ */
+export const PRESENTATION_TEMPLATES: PresentationTemplate[] = [
+  ...BASE_PRESENTATION_TEMPLATES,
+  ...CORPORATE_CATALOG,
+];
+
 export function getTemplateById(templateId?: string): PresentationTemplate {
   if (!templateId) return PRESENTATION_TEMPLATES[0]; // Pitch Sage default
   const found = PRESENTATION_TEMPLATES.find((t) => t.id === templateId);
-  return found || PRESENTATION_TEMPLATES[0];
+  if (found) return found;
+
+  const companyTmpl = getCompanyTemplateById(templateId);
+  if (companyTmpl) {
+    return companyTemplateToPresentationTemplate(companyTmpl);
+  }
+
+  return PRESENTATION_TEMPLATES[0];
+}
+
+export function getTemplatesByCategory(category: TemplateCategory): PresentationTemplate[] {
+  if (category === "all") return PRESENTATION_TEMPLATES;
+  return PRESENTATION_TEMPLATES.filter((t) => t.category === category);
+}
+
+export function searchTemplates(query: string, category?: TemplateCategory): PresentationTemplate[] {
+  const q = query.toLowerCase().trim();
+  return PRESENTATION_TEMPLATES.filter((t) => {
+    const matchesCat = !category || category === "all" || t.category === category;
+    if (!matchesCat) return false;
+    if (!q) return true;
+    return (
+      t.name.toLowerCase().includes(q) ||
+      t.tagline.toLowerCase().includes(q) ||
+      t.industry?.toLowerCase().includes(q) ||
+      t.recommendedUse?.toLowerCase().includes(q) ||
+      t.archetype.toLowerCase().includes(q)
+    );
+  });
 }
 
 export function getArchetype(template?: PresentationTemplate): DesignArchetype {

@@ -179,6 +179,22 @@ export default function LiveAIAgentInspectorModal({ job, onClose, onCancel }: Pr
                   >
                     <CheckCircle2 size={12} /> COMPLETED
                   </span>
+                ) : job.status === "partially_completed" ? (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: "2px 8px",
+                      borderRadius: 999,
+                      background: "rgba(245, 158, 11, 0.18)",
+                      color: "#b45309",
+                    }}
+                  >
+                    <AlertCircle size={12} /> PARTIALLY COMPLETED
+                  </span>
                 ) : job.status === "cancelled" ? (
                   <span
                     style={{
@@ -298,19 +314,19 @@ export default function LiveAIAgentInspectorModal({ job, onClose, onCancel }: Pr
             }}
           >
             <div style={{ padding: "8px 12px", background: "var(--surface, #f8fafc)", borderRadius: 8, border: "1px solid var(--line, #e2e8f0)" }}>
-              <span style={{ fontSize: 11, color: "var(--muted, #64748b)", display: "block" }}>Total Tasks</span>
-              <strong style={{ fontSize: 15, color: "var(--ink, #0f172a)" }}>{job.totalTasks || "Scanning…"}</strong>
+              <span style={{ fontSize: 11, color: "var(--muted, #64748b)", display: "block" }}>Verified DB Updates</span>
+              <strong style={{ fontSize: 15, color: "#16a34a" }}>{job.processedCount}</strong>
             </div>
             <div style={{ padding: "8px 12px", background: "var(--surface, #f8fafc)", borderRadius: 8, border: "1px solid var(--line, #e2e8f0)" }}>
-              <span style={{ fontSize: 11, color: "var(--muted, #64748b)", display: "block" }}>Processed</span>
-              <strong style={{ fontSize: 15, color: "var(--ink, #0f172a)" }}>{job.processedCount}</strong>
+              <span style={{ fontSize: 11, color: "var(--muted, #64748b)", display: "block" }}>Actions Executed</span>
+              <strong style={{ fontSize: 15, color: "var(--ink, #0f172a)" }}>{successCount}</strong>
             </div>
             <div style={{ padding: "8px 12px", background: "var(--surface, #f8fafc)", borderRadius: 8, border: "1px solid var(--line, #e2e8f0)" }}>
-              <span style={{ fontSize: 11, color: "var(--muted, #64748b)", display: "block" }}>Actions Applied</span>
-              <strong style={{ fontSize: 15, color: "#16a34a" }}>{successCount}</strong>
+              <span style={{ fontSize: 11, color: "var(--muted, #64748b)", display: "block" }}>Steps Inspected</span>
+              <strong style={{ fontSize: 15, color: "var(--ink, #0f172a)" }}>{job.logs.length}</strong>
             </div>
             <div style={{ padding: "8px 12px", background: "var(--surface, #f8fafc)", borderRadius: 8, border: "1px solid var(--line, #e2e8f0)" }}>
-              <span style={{ fontSize: 11, color: "var(--muted, #64748b)", display: "block" }}>Already Configured</span>
+              <span style={{ fontSize: 11, color: "var(--muted, #64748b)", display: "block" }}>Skipped / Unchanged</span>
               <strong style={{ fontSize: 15, color: "var(--muted, #64748b)" }}>{skippedCount}</strong>
             </div>
           </div>

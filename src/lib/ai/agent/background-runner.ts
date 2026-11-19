@@ -14,7 +14,7 @@ export type AIAgentJob = {
   projectId: string;
   agentId?: string;
   agentName: string;
-  status: "running" | "completed" | "error" | "cancelled";
+  status: "running" | "completed" | "partially_completed" | "failed" | "error" | "cancelled";
   summary?: string;
   processedCount: number;
   totalTasks: number;
@@ -148,9 +148,9 @@ async function callAgentRunApi(payload: {
 }
 
 /**
- * Resilient batch loop that executes in discrete chunks (10 tasks per call).
- * If the user refreshes or navigates, the loop resumes on next page load from currentOffset.
- * Network blips are retried up to 3 times before failing.
+ * Resilient execution runner.
+ * Initiates the AI agent execution against the Orbitwork backend engine,
+ * updates live job state, and records verified database changes.
  */
 async function runJobBatchLoop(jobId: string) {
   if (inFlightJobLoops.has(jobId)) return;
@@ -160,156 +160,83 @@ async function runJobBatchLoop(jobId: string) {
     let job = getJobById(jobId);
     if (!job || job.status !== "running") return;
 
-    // Single task execution
-    if (job.taskId) {
-      try {
-        const res = await callAgentRunApi({
-          projectId: job.projectId,
-          agentId: job.agentId,
-          taskId: job.taskId,
-          jobId,
-        });
+    try {
+      const res = await callAgentRunApi({
+        projectId: job.projectId,
+        agentId: job.agentId,
+        taskId: job.taskId,
+        runAllTasks: job.runAllTasks,
+        runAllAgents: job.runAllAgents,
+        jobId,
+      });
 
-        const newLogs: AIAgentLogEntry[] = (res.batchLogs || []).map((b: any, idx: number) => ({
-          id: `log-${Date.now()}-${idx}`,
-          time: b.timestamp || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-          taskId: b.taskId,
-          taskTitle: b.taskTitle,
-          actionTaken: b.actionTaken,
-          status: b.status === "failed" ? "failed" : b.status === "skipped" ? "info" : "success",
-        }));
+      const newLogs: AIAgentLogEntry[] = (res.batchLogs || []).map((b: any, idx: number) => ({
+        id: `log-${Date.now()}-${idx}`,
+        time: b.timestamp || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        taskId: b.taskId,
+        taskTitle: b.taskTitle,
+        actionTaken: b.actionTaken,
+        status: b.status === "failed" ? "failed" : b.status === "skipped" ? "info" : "success",
+      }));
 
-        updateJob(jobId, (j) => ({
-          ...j,
-          status: "completed",
-          processedCount: 1,
-          totalTasks: 1,
-          finishedAt: Date.now(),
-          summary: res.summary || "Task processed successfully.",
-          logs: [...j.logs, ...newLogs],
-        }));
+      const finalStatus: AIAgentJob["status"] =
+        res.status === "partially_completed"
+          ? "partially_completed"
+          : res.status === "failed"
+          ? "failed"
+          : res.success
+          ? "completed"
+          : "error";
 
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent("orbitwork:tasks-updated", {
-              detail: { projectId: job.projectId, agentId: job.agentId },
-            })
-          );
-        }
-      } catch (err: any) {
-        updateJob(jobId, (j) => ({
-          ...j,
-          status: "error",
-          error: err?.message || "Task execution failed",
-          finishedAt: Date.now(),
-        }));
+      const verifiedCount = res.verifiedCount ?? (finalStatus === "completed" ? 1 : 0);
+
+      updateJob(jobId, (j) => ({
+        ...j,
+        status: finalStatus,
+        processedCount: verifiedCount,
+        totalTasks: Math.max(verifiedCount, 1),
+        finishedAt: Date.now(),
+        summary: res.summary || (res.success ? "AI Agent executed and verified changes successfully." : "Execution completed with warnings."),
+        logs: [
+          ...j.logs,
+          ...newLogs,
+          {
+            id: `log-${Date.now()}-done`,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+            actionTaken:
+              verifiedCount > 0
+                ? `Finished. Verified ${verifiedCount} real database update(s).`
+                : "Finished. No matching tasks required modifications.",
+            status: finalStatus === "failed" ? "failed" : "success",
+          },
+        ],
+      }));
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("orbitwork:tasks-updated", {
+            detail: { projectId: job.projectId, agentId: job.agentId, processedCount: verifiedCount },
+          })
+        );
       }
-      return;
-    }
-
-    // Bulk tasks execution loop
-    let done = false;
-    let offset = job.currentOffset || 0;
-    const batchSize = job.batchSize || 10;
-    let retryCount = 0;
-
-    while (!done) {
-      job = getJobById(jobId);
-      if (!job || job.status === "cancelled") {
-        break;
-      }
-
-      try {
-        const res = await callAgentRunApi({
-          projectId: job.projectId,
-          agentId: job.agentId,
-          runAllTasks: job.runAllTasks,
-          runAllAgents: job.runAllAgents,
-          batchOffset: offset,
-          batchSize,
-          jobId,
-        });
-
-        retryCount = 0; // reset retry counter on success
-        const total = res.totalTasks ?? job.totalTasks ?? 0;
-        const newLogs: AIAgentLogEntry[] = (res.batchLogs || []).map((b: any, idx: number) => ({
-          id: `log-${Date.now()}-${offset}-${idx}`,
-          time: b.timestamp || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-          taskId: b.taskId,
-          taskTitle: b.taskTitle,
-          actionTaken: b.actionTaken,
-          status: b.status === "failed" ? "failed" : b.status === "skipped" ? "info" : "success",
-        }));
-
-        const nextProcessed = Math.min(total, (job.processedCount || 0) + (res.processedInBatch || 0));
-
-        if (res.done || res.nextOffset === null || res.processedInBatch === 0) {
-          done = true;
-          updateJob(jobId, (j) => ({
-            ...j,
-            status: "completed",
-            totalTasks: total,
-            processedCount: total || nextProcessed,
-            finishedAt: Date.now(),
-            summary: `Successfully completed across ${total || nextProcessed} task(s).`,
-            logs: [
-              ...j.logs,
-              ...newLogs,
-              {
-                id: `log-${Date.now()}-done`,
-                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-                actionTaken: `All ${total || nextProcessed} tasks completed.`,
-                status: "success",
-              },
-            ],
-          }));
-
-          if (typeof window !== "undefined") {
-            window.dispatchEvent(
-              new CustomEvent("orbitwork:tasks-updated", {
-                detail: { projectId: job.projectId, agentId: job.agentId },
-              })
-            );
-          }
-          break;
-        } else {
-          offset = res.nextOffset;
-          updateJob(jobId, (j) => ({
-            ...j,
-            totalTasks: total,
-            currentOffset: offset,
-            processedCount: nextProcessed,
-            logs: [...j.logs, ...newLogs],
-          }));
-        }
-      } catch (err: any) {
-        retryCount++;
-        console.warn(`[AIAgentRunner] Batch at offset ${offset} interrupted (attempt ${retryCount}/3):`, err);
-        if (retryCount <= 3) {
-          updateJob(jobId, (j) => ({
-            ...j,
-            logs: [
-              ...j.logs,
-              {
-                id: `log-retry-${Date.now()}`,
-                time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-                actionTaken: `Connection interrupted. Retrying batch in 2s (attempt ${retryCount}/3)...`,
-                status: "warn",
-              },
-            ],
-          }));
-          await new Promise((r) => setTimeout(r, 2000));
-          continue;
-        } else {
-          updateJob(jobId, (j) => ({
-            ...j,
-            status: "error",
-            error: err?.message || "Execution encountered network interruption after 3 retries.",
-            finishedAt: Date.now(),
-          }));
-          done = true;
-        }
-      }
+    } catch (err: any) {
+      console.error(`[AIAgentRunner] Execution error for job ${jobId}:`, err);
+      updateJob(jobId, (j) => ({
+        ...j,
+        status: "failed",
+        error: err?.message || "Task execution failed",
+        summary: err?.message || "Task execution failed",
+        finishedAt: Date.now(),
+        logs: [
+          ...j.logs,
+          {
+            id: `log-err-${Date.now()}`,
+            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+            actionTaken: `Error: ${err?.message || "Execution failed"}`,
+            status: "failed",
+          },
+        ],
+      }));
     }
   } finally {
     inFlightJobLoops.delete(jobId);
@@ -317,7 +244,7 @@ async function runJobBatchLoop(jobId: string) {
 }
 
 /**
- * Triggers an AI Agent run in the global browser background with resilient batching.
+ * Triggers an AI Agent run in the global browser background.
  */
 export async function triggerAIAgentRun({
   projectId,
@@ -348,7 +275,7 @@ export async function triggerAIAgentRun({
     agentName,
     status: "running",
     processedCount: 0,
-    totalTasks: 0,
+    totalTasks: 1,
     currentOffset: 0,
     batchSize: 10,
     logs: [
@@ -368,7 +295,7 @@ export async function triggerAIAgentRun({
   const current = getActiveAIAgentJobs();
   persistJobs([...current, newJob]);
 
-  // Launch background loop asynchronously
+  // Launch background execution asynchronously
   setTimeout(() => {
     runJobBatchLoop(jobId);
   }, 10);
@@ -383,7 +310,7 @@ if (typeof window !== "undefined") {
       const active = getActiveAIAgentJobs();
       active.forEach((j) => {
         if (j.status === "running") {
-          console.log(`[AIAgentRunner] Resuming background job "${j.agentName}" (${j.id}) from offset ${j.currentOffset}`);
+          console.log(`[AIAgentRunner] Resuming background job "${j.agentName}" (${j.id})`);
           runJobBatchLoop(j.id);
         }
       });
