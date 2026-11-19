@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { indexAttachment } from "@/lib/ai/rag/index-service";
+import { googleDriveAccessToken, uploadProjectDriveFile } from "@/lib/google-drive";
+import { getOneDriveAccessToken, uploadProjectOneDriveFile } from "@/lib/onedrive";
+import { getWorkspaceStorageConfig } from "@/lib/storage-config";
 
 /**
  * Chunked attachment upload handler.
  * Avoids Vercel's 4.5 MB serverless function payload limit (FUNCTION_PAYLOAD_TOO_LARGE)
- * by receiving file slices in 3 MB chunks and assembling them into attachment_files.
+ * by receiving file slices in 3 MB chunks and streaming them to the workspace's selected
+ * drive (Google Drive, OneDrive, or built-in direct storage).
  */
 export async function POST(request: Request) {
   const url = new URL(request.url);
@@ -20,7 +24,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  // 1. ACTION: INIT (Initialize task_attachment record)
+  // 1. ACTION: INIT (Initialize task_attachment record with target storage provider)
   if (action === "init") {
     try {
       const body = await request.json();
@@ -45,6 +49,31 @@ export async function POST(request: Request) {
         fileName.replace(/[\\/\u0000-\u001f\u007f]/g, "_").trim().slice(0, 255) || "attachment";
       const contentType = (mimeType || "application/octet-stream").slice(0, 150);
 
+      // Determine active storage provider (Google Drive, OneDrive, or built_in)
+      let initialProvider = "built_in";
+      const { data: project } = await supabase
+        .from("projects")
+        .select("id, workspace_id, workspaces(id, organization_id)")
+        .eq("id", projectId)
+        .maybeSingle();
+
+      const wsRel = project?.workspaces;
+      const workspace = Array.isArray(wsRel) ? wsRel[0] : wsRel;
+      if (project && workspace?.organization_id) {
+        try {
+          const adminClient = createAdminClient();
+          const dbClient = adminClient || supabase;
+          const storageConfig = await getWorkspaceStorageConfig(
+            dbClient,
+            workspace.id || project.workspace_id,
+            workspace.organization_id
+          );
+          initialProvider = storageConfig.activeProvider;
+        } catch {
+          // fallback to built_in
+        }
+      }
+
       const { data: inserted, error: insertErr } = await supabase
         .from("task_attachments")
         .insert({
@@ -53,8 +82,8 @@ export async function POST(request: Request) {
           file_name: safeName,
           mime_type: contentType,
           file_size_bytes: Number(fileSize) || 0,
-          storage_provider: "built_in",
-          external_file_id: "built_in",
+          storage_provider: initialProvider,
+          external_file_id: initialProvider,
           uploaded_by: user.id,
         })
         .select("id")
@@ -67,7 +96,7 @@ export async function POST(request: Request) {
         );
       }
 
-      return NextResponse.json({ ok: true, attachmentId: inserted.id });
+      return NextResponse.json({ ok: true, attachmentId: inserted.id, storageProvider: initialProvider });
     } catch (err) {
       console.error("[Chunk Upload Init Error]:", err);
       return NextResponse.json(
@@ -180,7 +209,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // 3. ACTION: COMPLETE (Trigger RAG indexing and return final attachment object)
+  // 3. ACTION: COMPLETE (Promote to Google Drive / OneDrive if active, trigger RAG, return final object)
   if (action === "complete") {
     try {
       const body = await request.json();
@@ -192,7 +221,7 @@ export async function POST(request: Request) {
 
       const { data: attachment } = await supabase
         .from("task_attachments")
-        .select("id, project_id, task_id, file_name, mime_type, file_size_bytes")
+        .select("id, project_id, task_id, file_name, mime_type, file_size_bytes, storage_provider")
         .eq("id", attachmentId)
         .maybeSingle();
 
@@ -200,40 +229,138 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, error: "Attachment not found" }, { status: 404 });
       }
 
-      // Read completed file bytes to index for RAG
+      // Read completed file bytes
       const { data: fileRow } = await supabase
         .from("attachment_files")
         .select("file_bytes")
         .eq("id", attachmentId)
         .maybeSingle();
 
-      if (fileRow?.file_bytes) {
-        let fullBuffer: Buffer;
-        if (typeof fileRow.file_bytes === "string") {
-          const h = fileRow.file_bytes.startsWith("\\x")
-            ? fileRow.file_bytes.slice(2)
-            : fileRow.file_bytes;
-          fullBuffer = Buffer.from(h, "hex");
-        } else {
-          fullBuffer = Buffer.from(fileRow.file_bytes);
-        }
-
-        // Trigger RAG concept indexing in background
-        void indexAttachment({
-          supabase,
-          attachmentId: attachment.id,
-          buffer: fullBuffer,
-          fileName: attachment.file_name,
-          mimeType: attachment.mime_type,
-          projectId: projectId || attachment.project_id,
-          taskId: taskId || attachment.task_id,
-        }).catch(() => undefined);
+      if (!fileRow?.file_bytes) {
+        return NextResponse.json({ ok: false, error: "File content not found" }, { status: 404 });
       }
+
+      let fullBuffer: Buffer;
+      if (typeof fileRow.file_bytes === "string") {
+        const h = fileRow.file_bytes.startsWith("\\x")
+          ? fileRow.file_bytes.slice(2)
+          : fileRow.file_bytes;
+        fullBuffer = Buffer.from(h, "hex");
+      } else {
+        fullBuffer = Buffer.from(fileRow.file_bytes);
+      }
+
+      let finalProvider = attachment.storage_provider || "built_in";
+      let finalExternalId = "built_in";
+      let finalFileSize = attachment.file_size_bytes || fullBuffer.length;
+
+      // 4. Check workspace storage configuration and upload to selected Drive
+      const { data: project } = await supabase
+        .from("projects")
+        .select("id, name, workspace_id, workspaces(id, name, organization_id)")
+        .eq("id", projectId || attachment.project_id)
+        .maybeSingle();
+
+      const wsRel = project?.workspaces;
+      const workspace = Array.isArray(wsRel) ? wsRel[0] : wsRel;
+
+      if (project && workspace?.organization_id) {
+        try {
+          const adminClient = createAdminClient();
+          const dbClient = adminClient || supabase;
+          const storageConfig = await getWorkspaceStorageConfig(
+            dbClient,
+            workspace.id || project.workspace_id,
+            workspace.organization_id
+          );
+          const targetProvider = storageConfig.activeProvider;
+
+          if (targetProvider === "google_drive") {
+            const accessToken = await googleDriveAccessToken(
+              supabase,
+              workspace.organization_id,
+              workspace.id || project.workspace_id
+            );
+            if (accessToken) {
+              const uploaded = await uploadProjectDriveFile(
+                accessToken,
+                projectId || attachment.project_id,
+                attachment.file_name,
+                attachment.mime_type,
+                fullBuffer,
+                { workspaceName: workspace.name, projectName: project.name }
+              );
+
+              finalProvider = "google_drive";
+              finalExternalId = uploaded.id;
+              if (uploaded.size) finalFileSize = Number(uploaded.size);
+
+              await supabase
+                .from("task_attachments")
+                .update({
+                  storage_provider: "google_drive",
+                  external_file_id: uploaded.id,
+                  file_size_bytes: finalFileSize,
+                })
+                .eq("id", attachment.id);
+
+              // Clean up local bytes now that it is safely stored in Google Drive
+              await supabase.from("attachment_files").delete().eq("id", attachment.id);
+            }
+          } else if (targetProvider === "onedrive") {
+            const accessToken = await getOneDriveAccessToken(
+              supabase,
+              workspace.id || project.workspace_id,
+              workspace.organization_id,
+              adminClient
+            );
+            if (accessToken) {
+              const folder = storageConfig.oneDrive.folderName || "Orbitwork";
+              const uploaded = await uploadProjectOneDriveFile(
+                accessToken,
+                folder,
+                attachment.file_name,
+                attachment.mime_type,
+                fullBuffer
+              );
+
+              finalProvider = "onedrive";
+              finalExternalId = uploaded.id;
+              if (uploaded.size) finalFileSize = uploaded.size;
+
+              await supabase
+                .from("task_attachments")
+                .update({
+                  storage_provider: "onedrive",
+                  external_file_id: uploaded.id,
+                  file_size_bytes: finalFileSize,
+                })
+                .eq("id", attachment.id);
+
+              await supabase.from("attachment_files").delete().eq("id", attachment.id);
+            }
+          }
+        } catch (storageErr) {
+          console.warn("[Chunk Upload Storage Warning] Live drive upload failed, falling back to local:", storageErr);
+        }
+      }
+
+      // Trigger RAG concept indexing in background
+      void indexAttachment({
+        supabase,
+        attachmentId: attachment.id,
+        buffer: fullBuffer,
+        fileName: attachment.file_name,
+        mimeType: attachment.mime_type,
+        projectId: projectId || attachment.project_id,
+        taskId: taskId || attachment.task_id,
+      }).catch(() => undefined);
 
       return NextResponse.json({
         ok: true,
         id: attachment.id,
         fileName: attachment.file_name,
+        storageProvider: finalProvider,
         url: `/api/attachments/${attachment.id}`,
       });
     } catch (err) {

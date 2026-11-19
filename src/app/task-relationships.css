@@ -421,11 +421,14 @@
 }
 
 .dependency-task-dropdown {
-  display: block !important;
+  display: flex !important;
+  align-items: center !important;
   width: 100% !important;
   min-width: 0 !important;
   height: 38px !important;
-  padding: 0 10px !important;
+  line-height: 36px !important;
+  padding: 0 12px !important;
+  vertical-align: middle !important;
   border: 1.5px solid var(--line, #d8e1da) !important;
   border-radius: 8px !important;
   background: var(--surface, #fff) !important;

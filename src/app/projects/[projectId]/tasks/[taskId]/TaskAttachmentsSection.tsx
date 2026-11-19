@@ -491,6 +491,25 @@ export default function TaskAttachmentsSection({
     }
   }, [previewItem]);
 
+  // Auto-sync any local attachments to the workspace's selected cloud drive (Google Drive / OneDrive)
+  useEffect(() => {
+    const hasLocal = attachments.some((a) => a.storage_provider === "built_in");
+    if (hasLocal && canEdit) {
+      fetch("/api/tasks/attachments/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId, projectId }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.ok && data.syncedCount > 0) {
+            router.refresh();
+          }
+        })
+        .catch(() => undefined);
+    }
+  }, [taskId, projectId, attachments, canEdit, router]);
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();

@@ -4,6 +4,7 @@ import { useState, useRef, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Pencil, Circle, Check, ChevronRight, Loader2, FileText, AlignLeft, Paperclip, Trash2 } from "lucide-react";
+import { showAppConfirm, showAppToast } from "@/lib/app-feedback";
 import { updateTaskField, quickCreateSubtask, updateTaskStatus, deleteTask } from "@/app/actions";
 
 export default function TaskNameCell({
@@ -58,10 +59,17 @@ export default function TaskNameCell({
   const [isDeletePending, startDeleteTransition] = useTransition();
   const router = useRouter();
 
-  const handleDeleteTask = (e: React.MouseEvent) => {
+  const handleDeleteTask = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!canEdit || isDeletePending) return;
-    if (!window.confirm(`Permanently delete "${title}"?`)) return;
+
+    const confirmed = await showAppConfirm({
+      title: "Delete Task",
+      message: `Permanently delete "${title}"? This action cannot be undone.`,
+      confirmLabel: "Delete Task",
+      destructive: true,
+    });
+    if (!confirmed) return;
 
     startDeleteTransition(async () => {
       const fd = new FormData();
@@ -69,9 +77,10 @@ export default function TaskNameCell({
       fd.set("taskId", taskId);
       const res = await deleteTask(fd);
       if (res.ok) {
+        showAppToast(`"${title}" deleted`, "success");
         router.refresh();
       } else {
-        alert(res.error || "Failed to delete task");
+        showAppToast(res.error || "Failed to delete task", "error");
       }
     });
   };
