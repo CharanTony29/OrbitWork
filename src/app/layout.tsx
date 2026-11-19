@@ -18,6 +18,9 @@ import GlobalMobileDrawer from "./GlobalMobileDrawer";
 import AIChatDrawer from "./ai/AIChatDrawer";
 import AIAgentGlobalNotifier from "./ai/AIAgentGlobalNotifier";
 import AppDialogHost from "./AppDialogHost";
+import MeetingRecordingStudioModal from "./_components/MeetingRecordingStudioModal";
+import PresentationStudioModal from "./_components/PresentationStudioModal";
+import DeepResearchStudioModal from "./_components/DeepResearchStudioModal";
 
 export const metadata: Metadata = {
   metadataBase: new URL(CANONICAL_ORIGIN),
@@ -58,6 +61,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <AIChatDrawer />
         <AIAgentGlobalNotifier />
         <AppDialogHost />
+        <MeetingRecordingStudioModal />
+        <PresentationStudioModal />
+        <DeepResearchStudioModal />
       </body>
     </html>
   );

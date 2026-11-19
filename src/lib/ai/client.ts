@@ -832,6 +832,85 @@ export async function generateTextWithFallback(options: {
   throw new AILimitReachedError();
 }
 
+/**
+ * Multimodal generation (Audio/Video recording or text) with automatic failover.
+ * Supports passing an audio/video buffer directly to Gemini models for transcription & MoM analysis.
+ */
+export async function generateMultimodalWithFallback(options: {
+  prompt: string;
+  system?: string;
+  fileBuffer?: Buffer | Uint8Array;
+  mimeType?: string;
+  temperature?: number;
+  maxOutputTokens?: number;
+  abortSignal?: AbortSignal;
+}): Promise<{ text: string; provider: string }> {
+  // If no file, use standard text generation
+  if (!options.fileBuffer || !options.mimeType) {
+    return generateTextWithFallback({
+      prompt: options.prompt,
+      system: options.system,
+      temperature: options.temperature,
+      maxOutputTokens: options.maxOutputTokens,
+      abortSignal: options.abortSignal,
+    });
+  }
+
+  const chain = await buildFreeModelFallbackChain();
+  // Filter for providers that support file attachments (Google / Gemini)
+  const multimodalChain = chain.filter((e) => e.provider === "google");
+  const maxOutputTokens = options.maxOutputTokens ?? 4000;
+  const startedAt = Date.now();
+  const overallBudgetMs = options.abortSignal ? 120000 : 90000;
+
+  for (const entry of multimodalChain) {
+    const now = Date.now();
+    if (options.abortSignal?.aborted) break;
+    if (now - startedAt > overallBudgetMs) break;
+    if (isEntryCoolingDown(entry, now)) continue;
+
+    try {
+      const res = await generateText({
+        model: entry.model,
+        system: options.system,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "file",
+                data: options.fileBuffer,
+                mediaType: options.mimeType,
+              },
+              {
+                type: "text",
+                text: options.prompt,
+              },
+            ],
+          },
+        ],
+        temperature: options.temperature ?? 0.2,
+        maxOutputTokens,
+        maxRetries: 0,
+        abortSignal: options.abortSignal || AbortSignal.timeout(60000),
+      });
+
+      if (!res.text || res.text.trim().length === 0) {
+        throw new Error("Empty response from multimodal provider");
+      }
+
+      return {
+        text: res.text,
+        provider: entry.name,
+      };
+    } catch (err: unknown) {
+      recordFailureAndCooldown(entry, err);
+    }
+  }
+
+  throw new AILimitReachedError();
+}
+
 export interface VerifiedTextStreamResult {
   provider: string;
   toTextStreamResponse: (init?: ResponseInit) => Response;

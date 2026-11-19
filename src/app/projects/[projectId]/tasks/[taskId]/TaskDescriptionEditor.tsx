@@ -601,6 +601,9 @@ export default function TaskDescriptionEditor({
               ref={editorRef}
               className="task-desc-wysiwyg doc-markdown-body"
               contentEditable
+              spellCheck={true}
+              autoCorrect="on"
+              autoCapitalize="sentences"
               suppressContentEditableWarning
               role="textbox"
               aria-multiline="true"

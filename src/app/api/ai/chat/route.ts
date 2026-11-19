@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { streamTextWithFallback, isAILimitError } from "@/lib/ai/client.ts";
 import { CHATBOT_SYSTEM_PROMPT } from "@/lib/ai/chatbot/index.ts";
-import { getUserLiveAIContext } from "@/lib/ai/data/user-context.ts";
+import { getUserLiveAIContext, getUserRelevantDocumentContext } from "@/lib/ai/data/user-context.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -63,20 +63,27 @@ export async function POST(req: NextRequest) {
     const isSimpleGreeting =
       trimmedMessages.length <= 2 && SMALLTALK_REGEX.test(latestUserMsg);
 
-    // Fetch live workspace context only when the message is not trivial smalltalk
+    // Fetch live workspace context and relevant documents only when the message is not trivial smalltalk
     let userContextString = "";
+    let docContextString = "";
     if (!isSimpleGreeting) {
       try {
-        const liveContext = await getUserLiveAIContext(user.id, {
-          scope: "workspace",
-          maxTasks: 45,
-          includeTeam: true,
-        });
+        const [liveContext, docContext] = await Promise.all([
+          getUserLiveAIContext(user.id, {
+            scope: "workspace",
+            maxTasks: 45,
+            includeTeam: true,
+          }),
+          getUserRelevantDocumentContext(user.id, latestUserMsg),
+        ]);
         if (liveContext?.formattedPromptContext) {
           userContextString = `\n${liveContext.formattedPromptContext}\n`;
         }
+        if (docContext) {
+          docContextString = `\n${docContext}\n`;
+        }
       } catch (dataErr) {
-        console.warn("[AI Chat] Failed to load user live context:", dataErr);
+        console.warn("[AI Chat] Failed to load user live context or documents:", dataErr);
       }
     }
 
@@ -90,8 +97,9 @@ export async function POST(req: NextRequest) {
     const systemPrompt = [
       CHATBOT_SYSTEM_PROMPT,
       userContextString,
+      docContextString,
       contextLines.length > 0 ? `Page: ${contextLines.join(" | ")}` : "",
-      "Be concise and use clean markdown. Refer to tasks ONLY by bold **Task Name** (never IDs, UUIDs, or URLs).",
+      "Be concise and use clean markdown. Refer to tasks ONLY by bold **Task Name** (never IDs, UUIDs, or URLs). When citing documents, cite them in bold like **[Document Name]**.",
     ]
       .filter(Boolean)
       .join("\n");

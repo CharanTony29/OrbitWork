@@ -5,6 +5,9 @@ import CurrentUserBadge from "./CurrentUserBadge";
 import GlobalSearchModal from "./GlobalSearchModal";
 import TopBarMobileMenuToggle from "./TopBarMobileMenuToggle";
 import { BrandMark } from "./BrandMark";
+import MeetingStudioTrigger from "./_components/MeetingStudioTrigger";
+import PresentationStudioTrigger from "./_components/PresentationStudioTrigger";
+import DeepResearchStudioTrigger from "./_components/DeepResearchStudioTrigger";
 
 export default function AppTopBar({
   email,
@@ -49,7 +52,10 @@ export default function AppTopBar({
           workspaceName={workspaceName}
         />
       </div>
-      <div className="topbar-right">
+      <div className="topbar-right" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <DeepResearchStudioTrigger projectId={projectId} />
+        <PresentationStudioTrigger projectId={projectId} />
+        <MeetingStudioTrigger projectId={projectId} workspaceId={workspaceId} />
         <CurrentUserBadge
           email={email}
           projectId={projectId}

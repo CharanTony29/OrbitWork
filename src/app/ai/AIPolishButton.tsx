@@ -159,7 +159,7 @@ export default function AIPolishButton({
               <Sparkles size={13} className="ai-sparkle-icon" />
               <span>AI Writing Assistant</span>
             </div>
-            <span className="ai-polish-badge">Gemini 3.5</span>
+            <span className="ai-polish-badge">Smart Writing</span>
           </div>
 
           {errorMessage && (

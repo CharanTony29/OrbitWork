@@ -14,6 +14,8 @@ import {
   Loader2,
   FolderKanban,
   Building2,
+  Lock,
+  Paperclip,
 } from "lucide-react";
 
 type SearchWorkspace = {
@@ -43,12 +45,20 @@ type SearchTask = {
 
 type SearchDocument = {
   id: string;
-  projectId: string;
-  projectName: string;
+  projectId?: string;
+  projectName?: string;
+  workspaceId?: string;
+  workspaceName?: string;
   title: string;
   snippet: string;
   updatedAt: string;
+  scope: "project" | "workspace" | "organization";
+  isPrivate?: boolean;
+  href: string;
   type: "document";
+  isAttachment?: boolean;
+  mimeType?: string;
+  fileSizeBytes?: number;
 };
 
 type SearchDiscussion = {
@@ -103,6 +113,7 @@ export default function GlobalSearchModal({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<"all" | "workspaces" | "projects" | "tasks" | "documents" | "discussions">("all");
+  const [docScopeFilter, setDocScopeFilter] = useState<"all" | "project" | "workspace" | "organization">("all");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SearchResults>({
     workspaces: [],
@@ -326,6 +337,105 @@ export default function GlobalSearchModal({
           </button>
         </div>
 
+        {/* Document Sub-Scopes (Project / Workspace / Organization) */}
+        {category === "documents" && results.documents.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "7px 18px",
+              borderBottom: "1px solid var(--line)",
+              background: "var(--app-bg, #f7f9f7)",
+              overflowX: "auto",
+            }}
+          >
+            <button
+              type="button"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "3px 9px",
+                borderRadius: "6px",
+                border: "1px solid " + (docScopeFilter === "all" ? "var(--green)" : "var(--line)"),
+                background: docScopeFilter === "all" ? "rgba(16, 185, 129, 0.12)" : "var(--surface, #fff)",
+                color: docScopeFilter === "all" ? "var(--green)" : "var(--muted)",
+                fontSize: "11px",
+                fontWeight: docScopeFilter === "all" ? 700 : 500,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              onClick={() => setDocScopeFilter("all")}
+            >
+              All Docs ({results.documents.length})
+            </button>
+            <button
+              type="button"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "3px 9px",
+                borderRadius: "6px",
+                border: "1px solid " + (docScopeFilter === "project" ? "#0284c7" : "var(--line)"),
+                background: docScopeFilter === "project" ? "rgba(2, 132, 199, 0.12)" : "var(--surface, #fff)",
+                color: docScopeFilter === "project" ? "#0284c7" : "var(--muted)",
+                fontSize: "11px",
+                fontWeight: docScopeFilter === "project" ? 700 : 500,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              onClick={() => setDocScopeFilter("project")}
+            >
+              <FolderKanban size={11} /> Project Docs (
+              {results.documents.filter((d) => d.scope === "project").length})
+            </button>
+            <button
+              type="button"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "3px 9px",
+                borderRadius: "6px",
+                border: "1px solid " + (docScopeFilter === "workspace" ? "#059669" : "var(--line)"),
+                background: docScopeFilter === "workspace" ? "rgba(5, 150, 105, 0.12)" : "var(--surface, #fff)",
+                color: docScopeFilter === "workspace" ? "#059669" : "var(--muted)",
+                fontSize: "11px",
+                fontWeight: docScopeFilter === "workspace" ? 700 : 500,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              onClick={() => setDocScopeFilter("workspace")}
+            >
+              <FileText size={11} /> Workspace Docs (
+              {results.documents.filter((d) => d.scope === "workspace").length})
+            </button>
+            <button
+              type="button"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "3px 9px",
+                borderRadius: "6px",
+                border: "1px solid " + (docScopeFilter === "organization" ? "#7e22ce" : "var(--line)"),
+                background: docScopeFilter === "organization" ? "rgba(126, 34, 206, 0.12)" : "var(--surface, #fff)",
+                color: docScopeFilter === "organization" ? "#7e22ce" : "var(--muted)",
+                fontSize: "11px",
+                fontWeight: docScopeFilter === "organization" ? 700 : 500,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              onClick={() => setDocScopeFilter("organization")}
+            >
+              <Building2 size={11} /> Org Docs (
+              {results.documents.filter((d) => d.scope === "organization").length})
+            </button>
+          </div>
+        )}
+
         {/* Results Area */}
         <div className="global-search-results">
           {!query.trim() && (
@@ -448,30 +558,124 @@ export default function GlobalSearchModal({
               <div className="search-group-title">
                 <FileText size={13} />
                 <span>Documents</span>
-                <span className="group-count">{results.documents.length}</span>
+                <span className="group-count">
+                  {category === "documents" && docScopeFilter !== "all"
+                    ? results.documents.filter((d) => d.scope === docScopeFilter).length
+                    : results.documents.length}
+                </span>
               </div>
-              {results.documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="search-item"
-                  onClick={() => navigateTo(`/projects/${doc.projectId}/documents/${doc.id}`)}
-                >
-                  <div className="search-item-icon doc-icon">
-                    <FileText size={14} />
-                  </div>
-                  <div className="search-item-info">
-                    <strong className="search-item-title">{doc.title}</strong>
-                    {doc.snippet && (
-                      <p className="search-item-snippet">{doc.snippet}</p>
-                    )}
-                  </div>
-                  <span className="search-item-project">
-                    <FolderKanban size={11} />
-                    {doc.projectName}
-                  </span>
-                  <ArrowRight size={13} className="search-item-arrow" />
-                </div>
-              ))}
+              {results.documents
+                .filter((doc) => {
+                  if (category !== "documents") return true;
+                  if (docScopeFilter === "all") return true;
+                  return doc.scope === docScopeFilter;
+                })
+                .map((doc) => {
+                  const iconBg = doc.isAttachment
+                    ? "#ecfdf5"
+                    : doc.isPrivate
+                    ? "#fef3c7"
+                    : doc.scope === "organization"
+                    ? "#f3e8ff"
+                    : doc.scope === "workspace"
+                    ? "#e0f2fe"
+                    : "#e8effa";
+
+                  const iconColor = doc.isAttachment
+                    ? "#059669"
+                    : doc.isPrivate
+                    ? "#d97706"
+                    : doc.scope === "organization"
+                    ? "#7e22ce"
+                    : doc.scope === "workspace"
+                    ? "#0284c7"
+                    : "#3567a5";
+
+                  return (
+                    <div
+                      key={`${doc.scope}-${doc.id}`}
+                      className="search-item"
+                      onClick={() =>
+                        navigateTo(
+                          doc.href ||
+                            (doc.projectId
+                              ? `/projects/${doc.projectId}/documents/${doc.id}`
+                              : `/workspaces/${doc.workspaceId}/docs/${doc.id}`)
+                        )
+                      }
+                    >
+                      <div className="search-item-icon" style={{ background: iconBg, color: iconColor }}>
+                        {doc.isAttachment ? (
+                          <Paperclip size={14} />
+                        ) : doc.isPrivate ? (
+                          <Lock size={14} />
+                        ) : doc.scope === "organization" ? (
+                          <Building2 size={14} />
+                        ) : doc.scope === "workspace" ? (
+                          <FileText size={14} />
+                        ) : (
+                          <FolderKanban size={14} />
+                        )}
+                      </div>
+                      <div className="search-item-info">
+                        <div className="search-item-header" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <strong className="search-item-title">{doc.title}</strong>
+                          {doc.isPrivate && (
+                            <span
+                              style={{
+                                fontSize: "9px",
+                                fontWeight: 700,
+                                color: "#b45309",
+                                background: "#fef3c7",
+                                padding: "1px 5px",
+                                borderRadius: "4px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                              }}
+                            >
+                              <Lock size={9} /> Private
+                            </span>
+                          )}
+                        </div>
+                        {doc.snippet && (
+                          <p className="search-item-snippet">{doc.snippet}</p>
+                        )}
+                      </div>
+                      <span
+                        className="search-item-project"
+                        style={
+                          doc.isAttachment
+                            ? { background: "#ecfdf5", color: "#047857" }
+                            : doc.scope === "organization"
+                            ? { background: "#f3e8ff", color: "#7e22ce" }
+                            : doc.scope === "workspace"
+                            ? { background: "#e0f2fe", color: "#0369a1" }
+                            : undefined
+                        }
+                      >
+                        {doc.isAttachment ? (
+                          <>
+                            <Paperclip size={11} /> Attachment: {doc.projectName || "Project"}
+                          </>
+                        ) : doc.scope === "organization" ? (
+                          <>
+                            <Building2 size={11} /> Org Doc
+                          </>
+                        ) : doc.scope === "workspace" ? (
+                          <>
+                            <FileText size={11} /> Workspace: {doc.workspaceName || "Workspace"}
+                          </>
+                        ) : (
+                          <>
+                            <FolderKanban size={11} /> Project: {doc.projectName || "Project"}
+                          </>
+                        )}
+                      </span>
+                      <ArrowRight size={13} className="search-item-arrow" />
+                    </div>
+                  );
+                })}
             </div>
           )}
 

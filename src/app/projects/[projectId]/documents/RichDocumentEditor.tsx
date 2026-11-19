@@ -126,6 +126,8 @@ export default function RichDocumentEditor({
           defaultValue={body}
           maxLength={500000}
           rows={24}
+          spellCheck={true}
+          autoCorrect="on"
           placeholder="Write your project notes here…"
           onPaste={(event) => {
             const image = [...event.clipboardData.items].find((item) =>

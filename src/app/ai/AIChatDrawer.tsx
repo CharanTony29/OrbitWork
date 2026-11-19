@@ -16,6 +16,7 @@ import {
   ArrowRight,
   Maximize2,
   Minimize2,
+  GripVertical,
 } from "lucide-react";
 import { markdownToSafeHtml } from "@/lib/markdown";
 import { showAppConfirm } from "@/lib/app-feedback";
@@ -79,9 +80,111 @@ export default function AIChatDrawer({ context }: AIChatDrawerProps) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Moveable / Draggable FAB state
+  const [fabPos, setFabPos] = useState<{ bottom: number; right: number }>({ bottom: 24, right: 24 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{
+    startX: number;
+    startY: number;
+    startRight: number;
+    startBottom: number;
+    moved: boolean;
+  } | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Restore saved FAB position
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("orbitwork_ai_fab_pos");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.bottom === "number" && typeof parsed.right === "number") {
+          const maxRight = Math.max(16, window.innerWidth - 120);
+          const maxBottom = Math.max(16, window.innerHeight - 100);
+          setFabPos({
+            bottom: Math.min(Math.max(16, parsed.bottom), maxBottom),
+            right: Math.min(Math.max(16, parsed.right), maxRight),
+          });
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Keyboard shortcut: Cmd+J or Ctrl+J to toggle AI Assistant
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        setIsOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Window pointer listeners for dragging
+  useEffect(() => {
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!dragStartRef.current) return;
+      const deltaX = dragStartRef.current.startX - e.clientX;
+      const deltaY = dragStartRef.current.startY - e.clientY;
+      const dist = Math.hypot(deltaX, deltaY);
+
+      if (dist > 5) {
+        dragStartRef.current.moved = true;
+        setIsDragging(true);
+
+        const newRight = Math.min(
+          Math.max(16, dragStartRef.current.startRight + deltaX),
+          window.innerWidth - 120
+        );
+        const newBottom = Math.min(
+          Math.max(16, dragStartRef.current.startBottom + deltaY),
+          window.innerHeight - 100
+        );
+
+        setFabPos({ right: newRight, bottom: newBottom });
+      }
+    };
+
+    const handlePointerUp = () => {
+      if (dragStartRef.current) {
+        if (dragStartRef.current.moved) {
+          try {
+            localStorage.setItem(
+              "orbitwork_ai_fab_pos",
+              JSON.stringify(fabPos)
+            );
+          } catch {}
+        }
+        setTimeout(() => {
+          dragStartRef.current = null;
+          setIsDragging(false);
+        }, 50);
+      }
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [fabPos]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startRight: fabPos.right,
+      startBottom: fabPos.bottom,
+      moved: false,
+    };
+  };
 
   // Auto-scroll to bottom of chat
   const scrollToBottom = () => {
@@ -223,16 +326,27 @@ export default function AIChatDrawer({ context }: AIChatDrawerProps) {
 
   return (
     <>
-      {/* Floating Trigger Button */}
+      {/* Moveable Floating Trigger Button */}
       <button
         type="button"
-        className={`ai-chat-fab ${isOpen ? "is-hidden" : ""}`}
-        onClick={() => setIsOpen(true)}
-        title="Open AI Assistant"
+        className={`ai-chat-fab ${isOpen ? "is-hidden" : ""} ${isDragging ? "is-dragging" : ""}`}
+        style={{
+          bottom: `${fabPos.bottom}px`,
+          right: `${fabPos.right}px`,
+          touchAction: "none",
+        }}
+        onPointerDown={handlePointerDown}
+        onClick={() => {
+          if (dragStartRef.current?.moved) return;
+          setIsOpen(true);
+        }}
+        title="Open AI Assistant (Drag to reposition, ⌘J)"
         aria-label="Open AI Assistant"
       >
-        <Sparkles size={16} className="ai-fab-sparkle" />
+        <GripVertical size={13} className="ai-fab-drag-handle" />
+        <Sparkles size={15} className="ai-fab-sparkle" />
         <span className="ai-fab-text">AI Assistant</span>
+        <span className="ai-fab-kbd">⌘J</span>
       </button>
 
       {/* Slide-in Drawer */}
