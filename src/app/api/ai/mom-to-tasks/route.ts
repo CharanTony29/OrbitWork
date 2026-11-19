@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generateTextWithFallback } from "@/lib/ai/client";
+import { normalizeMemberDesignations } from "@/lib/designations";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +17,24 @@ export type ExtractedMoMTask = {
   priority: "low" | "normal" | "high" | "urgent";
   dueDate: string | null;
   assigneeName?: string | null;
+  assigneeUserId?: string | null;
+  isExternal?: boolean;
+  externalAssigneeName?: string | null;
+  aiRoleMatch?: string | null;
   exists: boolean;
   existingTaskId?: string;
   existingTaskTitle?: string;
   duplicateReason?: string;
 };
+
+export interface TeamMemberInfo {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string | null;
+  designation: string;
+  role?: string;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -46,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     const { projectId, momText } = parsed.data;
 
-    // Fetch existing tasks in this project to prevent duplicates
+    // 1. Fetch existing tasks in this project to prevent duplicates
     const { data: existingTasks } = await supabase
       .from("tasks")
       .select("id, title, description, priority, due_date")
@@ -59,34 +73,105 @@ export async function POST(req: NextRequest) {
       descPreview: (t.description || "").slice(0, 100),
     }));
 
-    // Fetch project members for potential assignee matching
+    // 2. Fetch project members & organization members for potential assignee matching
     const { data: membersData } = await supabase
       .from("project_members")
       .select("user_id, role")
       .eq("project_id", projectId);
 
-    let memberNames: string[] = [];
-    if (membersData && membersData.length > 0) {
-      const userIds = membersData.map((m) => m.user_id);
-      const { data: profiles } = await supabase
-        .from("user_profiles")
-        .select("id, display_name, email")
-        .in("id", userIds);
-      memberNames = (profiles || []).map((p) => p.display_name?.trim() || p.email || "");
+    let candidateUserIds = (membersData || []).map((m) => m.user_id);
+
+    // Fallback: Query workspace and organization members if project_members is empty
+    let orgId: string | null = null;
+    if (candidateUserIds.length === 0) {
+      const { data: project } = await supabase
+        .from("projects")
+        .select("workspaces ( organization_id )")
+        .eq("id", projectId)
+        .maybeSingle();
+
+      const ws = Array.isArray(project?.workspaces)
+        ? project?.workspaces[0]
+        : project?.workspaces;
+      orgId = ws?.organization_id ?? null;
+
+      if (orgId) {
+        const { data: orgMembers } = await supabase
+          .from("organization_members")
+          .select("user_id")
+          .eq("organization_id", orgId)
+          .eq("status", "active");
+        candidateUserIds = (orgMembers || []).map((m) => m.user_id);
+      }
     }
 
-    const systemPrompt = `You are an expert Project Management AI specialized in analyzing Minutes of Meetings (MoM), transcripts, and meeting notes.
-Your task is to extract clear, actionable tasks from the meeting text, AND check them against existing project tasks to detect duplicates.
+    if (candidateUserIds.length === 0) {
+      candidateUserIds = [user.id];
+    }
 
-Rules:
-1. Extract every distinct actionable task, deliverable, bug fix, or follow-up agreed upon in the meeting.
-2. For each task, provide:
-   - "title": Action-oriented, concise title (e.g. "Configure SSO with Azure AD", "Update database connection pool").
-   - "description": Context, requirements, or next steps mentioned during the call.
-   - "priority": "low" | "normal" | "high" | "urgent" based on urgency mentioned.
-   - "dueDate": ISO date string (YYYY-MM-DD) if an ETA, deadline, or day was mentioned, otherwise null.
-   - "assigneeName": Name of the team member assigned in the meeting, or null.
-3. DUPLICATE DETECTION:
+    // Deduplicate candidate IDs
+    candidateUserIds = Array.from(new Set(candidateUserIds));
+
+    // Query profiles from 'profiles' table (NOT user_profiles)
+    const { data: profileRows } = await supabase
+      .from("profiles")
+      .select("id, display_name, email, avatar_url, designation, designations")
+      .in("id", candidateUserIds);
+
+    const teamMembers: TeamMemberInfo[] = (profileRows || []).map((p) => {
+      const desigs = normalizeMemberDesignations(p.designations, p.designation);
+      return {
+        id: p.id,
+        name: p.display_name?.trim() || p.email?.split("@")[0] || "Teammate",
+        email: p.email || "",
+        avatarUrl: p.avatar_url || null,
+        designation: desigs[0] || p.designation || "Member",
+      };
+    });
+
+    // Extract detected attendees from text (e.g. "Attendees: Alex, Charan, Zav")
+    const detectedExternalsSet = new Set<string>();
+    const attendeeMatch = momText.match(/(?:Attendees|Participants|Present|In Attendance)[:\s]+([^\n\r]+)/i);
+    if (attendeeMatch && attendeeMatch[1]) {
+      const rawAttendees = attendeeMatch[1]
+        .split(/[,;&|]/)
+        .map((s) => s.trim().replace(/^[-*•]\s*/, ""))
+        .filter((s) => s.length > 1 && !/^(and|etc|none)$/i.test(s));
+
+      for (const att of rawAttendees) {
+        const cleanName = att.replace(/\s*\([^)]*\)/g, "").trim();
+        const isInternal = teamMembers.some(
+          (m) =>
+            m.name.toLowerCase() === cleanName.toLowerCase() ||
+            m.name.toLowerCase().includes(cleanName.toLowerCase()) ||
+            cleanName.toLowerCase().includes(m.name.toLowerCase())
+        );
+        if (!isInternal && cleanName.length > 1) {
+          detectedExternalsSet.add(cleanName);
+        }
+      }
+    }
+
+    const teamMembersPromptList = teamMembers
+      .map((m) => `- "${m.name}" (ID: ${m.id}, Role: ${m.designation}, Email: ${m.email})`)
+      .join("\n");
+
+    const systemPrompt = `You are an expert Project Management AI specialized in analyzing Minutes of Meetings (MoM), transcripts, and meeting notes.
+Your task is to extract clear, actionable tasks from the meeting text, identify assignees (distinguishing internal TEAM MEMBERS from EXTERNAL STAKEHOLDERS), and check them against existing project tasks to detect duplicates.
+
+IMPORTANT RULES ON ASSIGNEES & EXTERNALS:
+1. INTERNAL TEAM MEMBERS:
+   Check the provided list of TEAM MEMBERS. If an action item mentions someone on this list, match them to their exact "assigneeUserId" and "assigneeName".
+2. EXTERNAL STAKEHOLDERS:
+   Meeting attendees often include external stakeholders, clients, vendors, partners, or third parties (e.g. "Zav", "Siemens rep", "Catia consultant", "External contractor").
+   If a person assigned or mentioned is NOT in the TEAM MEMBERS list:
+   - Mark "isExternal": true.
+   - Set "externalAssigneeName": Name of the external stakeholder (e.g. "Zav").
+   - If co-assigned with an internal member (e.g. "Zav, Charan"), set "assigneeUserId" to the internal member ("Charan") AND set "isExternal": true with "externalAssigneeName": "Zav".
+   - If ONLY an external person is assigned, set "assigneeUserId": null, "isExternal": true, "externalAssigneeName": "Zav".
+3. AI ROLE RECOMMENDATION:
+   - Provide "aiRoleMatch": "Developer" | "Tester" | "Support" | "Admin" | "HR" | "Manager".
+4. DUPLICATE DETECTION:
    Compare each extracted task against the provided list of EXISTING PROJECT TASKS.
    - If an existing task already covers the same objective, feature, or bug (even with slightly different phrasing), mark "exists": true, provide "existingTaskId" and "existingTaskTitle", and give "duplicateReason".
    - If it is completely new work, mark "exists": false.
@@ -99,6 +184,10 @@ Output ONLY a valid JSON array of objects with the structure:
     "priority": "low" | "normal" | "high" | "urgent",
     "dueDate": "YYYY-MM-DD" | null,
     "assigneeName": "string" | null,
+    "assigneeUserId": "string" | null,
+    "isExternal": boolean,
+    "externalAssigneeName": "string" | null,
+    "aiRoleMatch": "string",
     "exists": boolean,
     "existingTaskId": "string" | null,
     "existingTaskTitle": "string" | null,
@@ -119,14 +208,15 @@ ${momText.slice(0, 12000)}
 EXISTING TASKS (id|title):
 ${compactExistingList || "None"}
 
-TEAM MEMBERS: ${memberNames.join(", ") || "None"}`;
+INTERNAL TEAM MEMBERS:
+${teamMembersPromptList || "None"}`;
 
     let rawOutput = "";
     try {
       const aiResponse = await generateTextWithFallback({
         prompt: `${systemPrompt}\n\n${userPrompt}`,
         temperature: 0.2,
-        maxOutputTokens: 1200,
+        maxOutputTokens: 1600,
       });
       rawOutput = aiResponse.text;
     } catch (aiErr) {
@@ -176,6 +266,52 @@ TEAM MEMBERS: ${memberNames.join(", ") || "None"}`;
                 (et.title.length > 10 && lowerTitle.includes(et.title.toLowerCase()))
             );
 
+            // Extract potential assignees mentioned in parenthesis or after names
+            let detectedAssigneeName: string | null = null;
+            let detectedUserId: string | null = null;
+            let isExt = false;
+            let extName: string | null = null;
+
+            const parenMatch = line.match(/\(([^)]+)\)/);
+            if (parenMatch && parenMatch[1]) {
+              const insideParen = parenMatch[1];
+              // Avoid non-assignee keywords like "high priority", "urgent"
+              if (!/priority|urgent|p0|p1|eta|deadline|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep|oct/i.test(insideParen)) {
+                detectedAssigneeName = insideParen.trim();
+              }
+            }
+
+            // Check if any team member matches
+            if (detectedAssigneeName) {
+              const parts = detectedAssigneeName.split(/[,/&]/).map((p) => p.trim());
+              for (const part of parts) {
+                const matchedMember = teamMembers.find(
+                  (m) =>
+                    m.name.toLowerCase() === part.toLowerCase() ||
+                    part.toLowerCase().includes(m.name.toLowerCase()) ||
+                    m.name.toLowerCase().includes(part.toLowerCase())
+                );
+                if (matchedMember) {
+                  detectedUserId = matchedMember.id;
+                } else if (part.length > 1) {
+                  isExt = true;
+                  extName = part;
+                  detectedExternalsSet.add(part);
+                }
+              }
+            }
+
+            // Fallback: check if line directly mentions a team member name
+            if (!detectedUserId) {
+              const directMemberMatch = teamMembers.find((m) =>
+                lowerTitle.includes(m.name.toLowerCase())
+              );
+              if (directMemberMatch) {
+                detectedUserId = directMemberMatch.id;
+                if (!detectedAssigneeName) detectedAssigneeName = directMemberMatch.name;
+              }
+            }
+
             parsedTasks.push({
               title: cleanedTitle,
               description: `Extracted from meeting minutes: "${line}"`,
@@ -185,7 +321,11 @@ TEAM MEMBERS: ${memberNames.join(", ") || "None"}`;
                 ? "high"
                 : "normal",
               dueDate: null,
-              assigneeName: null,
+              assigneeName: detectedAssigneeName,
+              assigneeUserId: detectedUserId,
+              isExternal: isExt,
+              externalAssigneeName: extName,
+              aiRoleMatch: /test|qa|verify|check|cgr|jt/i.test(line) ? "Tester" : "Developer",
               exists: Boolean(matchedExisting),
               existingTaskId: matchedExisting?.id,
               existingTaskTitle: matchedExisting?.title,
@@ -198,33 +338,70 @@ TEAM MEMBERS: ${memberNames.join(", ") || "None"}`;
       }
     }
 
-    // Secondary safety check for duplicates against existing tasks
+    // Safety check & refinement of parsed tasks
     parsedTasks = parsedTasks.map((t) => {
-      if (t.exists) return t;
-      const lower = t.title.toLowerCase();
-      const match = existingSummaryList.find((et) => {
-        const etLower = et.title.toLowerCase();
-        return (
-          etLower === lower ||
-          (lower.length > 10 && etLower.includes(lower)) ||
-          (etLower.length > 10 && lower.includes(etLower))
-        );
-      });
-      if (match) {
-        return {
-          ...t,
-          exists: true,
-          existingTaskId: match.id,
-          existingTaskTitle: match.title,
-          duplicateReason: `Similar task already exists: "${match.title}"`,
-        };
+      let isExt = Boolean(t.isExternal);
+      let extName = t.externalAssigneeName ?? null;
+      let uid = t.assigneeUserId ?? null;
+
+      // If assigneeName is set, verify against teamMembers
+      if (t.assigneeName) {
+        const parts = t.assigneeName.split(/[,/&]/).map((p) => p.trim());
+        for (const part of parts) {
+          const matched = teamMembers.find(
+            (m) =>
+              m.name.toLowerCase() === part.toLowerCase() ||
+              m.name.toLowerCase().includes(part.toLowerCase()) ||
+              part.toLowerCase().includes(m.name.toLowerCase())
+          );
+          if (matched && !uid) {
+            uid = matched.id;
+          } else if (!matched && part.length > 1) {
+            isExt = true;
+            if (!extName) extName = part;
+            detectedExternalsSet.add(part);
+          }
+        }
       }
-      return t;
+
+      // Check duplicates against existing tasks if not flagged
+      if (!t.exists) {
+        const lower = t.title.toLowerCase();
+        const match = existingSummaryList.find((et) => {
+          const etLower = et.title.toLowerCase();
+          return (
+            etLower === lower ||
+            (lower.length > 10 && etLower.includes(lower)) ||
+            (etLower.length > 10 && lower.includes(etLower))
+          );
+        });
+        if (match) {
+          return {
+            ...t,
+            assigneeUserId: uid,
+            isExternal: isExt,
+            externalAssigneeName: extName,
+            exists: true,
+            existingTaskId: match.id,
+            existingTaskTitle: match.title,
+            duplicateReason: `Similar task already exists: "${match.title}"`,
+          };
+        }
+      }
+
+      return {
+        ...t,
+        assigneeUserId: uid,
+        isExternal: isExt,
+        externalAssigneeName: extName,
+      };
     });
 
     return NextResponse.json({
       success: true,
       tasks: parsedTasks,
+      teamMembers,
+      detectedExternals: Array.from(detectedExternalsSet),
       totalCount: parsedTasks.length,
       duplicateCount: parsedTasks.filter((t) => t.exists).length,
       newCount: parsedTasks.filter((t) => !t.exists).length,

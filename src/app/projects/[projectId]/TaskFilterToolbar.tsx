@@ -704,6 +704,8 @@ export default function TaskFilterToolbar({
         onClose={() => setIsMoMOpen(false)}
         projectId={projectId}
         projectName={projectName}
+        members={members}
+        statuses={statuses}
       />
 
       <CustomThemeStudioModal
