@@ -318,16 +318,21 @@ export async function getUserRelevantDocumentContext(
     "have", "has", "had", "do", "does", "did", "can", "could", "should", "would",
     "about", "for", "with", "from", "into", "during", "including", "until", "against",
     "among", "throughout", "despite", "towards", "upon", "concerning", "to", "in", "for", "on", "by", "at",
-    "tell", "show", "give", "list", "check", "find", "search", "explain", "please"
+    "tell", "show", "give", "list", "check", "find", "search", "explain", "please",
+    "you", "your", "yours", "yourself", "yourselves", "me", "my", "myself", "i",
+    "we", "us", "our", "ours", "ourselves", "they", "them", "their", "theirs", "themselves",
+    "he", "him", "his", "she", "her", "hers", "it", "its", "this", "that", "these", "those",
+    "want", "need", "help", "know", "think", "see", "look", "get", "info", "information"
   ]);
 
   const rawTokens = userQuery
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/[^a-z0-9\s_-]/g, " ")
     .split(/\s+/)
-    .filter((w) => w.length >= 3 && !stopwords.has(w));
+    .map((w) => w.replace(/^[-_]+|[-_]+$/g, ""))
+    .filter((w) => w.length >= 2 && !stopwords.has(w));
 
-  const searchKeywords = rawTokens.slice(0, 3);
+  const searchKeywords = rawTokens.slice(0, 6);
   if (searchKeywords.length === 0) return "";
 
   const term = searchKeywords.join(" ");

@@ -141,8 +141,17 @@ export default function ProjectLiveTracker({
           table: "tasks",
           filter: `project_id=eq.${projectId}`,
         },
-        () => {
-          // Live change detected - re-sync data seamlessly
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const raw = payload.new as any;
+            setTasks((prev) => [raw as LiveTask, ...prev]);
+          } else if (payload.eventType === "UPDATE") {
+            const raw = payload.new as any;
+            setTasks((prev) => prev.map((t) => (t.id === raw.id ? { ...t, ...raw } : t)));
+          } else if (payload.eventType === "DELETE") {
+            const oldId = (payload.old as any)?.id;
+            if (oldId) setTasks((prev) => prev.filter((t) => t.id !== oldId));
+          }
           startTransition(() => {
             router.refresh();
           });

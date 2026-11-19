@@ -66,7 +66,7 @@ export async function indexAttachment({
     });
 
     try {
-      await supabase.from("attachment_rag_indexes").upsert(
+      const { error: upsertErr } = await supabase.from("attachment_rag_indexes").upsert(
         {
           attachment_id: attachmentId,
           project_id: projectId,
@@ -79,6 +79,19 @@ export async function indexAttachment({
         },
         { onConflict: "attachment_id" }
       );
+
+      if (upsertErr) {
+        // Fallback to SECURITY DEFINER RPC
+        await supabase.rpc("save_attachment_rag_index", {
+          p_attachment_id: attachmentId,
+          p_project_id: projectId,
+          p_task_id: taskId,
+          p_file_name: fileName,
+          p_file_type: parsed.fileType,
+          p_extracted_text: parsed.fullText,
+          p_chunks: parsed.chunks,
+        });
+      }
     } catch {
       // Table might not exist yet; in-memory cache will still serve requests
     }
@@ -108,18 +121,53 @@ export async function searchAttachmentAndDocConcepts({
   const cleanQ = query.trim();
   if (!cleanQ || projectIds.length === 0) return [];
 
+  const rawWords = cleanQ
+    .toLowerCase()
+    .replace(/[^a-z0-9\s_-]/g, " ")
+    .split(/\s+/)
+    .map((w) => w.replace(/^[-_]+|[-_]+$/g, ""))
+    .filter((w) => w.length >= 2);
+
+  const searchVariants = new Set<string>();
+  searchVariants.add(cleanQ.toLowerCase());
+  if (rawWords.length >= 2) {
+    searchVariants.add(rawWords.join("_"));
+    searchVariants.add(rawWords.join("-"));
+    searchVariants.add(rawWords.join(""));
+    for (let i = 0; i < rawWords.length - 1; i++) {
+      searchVariants.add(`${rawWords[i]}_${rawWords[i + 1]}`);
+      searchVariants.add(`${rawWords[i]}-${rawWords[i + 1]}`);
+      searchVariants.add(`${rawWords[i]}${rawWords[i + 1]}`);
+      searchVariants.add(`${rawWords[i]} ${rawWords[i + 1]}`);
+    }
+  }
+  for (const w of rawWords) {
+    if (w.length >= 3) searchVariants.add(w);
+  }
+
   const pattern = `%${cleanQ.replace(/[%_\\,()]/g, " ").trim()}%`;
   const results: MatchedConcept[] = [];
   const seenAttachmentIds = new Set<string>();
 
   // 1. Search persistent RAG index table
   try {
-    const { data: indexedRows } = await supabase
+    const variantList = [...searchVariants].slice(0, 8);
+    const orClauses = variantList
+      .map((v) => `extracted_text.ilike.%${v.replace(/[%_\\,()]/g, "")}%`)
+      .join(",");
+
+    let queryBuilder = supabase
       .from("attachment_rag_indexes")
       .select("id, attachment_id, project_id, task_id, file_name, file_type, extracted_text, chunks")
-      .in("project_id", projectIds)
-      .ilike("extracted_text", pattern)
-      .limit(limit);
+      .in("project_id", projectIds);
+
+    if (orClauses) {
+      queryBuilder = queryBuilder.or(orClauses);
+    } else {
+      queryBuilder = queryBuilder.ilike("extracted_text", pattern);
+    }
+
+    const { data: indexedRows } = await queryBuilder.limit(limit);
 
     if (indexedRows && indexedRows.length > 0) {
       const taskIds = [...new Set(indexedRows.map((r: any) => r.task_id).filter(Boolean))];
@@ -133,23 +181,30 @@ export async function searchAttachmentAndDocConcepts({
         const task = taskMap.get(row.task_id);
         const chunks: DocumentChunk[] = Array.isArray(row.chunks) ? row.chunks : [];
 
-        // Find the specific chunk with the highest match
-        let bestChunk = chunks.find((c) =>
-          c.text.toLowerCase().includes(cleanQ.toLowerCase())
-        );
+        // Score chunks according to match relevance
+        let bestChunk: DocumentChunk | null = null;
+        let bestScore = -1;
 
-        if (!bestChunk && chunks.length > 0) {
-          const words = cleanQ.toLowerCase().split(/\s+/).filter((w) => w.length >= 3);
-          bestChunk = chunks.find((c) =>
-            words.some((w) => c.text.toLowerCase().includes(w))
-          );
+        for (const c of chunks) {
+          const lowerChunk = c.text.toLowerCase();
+          let score = 0;
+          if (lowerChunk.includes(cleanQ.toLowerCase())) score += 100;
+          for (const variant of searchVariants) {
+            if (lowerChunk.includes(variant)) {
+              score += variant.includes("_") || variant.includes("-") || variant.includes(" ") ? 60 : 20;
+            }
+          }
+          if (score > bestScore) {
+            bestScore = score;
+            bestChunk = c;
+          }
         }
 
         const section = bestChunk?.section || "Document Content";
         const snippet = extractMatchingSnippet(
           bestChunk?.text || row.extracted_text,
           cleanQ,
-          160
+          240
         );
 
         results.push({

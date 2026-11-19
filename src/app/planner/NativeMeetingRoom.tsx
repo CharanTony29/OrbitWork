@@ -7,6 +7,7 @@ import {
   DoorOpen,
   ExternalLink,
   Hand,
+  LayoutGrid,
   Maximize2,
   MessageSquare,
   Mic,
@@ -103,7 +104,7 @@ function RemoteVideoTile({
           autoPlay
           playsInline
           muted
-          className="native-room-video"
+          className={`native-room-video${peer.screenOn ? " is-screen-share" : ""}`}
         />
       ) : (
         <div className="native-room-avatar-stage">
@@ -188,8 +189,10 @@ export default function NativeMeetingRoom({
   const [chatMessages, setChatMessages] = useState<RoomChatItem[]>([]);
   const [chatDraft, setChatDraft] = useState("");
   const [copiedInvite, setCopiedInvite] = useState(false);
+  const [viewMode, setViewMode] = useState<"theater" | "grid">("theater");
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const presenterVideoRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -588,15 +591,33 @@ export default function NativeMeetingRoom({
     syncPresence();
   }
 
+  const stopScreenShare = useCallback(() => {
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    }
+    setScreenOn(false);
+    stateRef.current = { ...stateRef.current, screenOn: false };
+
+    // Restore camera video track to peer connections if camera was active
+    const camTrack = localStreamRef.current?.getVideoTracks().find((t) => t.readyState === "live" && t.enabled);
+    pcsRef.current.forEach((pc) => {
+      const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+      if (sender) {
+        if (camTrack) {
+          sender.replaceTrack(camTrack).catch(() => {});
+        } else {
+          sender.replaceTrack(null).catch(() => {});
+        }
+      }
+    });
+
+    syncPresence();
+  }, [syncPresence]);
+
   async function toggleScreenShare() {
     if (screenOn) {
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((t) => t.stop());
-        screenStreamRef.current = null;
-      }
-      setScreenOn(false);
-      stateRef.current = { ...stateRef.current, screenOn: false };
-      syncPresence();
+      stopScreenShare();
       return;
     }
 
@@ -606,16 +627,34 @@ export default function NativeMeetingRoom({
     }
 
     try {
-      const display = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      let display: MediaStream;
+      try {
+        // High-definition 1080p 60fps with cursor and tab/system audio capture
+        display = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            cursor: "always",
+            displaySurface: "monitor",
+            frameRate: { ideal: 30, max: 60 },
+            width: { ideal: 1920, max: 3840 },
+            height: { ideal: 1080, max: 2160 },
+          } as any,
+          audio: true,
+        });
+      } catch {
+        try {
+          display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        } catch {
+          display = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        }
+      }
+
       screenStreamRef.current = display;
       const screenTrack = display.getVideoTracks()[0];
       if (screenTrack) {
         screenTrack.onended = () => {
-          screenStreamRef.current = null;
-          setScreenOn(false);
-          stateRef.current = { ...stateRef.current, screenOn: false };
-          syncPresence();
+          stopScreenShare();
         };
+
         pcsRef.current.forEach((pc) => {
           const sender = pc.getSenders().find((s) => s.track?.kind === "video");
           if (sender) {
@@ -625,6 +664,17 @@ export default function NativeMeetingRoom({
           }
         });
       }
+
+      // Share system/tab audio if available
+      const screenAudio = display.getAudioTracks()[0];
+      if (screenAudio) {
+        pcsRef.current.forEach((pc) => {
+          try {
+            pc.addTrack(screenAudio, display);
+          } catch {}
+        });
+      }
+
       setScreenOn(true);
       stateRef.current = { ...stateRef.current, screenOn: true };
       syncPresence();
@@ -676,6 +726,37 @@ export default function NativeMeetingRoom({
     () => peers.filter((p) => p.userId !== currentUserId),
     [peers, currentUserId]
   );
+
+  const activePresenter = useMemo(() => {
+    if (screenOn && screenStreamRef.current) {
+      return {
+        isLocal: true,
+        displayName: currentUserName,
+        stream: screenStreamRef.current,
+      };
+    }
+    const remote = remotePeers.find(
+      (p) => p.screenOn && remoteStreams.get(p.userId)
+    );
+    if (remote) {
+      return {
+        isLocal: false,
+        displayName: remote.displayName,
+        stream: remoteStreams.get(remote.userId)!,
+      };
+    }
+    return null;
+  }, [screenOn, currentUserName, remotePeers, remoteStreams]);
+
+  useEffect(() => {
+    const el = presenterVideoRef.current;
+    if (!el) return;
+    if (activePresenter?.stream) {
+      el.srcObject = activePresenter.stream;
+    } else {
+      el.srcObject = null;
+    }
+  }, [activePresenter]);
 
   const hasCustomExternalUrl =
     Boolean(meeting.meeting_url) &&
@@ -857,50 +938,164 @@ export default function NativeMeetingRoom({
           <div className="native-room-main-stage">
             {mediaNotice && <div className="native-room-notice">{mediaNotice}</div>}
 
-            <div className="native-room-grid">
-              {/* Local User Tile */}
-              <div className={`native-room-tile${handRaised ? " is-hand" : ""}`}>
-                {camOn || screenOn ? (
+            {activePresenter && viewMode === "theater" ? (
+              <div className="native-presenter-stage">
+                <div className="native-presenter-header">
+                  <div className="native-presenter-title">
+                    <MonitorUp size={16} style={{ color: "#22c55e" }} />
+                    <span>
+                      <strong>{activePresenter.displayName}</strong> is sharing their screen
+                    </span>
+                    <span className="native-screen-badge-hd">HD 1080p · 60fps</span>
+                  </div>
+                  <div className="native-presenter-actions">
+                    {activePresenter.isLocal && (
+                      <button
+                        type="button"
+                        className="native-btn-stop-share"
+                        onClick={toggleScreenShare}
+                      >
+                        Stop Sharing
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="native-btn-screen-action"
+                      onClick={() => {
+                        if (presenterVideoRef.current) {
+                          if (document.fullscreenElement) {
+                            document.exitFullscreen().catch(() => {});
+                          } else {
+                            presenterVideoRef.current.requestFullscreen().catch(() => {});
+                          }
+                        }
+                      }}
+                      title="Fullscreen presentation"
+                    >
+                      <Maximize2 size={13} /> Fullscreen
+                    </button>
+                    <button
+                      type="button"
+                      className="native-btn-screen-action"
+                      onClick={() => setViewMode("grid")}
+                      title="Switch to grid view"
+                    >
+                      <LayoutGrid size={13} /> Grid View
+                    </button>
+                  </div>
+                </div>
+
+                <div className="native-presenter-screen-box">
                   <video
-                    ref={localVideoRef}
+                    ref={presenterVideoRef}
                     autoPlay
                     playsInline
-                    muted
-                    className="native-room-video"
+                    muted={activePresenter.isLocal}
+                    className="native-screen-video-player"
                   />
-                ) : (
-                  <div className="native-room-avatar-stage">
-                    <div className="native-room-avatar-circle">{localInitials}</div>
-                    <span className="native-room-avatar-hint">
-                      {micOn ? "Audio connected" : "Listen & chat mode"}
-                    </span>
-                  </div>
-                )}
-                <div className="native-room-tile-bar">
-                  <span className="native-room-tile-name">{currentUserName} (You)</span>
-                  <span className="native-room-tile-badges">
-                    {handRaised && (
-                      <span className="native-room-pill is-hand" title="Hand raised">
-                        <Hand size={11} />
-                      </span>
+                </div>
+
+                {/* Compact Teammate Filmstrip */}
+                <div className="native-presenter-filmstrip">
+                  {/* Local User Tile */}
+                  <div className={`native-room-tile${handRaised ? " is-hand" : ""}`}>
+                    {camOn ? (
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="native-room-video"
+                      />
+                    ) : (
+                      <div className="native-room-avatar-stage">
+                        <div className="native-room-avatar-circle">{localInitials}</div>
+                      </div>
                     )}
-                    <span className={`native-room-pill${micOn ? "" : " is-muted"}`}>
-                      {micOn ? <Mic size={11} /> : <MicOff size={11} />}
-                    </span>
-                  </span>
+                    <div className="native-room-tile-bar">
+                      <span className="native-room-tile-name">{currentUserName} (You)</span>
+                      <span className="native-room-tile-badges">
+                        {handRaised && (
+                          <span className="native-room-pill is-hand" title="Hand raised">
+                            <Hand size={10} />
+                          </span>
+                        )}
+                        <span className={`native-room-pill${micOn ? "" : " is-muted"}`}>
+                          {micOn ? <Mic size={10} /> : <MicOff size={10} />}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Remote Teammate Tiles */}
+                  {remotePeers.map((peer) => (
+                    <RemoteVideoTile
+                      key={peer.userId}
+                      peer={peer}
+                      stream={remoteStreams.get(peer.userId)}
+                      isHost={peer.userId === meeting.organizer_id}
+                    />
+                  ))}
                 </div>
               </div>
+            ) : (
+              <div className="native-room-grid">
+                {activePresenter && viewMode === "grid" && (
+                  <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+                    <button
+                      type="button"
+                      className="native-btn-screen-action"
+                      onClick={() => setViewMode("theater")}
+                    >
+                      <MonitorUp size={13} style={{ color: "#22c55e" }} /> Theater View
+                    </button>
+                  </div>
+                )}
 
-              {/* Remote Teammate Tiles */}
-              {remotePeers.map((peer) => (
-                <RemoteVideoTile
-                  key={peer.userId}
-                  peer={peer}
-                  stream={remoteStreams.get(peer.userId)}
-                  isHost={peer.userId === meeting.organizer_id}
-                />
-              ))}
-            </div>
+                {/* Local User Tile */}
+                <div className={`native-room-tile${handRaised ? " is-hand" : ""}`}>
+                  {camOn || screenOn ? (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className={`native-room-video${screenOn ? " is-screen-share" : ""}`}
+                    />
+                  ) : (
+                    <div className="native-room-avatar-stage">
+                      <div className="native-room-avatar-circle">{localInitials}</div>
+                      <span className="native-room-avatar-hint">
+                        {micOn ? "Audio connected" : "Listen & chat mode"}
+                      </span>
+                    </div>
+                  )}
+                  <div className="native-room-tile-bar">
+                    <span className="native-room-tile-name">{currentUserName} (You)</span>
+                    <span className="native-room-tile-badges">
+                      {handRaised && (
+                        <span className="native-room-pill is-hand" title="Hand raised">
+                          <Hand size={11} />
+                        </span>
+                      )}
+                      <span className={`native-room-pill${micOn ? "" : " is-muted"}`}>
+                        {micOn ? <Mic size={11} /> : <MicOff size={11} />}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Remote Teammate Tiles */}
+                {remotePeers.map((peer) => (
+                  <RemoteVideoTile
+                    key={peer.userId}
+                    peer={peer}
+                    stream={remoteStreams.get(peer.userId)}
+                    isHost={peer.userId === meeting.organizer_id}
+                  />
+                ))}
+              </div>
+            )}
 
             <div className="native-room-controls">
               <button

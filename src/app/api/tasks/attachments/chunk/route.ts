@@ -345,8 +345,8 @@ export async function POST(request: Request) {
         }
       }
 
-      // Trigger RAG concept indexing in background
-      void indexAttachment({
+      // Trigger RAG concept indexing safely before returning response
+      await indexAttachment({
         supabase,
         attachmentId: attachment.id,
         buffer: fullBuffer,
@@ -354,7 +354,9 @@ export async function POST(request: Request) {
         mimeType: attachment.mime_type,
         projectId: projectId || attachment.project_id,
         taskId: taskId || attachment.task_id,
-      }).catch(() => undefined);
+      }).catch((idxErr) => {
+        console.warn("[Chunk Upload Complete] RAG indexing notice:", idxErr);
+      });
 
       return NextResponse.json({
         ok: true,

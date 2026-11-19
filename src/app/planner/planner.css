@@ -669,3 +669,141 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* High-Definition Screen Sharing Presentation Stage & Theater View */
+.native-room-video.is-screen-share {
+  object-fit: contain !important;
+  background: #0b0f19 !important;
+}
+
+.native-presenter-stage {
+  display: flex;
+  flex-direction: column;
+  background: #090d16;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+  margin-bottom: 14px;
+}
+
+.native-presenter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(15, 23, 42, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.native-presenter-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.native-screen-badge-hd {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #4ade80;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.native-presenter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.native-btn-screen-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.native-btn-screen-action:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.native-btn-stop-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  background: #dc2626;
+  border: 1px solid #ef4444;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.native-btn-stop-share:hover {
+  background: #b91c1c;
+}
+
+.native-presenter-screen-box {
+  width: 100%;
+  height: 520px;
+  min-height: 380px;
+  max-height: calc(100vh - 240px);
+  background: #050811;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.native-screen-video-player {
+  width: 100%;
+  height: 100%;
+  object-fit: contain !important;
+  background: #050811;
+  display: block;
+}
+
+.native-presenter-filmstrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.native-presenter-filmstrip .native-room-tile {
+  min-height: 120px;
+  max-height: 140px;
+}
+
+.native-presenter-filmstrip .native-room-video {
+  max-height: 140px;
+}
+
+.native-presenter-filmstrip .native-room-avatar-circle {
+  width: 42px;
+  height: 42px;
+  font-size: 15px;
+}

@@ -30,6 +30,8 @@ import TaskLinkedDocsCell, {
 import { formatMinutes, formatRemaining } from "@/lib/work";
 import DateInput from "@/app/DateInput";
 import { getCustomStatusColor } from "@/lib/custom-theme";
+import { createClient } from "@/lib/supabase/client";
+import "./live-tracker.css";
 
 type TaskRow = {
   id: string;
@@ -893,6 +895,106 @@ export default function TaskTable({
   const searchParams = useSearchParams();
   const currentSort = searchParams.get("sort") || "";
 
+  const [localTasks, setLocalTasks] = useState<TaskRow[]>(tasks);
+  const [recentUpdatedIds, setRecentUpdatedIds] = useState<Set<string>>(new Set());
+  const [liveConnected, setLiveConnected] = useState<boolean>(true);
+
+  // Sync localTasks whenever tasks prop updates from server
+  useEffect(() => {
+    setLocalTasks(tasks);
+  }, [tasks]);
+
+  // Supabase Realtime subscription for Groww-style continuous auto-updating
+  useEffect(() => {
+    const supabase = createClient();
+    const channelName = `live-tasks-${projectId}-${Math.random().toString(36).slice(2, 7)}`;
+
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "tasks",
+          filter: `project_id=eq.${projectId}`,
+        },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const raw = payload.new as any;
+            const newTask: TaskRow = {
+              id: raw.id,
+              generated_key: raw.generated_key || raw.id.slice(0, 8),
+              title: raw.title || "Untitled Task",
+              description: raw.description || "",
+              priority: raw.priority || "normal",
+              due_date: raw.due_date,
+              estimate_minutes: raw.estimate_minutes,
+              billable_minutes: raw.billable_minutes || 0,
+              status_id: raw.status_id,
+              created_by: raw.created_by,
+              assigneeIds: raw.primary_assignee_id ? [raw.primary_assignee_id] : [],
+              parent_task_id: raw.parent_task_id,
+            };
+            setLocalTasks((prev) => {
+              if (prev.some((t) => t.id === newTask.id)) return prev;
+              return [newTask, ...prev];
+            });
+            // Groww-style visual ticker pulse
+            setRecentUpdatedIds((prev) => new Set([...prev, raw.id]));
+            setTimeout(() => {
+              setRecentUpdatedIds((prev) => {
+                const next = new Set(prev);
+                next.delete(raw.id);
+                return next;
+              });
+            }, 3000);
+          } else if (payload.eventType === "UPDATE") {
+            const raw = payload.new as any;
+            setLocalTasks((prev) =>
+              prev.map((t) => {
+                if (t.id === raw.id) {
+                  return {
+                    ...t,
+                    title: raw.title ?? t.title,
+                    description: raw.description ?? t.description,
+                    priority: raw.priority ?? t.priority,
+                    due_date: raw.due_date ?? t.due_date,
+                    estimate_minutes: raw.estimate_minutes ?? t.estimate_minutes,
+                    billable_minutes: raw.billable_minutes ?? t.billable_minutes,
+                    status_id: raw.status_id ?? t.status_id,
+                    parent_task_id: raw.parent_task_id !== undefined ? raw.parent_task_id : t.parent_task_id,
+                  };
+                }
+                return t;
+              })
+            );
+            // Flash updated row green like a stock ticker
+            setRecentUpdatedIds((prev) => new Set([...prev, raw.id]));
+            setTimeout(() => {
+              setRecentUpdatedIds((prev) => {
+                const next = new Set(prev);
+                next.delete(raw.id);
+                return next;
+              });
+            }, 3000);
+          } else if (payload.eventType === "DELETE") {
+            const oldId = (payload.old as any)?.id;
+            if (oldId) {
+              setLocalTasks((prev) => prev.filter((t) => t.id !== oldId));
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        setLiveConnected(status === "SUBSCRIBED");
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [projectId]);
+
   useEffect(() => {
     const handleTasksUpdated = () => {
       router.refresh();
@@ -1222,9 +1324,9 @@ export default function TaskTable({
   // Partition tasks into parents and nested subtasks
   const subtasksByParent = new Map<string, TaskRow[]>();
   const parentTasks: TaskRow[] = [];
-  const taskIdSet = new Set(tasks.map((t) => t.id));
+  const taskIdSet = new Set(localTasks.map((t) => t.id));
 
-  for (const task of tasks) {
+  for (const task of localTasks) {
     if (task.parent_task_id && taskIdSet.has(task.parent_task_id)) {
       const list = subtasksByParent.get(task.parent_task_id) ?? [];
       list.push(task);
@@ -1237,7 +1339,7 @@ export default function TaskTable({
   // Auto-expand all parent tasks that have subtasks
   const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(() => {
     const set = new Set<string>();
-    for (const task of tasks) {
+    for (const task of localTasks) {
       if (task.parent_task_id) set.add(task.parent_task_id);
     }
     return set;
@@ -1623,8 +1725,12 @@ export default function TaskTable({
       });
     };
 
+    const isUpdatedRecently = recentUpdatedIds.has(task.id);
     return (
-      <tr key={task.id} className={`task-data-tr${isSubtask ? " is-subtask-row" : ""}`}>
+      <tr
+        key={task.id}
+        className={`task-data-tr${isSubtask ? " is-subtask-row" : ""}${isUpdatedRecently ? " ticker-updated-flash" : ""}`}
+      >
         {displayColumnIds.map((colId) => renderStyledCell(colId))}
         <td className="add-col-empty-cell" />
       </tr>
@@ -2296,6 +2402,14 @@ export default function TaskTable({
       }}
     >
       <div className="table-columns-toolbar" ref={columnsMenuRef}>
+        <span
+          className="live-sync-indicator"
+          title={liveConnected ? "Continuous live sync active. Tasks update in real time without refreshing." : "Connecting live sync..."}
+          style={{ marginRight: 8 }}
+        >
+          <span className="live-pulse-dot" style={{ background: liveConnected ? "#22c55e" : "#eab308" }} />
+          <span>Live Sync</span>
+        </span>
         <span className="table-columns-hint">
           Drag edges to resize · Pin to freeze · Drag headers to reorder
         </span>
