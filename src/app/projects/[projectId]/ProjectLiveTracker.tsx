@@ -8,6 +8,7 @@ import {
   Search,
   ExternalLink,
   Presentation,
+  Sparkles,
   CheckCircle2,
   Clock,
   AlertCircle,
@@ -291,6 +292,31 @@ export default function ProjectLiveTracker({
           >
             <RotateCcw size={14} className={isRefreshing ? "animate-spin" : ""} />
             <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            className="live-tracker-ppt-btn"
+            style={{
+              background: "linear-gradient(135deg, #a855f7 0%, #7e22ce 100%)",
+              color: "#ffffff",
+              border: 0,
+              boxShadow: "0 2px 8px rgba(126, 34, 206, 0.35)",
+            }}
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent("orbitwork:open-presentation-studio", {
+                  detail: {
+                    projectId,
+                    topic: `${projectName} Realtime Live Tracker Status (${displayedTasks.length} active tasks)`,
+                  },
+                })
+              );
+            }}
+            title="Generate AI Presentation deck from live tracker data"
+          >
+            <Sparkles size={14} />
+            <span>AI Presentations</span>
           </button>
 
           <button

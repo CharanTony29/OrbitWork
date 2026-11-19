@@ -246,24 +246,60 @@ export default function ExportPresentationModal({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 8,
-              width: 32,
-              height: 32,
-              display: "grid",
-              placeItems: "center",
-              color: "#9ca3af",
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-            title="Close"
-          >
-            <X size={16} />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                window.dispatchEvent(
+                  new CustomEvent("orbitwork:open-presentation-studio", {
+                    detail: {
+                      projectId,
+                      topic: `${projectName} Executive Strategy, Milestones & KPI Deck`,
+                    },
+                  })
+                );
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                borderRadius: 8,
+                background: "linear-gradient(135deg, #a855f7 0%, #7e22ce 100%)",
+                border: "1px solid rgba(168, 85, 247, 0.4)",
+                color: "#ffffff",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                boxShadow: "0 2px 8px rgba(126, 34, 206, 0.4)",
+                transition: "all 0.15s ease",
+              }}
+              title="Launch interactive AI Presentation Studio"
+            >
+              <Sparkles size={13} />
+              <span>Generate with AI Studio</span>
+            </button>
+
+            <button
+              onClick={onClose}
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 8,
+                width: 32,
+                height: 32,
+                display: "grid",
+                placeItems: "center",
+                color: "#9ca3af",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+              title="Close"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body - Scrollable */}

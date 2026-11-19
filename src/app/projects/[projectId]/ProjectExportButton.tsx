@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Download, Presentation, FileSpreadsheet, ChevronDown, Clock3 } from "lucide-react";
+import { Download, Presentation, Sparkles, FileSpreadsheet, ChevronDown, Clock3 } from "lucide-react";
 import ProjectExportModal from "./ProjectExportModal";
 import ExportPresentationModal from "./ExportPresentationModal";
 import TimesheetExportModal from "@/app/timesheets/TimesheetExportModal";
@@ -88,6 +88,77 @@ export default function ProjectExportButton({
             gap: "4px",
           }}
         >
+          {/* Option 0: AI Presentation Studio (Interactive & PPTX) */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsDropdownOpen(false);
+              window.dispatchEvent(
+                new CustomEvent("orbitwork:open-presentation-studio", {
+                  detail: {
+                    projectId,
+                    topic: `${projectName} Executive Strategy, Milestones & KPI Deck`,
+                  },
+                })
+              );
+            }}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "10px",
+              padding: "8px 10px",
+              borderRadius: "8px",
+              border: 0,
+              background: "transparent",
+              color: "var(--ink, #0f172a)",
+              textAlign: "left",
+              cursor: "pointer",
+              transition: "background 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--surface-subtle, #f1f5f9)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "6px",
+                background: "linear-gradient(135deg, #a855f7 0%, #7e22ce 100%)",
+                display: "grid",
+                placeItems: "center",
+                color: "#ffffff",
+                flexShrink: 0,
+                marginTop: 2,
+              }}
+            >
+              <Sparkles size={15} />
+            </div>
+            <div>
+              <div style={{ fontSize: "12px", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                AI Presentations
+                <span
+                  style={{
+                    background: "rgba(168, 85, 247, 0.15)",
+                    color: "#7e22ce",
+                    fontSize: "9px",
+                    fontWeight: 800,
+                    padding: "1px 5px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  AI Studio
+                </span>
+              </div>
+              <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--muted, #64748b)", lineHeight: 1.3 }}>
+                Generate interactive slide decks with AI from project milestones &amp; tasks.
+              </p>
+            </div>
+          </button>
+
           {/* Option 1: Executive Presentation Deck (PPTX) */}
           <button
             type="button"
