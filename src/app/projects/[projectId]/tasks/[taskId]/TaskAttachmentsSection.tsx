@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { showAppConfirm, showAppToast } from "@/lib/app-feedback";
 import Link from "next/link";
@@ -51,7 +52,7 @@ export type AttachmentItem = {
 
 const attachmentMessages: Record<string, string> = {
   uploaded: "Attachment uploaded successfully.",
-  too_large: "File exceeds the 15 MB limit. Please select a smaller file.",
+  too_large: "File exceeds the 25 MB limit. Please select a smaller file.",
   save_failed: "The upload succeeded, but the app could not save its reference.",
   forbidden: "You have view-only access (Viewer). Only workspace Members, Managers, and Admins can upload attachments.",
 };
@@ -387,12 +388,15 @@ export default function TaskAttachmentsSection({
   driveError?: string;
   canEdit?: boolean;
 }) {
+  const router = useRouter();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [filter, setFilter] = useState<"all" | "files" | "canvas">("all");
   const [isDeleting, startDeleteTransition] = useTransition();
   const [isCreatingCanvas, startCreateCanvasTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusText, setUploadStatusText] = useState("");
   const [previewItem, setPreviewItem] = useState<AttachmentItem | null>(null);
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const [textContent, setTextContent] = useState<string | null>(null);
@@ -506,9 +510,12 @@ export default function TaskAttachmentsSection({
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
+      if (file.size > 25 * 1024 * 1024) {
+        showAppToast("File exceeds the 25 MB limit. Please select a smaller file.", "error");
+        return;
+      }
       setSelectedFile(file);
       if (fileInputRef.current) {
-        // Transfer to file input
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
         fileInputRef.current.files = dataTransfer.files;
@@ -518,17 +525,155 @@ export default function TaskAttachmentsSection({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0]);
+      const file = e.target.files[0];
+      if (file.size > 25 * 1024 * 1024) {
+        showAppToast("File exceeds the 25 MB limit. Please select a smaller file.", "error");
+        e.target.value = "";
+        return;
+      }
+      setSelectedFile(file);
     }
   };
 
   const handleClearSelection = () => {
     setSelectedFile(null);
+    setUploadProgress(0);
+    setUploadStatusText("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleFormSubmit = () => {
+  const handleFormSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedFile || uploading) return;
+
+    const file = selectedFile;
+    const maxBytes = 25 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      showAppToast("File exceeds the 25 MB limit. Please select a smaller file.", "error");
+      return;
+    }
+
     setUploading(true);
+    setUploadProgress(0);
+    setUploadStatusText("Preparing upload...");
+
+    const CHUNK_SIZE = 3 * 1024 * 1024; // 3 MB per slice (safely under Vercel 4.5 MB limit)
+
+    try {
+      if (file.size <= CHUNK_SIZE) {
+        // Direct single-request upload for small files
+        setUploadStatusText("Uploading attachment...");
+        setUploadProgress(40);
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("projectId", projectId);
+        fd.append("taskId", taskId);
+        fd.append("responseMode", "json");
+
+        const res = await fetch("/api/tasks/attachments", {
+          method: "POST",
+          body: fd,
+          headers: { Accept: "application/json" },
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          let errMsg = `Upload failed (HTTP ${res.status})`;
+          try {
+            const parsed = JSON.parse(errText);
+            if (parsed.error) errMsg = parsed.error;
+          } catch {}
+          throw new Error(errMsg);
+        }
+        setUploadProgress(100);
+        setUploadStatusText("Upload complete!");
+      } else {
+        // Resilient chunked upload for larger files (e.g. 5 MB - 25 MB)
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        setUploadStatusText(`Initializing upload (1 of ${totalChunks})...`);
+
+        // 1. Init
+        const initRes = await fetch("/api/tasks/attachments/chunk?action=init", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId,
+            taskId,
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: file.type || "application/octet-stream",
+            totalChunks,
+          }),
+        });
+
+        if (!initRes.ok) {
+          const err = await initRes.json().catch(() => ({}));
+          throw new Error(err.error || `Initialization failed (HTTP ${initRes.status})`);
+        }
+        const { attachmentId } = await initRes.json();
+
+        // 2. Upload chunks sequentially
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(file.size, start + CHUNK_SIZE);
+          const chunkBlob = file.slice(start, end);
+
+          const pct = Math.round((i / totalChunks) * 90);
+          setUploadProgress(pct);
+          setUploadStatusText(
+            `Uploading chunk ${i + 1} of ${totalChunks} (${Math.round((end - start) / 1024)} KB)...`
+          );
+
+          const chunkFd = new FormData();
+          chunkFd.append("attachmentId", attachmentId);
+          chunkFd.append("chunkIndex", String(i));
+          chunkFd.append("chunk", chunkBlob, file.name);
+
+          const chunkRes = await fetch("/api/tasks/attachments/chunk?action=chunk", {
+            method: "POST",
+            body: chunkFd,
+          });
+
+          if (!chunkRes.ok) {
+            const err = await chunkRes.json().catch(() => ({}));
+            void fetch("/api/tasks/attachments/chunk?action=abort", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ attachmentId }),
+            }).catch(() => undefined);
+            throw new Error(err.error || `Failed uploading chunk ${i + 1} (HTTP ${chunkRes.status})`);
+          }
+        }
+
+        // 3. Complete and index for RAG
+        setUploadProgress(95);
+        setUploadStatusText("Finalizing & indexing document...");
+        const completeRes = await fetch("/api/tasks/attachments/chunk?action=complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ attachmentId, projectId, taskId }),
+        });
+
+        if (!completeRes.ok) {
+          const err = await completeRes.json().catch(() => ({}));
+          throw new Error(err.error || `Finalizing upload failed (HTTP ${completeRes.status})`);
+        }
+        setUploadProgress(100);
+        setUploadStatusText("Uploaded & indexed successfully!");
+      }
+
+      showAppToast(`"${file.name}" uploaded successfully!`, "success");
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      router.refresh();
+    } catch (err) {
+      console.error("Upload error:", err);
+      showAppToast(err instanceof Error ? err.message : "Failed to upload file", "error");
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+      setUploadStatusText("");
+    }
   };
 
   const handleDeleteAttachment = async (attachmentId: string) => {
@@ -806,9 +951,6 @@ export default function TaskAttachmentsSection({
       {canEdit && (
         <form
           ref={formRef}
-          action="/api/tasks/attachments"
-          method="post"
-          encType="multipart/form-data"
           onSubmit={handleFormSubmit}
           className={`modern-dropzone${isDragging ? " is-dragging" : ""}${selectedFile ? " has-file" : ""}`}
           onDragOver={handleDragOver}
@@ -840,7 +982,7 @@ export default function TaskAttachmentsSection({
                   <strong>Click to browse</strong> or drag &amp; drop your files here
                 </p>
                 <p className="dropzone-secondary-text">
-                  Supports Images, PDF, Docs, Sheets, ZIP (Max 15 MB) · Saved to workspace storage (Local, Google Drive, OneDrive, or SharePoint)
+                  Supports Images, PDF, Docs, Sheets, Presentations, ZIP (Max 25 MB) · Automatic chunked upload avoids size limits
                 </p>
               </div>
             </div>
@@ -859,10 +1001,30 @@ export default function TaskAttachmentsSection({
                   className="selected-file-remove"
                   onClick={handleClearSelection}
                   title="Remove selection"
+                  disabled={uploading}
                 >
                   ×
                 </button>
               </div>
+
+              {uploading && (
+                <div style={{ marginTop: 10, width: "100%" }}>
+                  <div style={{ height: 6, width: "100%", background: "var(--line, #e2e8f0)", borderRadius: 3, overflow: "hidden" }}>
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${uploadProgress}%`,
+                        background: "#167c58",
+                        transition: "width 0.25s ease-out",
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 11, color: "var(--muted, #64748b)" }}>
+                    <span>{uploadStatusText || `Uploading ${uploadProgress}%...`}</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                </div>
+              )}
 
               <div className="selected-file-actions">
                 <button
@@ -876,7 +1038,7 @@ export default function TaskAttachmentsSection({
                 <button type="submit" className="btn-upload-submit" disabled={uploading}>
                   {uploading ? (
                     <>
-                      <Loader2 size={13} className="animate-spin" /> Uploading…
+                      <Loader2 size={13} className="animate-spin" /> {uploadProgress > 0 ? `${uploadProgress}%` : "Uploading…"}
                     </>
                   ) : (
                     <>
