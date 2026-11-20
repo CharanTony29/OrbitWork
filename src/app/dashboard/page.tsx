@@ -3,6 +3,8 @@ import AppTopBar from "@/app/AppTopBar";
 import PrimarySpaceLeftSlot from "@/app/PrimarySpaceLeftSlot";
 import AppRailLayout from "@/app/AppRailLayout";
 import { getUserSpaceData } from "@/lib/workspace-space";
+import { createClient } from "@/lib/supabase/server";
+import { approveDeletionRequest, rejectDeletionRequest } from "@/app/actions";
 import OverviewCommandCenter from "./OverviewCommandCenter";
 
 const dashboardErrorMessages: Record<string, string> = {
@@ -16,10 +18,12 @@ const dashboardErrorMessages: Record<string, string> = {
   invitation_accept_failed: "The invitation could not be accepted. Confirm migration 014_invitation_acceptance.sql is applied and sign in with the email address that received the invite.",
   invalid_workspace: "Enter a valid workspace name with at least two characters.",
   workspace_failed: "The workspace could not be created. Check your organization permissions and Supabase setup.",
+  workspace_create_forbidden: "Only Organization Owners, Co-Owners, and Admins can create workspaces.",
+  workspace_delete_forbidden: "Only Organization Owners can delete workspaces directly. Co-Owners must submit a deletion request.",
   invalid_organization: "Enter an organization name with at least two characters.",
   organization_failed: "The organization could not be created. Please try again.",
   organization_delete_confirmation: "Enter the exact organization name to confirm deletion.",
-  organization_delete_forbidden: "Only an organization owner can delete an organization.",
+  organization_delete_forbidden: "Only an organization owner can delete an organization directly. Co-Owners must submit a deletion request.",
   organization_delete_failed: "The organization could not be deleted. Please try again.",
 };
 
@@ -28,10 +32,13 @@ export default async function Dashboard({
 }: {
   searchParams: Promise<{
     error?: string;
+    info?: string;
     invited?: string;
     invitation_accepted?: string;
     organization_deleted?: string;
     organization_created?: string;
+    deletion_approved?: string;
+    deletion_rejected?: string;
   }>;
 }) {
   const space = await getUserSpaceData();
@@ -47,13 +54,136 @@ export default async function Dashboard({
   } = space;
   const params = await searchParams;
 
+  const ownerOrgIds = organizationMembers
+    .filter((m) => m.role === "owner")
+    .map((m) => m.organization_id);
+
+  let pendingDeletionRequests: Array<{
+    id: string;
+    organization_id: string;
+    resource_type: string;
+    resource_id: string;
+    resource_name: string;
+    requested_by: string;
+    status: string;
+    created_at: string;
+  }> = [];
+
+  if (ownerOrgIds.length > 0) {
+    const supabase = await createClient();
+    const { data: requests } = await supabase
+      .from("deletion_requests")
+      .select("id, organization_id, resource_type, resource_id, resource_name, requested_by, status, created_at")
+      .in("organization_id", ownerOrgIds)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    pendingDeletionRequests = requests ?? [];
+  }
+
   const banner = (
     <>
       {params.error && (
         <p className="error banner-error ov-status-banner" role="alert">
           {dashboardErrorMessages[params.error] ??
-            "That action could not be completed. Check your access and Supabase configuration."}
+            decodeURIComponent(params.error)}
         </p>
+      )}
+      {params.info === "deletion_request_submitted" && (
+        <p className="notice ov-status-banner" role="status">
+          Deletion request submitted. The Organization Owner has been notified for approval.
+        </p>
+      )}
+      {params.deletion_approved && (
+        <p className="notice ov-status-banner" role="status">
+          Deletion request approved. The resource has been permanently deleted.
+        </p>
+      )}
+      {params.deletion_rejected && (
+        <p className="notice ov-status-banner" role="status">
+          Deletion request rejected.
+        </p>
+      )}
+      {pendingDeletionRequests.length > 0 && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: "14px 18px",
+            borderRadius: 10,
+            border: "1px solid #f97316",
+            background: "#fff7ed",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+            <strong style={{ fontSize: 13.5, color: "#9a3412" }}>
+              Action Required: Deletion Approval Requests ({pendingDeletionRequests.length})
+            </strong>
+            <span style={{ fontSize: 12, color: "#c2410c" }}>
+              Co-Owners submitted these requests for your Owner review &amp; approval
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {pendingDeletionRequests.map((req) => (
+              <div
+                key={req.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  background: "#fff",
+                  border: "1px solid #fed7aa",
+                  flexWrap: "wrap",
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
+                    Delete {req.resource_type}: <strong>&quot;{req.resource_name}&quot;</strong>
+                  </span>
+                  <small style={{ display: "block", color: "var(--muted)", fontSize: 11 }}>
+                    Submitted {new Date(req.created_at).toLocaleString()}
+                  </small>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <form action={rejectDeletionRequest}>
+                    <input type="hidden" name="requestId" value={req.id} />
+                    <button
+                      type="submit"
+                      className="button button-secondary"
+                      style={{ padding: "4px 10px", fontSize: 12, minHeight: 28 }}
+                    >
+                      Reject
+                    </button>
+                  </form>
+                  <form action={approveDeletionRequest}>
+                    <input type="hidden" name="requestId" value={req.id} />
+                    <button
+                      type="submit"
+                      className="button"
+                      style={{
+                        padding: "4px 12px",
+                        fontSize: 12,
+                        minHeight: 28,
+                        background: "#dc2626",
+                        color: "#fff",
+                        border: "1px solid #b91c1c",
+                        cursor: "pointer",
+                        fontWeight: 600,
+                        borderRadius: 6,
+                      }}
+                    >
+                      Approve &amp; Delete
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
       {params.invited && (
         <p className="notice ov-status-banner" role="status">

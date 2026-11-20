@@ -10,11 +10,13 @@ export default function DeleteWorkspaceButton({
   workspaceName,
   returnTo,
   compact = false,
+  isCoOwner = false,
 }: {
   workspaceId: string;
   workspaceName: string;
   returnTo?: string;
   compact?: boolean;
+  isCoOwner?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
@@ -38,8 +40,8 @@ export default function DeleteWorkspaceButton({
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 4,
-                borderColor: "#fca5a5",
-                color: "#dc2626",
+                borderColor: isCoOwner ? "#fdba74" : "#fca5a5",
+                color: isCoOwner ? "#c2410c" : "#dc2626",
               }
             : {
                 display: "inline-flex",
@@ -48,14 +50,14 @@ export default function DeleteWorkspaceButton({
                 fontSize: 12,
                 padding: "6px 12px",
                 minHeight: 34,
-                borderColor: "#fca5a5",
-                color: "#dc2626",
+                borderColor: isCoOwner ? "#fdba74" : "#fca5a5",
+                color: isCoOwner ? "#c2410c" : "#dc2626",
               }
         }
-        title={`Delete workspace "${workspaceName}"`}
+        title={isCoOwner ? `Request deletion of workspace "${workspaceName}"` : `Delete workspace "${workspaceName}"`}
       >
         <Trash2 size={compact ? 12 : 14} />
-        <span>{compact ? "Delete" : "Delete Workspace"}</span>
+        <span>{compact ? (isCoOwner ? "Request Delete" : "Delete") : (isCoOwner ? "Request Workspace Deletion" : "Delete Workspace")}</span>
       </button>
 
       {open &&
@@ -75,9 +77,9 @@ export default function DeleteWorkspaceButton({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="proj-modal-head">
-                <h2 style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#dc2626" }}>
+                <h2 style={{ display: "inline-flex", alignItems: "center", gap: 8, color: isCoOwner ? "#c2410c" : "#dc2626" }}>
                   <AlertTriangle size={17} />
-                  <span>Delete workspace</span>
+                  <span>{isCoOwner ? "Request workspace deletion" : "Delete workspace"}</span>
                 </h2>
                 <button
                   type="button"
@@ -89,10 +91,16 @@ export default function DeleteWorkspaceButton({
                 </button>
               </div>
               <div className="proj-modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: "var(--ink)" }}>
-                  This permanently deletes <strong>{workspaceName}</strong> along with all of its projects, tasks,
-                  documents, time logs, and workspace settings. This action cannot be undone.
-                </p>
+                {isCoOwner ? (
+                  <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: "var(--ink)" }}>
+                    As <strong>Co-Owner</strong>, deleting workspaces requires Owner approval. Submitting this confirmation will send a deletion request to the <strong>Organization Owner</strong> for review and approval.
+                  </p>
+                ) : (
+                  <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: "var(--ink)" }}>
+                    This permanently deletes <strong>{workspaceName}</strong> along with all of its projects, tasks,
+                    documents, time logs, and workspace settings. This action cannot be undone.
+                  </p>
+                )}
                 <form action={deleteWorkspace} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <input type="hidden" name="workspaceId" value={workspaceId} />
                   {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
@@ -132,9 +140,9 @@ export default function DeleteWorkspaceButton({
                       disabled={!isMatch}
                       className="button"
                       style={{
-                        background: isMatch ? "#dc2626" : "#f1f5f9",
+                        background: isMatch ? (isCoOwner ? "#c2410c" : "#dc2626") : "#f1f5f9",
                         color: isMatch ? "#fff" : "#94a3b8",
-                        border: "1px solid " + (isMatch ? "#b91c1c" : "#e2e8f0"),
+                        border: "1px solid " + (isMatch ? (isCoOwner ? "#9a3412" : "#b91c1c") : "#e2e8f0"),
                         cursor: isMatch ? "pointer" : "not-allowed",
                         display: "inline-flex",
                         alignItems: "center",
@@ -142,7 +150,7 @@ export default function DeleteWorkspaceButton({
                       }}
                     >
                       <Trash2 size={14} />
-                      <span>Permanently Delete</span>
+                      <span>{isCoOwner ? "Submit Deletion Request" : "Permanently Delete"}</span>
                     </button>
                   </div>
                 </form>

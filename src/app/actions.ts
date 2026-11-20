@@ -481,6 +481,21 @@ export async function createOrganization(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
+
+  // Table 10: Only Owner and Co-Owner (or initial onboarding user with 0 orgs) can create organizations.
+  const { data: userMemberships } = await supabase
+    .from("organization_members")
+    .select("role")
+    .eq("user_id", user.id)
+    .eq("status", "active");
+
+  if (userMemberships && userMemberships.length > 0) {
+    const canCreateOrg = userMemberships.some((m) => m.role === "owner" || m.role === "co_owner");
+    if (!canCreateOrg) {
+      redirect("/dashboard?error=organization_create_forbidden");
+    }
+  }
+
   const { error } = await supabase.rpc("create_organization", { organization_name: name.data });
   if (error) redirect("/dashboard?error=organization_failed");
   revalidatePath("/dashboard");
@@ -493,10 +508,53 @@ export async function deleteOrganization(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: isOwner } = await supabase.rpc("has_org_role", { target_org: parsed.data.organizationId, allowed_roles: ["owner"] });
-  if (!isOwner) redirect("/dashboard?error=organization_delete_forbidden");
+
+  // Table 10: Owner = YES, Co-Owner = OWNER APPROVAL, Admin = NO, Manager = NO, Member = NO, Viewer = NO
+  const [{ data: isOwner }, { data: isCoOwner }] = await Promise.all([
+    supabase.rpc("has_org_role", { target_org: parsed.data.organizationId, allowed_roles: ["owner"] }),
+    supabase.rpc("has_org_role", { target_org: parsed.data.organizationId, allowed_roles: ["co_owner"] }),
+  ]);
+
+  if (!isOwner && !isCoOwner) {
+    redirect("/dashboard?error=organization_delete_forbidden");
+  }
+
   const { data: organization } = await supabase.from("organizations").select("name").eq("id", parsed.data.organizationId).maybeSingle();
   if (!organization || organization.name !== parsed.data.confirmName) redirect("/dashboard?error=organization_delete_confirmation");
+
+  if (isCoOwner && !isOwner) {
+    // Co-Owner cannot directly delete: submit deletion request for Owner approval
+    await supabase.from("deletion_requests").insert({
+      organization_id: parsed.data.organizationId,
+      resource_type: "organization",
+      resource_id: parsed.data.organizationId,
+      resource_name: organization.name,
+      requested_by: user.id,
+      status: "pending",
+    });
+
+    const { data: orgOwners } = await supabase
+      .from("organization_members")
+      .select("user_id")
+      .eq("organization_id", parsed.data.organizationId)
+      .eq("role", "owner");
+    if (orgOwners && orgOwners.length > 0) {
+      await supabase.from("notifications").insert(
+        orgOwners.map((o) => ({
+          recipient_id: o.user_id,
+          actor_id: user.id,
+          organization_id: parsed.data.organizationId,
+          event_type: "deletion_request",
+          message: `Co-Owner requested approval to permanently delete organization "${organization.name}".`,
+          action_url: "/dashboard",
+        }))
+      );
+    }
+    revalidatePath("/dashboard");
+    redirect("/dashboard?info=deletion_request_submitted");
+  }
+
+  // Owner direct deletion
   const { error } = await supabase.from("organizations").delete().eq("id", parsed.data.organizationId);
   if (error) redirect("/dashboard?error=organization_delete_failed");
   revalidatePath("/dashboard");
@@ -517,6 +575,16 @@ export async function createWorkspace(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
+
+  // Table 9: Owner = YES, Co-Owner = YES, Admin = YES, Manager = NO, Member = NO, Viewer = NO
+  const { data: canCreateWs } = await supabase.rpc("has_org_role", {
+    target_org: parsed.data.organizationId,
+    allowed_roles: ["owner", "co_owner", "admin"],
+  });
+  if (!canCreateWs) {
+    redirect("/dashboard?error=workspace_create_forbidden");
+  }
+
   const { data: newWs, error } = await supabase.from("workspaces").insert({
     organization_id: parsed.data.organizationId,
     name: parsed.data.name,
@@ -563,11 +631,19 @@ export async function deleteWorkspace(formData: FormData) {
 
   if (!workspace) redirect(`${fallbackReturn}?error=workspace_not_found`);
 
-  const { data: isOrgAdmin } = await supabase.rpc("has_org_role", {
-    target_org: workspace.organization_id,
-    allowed_roles: ["owner", "admin"],
-  });
-  if (!isOrgAdmin) {
+  // Table 9: Owner = YES, Co-Owner = OWNER APPROVAL, Admin = NO, Manager = NO, Member = NO, Viewer = NO
+  const [{ data: isOwner }, { data: isCoOwner }] = await Promise.all([
+    supabase.rpc("has_org_role", {
+      target_org: workspace.organization_id,
+      allowed_roles: ["owner"],
+    }),
+    supabase.rpc("has_org_role", {
+      target_org: workspace.organization_id,
+      allowed_roles: ["co_owner"],
+    }),
+  ]);
+
+  if (!isOwner && !isCoOwner) {
     redirect(`/workspaces/${workspace.id}?error=workspace_delete_forbidden`);
   }
 
@@ -575,6 +651,40 @@ export async function deleteWorkspace(formData: FormData) {
     redirect(`/workspaces/${workspace.id}?error=workspace_delete_confirmation`);
   }
 
+  if (isCoOwner && !isOwner) {
+    // Co-Owner cannot directly delete: submit deletion request for Owner approval
+    await supabase.from("deletion_requests").insert({
+      organization_id: workspace.organization_id,
+      resource_type: "workspace",
+      resource_id: workspace.id,
+      resource_name: workspace.name,
+      requested_by: user.id,
+      status: "pending",
+    });
+
+    const { data: orgOwners } = await supabase
+      .from("organization_members")
+      .select("user_id")
+      .eq("organization_id", workspace.organization_id)
+      .eq("role", "owner");
+    if (orgOwners && orgOwners.length > 0) {
+      await supabase.from("notifications").insert(
+        orgOwners.map((o) => ({
+          recipient_id: o.user_id,
+          actor_id: user.id,
+          organization_id: workspace.organization_id,
+          event_type: "deletion_request",
+          message: `Co-Owner requested approval to permanently delete workspace "${workspace.name}".`,
+          action_url: `/organizations/${workspace.organization_id}/workspaces`,
+        }))
+      );
+    }
+    revalidatePath("/dashboard");
+    revalidatePath(`/workspaces/${workspace.id}`);
+    redirect(`/workspaces/${workspace.id}?info=deletion_request_submitted`);
+  }
+
+  // Owner direct deletion
   const { error } = await supabase.from("workspaces").delete().eq("id", workspace.id);
   if (error) {
     redirect(`/workspaces/${workspace.id}?error=workspace_delete_failed`);
@@ -597,7 +707,7 @@ export async function inviteOrganizationMember(formData: FormData) {
     organizationId: z.string().uuid(),
     workspaceId: z.string().uuid().optional(),
     email: z.string().trim().min(1),
-    role: z.enum(["admin", "manager", "member", "viewer"]),
+    role: z.enum(["co_owner", "admin", "manager", "member", "viewer"]),
   }).safeParse({
     organizationId: formData.get("organizationId"),
     workspaceId: formData.get("workspaceId") || undefined,
@@ -619,9 +729,24 @@ export async function inviteOrganizationMember(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
+  // Table 12: Owner can invite any role including Co-Owner.
+  // Co-Owner and Admin can invite Manager, Member, Viewer, or Admin, but CANNOT invite Co-Owner or Owner.
+  if (parsed.data.role === "co_owner") {
+    const { data: isOwner } = await supabase.rpc("has_org_role", {
+      target_org: parsed.data.organizationId,
+      allowed_roles: ["owner"],
+    });
+    if (!isOwner) {
+      const forbiddenRedirect = parsed.data.workspaceId
+        ? `/workspaces/${parsed.data.workspaceId}?error=co_owner_invite_forbidden`
+        : `/dashboard?error=co_owner_invite_forbidden`;
+      redirect(forbiddenRedirect);
+    }
+  }
+
   const { data: canInvite } = await supabase.rpc("has_org_role", {
     target_org: parsed.data.organizationId,
-    allowed_roles: ["owner", "admin"],
+    allowed_roles: ["owner", "co_owner", "admin"],
   });
   if (!canInvite) {
     const forbiddenRedirect = parsed.data.workspaceId
@@ -790,7 +915,7 @@ export async function updateOrganizationMemberRole(formData: FormData) {
   const parsed = z.object({
     organizationId: z.string().uuid(),
     userId: z.string().uuid(),
-    role: z.enum(["admin", "manager", "member", "viewer"]),
+    role: z.enum(["co_owner", "admin", "manager", "member", "viewer"]),
   }).safeParse({
     organizationId: formData.get("organizationId"),
     userId: formData.get("userId"),
@@ -800,9 +925,47 @@ export async function updateOrganizationMemberRole(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: canManage } = await supabase.rpc("has_org_role", { target_org: parsed.data.organizationId, allowed_roles: ["owner", "admin"] });
+
+  // Caller must be Owner, Co-Owner, or Admin
+  const { data: canManage } = await supabase.rpc("has_org_role", {
+    target_org: parsed.data.organizationId,
+    allowed_roles: ["owner", "co_owner", "admin"],
+  });
   if (!canManage) redirect(`/organizations/${parsed.data.organizationId}/members?error=forbidden`);
-  const { error } = await supabase.from("organization_members").update({ role: parsed.data.role }).eq("organization_id", parsed.data.organizationId).eq("user_id", parsed.data.userId);
+
+  const { data: isOwner } = await supabase.rpc("has_org_role", {
+    target_org: parsed.data.organizationId,
+    allowed_roles: ["owner"],
+  });
+
+  // Fetch target member's current role
+  const { data: targetMember } = await supabase
+    .from("organization_members")
+    .select("role")
+    .eq("organization_id", parsed.data.organizationId)
+    .eq("user_id", parsed.data.userId)
+    .maybeSingle();
+
+  if (!targetMember) {
+    redirect(`/organizations/${parsed.data.organizationId}/members?error=member_not_found`);
+  }
+
+  // CRITICAL: Cannot demote or remove the Owner! (Sections 3, 4, 5, 12)
+  if (targetMember.role === "owner") {
+    redirect(`/organizations/${parsed.data.organizationId}/members?error=cannot_demote_owner`);
+  }
+
+  // Only Owner can assign or modify a Co-Owner!
+  if ((parsed.data.role === "co_owner" || targetMember.role === "co_owner") && !isOwner) {
+    redirect(`/organizations/${parsed.data.organizationId}/members?error=co_owner_manage_forbidden`);
+  }
+
+  const { error } = await supabase
+    .from("organization_members")
+    .update({ role: parsed.data.role })
+    .eq("organization_id", parsed.data.organizationId)
+    .eq("user_id", parsed.data.userId);
+
   if (error) redirect(`/organizations/${parsed.data.organizationId}/members?error=update_failed`);
   revalidatePath(`/organizations/${parsed.data.organizationId}/members`);
   redirect(`/organizations/${parsed.data.organizationId}/members?member_updated=1`);
@@ -1195,16 +1358,24 @@ export async function deleteProject(formData: FormData) {
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name, workspace_id")
+    .select("id, name, workspace_id, workspaces ( organization_id )")
     .eq("id", parsed.data.projectId)
     .maybeSingle();
 
   if (!project) redirect("/dashboard?error=project_not_found");
 
-  const { data: canManage } = await supabase.rpc("can_manage_project", {
-    target_project: project.id,
-  });
-  if (!canManage) {
+  const ws = Array.isArray(project.workspaces) ? project.workspaces[0] : project.workspaces;
+  const orgId = ws?.organization_id;
+
+  // Table 8: Owner = YES, Co-Owner = OWNER APPROVAL, Admin = YES, Manager = YES, Member = NO, Viewer = NO
+  const [{ data: canDirectDelete }, { data: isCoOwner }] = await Promise.all([
+    supabase.rpc("can_delete_project", { target_project: project.id }),
+    orgId
+      ? supabase.rpc("has_org_role", { target_org: orgId, allowed_roles: ["co_owner"] })
+      : Promise.resolve({ data: false }),
+  ]);
+
+  if (!canDirectDelete && !isCoOwner) {
     redirect(`/projects/${project.id}?error=project_delete_forbidden`);
   }
 
@@ -1212,6 +1383,42 @@ export async function deleteProject(formData: FormData) {
     redirect(`/projects/${project.id}?error=project_delete_confirmation`);
   }
 
+  if (isCoOwner && !canDirectDelete) {
+    // Co-Owner cannot directly delete: submit deletion request for Owner approval
+    await supabase.from("deletion_requests").insert({
+      organization_id: orgId,
+      resource_type: "project",
+      resource_id: project.id,
+      resource_name: project.name,
+      requested_by: user.id,
+      status: "pending",
+    });
+
+    const { data: orgOwners } = await supabase
+      .from("organization_members")
+      .select("user_id")
+      .eq("organization_id", orgId)
+      .eq("role", "owner");
+
+    if (orgOwners && orgOwners.length > 0) {
+      await supabase.from("notifications").insert(
+        orgOwners.map((o) => ({
+          recipient_id: o.user_id,
+          actor_id: user.id,
+          organization_id: orgId,
+          event_type: "deletion_request",
+          message: `Co-Owner requested approval to permanently delete project "${project.name}".`,
+          action_url: `/workspaces/${project.workspace_id}`,
+        }))
+      );
+    }
+
+    revalidatePath("/dashboard");
+    revalidatePath(`/workspaces/${project.workspace_id}`);
+    redirect(`/workspaces/${project.workspace_id}?info=deletion_request_submitted`);
+  }
+
+  // Direct deletion for Owner, Admin, Manager
   const { error } = await supabase.from("projects").delete().eq("id", project.id);
   if (error) {
     redirect(`/projects/${project.id}?error=project_delete_failed`);
@@ -1473,6 +1680,14 @@ export async function updateTaskAssignees(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
+  // Table 11: Assign / Reassign tasks is allowed for Owner, Co-Owner, Admin, Manager. Forbidden for Member and Viewer.
+  const { data: canAssign } = await supabase.rpc("can_assign_project_tasks", {
+    target_project: parsed.data.projectId,
+  });
+  if (!canAssign) {
+    return { ok: false, error: "Task assignment forbidden: Members and Viewers cannot assign tasks." };
+  }
+
   const [{ data: existingTask }, { data: existingRows }] = await Promise.all([
     supabase
       .from("tasks")
@@ -1566,6 +1781,14 @@ export async function setTaskAssignees(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false };
+
+  // Table 11: Assign / Reassign tasks is allowed for Owner, Co-Owner, Admin, Manager. Forbidden for Member and Viewer.
+  const { data: canAssign } = await supabase.rpc("can_assign_project_tasks", {
+    target_project: projectId.data,
+  });
+  if (!canAssign) {
+    return { ok: false, error: "Task assignment forbidden: Members and Viewers cannot assign tasks." };
+  }
 
   const [{ data: existingTask }, { data: existingRows }] = await Promise.all([
     supabase
@@ -1724,8 +1947,10 @@ export async function deleteTask(formData: FormData): Promise<{ ok: boolean; err
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Unauthorized" };
 
-  const [{ data: canEdit }, { data: task }] = await Promise.all([
-    supabase.rpc("can_edit_project_tasks", { target_project: projectId }),
+  // Table 11: Task deletion is strictly allowed for Owner, Co-Owner, Admin, Manager.
+  // Forbidden for Member and Viewer (even if task creator).
+  const [{ data: canDelete }, { data: task }] = await Promise.all([
+    supabase.rpc("can_delete_project_tasks", { target_project: projectId }),
     db.from("tasks").select("id, title, created_by, project_id").eq("id", taskId).eq("project_id", projectId).maybeSingle(),
   ]);
 
@@ -1733,46 +1958,8 @@ export async function deleteTask(formData: FormData): Promise<{ ok: boolean; err
     return { ok: false, error: "Task not found" };
   }
 
-  const isCreator = task.created_by === user.id;
-
-  const { data: project } = await db
-    .from("projects")
-    .select("workspace_id, workspaces ( organization_id )")
-    .eq("id", projectId)
-    .maybeSingle();
-
-  const ws = Array.isArray(project?.workspaces) ? project?.workspaces[0] : project?.workspaces;
-  const orgId = ws?.organization_id;
-  const workspaceId = project?.workspace_id;
-
-  let isManagerOrAbove = Boolean(canEdit || isCreator);
-  if (!isManagerOrAbove && (workspaceId || orgId)) {
-    const [{ data: wsRole }, { data: orgRole }] = await Promise.all([
-      workspaceId
-        ? db.from("workspace_members").select("role").eq("workspace_id", workspaceId).eq("user_id", user.id).maybeSingle()
-        : Promise.resolve({ data: null }),
-      orgId
-        ? db.from("organization_members").select("role, designations").eq("organization_id", orgId).eq("user_id", user.id).maybeSingle()
-        : Promise.resolve({ data: null }),
-    ]);
-
-    const hasDesignationManager = Boolean(
-      Array.isArray(orgRole?.designations) &&
-      orgRole.designations.some((d: string) => /manager|lead|director|vp|head|chief|ceo|coo|cto|admin/i.test(d))
-    );
-
-    isManagerOrAbove =
-      wsRole?.role === "admin" ||
-      wsRole?.role === "manager" ||
-      wsRole?.role === "owner" ||
-      orgRole?.role === "owner" ||
-      orgRole?.role === "admin" ||
-      orgRole?.role === "manager" ||
-      hasDesignationManager;
-  }
-
-  if (!isManagerOrAbove) {
-    return { ok: false, error: "Permission denied: Managers, Admins, or task creators can delete tasks" };
+  if (!canDelete) {
+    return { ok: false, error: "Task deletion forbidden: only Managers, Admins, Co-Owners, and Owners can delete tasks." };
   }
 
   try {
@@ -4193,4 +4380,113 @@ export async function disconnectOrganizationSharePoint(formData: FormData) {
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/organizations/${parsed.data.organizationId}/integrations`);
   return { ok: true };
+}
+
+export async function approveDeletionRequest(formData: FormData) {
+  const parsed = z.object({
+    requestId: z.string().uuid(),
+    returnUrl: z.string().optional(),
+  }).safeParse({
+    requestId: formData.get("requestId"),
+    returnUrl: formData.get("returnUrl") || undefined,
+  });
+  if (!parsed.success) redirect("/dashboard?error=invalid_request");
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+
+  const { error } = await supabase.rpc("approve_deletion_request", {
+    p_request_id: parsed.data.requestId,
+  });
+
+  if (error) {
+    console.error("approve_deletion_request error:", error);
+    const target = parsed.data.returnUrl || "/dashboard";
+    const sep = target.includes("?") ? "&" : "?";
+    redirect(`${target}${sep}error=${encodeURIComponent(error.message || "approve_failed")}`);
+  }
+
+  revalidatePath("/", "layout");
+  revalidatePath("/dashboard");
+  const target = parsed.data.returnUrl || "/dashboard";
+  const sep = target.includes("?") ? "&" : "?";
+  redirect(`${target}${sep}deletion_approved=1`);
+}
+
+export async function rejectDeletionRequest(formData: FormData) {
+  const parsed = z.object({
+    requestId: z.string().uuid(),
+    reason: z.string().max(500).optional(),
+    returnUrl: z.string().optional(),
+  }).safeParse({
+    requestId: formData.get("requestId"),
+    reason: formData.get("reason") || undefined,
+    returnUrl: formData.get("returnUrl") || undefined,
+  });
+  if (!parsed.success) redirect("/dashboard?error=invalid_request");
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+
+  const { error } = await supabase.rpc("reject_deletion_request", {
+    p_request_id: parsed.data.requestId,
+    p_reason: parsed.data.reason || "Rejected by owner",
+  });
+
+  if (error) {
+    console.error("reject_deletion_request error:", error);
+    const target = parsed.data.returnUrl || "/dashboard";
+    const sep = target.includes("?") ? "&" : "?";
+    redirect(`${target}${sep}error=${encodeURIComponent(error.message || "reject_failed")}`);
+  }
+
+  revalidatePath("/", "layout");
+  revalidatePath("/dashboard");
+  const target = parsed.data.returnUrl || "/dashboard";
+  const sep = target.includes("?") ? "&" : "?";
+  redirect(`${target}${sep}deletion_rejected=1`);
+}
+
+export async function transferOrganizationOwnership(formData: FormData) {
+  const parsed = z.object({
+    organizationId: z.string().uuid(),
+    newOwnerId: z.string().uuid(),
+    confirmName: z.string().min(1),
+  }).safeParse({
+    organizationId: formData.get("organizationId"),
+    newOwnerId: formData.get("newOwnerId"),
+    confirmName: formData.get("confirmName"),
+  });
+  if (!parsed.success) redirect("/dashboard?error=invalid_transfer");
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", parsed.data.organizationId)
+    .maybeSingle();
+
+  if (!org || org.name.trim().toLowerCase() !== parsed.data.confirmName.trim().toLowerCase()) {
+    redirect(`/organizations/${parsed.data.organizationId}/members?error=transfer_confirmation_failed`);
+  }
+
+  const { error } = await supabase.rpc("transfer_organization_ownership", {
+    p_org_id: parsed.data.organizationId,
+    p_new_owner_id: parsed.data.newOwnerId,
+  });
+
+  if (error) {
+    console.error("transfer_organization_ownership error:", error);
+    redirect(`/organizations/${parsed.data.organizationId}/members?error=${encodeURIComponent(error.message || "transfer_failed")}`);
+  }
+
+  revalidatePath("/", "layout");
+  revalidatePath(`/organizations/${parsed.data.organizationId}`);
+  revalidatePath(`/organizations/${parsed.data.organizationId}/members`);
+  redirect(`/organizations/${parsed.data.organizationId}/members?ownership_transferred=1`);
 }

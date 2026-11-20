@@ -140,13 +140,18 @@ export default async function ProjectPage({ params, searchParams }: {
   else if (filters.sort === "created" || filters.sort === "created_asc") taskQuery = taskQuery.order("created_at", { ascending: true });
   else taskQuery = taskQuery.order("created_at", { ascending: false });
   const PAGE_SIZE = 500;
-  const [statusResult, taskResult, memberResult, fieldResult, canEditResult, canManageResult] = await Promise.all([
+  const ws = Array.isArray(project.workspaces) ? project.workspaces[0] : project.workspaces;
+  const orgId = ws?.organization_id;
+
+  const [statusResult, taskResult, memberResult, fieldResult, canEditResult, canManageResult, orgOwnerResult, orgCoOwnerResult] = await Promise.all([
     supabase.from("project_statuses").select("id, name, color, category, position, is_default").eq("project_id", projectId).order("position"),
     taskQuery.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1),
     supabase.from("project_members").select("user_id, role").eq("project_id", projectId),
     supabase.from("custom_field_definitions").select("id, name, field_type, options, required, position").eq("project_id", projectId).order("position"),
     supabase.rpc("can_edit_project_tasks", { target_project: projectId }),
     supabase.rpc("can_manage_project", { target_project: projectId }),
+    orgId ? supabase.rpc("has_org_role", { target_org: orgId, allowed_roles: ["owner"] }) : Promise.resolve({ data: false }),
+    orgId ? supabase.rpc("has_org_role", { target_org: orgId, allowed_roles: ["co_owner"] }) : Promise.resolve({ data: false }),
   ]);
   const { data: statuses } = statusResult;
   const { data: tasks, count: taskCount } = taskResult;
@@ -154,6 +159,7 @@ export default async function ProjectPage({ params, searchParams }: {
   const { data: customFields } = fieldResult;
   const canEdit = Boolean(canEditResult.data);
   const canManage = Boolean(canManageResult.data);
+  const isCoOwner = !orgOwnerResult.data && Boolean(orgCoOwnerResult.data);
   let isProjectFavorited = false;
   const { data: projectFav, error: projectFavError } = await supabase
     .from("user_favorites")
@@ -179,8 +185,7 @@ export default async function ProjectPage({ params, searchParams }: {
       return { ...status, count: result.count ?? 0 };
     })),
   ]);
-  const workspace = Array.isArray(project.workspaces) ? project.workspaces[0] : project.workspaces;
-  const orgId = workspace?.organization_id;
+  const workspace = ws;
   const { data: orgMembers } = orgId ? await supabase.from("organization_members").select("user_id, role, designations, primary_designation").eq("organization_id", orgId).eq("status", "active") : { data: [] };
   const monthKey = filters.month && /^\d{4}-\d{2}$/.test(filters.month) ? filters.month : today.slice(0, 7);
   const currentYear = Number(monthKey.slice(0, 4));
@@ -467,6 +472,7 @@ export default async function ProjectPage({ params, searchParams }: {
               {canManage && (
                 <ProjectSettingsPanel
                   projectId={project.id}
+                  isCoOwner={isCoOwner}
                   statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
                   members={members}
                   projectMembers={projectMembers ?? []}

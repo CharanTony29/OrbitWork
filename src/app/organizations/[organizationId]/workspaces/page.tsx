@@ -29,7 +29,7 @@ export default async function OrganizationWorkspacesPage({
     .maybeSingle();
   if (!organization) notFound();
 
-  const [{ data: workspaces }, { data: isOrgAdmin }] = await Promise.all([
+  const [{ data: workspaces }, { data: isOrgOwner }, { data: isOrgCoOwner }] = await Promise.all([
     supabase
       .from("workspaces")
       .select("id, name, description, created_at")
@@ -37,7 +37,11 @@ export default async function OrganizationWorkspacesPage({
       .order("name"),
     supabase.rpc("has_org_role", {
       target_org: organizationId,
-      allowed_roles: ["owner", "admin"],
+      allowed_roles: ["owner"],
+    }),
+    supabase.rpc("has_org_role", {
+      target_org: organizationId,
+      allowed_roles: ["co_owner"],
     }),
   ]);
 
@@ -176,12 +180,13 @@ export default async function OrganizationWorkspacesPage({
                           <span>Open</span>
                           <ArrowUpRight size={13} />
                         </Link>
-                        {Boolean(isOrgAdmin) && (
+                        {(Boolean(isOrgOwner) || Boolean(isOrgCoOwner)) && (
                           <DeleteWorkspaceButton
                             workspaceId={workspace.id}
                             workspaceName={workspace.name}
                             returnTo={`/organizations/${organizationId}/workspaces`}
                             compact
+                            isCoOwner={!isOrgOwner && Boolean(isOrgCoOwner)}
                           />
                         )}
                       </div>

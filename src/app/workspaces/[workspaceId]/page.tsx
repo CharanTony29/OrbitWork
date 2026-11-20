@@ -52,6 +52,8 @@ export default async function WorkspacePage({
     { data: organizationMembers },
     { data: workspaceMembers },
     { data: canManage },
+    { data: isOrgOwner },
+    { data: isOrgCoOwner },
     { data: isOrgAdmin },
     { data: driveConnection },
     storageInfo,
@@ -73,7 +75,15 @@ export default async function WorkspacePage({
     supabase.rpc("can_manage_workspace", { target_workspace: workspaceId }),
     supabase.rpc("has_org_role", {
       target_org: workspace.organization_id,
-      allowed_roles: ["owner", "admin"],
+      allowed_roles: ["owner"],
+    }),
+    supabase.rpc("has_org_role", {
+      target_org: workspace.organization_id,
+      allowed_roles: ["co_owner"],
+    }),
+    supabase.rpc("has_org_role", {
+      target_org: workspace.organization_id,
+      allowed_roles: ["owner", "co_owner", "admin"],
     }),
     supabase
       .from("google_drive_connections")
@@ -191,11 +201,12 @@ export default async function WorkspacePage({
               scopeName={workspace.name}
               label="Export Timesheets Excel"
             />
-            {Boolean(isOrgAdmin) && (
+            {(Boolean(isOrgOwner) || Boolean(isOrgCoOwner)) && (
               <DeleteWorkspaceButton
                 workspaceId={workspaceId}
                 workspaceName={workspace.name}
                 returnTo={`/organizations/${workspace.organization_id}/workspaces`}
+                isCoOwner={!isOrgOwner && Boolean(isOrgCoOwner)}
               />
             )}
             <div className="workspace-symbol">
@@ -229,6 +240,7 @@ export default async function WorkspacePage({
             created_at: p.created_at,
           }))}
           canManage={Boolean(canManage)}
+          isCoOwner={!isOrgOwner && Boolean(isOrgCoOwner)}
         />
 
         {/* 2. Workspace Access & Professional Member Management */}

@@ -8,9 +8,11 @@ import { inviteOrganizationMember } from "@/app/actions";
 export default function InviteMemberModal({
   organizationId,
   organizationName,
+  isOwner = false,
 }: {
   organizationId: string;
   organizationName: string;
+  isOwner?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
@@ -131,6 +133,9 @@ export default function InviteMemberModal({
                       color: "var(--ink, #0f172a)",
                     }}
                   >
+                    {isOwner && (
+                      <option value="co_owner">Co-Owner (Executive peer; deletions require owner approval)</option>
+                    )}
                     <option value="admin">Admin (Full organization access)</option>
                     <option value="manager">Manager (Can manage teams & approvals)</option>
                     <option value="member">Member (Regular collaborator)</option>

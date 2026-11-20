@@ -20,10 +20,12 @@ export default function WorkspaceProjectsList({
   workspaceId,
   projects,
   canManage,
+  isCoOwner = false,
 }: {
   workspaceId: string;
   projects: ProjectItem[];
   canManage: boolean;
+  isCoOwner?: boolean;
 }) {
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("active");
   const [showCreateBar, setShowCreateBar] = useState(false);
@@ -393,9 +395,9 @@ export default function WorkspaceProjectsList({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="proj-modal-head">
-                <h2 style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#dc2626" }}>
+                <h2 style={{ display: "inline-flex", alignItems: "center", gap: 8, color: isCoOwner ? "#c2410c" : "#dc2626" }}>
                   <AlertTriangle size={17} />
-                  <span>Delete project</span>
+                  <span>{isCoOwner ? "Request project deletion" : "Delete project"}</span>
                 </h2>
                 <button
                   type="button"
@@ -407,10 +409,16 @@ export default function WorkspaceProjectsList({
                 </button>
               </div>
               <div className="proj-modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: "var(--ink)" }}>
-                  This permanently deletes <strong>{deletingProject.name}</strong> and all of its tasks, documents,
-                  comments, and time entries. This cannot be undone.
-                </p>
+                {isCoOwner ? (
+                  <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: "var(--ink)" }}>
+                    As <strong>Co-Owner</strong>, deleting projects requires Owner approval. Submitting this confirmation will send a deletion request to the <strong>Organization Owner</strong> for approval.
+                  </p>
+                ) : (
+                  <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: "var(--ink)" }}>
+                    This permanently deletes <strong>{deletingProject.name}</strong> and all of its tasks, documents,
+                    comments, and time entries. This cannot be undone.
+                  </p>
+                )}
                 <form action={deleteProject} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <input type="hidden" name="projectId" value={deletingProject.id} />
                   <input type="hidden" name="workspaceId" value={workspaceId} />
@@ -456,7 +464,7 @@ export default function WorkspaceProjectsList({
                         background:
                           confirmProjectName.trim().toLowerCase() ===
                           deletingProject.name.trim().toLowerCase()
-                            ? "#dc2626"
+                            ? (isCoOwner ? "#c2410c" : "#dc2626")
                             : "#f1f5f9",
                         color:
                           confirmProjectName.trim().toLowerCase() ===
@@ -467,7 +475,7 @@ export default function WorkspaceProjectsList({
                           "1px solid " +
                           (confirmProjectName.trim().toLowerCase() ===
                           deletingProject.name.trim().toLowerCase()
-                            ? "#b91c1c"
+                            ? (isCoOwner ? "#9a3412" : "#b91c1c")
                             : "#e2e8f0"),
                         cursor:
                           confirmProjectName.trim().toLowerCase() ===
@@ -480,7 +488,7 @@ export default function WorkspaceProjectsList({
                       }}
                     >
                       <Trash2 size={14} />
-                      <span>Permanently Delete</span>
+                      <span>{isCoOwner ? "Submit Deletion Request" : "Permanently Delete"}</span>
                     </button>
                   </div>
                 </form>

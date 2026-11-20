@@ -189,7 +189,7 @@ export default async function OrganizationMembersPage({
                 canManage={isManagerOrHigher}
               />
               {isOrgAdminOrOwner && (
-                <InviteMemberModal organizationId={organizationId} organizationName={organization.name} />
+                <InviteMemberModal organizationId={organizationId} organizationName={organization.name} isOwner={Boolean(isOwner)} />
               )}
             </div>
           </header>
@@ -210,11 +210,17 @@ export default async function OrganizationMembersPage({
     const workspaceRoles = workspaceRoleByUser.get(membership.user_id) ?? [];
     const profileDetails = [profile?.department, profile?.contact_information].filter(Boolean).join(" · ");
     const currentManagerName = membership.manager_id ? getMemberLabel(membership.manager_id) : "Top level (No manager)";
-    return <tr key={membership.user_id}><td><div className="organization-member-person"><span className="organization-member-avatar">{profile?.avatar_url ? <img src={profile.avatar_url} alt={name} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /> : (name[0]?.toUpperCase() ?? "U")}</span><span><strong>{name}</strong>{profile?.email && profile.display_name?.trim() && <small>{profile.email}</small>}{profileDetails && <small>{profileDetails}</small>}</span></div></td><td>{canManageOrg && membership.role !== "owner" ? (
+    const canEditThisMemberRole = Boolean(
+      isOwner
+        ? membership.role !== "owner"
+        : (canManageOrg && membership.role !== "owner" && membership.role !== "co_owner")
+    );
+    return <tr key={membership.user_id}><td><div className="organization-member-person"><span className="organization-member-avatar">{profile?.avatar_url ? <img src={profile.avatar_url} alt={name} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /> : (name[0]?.toUpperCase() ?? "U")}</span><span><strong>{name}</strong>{profile?.email && profile.display_name?.trim() && <small>{profile.email}</small>}{profileDetails && <small>{profileDetails}</small>}</span></div></td><td>{canEditThisMemberRole ? (
       <form action={updateOrganizationMemberRole} style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center" }}>
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="userId" value={membership.user_id} />
         <select name="role" defaultValue={membership.role} style={{ fontSize: "0.82rem", padding: "0.25rem 0.5rem", borderRadius: "6px", border: "1px solid var(--border-color, #cbd5e1)" }}>
+          {isOwner && <option value="co_owner">Co-Owner</option>}
           <option value="admin">Admin</option>
           <option value="manager">Manager</option>
           <option value="member">Member</option>
@@ -223,7 +229,9 @@ export default async function OrganizationMembersPage({
         <button type="submit" className="button button-secondary" style={{ padding: "0.25rem 0.55rem", fontSize: "0.78rem" }}>Update</button>
       </form>
     ) : (
-      <span className={`organization-role-badge role-${membership.role}`}>{membership.role}</span>
+      <span className={`organization-role-badge role-${membership.role}`}>
+        {membership.role === "co_owner" ? "Co-Owner" : membership.role}
+      </span>
     )}</td><td><MemberDesignationsEditor organizationId={organizationId} userId={membership.user_id} memberName={name} currentDesignations={memberDesignations} primaryDesignation={primaryDesignation} allAvailableDesignations={customDesignations} canManage={isManagerOrHigher} /></td><td>{isOwner && hierarchySupported ? (
       <form action={updateOrganizationMemberManager} style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center" }}>
         <input type="hidden" name="organizationId" value={organizationId} />

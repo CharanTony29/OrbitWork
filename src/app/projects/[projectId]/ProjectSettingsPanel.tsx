@@ -44,6 +44,7 @@ export default function ProjectSettingsPanel({
   budgetAmount = "",
   billingNotes = "",
   canManage = false,
+  isCoOwner = false,
 }: {
   projectId: string;
   statuses: Status[];
@@ -63,6 +64,7 @@ export default function ProjectSettingsPanel({
   budgetAmount?: string;
   billingNotes?: string;
   canManage?: boolean;
+  isCoOwner?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<Panel>(null);
@@ -187,6 +189,7 @@ export default function ProjectSettingsPanel({
                   projectName={projectName}
                   currentStatus={currentStatus}
                   canManage={canManage}
+                  isCoOwner={isCoOwner}
                 />
               )}
               {activePanel === "billing" && canManage && (
@@ -213,11 +216,13 @@ function StatusPanel({
   projectName,
   currentStatus,
   canManage,
+  isCoOwner = false,
 }: {
   projectId: string;
   projectName: string;
   currentStatus: string;
   canManage: boolean;
+  isCoOwner?: boolean;
 }) {
   const isInactive = currentStatus === "archived" || currentStatus === "on_hold";
   const [confirmDeleteName, setConfirmDeleteName] = useState("");
@@ -291,25 +296,31 @@ function StatusPanel({
             marginTop: 4,
             padding: 14,
             borderRadius: 10,
-            border: "1px solid #fecaca",
-            background: "rgba(239, 68, 68, 0.04)",
+            border: isCoOwner ? "1px solid #fed7aa" : "1px solid #fecaca",
+            background: isCoOwner ? "rgba(249, 115, 22, 0.04)" : "rgba(239, 68, 68, 0.04)",
             display: "flex",
             flexDirection: "column",
             gap: 10,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 7, color: "#dc2626", fontWeight: 700, fontSize: 13 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, color: isCoOwner ? "#c2410c" : "#dc2626", fontWeight: 700, fontSize: 13 }}>
             <AlertTriangle size={15} />
-            <span>Danger Zone — Permanently Delete Project</span>
+            <span>{isCoOwner ? "Danger Zone — Request Project Deletion" : "Danger Zone — Permanently Delete Project"}</span>
           </div>
-          <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
-            Permanently delete <strong>{projectName || "this project"}</strong> and all its tasks, comments,
-            documents, and time logs. This cannot be undone.
-          </p>
+          {isCoOwner ? (
+            <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
+              As <strong>Co-Owner</strong>, deleting projects requires Owner approval. Submitting this request sends an approval notification to the <strong>Organization Owner</strong>.
+            </p>
+          ) : (
+            <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
+              Permanently delete <strong>{projectName || "this project"}</strong> and all its tasks, comments,
+              documents, and time logs. This cannot be undone.
+            </p>
+          )}
           <form action={deleteProject} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <input type="hidden" name="projectId" value={projectId} />
             <label style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 12, fontWeight: 600 }}>
-              <span>Type <strong>{projectName}</strong> to confirm deletion:</span>
+              <span>Type <strong>{projectName}</strong> to confirm:</span>
               <input
                 type="text"
                 name="confirmName"
@@ -321,7 +332,7 @@ function StatusPanel({
                   height: 36,
                   padding: "0 10px",
                   borderRadius: 7,
-                  border: "1px solid #fca5a5",
+                  border: isCoOwner ? "1px solid #fdba74" : "1px solid #fca5a5",
                   background: "var(--paper, #fff)",
                   color: "var(--ink)",
                   fontSize: 12.5,
@@ -338,14 +349,14 @@ function StatusPanel({
                   alignItems: "center",
                   gap: 6,
                   fontSize: 12,
-                  background: canConfirmDelete ? "#dc2626" : "#f1f5f9",
+                  background: canConfirmDelete ? (isCoOwner ? "#c2410c" : "#dc2626") : "#f1f5f9",
                   color: canConfirmDelete ? "#fff" : "#94a3b8",
-                  border: "1px solid " + (canConfirmDelete ? "#b91c1c" : "#e2e8f0"),
+                  border: "1px solid " + (canConfirmDelete ? (isCoOwner ? "#9a3412" : "#b91c1c") : "#e2e8f0"),
                   cursor: canConfirmDelete ? "pointer" : "not-allowed",
                 }}
               >
                 <Trash2 size={14} />
-                <span>Delete Project Permanently</span>
+                <span>{isCoOwner ? "Submit Deletion Request" : "Delete Project Permanently"}</span>
               </button>
             </div>
           </form>
