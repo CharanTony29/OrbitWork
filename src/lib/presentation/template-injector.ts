@@ -77,7 +77,7 @@ export async function injectProjectDataIntoCompanyTemplate(
       );
       xml = xml.replace(
         /(<a:t>)(Frey Munch|John Doe|Jane Smith|Your Name|Presenter Name)(<\/a:t>)/gi,
-        `$1Orbitwork Executive Reporting Suite$2`
+        `$1Orbitwork Executive Reporting Suite$3`
       );
     }
 
