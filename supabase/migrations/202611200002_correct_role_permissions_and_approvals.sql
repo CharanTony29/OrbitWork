@@ -164,14 +164,6 @@ AS $$
     FROM public.workspaces w
     WHERE w.id = target_workspace
       AND w.created_by = (SELECT auth.uid())
-  )
-  OR EXISTS (
-    SELECT 1
-    FROM public.workspace_members wm
-    WHERE wm.workspace_id = target_workspace
-      AND wm.user_id = (SELECT auth.uid())
-      AND wm.status = 'active'
-      AND wm.role::text IN ('owner', 'co_owner', 'admin')
   );
 $$;
 
@@ -910,3 +902,63 @@ BEGIN
   RETURN jsonb_build_object('success', true, 'new_owner_id', p_new_owner_id);
 END;
 $$;
+
+-- ---------------------------------------------------------
+-- Workspace Members Non-Recursive Policies
+-- ---------------------------------------------------------
+ALTER POLICY "workspace_members_read_permitted" ON public.workspace_members
+USING (
+  user_id = (SELECT auth.uid())
+  OR EXISTS (
+    SELECT 1 FROM public.organizations o 
+    WHERE o.id = workspace_members.organization_id 
+      AND o.created_by = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1 FROM public.organization_members om 
+    WHERE om.organization_id = workspace_members.organization_id 
+      AND om.user_id = (SELECT auth.uid()) 
+      AND om.status = 'active'
+  )
+);
+
+ALTER POLICY "workspace_members_manage_admins" ON public.workspace_members
+USING (
+  EXISTS (
+    SELECT 1 FROM public.organizations o 
+    WHERE o.id = workspace_members.organization_id 
+      AND o.created_by = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1 FROM public.organization_members om 
+    WHERE om.organization_id = workspace_members.organization_id 
+      AND om.user_id = (SELECT auth.uid()) 
+      AND om.status = 'active' 
+      AND om.role IN ('owner', 'co_owner', 'admin')
+  )
+)
+WITH CHECK (
+  (
+    EXISTS (
+      SELECT 1 FROM public.organizations o 
+      WHERE o.id = workspace_members.organization_id 
+        AND o.created_by = (SELECT auth.uid())
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.organization_members om 
+      WHERE om.organization_id = workspace_members.organization_id 
+        AND om.user_id = (SELECT auth.uid()) 
+        AND om.status = 'active' 
+        AND om.role IN ('owner', 'co_owner', 'admin')
+    )
+  )
+  AND (
+    EXISTS (
+      SELECT 1 FROM public.organization_members om 
+      WHERE om.organization_id = workspace_members.organization_id 
+        AND om.user_id = workspace_members.user_id 
+        AND om.status = 'active'
+    )
+  )
+);
+

@@ -897,23 +897,83 @@ export async function inviteOrganizationMember(formData: FormData) {
 
 export async function addWorkspaceMember(formData: FormData) {
   const parsed = z.object({
-    workspaceId: z.string().uuid(), userId: z.string().uuid(), role: z.enum(["admin", "manager", "member", "viewer"]),
-  }).safeParse({ workspaceId: formData.get("workspaceId"), userId: formData.get("userId"), role: formData.get("role") });
+    workspaceId: z.string().uuid(),
+    userId: z.string().uuid(),
+    role: z.enum(["admin", "manager", "member", "viewer"]),
+  }).safeParse({
+    workspaceId: formData.get("workspaceId"),
+    userId: formData.get("userId"),
+    role: formData.get("role"),
+  });
   if (!parsed.success) redirect("/dashboard?error=invalid_workspace_member");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: canManage } = await supabase.rpc("can_manage_workspace", { target_workspace: parsed.data.workspaceId });
-  const { data: workspace } = await supabase.from("workspaces").select("organization_id, created_by").eq("id", parsed.data.workspaceId).maybeSingle();
+
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("organization_id, created_by")
+    .eq("id", parsed.data.workspaceId)
+    .maybeSingle();
   if (!workspace) redirect("/dashboard?error=workspace_not_found");
+
+  const [{ data: canManage }, { data: isOrgAdmin }, { data: org }] = await Promise.all([
+    supabase.rpc("can_manage_workspace", { target_workspace: parsed.data.workspaceId }),
+    supabase.rpc("has_org_role", {
+      target_org: workspace.organization_id,
+      allowed_roles: ["owner", "co_owner", "admin"],
+    }),
+    supabase.from("organizations").select("created_by").eq("id", workspace.organization_id).maybeSingle(),
+  ]);
+
   const isWsCreator = workspace.created_by === user.id;
-  if (!canManage && !isWsCreator) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
-  const { data: isOrgAdmin } = await supabase.rpc("has_org_role", { target_org: workspace.organization_id, allowed_roles: ["owner", "co_owner", "admin"] });
-  if (parsed.data.role === "admin" && !isOrgAdmin && !isWsCreator) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
-  const { data: organizationMember } = await supabase.from("organization_members").select("user_id").eq("organization_id", workspace.organization_id).eq("user_id", parsed.data.userId).eq("status", "active").maybeSingle();
-  if (!organizationMember) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_not_in_org`);
-  const { error } = await supabase.from("workspace_members").upsert({ organization_id: workspace.organization_id, workspace_id: parsed.data.workspaceId, user_id: parsed.data.userId, role: parsed.data.role, status: "active" }, { onConflict: "workspace_id,user_id" });
-  if (error) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_add_failed`);
+  const isOrgCreator = org?.created_by === user.id;
+  const hasManageRights = Boolean(canManage || isWsCreator || isOrgCreator || isOrgAdmin);
+
+  if (!hasManageRights) {
+    redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
+  }
+  if (parsed.data.role === "admin" && !isOrgAdmin && !isWsCreator && !isOrgCreator) {
+    redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
+  }
+
+  // Verify or auto-ensure target user is an active organization member
+  const { data: organizationMember } = await supabase
+    .from("organization_members")
+    .select("user_id")
+    .eq("organization_id", workspace.organization_id)
+    .eq("user_id", parsed.data.userId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!organizationMember) {
+    if (org?.created_by === parsed.data.userId) {
+      await supabase.from("organization_members").upsert({
+        organization_id: workspace.organization_id,
+        user_id: parsed.data.userId,
+        role: "owner",
+        status: "active",
+      }, { onConflict: "organization_id,user_id" });
+    } else {
+      redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_not_in_org`);
+    }
+  }
+
+  const { error } = await supabase.from("workspace_members").upsert(
+    {
+      organization_id: workspace.organization_id,
+      workspace_id: parsed.data.workspaceId,
+      user_id: parsed.data.userId,
+      role: parsed.data.role,
+      status: "active",
+    },
+    { onConflict: "workspace_id,user_id" }
+  );
+
+  if (error) {
+    console.error("[addWorkspaceMember] upsert error:", error);
+    redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_add_failed`);
+  }
   revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
   revalidatePath("/dashboard");
   redirect(`/workspaces/${parsed.data.workspaceId}?member_added=1`);
@@ -933,13 +993,33 @@ export async function updateWorkspaceMemberRole(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: canManage } = await supabase.rpc("can_manage_workspace", { target_workspace: parsed.data.workspaceId });
-  const { data: workspace } = await supabase.from("workspaces").select("organization_id, created_by").eq("id", parsed.data.workspaceId).maybeSingle();
+
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("organization_id, created_by")
+    .eq("id", parsed.data.workspaceId)
+    .maybeSingle();
   if (!workspace) redirect("/dashboard?error=workspace_not_found");
+
+  const [{ data: canManage }, { data: isOrgAdmin }, { data: org }] = await Promise.all([
+    supabase.rpc("can_manage_workspace", { target_workspace: parsed.data.workspaceId }),
+    supabase.rpc("has_org_role", {
+      target_org: workspace.organization_id,
+      allowed_roles: ["owner", "co_owner", "admin"],
+    }),
+    supabase.from("organizations").select("created_by").eq("id", workspace.organization_id).maybeSingle(),
+  ]);
+
   const isWsCreator = workspace.created_by === user.id;
-  if (!canManage && !isWsCreator) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
-  const { data: isOrgAdmin } = await supabase.rpc("has_org_role", { target_org: workspace.organization_id, allowed_roles: ["owner", "co_owner", "admin"] });
-  if (parsed.data.role === "admin" && !isOrgAdmin && !isWsCreator) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
+  const isOrgCreator = org?.created_by === user.id;
+  const hasManageRights = Boolean(canManage || isWsCreator || isOrgCreator || isOrgAdmin);
+
+  if (!hasManageRights) {
+    redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
+  }
+  if (parsed.data.role === "admin" && !isOrgAdmin && !isWsCreator && !isOrgCreator) {
+    redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
+  }
 
   const { error } = await supabase
     .from("workspace_members")
@@ -947,21 +1027,58 @@ export async function updateWorkspaceMemberRole(formData: FormData) {
     .eq("workspace_id", parsed.data.workspaceId)
     .eq("user_id", parsed.data.userId);
 
-  if (error) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_add_failed`);
+  if (error) {
+    console.error("[updateWorkspaceMemberRole] update error:", error);
+    redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_add_failed`);
+  }
   revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
   redirect(`/workspaces/${parsed.data.workspaceId}?member_updated=1`);
 }
 
 export async function removeWorkspaceMember(formData: FormData) {
-  const parsed = z.object({ workspaceId: z.string().uuid(), userId: z.string().uuid() }).safeParse({ workspaceId: formData.get("workspaceId"), userId: formData.get("userId") });
+  const parsed = z.object({
+    workspaceId: z.string().uuid(),
+    userId: z.string().uuid(),
+  }).safeParse({
+    workspaceId: formData.get("workspaceId"),
+    userId: formData.get("userId"),
+  });
   if (!parsed.success) redirect("/dashboard?error=invalid_workspace_member");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: canManage } = await supabase.rpc("can_manage_workspace", { target_workspace: parsed.data.workspaceId });
-  if (!canManage) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
-  const { data: removed, error } = await supabase.from("workspace_members").delete().eq("workspace_id", parsed.data.workspaceId).eq("user_id", parsed.data.userId).select("user_id");
-  if (error || !removed?.length) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_remove_failed`);
+
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("organization_id, created_by")
+    .eq("id", parsed.data.workspaceId)
+    .maybeSingle();
+  if (!workspace) redirect("/dashboard?error=workspace_not_found");
+
+  const [{ data: canManage }, { data: org }] = await Promise.all([
+    supabase.rpc("can_manage_workspace", { target_workspace: parsed.data.workspaceId }),
+    supabase.from("organizations").select("created_by").eq("id", workspace.organization_id).maybeSingle(),
+  ]);
+
+  const isWsCreator = workspace.created_by === user.id;
+  const isOrgCreator = org?.created_by === user.id;
+  const isSelf = parsed.data.userId === user.id;
+
+  if (!canManage && !isWsCreator && !isOrgCreator && !isSelf) {
+    redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
+  }
+
+  const { data: removed, error } = await supabase
+    .from("workspace_members")
+    .delete()
+    .eq("workspace_id", parsed.data.workspaceId)
+    .eq("user_id", parsed.data.userId)
+    .select("user_id");
+
+  if (error || !removed?.length) {
+    console.error("[removeWorkspaceMember] delete error:", error);
+    redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_remove_failed`);
+  }
   revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
   revalidatePath("/dashboard");
   redirect(`/workspaces/${parsed.data.workspaceId}?member_removed=1`);

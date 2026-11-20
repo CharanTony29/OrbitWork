@@ -42,7 +42,7 @@ export default async function WorkspacePage({
 
   const { data: workspace } = await supabase
     .from("workspaces")
-    .select("id, name, description, organization_id")
+    .select("id, name, description, organization_id, created_by")
     .eq("id", workspaceId)
     .maybeSingle();
   if (!workspace) notFound();
@@ -320,12 +320,12 @@ export default async function WorkspacePage({
           )}
 
           {/* Professional Add or Invite Workspace Members Section */}
-          {canManage && (
+          {Boolean(canManage || isOrgOwner || isOrgCoOwner || isOrgAdmin || workspace.created_by === user.id) && (
             <WorkspaceInviteSection
               workspaceId={workspaceId}
               organizationId={workspace.organization_id}
               availableMembers={availableMembers}
-              isOrgAdmin={Boolean(isOrgAdmin)}
+              isOrgAdmin={Boolean(isOrgAdmin || isOrgOwner || isOrgCoOwner || workspace.created_by === user.id)}
             />
           )}
         </section>
