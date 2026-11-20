@@ -138,13 +138,17 @@ export default function TaskWorkload({
 
   return (
     <div
-      className="workload-container"
+      className="workload-container workload-view"
       style={{
         display: "flex",
         flexDirection: "column",
         gap: 16,
-        padding: "16px 20px 40px",
+        padding: "16px 20px 60px",
         fontFamily: "'DM Sans', sans-serif",
+        width: "100%",
+        boxSizing: "border-box",
+        minHeight: "min-content",
+        flex: "1 1 auto",
       }}
     >
       {/* Top Planning Period & Capacity Control Bar */}

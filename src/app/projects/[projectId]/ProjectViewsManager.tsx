@@ -217,7 +217,19 @@ export default function ProjectViewsManager(props: ProjectViewsManagerProps) {
           />
         )}
 
-      <div className="project-active-view-content" style={{ width: "100%", height: "100%" }}>
+      <div
+        className="project-active-view-content"
+        style={{
+          width: "100%",
+          flex: "1 1 0px",
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          position: "relative",
+          overflowY: "auto",
+          overflowX: "auto",
+        }}
+      >
         {activeView === "live" ? (
           <ProjectLiveTracker
             projectId={projectId}

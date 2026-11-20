@@ -353,58 +353,117 @@ body:has(.project-app-shell) {
   overflow: hidden !important;
 }
 
-.project-app-shell .task-panel > .calendar-wrap,
-.project-app-shell .task-panel > .workload-view,
-.project-app-shell .task-panel > .project-goals-view,
-.project-app-shell .task-panel > .live-tracker-root,
-.project-app-shell .task-panel > .ai-agents-hub-wrap {
-  flex: 1 1 auto !important;
+.project-app-shell .project-active-view-content,
+.project-active-view-content {
+  flex: 1 1 0px !important;
   min-height: 0 !important;
+  height: 100% !important;
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  position: relative !important;
   overflow-y: auto !important;
   overflow-x: auto !important;
-  padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin !important;
+  scrollbar-color: #94a3b8 #f1f5f9 !important;
 }
 
-.project-app-shell .task-panel > .kanban-board {
+[data-color-scheme="dark"] .project-app-shell .project-active-view-content,
+[data-color-scheme="dark"] .project-active-view-content {
+  scrollbar-color: #475569 #111317 !important;
+}
+
+.project-app-shell .project-active-view-content::-webkit-scrollbar,
+.project-active-view-content::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+  display: block !important;
+}
+
+.project-app-shell .project-active-view-content::-webkit-scrollbar-track,
+.project-active-view-content::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+}
+
+[data-color-scheme="dark"] .project-app-shell .project-active-view-content::-webkit-scrollbar-track,
+[data-color-scheme="dark"] .project-active-view-content::-webkit-scrollbar-track {
+  background: #111317 !important;
+}
+
+.project-app-shell .project-active-view-content::-webkit-scrollbar-thumb,
+.project-active-view-content::-webkit-scrollbar-thumb {
+  background: #94a3b8 !important;
+  border-radius: 5px !important;
+  border: 2px solid #f1f5f9 !important;
+}
+
+[data-color-scheme="dark"] .project-app-shell .project-active-view-content::-webkit-scrollbar-thumb,
+[data-color-scheme="dark"] .project-active-view-content::-webkit-scrollbar-thumb {
+  background: #475569 !important;
+  border-color: #111317 !important;
+}
+
+.project-app-shell .task-panel :is(.calendar-wrap, .workload-container, .workload-view, .project-goals-view, .live-tracker-root, .ai-agents-hub-wrap) {
   flex: 1 1 auto !important;
-  min-height: calc(100vh - 200px) !important;
+  min-height: min-content !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding-bottom: 60px !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.project-app-shell .task-panel :is(.kanban-board) {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
   overflow-y: auto !important;
   overflow-x: auto !important;
   padding-bottom: 24px;
   background: var(--surface-subtle, #f6f8f6);
+  -webkit-overflow-scrolling: touch;
 }
 
-.project-app-shell .task-panel > .channel-shell {
+.project-app-shell .task-panel :is(.channel-shell) {
   flex: 1 1 0px !important;
   height: 100% !important;
   min-height: 0 !important;
   border-bottom: 0 !important;
 }
 
-.project-app-shell .task-panel > .brain-container {
-  flex: 1 1 0px !important;
-  min-height: 0 !important;
+.project-app-shell .task-panel :is(.brain-container) {
+  flex: 1 1 auto !important;
+  min-height: min-content !important;
   height: auto !important;
   max-height: none !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
   width: 100% !important;
   max-width: 100% !important;
   margin: 0 !important;
-  padding: 16px 20px 24px !important;
+  padding: 16px 20px 40px !important;
   box-sizing: border-box !important;
+  -webkit-overflow-scrolling: touch;
 }
 
-.project-app-shell .task-panel > .gantt-view {
+.project-app-shell .task-panel :is(.gantt-view) {
   flex: 1 1 auto !important;
   min-height: 0 !important;
+  height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
   padding: 10px 14px 16px !important;
 }
 
-.project-app-shell .task-panel > .calendar-wrap .calendar-grid {
+.project-app-shell .task-panel :is(.project-canvas-view-container) {
+  flex: 1 1 0px !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  display: flex !important;
+  border-top: 1px solid var(--line);
+  background: var(--surface, #fff);
+}
+
+.project-app-shell .task-panel .calendar-wrap .calendar-grid {
   overflow: visible;
 }
 
