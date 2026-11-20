@@ -26,9 +26,9 @@ export interface ProjectTemplateData {
  * preserving all images, photography, layouts, slide masters, typography, and styling.
  */
 export async function injectProjectDataIntoCompanyTemplate(
-  templateBuffer: Buffer | Uint8Array,
+  templateBuffer: Buffer | Uint8Array | ArrayBuffer,
   data: ProjectTemplateData
-): Promise<Buffer> {
+): Promise<Uint8Array> {
   const zip = await JSZip.loadAsync(templateBuffer);
 
   const slidePaths = Object.keys(zip.files)
@@ -306,12 +306,35 @@ export async function injectProjectDataIntoCompanyTemplate(
     zip.file(sPath, xml);
   }
 
-  const generatedBuffer = (await zip.generateAsync({
-    type: "nodebuffer",
+  const generatedBuffer = await zip.generateAsync({
+    type: "uint8array",
     compression: "DEFLATE",
-  })) as Buffer;
+  });
 
   return generatedBuffer;
+}
+
+/**
+ * Executes 100% in-browser generation and download of PPTX presentation
+ * from an uploaded corporate template, with zero server payload limitations.
+ */
+export async function downloadInjectedCompanyPresentation(
+  templateBuffer: Uint8Array | ArrayBuffer,
+  data: ProjectTemplateData,
+  fileName: string
+): Promise<void> {
+  const outputBytes = await injectProjectDataIntoCompanyTemplate(templateBuffer, data);
+  const blob = new Blob([outputBytes as unknown as BlobPart], {
+    type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName.endsWith(".pptx") ? fileName : `${fileName}.pptx`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
 }
 
 function escapeXml(unsafe: string): string {

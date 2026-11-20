@@ -57,6 +57,20 @@ export default function PresentationStudioModal() {
         });
       }
     }).catch(() => {});
+
+    fetch("/api/presentation/templates")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.templates?.length) {
+          setCustomTemplates((prev) => {
+            const map = new Map<string, PresentationTemplate>();
+            for (const t of data.templates) map.set(t.id, t);
+            for (const t of prev) map.set(t.id, t);
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(() => {});
   }, [isOpen]);
 
   const generateDeckFor = useCallback(
@@ -201,22 +215,63 @@ export default function PresentationStudioModal() {
 
     setIsExportingPptx(true);
     try {
-      const { getCompanyTemplateById } = await import("@/lib/presentation/company-template");
-      const companyDef = getCompanyTemplateById(selectedTemplateId);
-      const rawZipBase64 = companyDef?.rawZipBase64;
+      const isCompany = selectedTemplateId.startsWith("company_");
+      const { getCompanyTemplateBuffer } = await import("@/lib/presentation/company-template");
+      const companyBuffer = isCompany ? await getCompanyTemplateBuffer(selectedTemplateId) : null;
 
+      if (isCompany && companyBuffer) {
+        // High-speed zero-payload client-side generation preserving full corporate template layout
+        const dataRes = await fetch(`/api/projects/${targetProjId}/presentation-data`);
+        let projectData: any;
+        if (dataRes.ok) {
+          projectData = await dataRes.json();
+        } else {
+          const projName = projects.find((p) => p.id === targetProjId)?.name || deck?.title || "Orbitwork Project";
+          projectData = {
+            projectName: projName,
+            periodLabel: "Executive Presentation Overview",
+            totalTasks: deck?.slides.reduce((acc, s) => acc + (s.statusGraph?.totalTasks || 0), 0) || 10,
+            completedTasks: [],
+            inProgressTasks: [],
+            holdTasks: [],
+            pendingTasks: [],
+            overdueTasks: [],
+            completionRate: deck?.slides[0]?.statusGraph?.completionRate || 80,
+            inProgressRate: 20,
+            holdRate: 0,
+            pendingRate: 0,
+            statusMetrics: [],
+            resourceMetrics: [],
+            allTasks: [],
+          };
+        }
+
+        const { downloadInjectedCompanyPresentation } = await import("@/lib/presentation/template-injector");
+        const projectName = projects.find((p) => p.id === targetProjId)?.name || "Project";
+        const safeName = `${projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${selectedTemplateId}`;
+        await downloadInjectedCompanyPresentation(companyBuffer, projectData, safeName);
+
+        showAppToast("PowerPoint deck (.pptx) downloaded successfully!", "success", {
+          title: "Export Complete",
+        });
+        return;
+      }
+
+      // Built-in standard templates: lightweight server-side generation
       const res = await fetch(`/api/projects/${targetProjId}/presentation.pptx`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           templateId: selectedTemplateId,
-          rawZipBase64,
           period: "all",
           includeCatalog: true,
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to export PPTX");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || "Failed to export PPTX");
+      }
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -227,11 +282,13 @@ export default function PresentationStudioModal() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
       showAppToast("PowerPoint deck (.pptx) downloaded successfully!", "success", {
         title: "Export Complete",
       });
     } catch (err: any) {
+      console.error("PPTX export failed:", err);
       showAppToast(err.message || "Failed to download PPTX", "error", {
         title: "Export Failed",
       });

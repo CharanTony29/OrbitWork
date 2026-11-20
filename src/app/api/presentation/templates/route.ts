@@ -25,11 +25,16 @@ export async function POST(request: Request) {
 
     if (body.definition) {
       const def = body.definition as CompanyTemplateDefinition;
-      registerCompanyTemplate(def);
+      const cleanDef: CompanyTemplateDefinition = {
+        ...def,
+        rawZipBase64: undefined,
+        rawZipBuffer: undefined,
+      };
+      registerCompanyTemplate(cleanDef);
       return NextResponse.json({
         success: true,
-        template: companyTemplateToPresentationTemplate(def),
-        definition: def,
+        template: companyTemplateToPresentationTemplate(cleanDef),
+        definition: cleanDef,
       });
     }
 

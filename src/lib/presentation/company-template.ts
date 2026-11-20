@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import type { PresentationTemplate, DesignArchetype, TemplateCategory } from "./templates.ts";
+import { saveTemplateBuffer, getTemplateBuffer } from "./template-storage";
 
 export interface CompanyTemplateBranding {
   companyName: string;
@@ -34,6 +35,7 @@ export interface CompanyTemplateDefinition {
   slideLayouts: string[];
   supportedSlideTypes: string[];
   rawZipBase64?: string;
+  rawZipBuffer?: Uint8Array;
   createdAt: string;
   updatedAt: string;
 }
@@ -41,18 +43,22 @@ export interface CompanyTemplateDefinition {
 // In-memory registry for uploaded company templates during session / workspace lifetime
 const COMPANY_TEMPLATES = new Map<string, CompanyTemplateDefinition>();
 
-// Helper to convert Uint8Array/Buffer to base64
+// Helper to convert Uint8Array/Buffer to base64 safely
 function bufferToBase64(buf: Buffer | Uint8Array): string {
   if (typeof Buffer !== "undefined" && Buffer.isBuffer(buf)) {
     return buf.toString("base64");
   }
-  let binary = "";
   const bytes = new Uint8Array(buf);
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  // If buffer is very large (>3MB), avoid creating huge base64 strings in memory
+  if (bytes.length > 3 * 1024 * 1024) {
+    return "";
   }
-  return typeof btoa !== "undefined" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64");
+  const chunks: string[] = [];
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    chunks.push(String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize))));
+  }
+  return typeof btoa !== "undefined" ? btoa(chunks.join("")) : "";
 }
 
 function persistToStorage(def: CompanyTemplateDefinition) {
@@ -60,7 +66,13 @@ function persistToStorage(def: CompanyTemplateDefinition) {
     try {
       const stored = window.localStorage.getItem("orbitwork:custom_templates");
       const list: CompanyTemplateDefinition[] = stored ? JSON.parse(stored) : [];
-      const updated = [def, ...list.filter((x) => x.templateId !== def.templateId)].slice(0, 10);
+      // Always strip heavy buffer/base64 so localStorage never exceeds the 5MB quota
+      const cleanDef: CompanyTemplateDefinition = {
+        ...def,
+        rawZipBase64: undefined,
+        rawZipBuffer: undefined,
+      };
+      const updated = [cleanDef, ...list.filter((x) => x.templateId !== def.templateId)].slice(0, 20);
       window.localStorage.setItem("orbitwork:custom_templates", JSON.stringify(updated));
     } catch (e) {
       console.warn("Could not persist company template to localStorage:", e);
@@ -109,7 +121,8 @@ export async function parseAndRegisterCompanyTemplate(
     version?: string;
   }
 ): Promise<CompanyTemplateDefinition> {
-  const zip = await JSZip.loadAsync(fileBuffer);
+  const bytes = fileBuffer instanceof Uint8Array ? fileBuffer : new Uint8Array(fileBuffer);
+  const zip = await JSZip.loadAsync(bytes);
 
   // 1. Inspect slide count and files
   const slideFiles = Object.keys(zip.files).filter((f) =>
@@ -163,11 +176,9 @@ export async function parseAndRegisterCompanyTemplate(
     const dk1Match = themeXml.match(/<a:dk1>[\s\S]*?<a:srgbClr val="([A-Fa-f0-9]{6})"/);
     const lt1Match = themeXml.match(/<a:lt1>[\s\S]*?<a:srgbClr val="([A-Fa-f0-9]{6})"/);
     if (dk1Match && lt1Match) {
-      // Determine if template is predominantly dark or light
       const darkHex = dk1Match[1];
       const lightHex = lt1Match[1];
       if (darkHex === "000000" || darkHex.startsWith("0") || darkHex.startsWith("1")) {
-        // Dark theme
         bg = darkHex.toUpperCase();
         textPrimary = lightHex.toUpperCase();
         isDark = true;
@@ -186,7 +197,6 @@ export async function parseAndRegisterCompanyTemplate(
     if (!sFile) continue;
     const sXml = await sFile.async("string");
 
-    // Extract visible text runs (<a:t>)
     const textMatches = Array.from(sXml.matchAll(/<a:t>([^<]+)<\/a:t>/g)).map((m) => m[1]);
     for (const t of textMatches) {
       const clean = t.trim();
@@ -239,13 +249,18 @@ export async function parseAndRegisterCompanyTemplate(
     slidesCount,
     slideLayouts: ["title", "executive_summary", "metrics_kpi", "status_table", "milestone_timeline", "closing"],
     supportedSlideTypes: ["title", "kpi", "status_graph", "team_workload", "critical_tasks", "cards", "split", "timeline"],
-    rawZipBase64: bufferToBase64(fileBuffer),
+    rawZipBuffer: bytes,
+    rawZipBase64: bytes.length <= 3 * 1024 * 1024 ? bufferToBase64(bytes) : undefined,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 
   COMPANY_TEMPLATES.set(templateId, companyDef);
   persistToStorage(companyDef);
+
+  // Persist raw binary buffer to client-side IndexedDB
+  await saveTemplateBuffer(templateId, bytes);
+
   return companyDef;
 }
 
@@ -297,4 +312,31 @@ export function getCompanyTemplateById(templateId: string): CompanyTemplateDefin
     loadStoredCompanyTemplates();
   }
   return COMPANY_TEMPLATES.get(templateId);
+}
+
+/**
+ * Retrieve binary template buffer from memory cache, base64, or IndexedDB
+ */
+export async function getCompanyTemplateBuffer(templateId: string): Promise<Uint8Array | null> {
+  const inMem = getCompanyTemplateById(templateId);
+  if (inMem?.rawZipBuffer) {
+    return inMem.rawZipBuffer;
+  }
+  if (inMem?.rawZipBase64) {
+    try {
+      const bytes = typeof Buffer !== "undefined"
+        ? Buffer.from(inMem.rawZipBase64, "base64")
+        : Uint8Array.from(atob(inMem.rawZipBase64), (c) => c.charCodeAt(0));
+      const u8 = new Uint8Array(bytes);
+      inMem.rawZipBuffer = u8;
+      return u8;
+    } catch {
+      // Fall through to storage
+    }
+  }
+  const fromStorage = await getTemplateBuffer(templateId);
+  if (fromStorage && inMem) {
+    inMem.rawZipBuffer = fromStorage;
+  }
+  return fromStorage;
 }

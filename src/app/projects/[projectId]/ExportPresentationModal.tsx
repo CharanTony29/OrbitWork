@@ -219,11 +219,17 @@ export default function ExportPresentationModal({
       setSelectedTemplateId(newTemplate.id);
       setActiveCategory("custom");
 
-      // Sync to server registry for persistence
+      // Sync metadata to server registry for persistence (WITHOUT heavy binary buffer)
       fetch("/api/presentation/templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ definition: companyDef }),
+        body: JSON.stringify({
+          definition: {
+            ...companyDef,
+            rawZipBase64: undefined,
+            rawZipBuffer: undefined,
+          },
+        }),
       }).catch((err) => console.warn("Failed to sync template to server:", err));
     } catch (err: any) {
       console.error("Company template upload failed:", err);
@@ -370,10 +376,55 @@ export default function ExportPresentationModal({
     setIsExporting(true);
 
     try {
-      const { getCompanyTemplateById } = await import("@/lib/presentation/company-template");
-      const companyDef = getCompanyTemplateById(selectedTemplateId);
-      const rawZipBase64 = companyDef?.rawZipBase64;
+      const isCompany = selectedTemplateId.startsWith("company_");
+      const { getCompanyTemplateBuffer } = await import("@/lib/presentation/company-template");
+      const companyBuffer = isCompany ? await getCompanyTemplateBuffer(selectedTemplateId) : null;
 
+      // When exporting an uploaded company template, run high-speed zero-payload client-side generation
+      if (isCompany && companyBuffer) {
+        const dataRes = await fetch(
+          `/api/projects/${projectId}/presentation-data?period=${period}&taskIds=${Array.from(selectedTaskIds).join(",")}`
+        );
+        let projectData: any;
+        if (dataRes.ok) {
+          projectData = await dataRes.json();
+        } else {
+          // Fallback to client state
+          const completedTasks = tasks.filter((t) => t.isCompleted);
+          const inProgressTasks = tasks.filter((t) => !t.isCompleted && !t.isOverdue);
+          const pendingTasks = tasks.filter((t) => t.isPending);
+          const overdueTasks = tasks.filter((t) => t.isOverdue);
+          projectData = {
+            projectName,
+            periodLabel: "Project Deliverables Snapshot",
+            totalTasks: tasks.length,
+            completedTasks,
+            inProgressTasks,
+            holdTasks: [],
+            pendingTasks,
+            overdueTasks,
+            completionRate: tasks.length ? Math.round((completedTasks.length * 100) / tasks.length) : 0,
+            inProgressRate: 0,
+            holdRate: 0,
+            pendingRate: 0,
+            statusMetrics: [],
+            resourceMetrics: [],
+            allTasks: tasks,
+          };
+        }
+
+        const { downloadInjectedCompanyPresentation } = await import("@/lib/presentation/template-injector");
+        const safeName = `${projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${selectedTemplateId}`;
+        await downloadInjectedCompanyPresentation(companyBuffer, projectData, safeName);
+
+        setTimeout(() => {
+          setIsExporting(false);
+          onClose();
+        }, 800);
+        return;
+      }
+
+      // Built-in standard templates: lightweight server-side generation (< 500 bytes payload)
       const payload = {
         period,
         month: period === "monthly" ? selectedMonth : undefined,
@@ -382,7 +433,6 @@ export default function ExportPresentationModal({
         endDate: period === "custom" ? endDate : undefined,
         includeCatalog,
         templateId: selectedTemplateId,
-        rawZipBase64,
         style: selectedTemplateId === "custom_brand" ? "custom" : undefined,
         customPrimary: selectedTemplateId === "custom_brand" ? customPrimary : undefined,
         customSecondary: selectedTemplateId === "custom_brand" ? customCard : undefined,
@@ -402,7 +452,8 @@ export default function ExportPresentationModal({
       });
 
       if (!res.ok) {
-        throw new Error(`Export failed: ${res.statusText}`);
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || `Export failed: ${res.statusText}`);
       }
 
       const blob = await res.blob();
@@ -419,10 +470,10 @@ export default function ExportPresentationModal({
         setIsExporting(false);
         onClose();
       }, 1000);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Presentation download failed:", err);
       setIsExporting(false);
-      alert("Failed to export presentation. Please try again.");
+      alert(`Failed to export presentation: ${err?.message || "Please try again."}`);
     }
   };
 

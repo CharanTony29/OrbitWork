@@ -367,7 +367,7 @@ async function handleGeneratePptx(
   const companyDef = templateId.startsWith("company_") ? getCompanyTemplateById(templateId) : null;
   const rawZipBase64 = config.rawZipBase64 || companyDef?.rawZipBase64;
 
-  let buffer: Buffer;
+  let buffer: Uint8Array | Buffer;
 
   if (rawZipBase64) {
     const templateBuffer = Buffer.from(rawZipBase64, "base64");
@@ -423,51 +423,67 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
-  const { projectId } = await params;
-  const searchParams = request.nextUrl.searchParams;
+  try {
+    const { projectId } = await params;
+    const searchParams = request.nextUrl.searchParams;
 
-  const taskIdsParam = searchParams.get("taskIds");
-  const selectedTaskIds = taskIdsParam ? taskIdsParam.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+    const taskIdsParam = searchParams.get("taskIds");
+    const selectedTaskIds = taskIdsParam ? taskIdsParam.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
 
-  const sectionsParam = searchParams.get("sections");
-  const selectedSections = sectionsParam ? sectionsParam.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+    const sectionsParam = searchParams.get("sections");
+    const selectedSections = sectionsParam ? sectionsParam.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
 
-  const chartsParam = searchParams.get("charts");
-  const selectedCharts = chartsParam ? chartsParam.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+    const chartsParam = searchParams.get("charts");
+    const selectedCharts = chartsParam ? chartsParam.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
 
-  const config: PptxExportConfig = {
-    period: (searchParams.get("period") as ReportPeriodType) || "all",
-    startDate: searchParams.get("startDate") || undefined,
-    endDate: searchParams.get("endDate") || undefined,
-    month: searchParams.get("month") || undefined,
-    year: searchParams.get("year") || undefined,
-    includeCatalog: searchParams.get("includeCatalog") !== "false",
-    aiPrompt: searchParams.get("aiPrompt") || undefined,
-    templateId: searchParams.get("templateId") || searchParams.get("style") || "pitch_sage",
-    style: searchParams.get("style") || undefined,
-    customPrimary: searchParams.get("customPrimary") || undefined,
-    customSecondary: searchParams.get("customSecondary") || undefined,
-    customAccent: searchParams.get("customAccent") || undefined,
-    customBg: searchParams.get("customBg") || undefined,
-    selectedTaskIds,
-    selectedSections,
-    selectedCharts,
-  };
+    const config: PptxExportConfig = {
+      period: (searchParams.get("period") as ReportPeriodType) || "all",
+      startDate: searchParams.get("startDate") || undefined,
+      endDate: searchParams.get("endDate") || undefined,
+      month: searchParams.get("month") || undefined,
+      year: searchParams.get("year") || undefined,
+      includeCatalog: searchParams.get("includeCatalog") !== "false",
+      aiPrompt: searchParams.get("aiPrompt") || undefined,
+      templateId: searchParams.get("templateId") || searchParams.get("style") || "pitch_sage",
+      style: searchParams.get("style") || undefined,
+      customPrimary: searchParams.get("customPrimary") || undefined,
+      customSecondary: searchParams.get("customSecondary") || undefined,
+      customAccent: searchParams.get("customAccent") || undefined,
+      customBg: searchParams.get("customBg") || undefined,
+      selectedTaskIds,
+      selectedSections,
+      selectedCharts,
+    };
 
-  return handleGeneratePptx(projectId, config);
+    return await handleGeneratePptx(projectId, config);
+  } catch (err: any) {
+    console.error("[presentation.pptx] GET error:", err);
+    return new Response(JSON.stringify({ error: err?.message || "Failed to generate presentation" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 }
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
-  const { projectId } = await params;
-  let body: PptxExportConfig = {};
   try {
-    body = await request.json();
-  } catch {
-    body = {};
-  }
+    const { projectId } = await params;
+    let body: PptxExportConfig = {};
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
+    }
 
-  return handleGeneratePptx(projectId, body);
+    return await handleGeneratePptx(projectId, body);
+  } catch (err: any) {
+    console.error("[presentation.pptx] POST error:", err);
+    return new Response(JSON.stringify({ error: err?.message || "Failed to generate presentation" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 }
