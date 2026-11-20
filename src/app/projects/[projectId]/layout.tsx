@@ -13,5 +13,5 @@ export default async function ProjectLayout({ children, params }: { children: Re
   if (!workspace) notFound();
   const { data: organization } = await supabase.from("organizations").select("name").eq("id", workspace.organization_id).maybeSingle();
   if (!organization) notFound();
-  return <div className="hierarchy-layout"><HierarchyNavigation organizationId={workspace.organization_id} organizationName={organization.name} currentWorkspaceId={workspace.id} currentProjectId={project.id}/><div className="hierarchy-content">{children}</div></div>;
+  return <div className="hierarchy-layout is-collapsed"><HierarchyNavigation organizationId={workspace.organization_id} organizationName={organization.name} currentWorkspaceId={workspace.id} currentProjectId={project.id}/><div className="hierarchy-content">{children}</div></div>;
 }

@@ -10,7 +10,7 @@ export default async function HierarchyNavigation({
 }: {
   organizationId: string;
   organizationName: string;
-  currentWorkspaceId: string;
+  currentWorkspaceId?: string;
   currentProjectId?: string;
 }) {
   const supabase = await createClient();

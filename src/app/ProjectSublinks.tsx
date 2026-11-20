@@ -14,12 +14,28 @@ export default function ProjectSublinks({ projectId }: { projectId: string }) {
   const isReports = pathname.includes(`/projects/${projectId}/reports`);
   const isAttachments = pathname.includes(`/projects/${projectId}/attachments`);
 
+  const handleBrainClick = (e: React.MouseEvent) => {
+    if (pathname === `/projects/${projectId}`) {
+      e.preventDefault();
+      window.dispatchEvent(
+        new CustomEvent("orbitwork:switch-project-tab", { detail: { view: "brain" } })
+      );
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.set("view", "brain");
+        window.history.replaceState(null, "", url.toString());
+      }
+    }
+  };
+
   return (
     <div className="hierarchy-project-sublinks">
       <Link
         className={`hierarchy-sublink${isBrain ? " is-current" : ""}`}
         href={`/projects/${projectId}?view=brain`}
-        prefetch={false}
+        prefetch={true}
+        data-no-progress="true"
+        onClick={handleBrainClick}
       >
         <Brain size={12} style={{ color: "var(--green)" }} />
         <span>Project Brain</span>
@@ -27,7 +43,7 @@ export default function ProjectSublinks({ projectId }: { projectId: string }) {
       <Link
         className={`hierarchy-sublink${isDocs ? " is-current" : ""}`}
         href={`/projects/${projectId}/documents`}
-        prefetch={false}
+        prefetch={true}
       >
         <FileText size={12} />
         <span>Project documents</span>
@@ -35,7 +51,7 @@ export default function ProjectSublinks({ projectId }: { projectId: string }) {
       <Link
         className={`hierarchy-sublink${isTimesheets ? " is-current" : ""}`}
         href={`/projects/${projectId}/timesheets`}
-        prefetch={false}
+        prefetch={true}
       >
         <Clock3 size={12} />
         <span>Timesheets</span>
@@ -43,7 +59,7 @@ export default function ProjectSublinks({ projectId }: { projectId: string }) {
       <Link
         className={`hierarchy-sublink${isReports ? " is-current" : ""}`}
         href={`/projects/${projectId}/reports`}
-        prefetch={false}
+        prefetch={true}
       >
         <BarChart3 size={12} />
         <span>Reports</span>
@@ -51,7 +67,7 @@ export default function ProjectSublinks({ projectId }: { projectId: string }) {
       <Link
         className={`hierarchy-sublink${isAttachments ? " is-current" : ""}`}
         href={`/projects/${projectId}/attachments`}
-        prefetch={false}
+        prefetch={true}
       >
         <Paperclip size={12} />
         <span>Attachments</span>

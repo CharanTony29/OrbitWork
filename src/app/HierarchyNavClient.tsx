@@ -25,12 +25,13 @@ import {
 import { BrandMark } from "./BrandMark";
 import ProjectSublinks from "./ProjectSublinks";
 import { NavRailDynamicItems, type RailNavItem } from "./NavRailOverflowMenu";
+import { preloadWorkspaceLov } from "./WorkspaceLovPopover";
 import { createProject, createWorkspace } from "@/app/actions";
 
 type Props = {
   organizationId: string;
   organizationName: string;
-  currentWorkspaceId: string;
+  currentWorkspaceId?: string;
   currentProjectId?: string;
   workspaces: Array<{ id: string; name: string }>;
   projects: Array<{
@@ -54,7 +55,16 @@ export default function HierarchyNavClient({
   workspaces,
   projects,
 }: Props) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Navigation sidebar defaults to minimized to the left across all pages as requested
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved !== null) return saved === "true";
+      } catch {}
+    }
+    return true; // Default minimized to the left
+  });
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [customIcons, setCustomIcons] = useState<Record<string, string>>({});
@@ -67,15 +77,21 @@ export default function HierarchyNavClient({
 
   const pathname = usePathname();
 
-  // Initialize collapse preference and custom project icons from localStorage
+  // Initialize collapse preference, custom project icons, and preload LOV spaces
   useEffect(() => {
     setMounted(true);
+    preloadWorkspaceLov();
+
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved === "true") {
+      if (saved !== null) {
+        setIsCollapsed(saved === "true");
+      } else {
         setIsCollapsed(true);
       }
-    } catch {}
+    } catch {
+      setIsCollapsed(true);
+    }
 
     try {
       const savedIcons = localStorage.getItem("orbitwork:project_icons");
@@ -123,20 +139,20 @@ export default function HierarchyNavClient({
 
   // Update layout container classes
   useEffect(() => {
-    const layoutEl = document.querySelector(".hierarchy-layout");
-    if (!layoutEl) return;
+    const layoutEls = document.querySelectorAll(".hierarchy-layout");
+    layoutEls.forEach((layoutEl) => {
+      if (isCollapsed) {
+        layoutEl.classList.add("is-collapsed");
+      } else {
+        layoutEl.classList.remove("is-collapsed");
+      }
 
-    if (isCollapsed) {
-      layoutEl.classList.add("is-collapsed");
-    } else {
-      layoutEl.classList.remove("is-collapsed");
-    }
-
-    if (isMobileOpen) {
-      layoutEl.classList.add("is-mobile-open");
-    } else {
-      layoutEl.classList.remove("is-mobile-open");
-    }
+      if (isMobileOpen) {
+        layoutEl.classList.add("is-mobile-open");
+      } else {
+        layoutEl.classList.remove("is-mobile-open");
+      }
+    });
   }, [isCollapsed, isMobileOpen]);
 
   const toggleCollapsed = useCallback(() => {
@@ -272,7 +288,7 @@ export default function HierarchyNavClient({
           <Link
             className="work-rail-logo"
             href="/dashboard"
-            prefetch={false}
+            prefetch={true}
             aria-label="Orbitwork home"
           >
             <BrandMark className="brand-mark" size={25} />
@@ -332,19 +348,19 @@ export default function HierarchyNavClient({
             </div>
           </div>
 
-          <Link className="hierarchy-dashboard" href="/dashboard" prefetch={false}>
+          <Link className="hierarchy-dashboard" href="/dashboard" prefetch={true}>
             <Layers3 size={15} /> All organizations
           </Link>
-          <Link className="hierarchy-dashboard" href="/my-dashboard" prefetch={false}>
+          <Link className="hierarchy-dashboard" href="/my-dashboard" prefetch={true}>
             <LayoutDashboard size={15} /> Dashboard
           </Link>
-          <Link className="hierarchy-dashboard" href="/inbox" prefetch={false}>
+          <Link className="hierarchy-dashboard" href="/inbox" prefetch={true}>
             <Bell size={15} /> Inbox
           </Link>
           <Link
             className="hierarchy-dashboard"
             href={`/organizations/${organizationId}/docs`}
-            prefetch={false}
+            prefetch={true}
           >
             <FileText size={15} /> Docs &amp; Attachments
           </Link>
@@ -405,7 +421,7 @@ export default function HierarchyNavClient({
                     <Link
                       className="hierarchy-workspace-title-link"
                       href={`/workspaces/${workspace.id}`}
-                      prefetch={false}
+                      prefetch={true}
                     >
                       {workspace.name}
                     </Link>
@@ -446,7 +462,7 @@ export default function HierarchyNavClient({
                         : ""
                     }`}
                     href={`/workspaces/${workspace.id}`}
-                    prefetch={false}
+                    prefetch={true}
                   >
                     Workspace overview
                   </Link>
@@ -459,7 +475,7 @@ export default function HierarchyNavClient({
                             project.id === currentProjectId ? " is-current" : ""
                           }`}
                           href={`/projects/${project.id}`}
-                          prefetch={false}
+                          prefetch={true}
                           title={project.name}
                           style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
                         >
@@ -610,7 +626,7 @@ export default function HierarchyNavClient({
           <div className="hierarchy-sidebar-footer">
             <Link
               href={`/organizations/${organizationId}/calendar`}
-              prefetch={false}
+              prefetch={true}
             >
               Holidays &amp; leave
             </Link>

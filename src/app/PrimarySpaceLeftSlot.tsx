@@ -1,4 +1,8 @@
+"use client";
+
+import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bell, CalendarDays, Layers3, LayoutDashboard, MessageSquare } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 import ChatUnreadBadge from "./ChatUnreadBadge";
@@ -17,10 +21,21 @@ export default function PrimarySpaceLeftSlot({
   activeNav: PrimarySpaceNavKey;
   assignedTaskCount?: number;
 }) {
+  const router = useRouter();
+
+  // Warm up the route cache immediately on mount so navigation between pages is instant
+  useEffect(() => {
+    router.prefetch("/dashboard");
+    router.prefetch("/my-dashboard");
+    router.prefetch("/inbox");
+    router.prefetch("/planner");
+    router.prefetch("/chat");
+  }, [router]);
+
   return (
     <div className="ov-topbar-left-nav">
       <TopBarMobileMenuToggle />
-      <Link className="brand ov-brand" href="/dashboard" prefetch={false}>
+      <Link className="brand ov-brand" href="/dashboard" prefetch={true}>
         <BrandMark size={27} />
         <span>
           Orbit<span className="ov-brand-accent">Work</span>
@@ -29,7 +44,8 @@ export default function PrimarySpaceLeftSlot({
       <nav className="ov-topbar-links" aria-label="Primary navigation">
         <Link
           href="/dashboard"
-          prefetch={false}
+          prefetch={true}
+          onMouseEnter={() => router.prefetch("/dashboard")}
           className={activeNav === "overview" ? "is-active" : undefined}
           aria-current={activeNav === "overview" ? "page" : undefined}
         >
@@ -38,7 +54,8 @@ export default function PrimarySpaceLeftSlot({
         </Link>
         <Link
           href="/my-dashboard"
-          prefetch={false}
+          prefetch={true}
+          onMouseEnter={() => router.prefetch("/my-dashboard")}
           className={activeNav === "dashboard" ? "is-active" : undefined}
           aria-current={activeNav === "dashboard" ? "page" : undefined}
         >
@@ -47,7 +64,8 @@ export default function PrimarySpaceLeftSlot({
         </Link>
         <Link
           href="/inbox"
-          prefetch={false}
+          prefetch={true}
+          onMouseEnter={() => router.prefetch("/inbox")}
           className={activeNav === "inbox" ? "is-active" : undefined}
           aria-current={activeNav === "inbox" ? "page" : undefined}
         >
@@ -59,7 +77,8 @@ export default function PrimarySpaceLeftSlot({
         </Link>
         <Link
           href="/planner"
-          prefetch={false}
+          prefetch={true}
+          onMouseEnter={() => router.prefetch("/planner")}
           className={activeNav === "planner" ? "is-active" : undefined}
           aria-current={activeNav === "planner" ? "page" : undefined}
         >
@@ -68,7 +87,8 @@ export default function PrimarySpaceLeftSlot({
         </Link>
         <Link
           href="/chat"
-          prefetch={false}
+          prefetch={true}
+          onMouseEnter={() => router.prefetch("/chat")}
           className={activeNav === "chat" ? "is-active" : undefined}
           aria-current={activeNav === "chat" ? "page" : undefined}
         >

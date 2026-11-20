@@ -21,6 +21,7 @@ import ProjectGoalsView, { type ProjectGoalRecord } from "./ProjectGoalsView";
 import ProjectAIAgentsHub from "@/app/ai/ProjectAIAgentsHub";
 import ProjectBrainView from "./brain/ProjectBrainView";
 import ProjectLiveTracker from "./ProjectLiveTracker";
+import ProjectViewsManager from "./ProjectViewsManager";
 import ProjectExportButton from "./ProjectExportButton";
 import FavoriteButton from "@/app/FavoriteButton";
 import { resolveProfileAvatarSrc } from "@/lib/chat";
@@ -213,20 +214,15 @@ export default async function ProjectPage({ params, searchParams }: {
   ];
   const taskIds = (tasks ?? []).map((task) => task.id);
   const customFieldIds = (customFields ?? []).map((field) => field.id);
-  const needsProjectDocs = view === "list" || view === "whiteboard" || view === "flowchart";
   const [fieldValuesResult, taskAssigneesResult, projectDocsResult, attachmentsResult, commentsResult, timeEntriesResult, runningTimersResult, projectGoalsResult, taskDependenciesResult] = await Promise.all([
     taskIds.length && customFieldIds.length ? supabase.from("task_custom_field_values").select("task_id, field_id, value").in("task_id", taskIds).in("field_id", customFieldIds) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("task_assignees").select("task_id, user_id, assigned_at").in("task_id", taskIds).order("assigned_at", { ascending: true }) : Promise.resolve({ data: [] }),
-    needsProjectDocs
-      ? supabase.from("project_documents").select("id, title, body_markdown, updated_at").eq("project_id", projectId).order("updated_at", { ascending: false })
-      : Promise.resolve({ data: [] }),
+    supabase.from("project_documents").select("id, title, body_markdown, updated_at").eq("project_id", projectId).order("updated_at", { ascending: false }),
     taskIds.length ? supabase.from("task_attachments").select("id, task_id, file_name, mime_type, external_file_id, external_url").in("task_id", taskIds) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("task_comments").select("task_id").in("task_id", taskIds) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("time_entries").select("task_id, duration_minutes, billable").in("task_id", taskIds).not("ended_at", "is", null) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("time_entries").select("id, task_id, user_id, started_at, billable").in("task_id", taskIds).is("ended_at", null) : Promise.resolve({ data: [] }),
-    view === "goals"
-      ? supabase.from("project_goals").select("*").eq("project_id", projectId).order("created_at", { ascending: false })
-      : Promise.resolve({ data: [], error: null }),
+    supabase.from("project_goals").select("*").eq("project_id", projectId).order("created_at", { ascending: false }),
     supabase.from("task_dependencies").select("task_id, linked_task_id, relation").eq("project_id", projectId),
   ]);
   const { data: fieldValues } = fieldValuesResult;
@@ -366,218 +362,138 @@ export default async function ProjectPage({ params, searchParams }: {
     <div className="project-page">
       {error && <p className="error" role="alert">That change could not be saved. Check access and required fields.</p>}
       <section className="task-panel">
-        <nav className="view-tabs" aria-label="Task views">
-          <ProjectViewTabsClient
-            projectId={project.id}
-            activeView={view}
-            initialTabOrder={userTabOrder}
-            preservedFilters={{
-              q: filters.q,
-              status: filters.status,
-              priority: filters.priority,
-              assignee: filters.assignee,
-              sort: filters.sort,
-              month: filters.month,
-              group: filters.group,
-            }}
-          />
-          <div className="view-tabs-actions" style={{ display: "inline-flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-            {!canEdit && <span className="role-pill" style={{ background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1', fontSize: "11px", padding: "2px 8px" }}>View-only</span>}
-            <FavoriteButton
-              entityType="project"
-              entityId={projectId}
-              projectId={projectId}
-              title={project.name}
-              subtitle={workspace?.name ? `${workspace.name} · Project` : "Project"}
-              initialFavorited={isProjectFavorited}
-              label="Favorite"
-              compact
-            />
-            <ProjectExportButton
-              projectId={projectId}
-              projectName={project.name}
-              tasks={(tasks ?? []).map((t) => ({
-                ...t,
-                assigneeIds: getTaskAssignees(t),
-              }))}
-              statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
-              members={members}
-              customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))}
-            />
-            {canManage && (
-              <ProjectSettingsPanel
-                projectId={project.id}
+        <ProjectViewsManager
+          projectId={project.id}
+          projectName={project.name}
+          projectDescription={project.description}
+          projectStatus={project.status}
+          projectIcon={(project as any).icon || "📁"}
+          startDate={(project as any).start_date || ""}
+          dueDate={project.due_date || ""}
+          poNumber={(project as any).po_number || ""}
+          clientName={(project as any).client_name || ""}
+          budgetAmount={(project as any).budget_amount ? String((project as any).budget_amount) : ""}
+          billingNotes={(project as any).billing_notes || ""}
+          workspaceName={workspace?.name}
+          initialView={view}
+          userTabOrder={userTabOrder}
+          userColumnOrder={userColumnOrder}
+          userColumnWidths={userColumnWidths}
+          userFrozenColumns={userFrozenColumns}
+          tasks={(tasks ?? []).map((t) => ({
+            ...t,
+            assigneeIds: getTaskAssignees(t),
+          }))}
+          taskCount={taskCount ?? 0}
+          statuses={(statuses ?? []).map(({ id, name, color, category, position, is_default }) => ({
+            id,
+            name,
+            color,
+            category,
+            position,
+            is_default,
+          }))}
+          members={members}
+          projectMembers={projectMembers ?? []}
+          availableMembers={availableMembers}
+          peopleList={Array.from(people.entries())}
+          profileAvatarList={Array.from(profileAvatars.entries())}
+          customFields={(customFields ?? []).map(({ id, name, field_type, required }) => ({
+            id,
+            name,
+            field_type,
+            required,
+          }))}
+          customValues={customValues}
+          projectDocs={(projectDocs ?? []).map(({ id, title, body_markdown }) => ({
+            id,
+            title,
+            body_markdown,
+          }))}
+          attachmentsObj={Object.fromEntries(attachmentsMap.entries())}
+          commentCountsObj={Object.fromEntries(commentCounts.entries())}
+          runningTimerObj={Object.fromEntries(runningTimerMap.entries())}
+          billableMinutesObj={Object.fromEntries(billableMinutesMap.entries())}
+          createdByObj={Object.fromEntries(createdBy.entries())}
+          calendarEvents={enrichedCalendarEvents}
+          taskDependencies={(taskDependenciesResult.data ?? []).map((d: any) => ({
+            task_id: d.task_id,
+            linked_task_id: d.linked_task_id,
+            relation: d.relation,
+          }))}
+          projectGoals={((projectGoalsResult.data ?? []) as ProjectGoalRecord[])}
+          goalsSchemaMissing={Boolean(projectGoalsResult.error)}
+          canEdit={canEdit}
+          canManage={canManage}
+          filters={filters}
+          currentPage={page}
+          actionsRight={
+            <div className="view-tabs-actions" style={{ display: "inline-flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+              {!canEdit && (
+                <span
+                  className="role-pill"
+                  style={{
+                    background: "#f1f5f9",
+                    color: "#64748b",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "11px",
+                    padding: "2px 8px",
+                  }}
+                >
+                  View-only
+                </span>
+              )}
+              <FavoriteButton
+                entityType="project"
+                entityId={projectId}
+                projectId={projectId}
+                title={project.name}
+                subtitle={workspace?.name ? `${workspace.name} · Project` : "Project"}
+                initialFavorited={isProjectFavorited}
+                label="Favorite"
+                compact
+              />
+              <ProjectExportButton
+                projectId={projectId}
+                projectName={project.name}
+                tasks={(tasks ?? []).map((t) => ({
+                  ...t,
+                  assigneeIds: getTaskAssignees(t),
+                }))}
                 statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
                 members={members}
-                projectMembers={projectMembers ?? []}
-                customFields={(customFields ?? []).map(({ id, name, field_type, required }) => ({ id, name, field_type, required }))}
-                people={people}
-                availableMembers={availableMembers}
-                currentStatus={project.status}
-                projectName={project.name}
-                projectDescription={project.description}
-                projectIcon={(project as any).icon || "📁"}
-                startDate={(project as any).start_date || ""}
-                dueDate={project.due_date || ""}
-                poNumber={(project as any).po_number || ""}
-                clientName={(project as any).client_name || ""}
-                budgetAmount={(project as any).budget_amount ? String((project as any).budget_amount) : ""}
-                billingNotes={(project as any).billing_notes || ""}
-                canManage={canManage}
+                customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))}
               />
-            )}
-          </div>
-        </nav>
-        {view !== "channel" && view !== "goals" && view !== "agents" && view !== "brain" && view !== "live" && (
-          <TaskFilterToolbar
-            projectId={project.id}
-            projectName={project.name}
-            statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
-            members={members}
-            customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))}
-            currentFilters={{
-              q: filters.q,
-              status: filters.status,
-              priority: filters.priority,
-              assignee: filters.assignee,
-              sort: filters.sort,
-              view,
-              group: filters.group,
-            }}
-          />
-        )}
-        {view === "live" ? (
-          <ProjectLiveTracker
-            projectId={project.id}
-            projectName={project.name}
-            workspaceName={workspace?.name}
-            initialTasks={(tasks ?? []).map((task) => ({
-              ...task,
-              assigneeIds: getTaskAssignees(task),
-            }))}
-            statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
-            people={people}
-            canEdit={canEdit}
-          />
-        ) : view === "list" ? (
-          <TaskTable
-            projectId={project.id}
-            canEdit={canEdit}
-            initialColumnOrder={userColumnOrder}
-            initialColumnWidths={userColumnWidths}
-            initialFrozenColumns={userFrozenColumns}
-            tasks={(tasks ?? []).map((task) => ({
-              ...task,
-              assigneeIds: getTaskAssignees(task),
-              billable_minutes: billableMinutesMap.get(task.id) ?? 0,
-            }))}
-            statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))}
-            members={members}
-            createdBy={createdBy}
-            customFields={(customFields ?? []).map(({ id, name, field_type }) => ({ id, name, field_type }))}
-            customValues={customValues}
-            attachmentsMap={attachmentsMap}
-            projectDocuments={(projectDocs ?? []).map(({ id, title, body_markdown }) => ({ id, title, body_markdown }))}
-            commentCounts={commentCounts}
-            runningTimerMap={runningTimerMap}
-            initialGroupBy={filters.group || "status"}
-          />
-        ) : view === "board" ? (
-          <TaskBoard
-            projectId={project.id}
-            canEdit={canEdit}
-            tasks={tasks ?? []}
-            statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
-            people={people}
-            profileAvatars={profileAvatars}
-          />
-        ) : view === "calendar" ? (
-          <TaskCalendar
-            projectId={project.id}
-            tasks={(tasks ?? []).map((task) => ({
-              ...task,
-              status_category: statuses?.find((status) => status.id === task.status_id)?.category,
-            }))}
-            statuses={(statuses ?? []).map(({ id, name, color }) => ({ id, name, color }))}
-            events={enrichedCalendarEvents}
-            month={filters.month}
-          />
-        ) : view === "gantt" ? (
-          <TaskGantt
-            projectId={project.id}
-            tasks={(tasks ?? []).map((task) => ({
-              id: task.id,
-              generated_key: task.generated_key,
-              title: task.title,
-              start_date: task.start_date,
-              due_date: task.due_date,
-              progress: task.progress,
-              created_at: task.created_at,
-              parent_task_id: task.parent_task_id,
-              status_id: task.status_id,
-              status_category: statuses?.find((status) => status.id === task.status_id)?.category,
-              assigneeIds: getTaskAssignees(task),
-            }))}
-            events={enrichedCalendarEvents}
-            people={people}
-            profileAvatars={profileAvatars}
-            month={filters.month}
-            dependencies={(taskDependenciesResult.data ?? []).map((d: any) => ({
-              task_id: d.task_id,
-              linked_task_id: d.linked_task_id,
-              relation: d.relation,
-            }))}
-          />
-        ) : view === "whiteboard" ? (
-          <ProjectWhiteboardView projectId={project.id} documents={projectDocs ?? []} />
-        ) : view === "flowchart" ? (
-          <ProjectFlowchartView projectId={project.id} documents={projectDocs ?? []} />
-        ) : view === "channel" ? (
-          <ProjectChannelView projectId={project.id} projectName={project.name} />
-        ) : view === "goals" ? (
-          <ProjectGoalsView
-            projectId={project.id}
-            projectName={project.name}
-            canEdit={canEdit}
-            members={members}
-            initialGoals={((projectGoalsResult.data ?? []) as ProjectGoalRecord[])}
-            schemaMissing={Boolean(projectGoalsResult.error)}
-          />
-        ) : view === "agents" ? (
-          <ProjectAIAgentsHub projectId={project.id} projectName={project.name} />
-        ) : view === "brain" ? (
-          <ProjectBrainView
-            projectId={project.id}
-            projectName={project.name}
-            canEdit={canEdit}
-          />
-        ) : (
-          <TaskWorkload
-            projectId={project.id}
-            tasks={(tasks ?? []).map(({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }) => ({
-              id,
-              generated_key,
-              title,
-              estimate_minutes,
-              primary_assignee_id,
-              secondary_assignee_id,
-              due_date,
-            }))}
-            people={people}
-            profileAvatars={profileAvatars}
-            events={enrichedCalendarEvents}
-            members={members}
-            startDate={(project as any).start_date || ""}
-            dueDate={project.due_date || ""}
-          />
-        )}
-        {view !== "channel" && view !== "goals" && view !== "agents" && view !== "brain" && view !== "live" && (taskCount ?? 0) > 100 && (
-          <div className="task-pagination">
-            {page > 1 && <Link href={pageHref(page - 1)}>Previous</Link>}
-            <span>Page {page} of {Math.ceil((taskCount ?? 0) / 100)}</span>
-            {page * 100 < (taskCount ?? 0) && <Link href={pageHref(page + 1)}>Next</Link>}
-          </div>
-        )}
+              {canManage && (
+                <ProjectSettingsPanel
+                  projectId={project.id}
+                  statuses={(statuses ?? []).map(({ id, name, color, category }) => ({ id, name, color, category }))}
+                  members={members}
+                  projectMembers={projectMembers ?? []}
+                  customFields={(customFields ?? []).map(({ id, name, field_type, required }) => ({
+                    id,
+                    name,
+                    field_type,
+                    required,
+                  }))}
+                  people={people}
+                  availableMembers={availableMembers}
+                  currentStatus={project.status}
+                  projectName={project.name}
+                  projectDescription={project.description}
+                  projectIcon={(project as any).icon || "📁"}
+                  startDate={(project as any).start_date || ""}
+                  dueDate={project.due_date || ""}
+                  poNumber={(project as any).po_number || ""}
+                  clientName={(project as any).client_name || ""}
+                  budgetAmount={(project as any).budget_amount ? String((project as any).budget_amount) : ""}
+                  billingNotes={(project as any).billing_notes || ""}
+                  canManage={canManage}
+                />
+              )}
+            </div>
+          }
+        />
       </section>
     </div>
   </main>;

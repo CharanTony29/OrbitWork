@@ -12,6 +12,7 @@ export default async function MyDashboardPage() {
   return (
     <AppRailLayout
       organizationId={space.organizations[0]?.id}
+      organizationName={space.organizations[0]?.name}
       workspaceId={space.workspaces[0]?.id}
       projectId={space.projects[0]?.id}
     >

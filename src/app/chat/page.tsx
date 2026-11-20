@@ -143,6 +143,7 @@ export default async function ChatPage({ searchParams }: PageProps) {
   return (
     <AppRailLayout
       organizationId={primaryOrgId ?? space.organizations[0]?.id}
+      organizationName={space.organizations.find((o) => o.id === (primaryOrgId ?? space.organizations[0]?.id))?.name || space.organizations[0]?.name}
       workspaceId={space.workspaces[0]?.id}
       projectId={accessibleProjects[0]?.id}
     >

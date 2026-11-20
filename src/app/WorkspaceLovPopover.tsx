@@ -20,13 +20,52 @@ interface Props {
   onClose: () => void;
 }
 
+type LovData = {
+  organizations: SpaceOrganization[];
+  workspaces: SpaceWorkspace[];
+  projects: SpaceProject[];
+};
+
+let cachedLovData: LovData | null = null;
+const LOV_CACHE_KEY = "orbitwork:spaces_lov_cache_v1";
+
+function getInitialLovData(): LovData | null {
+  if (cachedLovData) return cachedLovData;
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem(LOV_CACHE_KEY);
+      if (stored) {
+        cachedLovData = JSON.parse(stored);
+        return cachedLovData;
+      }
+    } catch {}
+  }
+  return null;
+}
+
+export function preloadWorkspaceLov() {
+  if (typeof window === "undefined" || cachedLovData) return;
+  fetch("/api/spaces/lov")
+    .then((res) => (res.ok ? res.json() : null))
+    .then((resData) => {
+      if (resData?.success) {
+        const fresh: LovData = {
+          organizations: resData.organizations || [],
+          workspaces: resData.workspaces || [],
+          projects: resData.projects || [],
+        };
+        cachedLovData = fresh;
+        try {
+          localStorage.setItem(LOV_CACHE_KEY, JSON.stringify(fresh));
+        } catch {}
+      }
+    })
+    .catch(() => {});
+}
+
 export default function WorkspaceLovPopover({ isOpen, onClose }: Props) {
-  const [data, setData] = useState<{
-    organizations: SpaceOrganization[];
-    workspaces: SpaceWorkspace[];
-    projects: SpaceProject[];
-  } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<LovData | null>(getInitialLovData);
+  const [loading, setLoading] = useState<boolean>(() => !getInitialLovData());
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "orgs" | "workspaces" | "projects">("all");
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -40,24 +79,35 @@ export default function WorkspaceLovPopover({ isOpen, onClose }: Props) {
       searchInputRef.current?.focus();
     }, 50);
 
-    // Load data if not already cached
-    if (!data) {
+    // If no cache at all, show spinner; otherwise show cached data instantly and silently revalidate
+    const currentCached = cachedLovData || getInitialLovData();
+    if (currentCached && !data) {
+      setData(currentCached);
+      setLoading(false);
+    } else if (!data && !currentCached) {
       setLoading(true);
-      fetch("/api/spaces/lov")
-        .then((res) => (res.ok ? res.json() : null))
-        .then((resData) => {
-          if (resData?.success) {
-            setData({
-              organizations: resData.organizations || [],
-              workspaces: resData.workspaces || [],
-              projects: resData.projects || [],
-            });
-          }
-        })
-        .catch((err) => console.error("Failed to load LOV spaces:", err))
-        .finally(() => setLoading(false));
     }
-  }, [isOpen, data]);
+
+    // Always revalidate silently in the background so updates appear without blocking user
+    fetch("/api/spaces/lov")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((resData) => {
+        if (resData?.success) {
+          const fresh: LovData = {
+            organizations: resData.organizations || [],
+            workspaces: resData.workspaces || [],
+            projects: resData.projects || [],
+          };
+          cachedLovData = fresh;
+          setData(fresh);
+          try {
+            localStorage.setItem(LOV_CACHE_KEY, JSON.stringify(fresh));
+          } catch {}
+        }
+      })
+      .catch((err) => console.error("Failed to load LOV spaces:", err))
+      .finally(() => setLoading(false));
+  }, [isOpen]);
 
   // Handle outside click & escape key
   useEffect(() => {
@@ -250,6 +300,7 @@ export default function WorkspaceLovPopover({ isOpen, onClose }: Props) {
                 <Link
                   key={org.id}
                   href={`/dashboard?org=${org.id}`}
+                  prefetch={true}
                   onClick={onClose}
                   style={{
                     display: "flex",
@@ -290,6 +341,7 @@ export default function WorkspaceLovPopover({ isOpen, onClose }: Props) {
                 <Link
                   key={ws.id}
                   href={`/workspaces/${ws.id}`}
+                  prefetch={true}
                   onClick={onClose}
                   style={{
                     display: "flex",
@@ -329,6 +381,7 @@ export default function WorkspaceLovPopover({ isOpen, onClose }: Props) {
                 <Link
                   key={proj.id}
                   href={`/projects/${proj.id}`}
+                  prefetch={true}
                   onClick={onClose}
                   style={{
                     display: "flex",

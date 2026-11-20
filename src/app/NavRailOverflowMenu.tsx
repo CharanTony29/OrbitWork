@@ -110,7 +110,7 @@ export function NavRailDynamicItems({
           <Link
             key={item.key}
             href={item.href}
-            prefetch={false}
+            prefetch={true}
             title={item.title}
             className={item.isActive ? "is-active" : undefined}
           >
@@ -175,7 +175,7 @@ export function NavRailDynamicItems({
                     <Link
                       key={item.key}
                       href={item.href}
-                      prefetch={false}
+                      prefetch={true}
                       role="menuitem"
                       className={`work-rail-more-menu-item${item.isActive ? " is-active" : ""}`}
                       onClick={() => setMenuOpen(false)}
@@ -203,7 +203,7 @@ export function NavRailDynamicItems({
                 )}
                 <Link
                   href={moreHref}
-                  prefetch={false}
+                  prefetch={true}
                   role="menuitem"
                   className={`work-rail-more-menu-item${moreIsActive ? " is-active" : ""}`}
                   onClick={() => setMenuOpen(false)}
@@ -220,7 +220,7 @@ export function NavRailDynamicItems({
         <Link
           className={`work-rail-more${moreIsActive ? " is-active" : ""}`}
           href={moreHref}
-          prefetch={false}
+          prefetch={true}
           title={moreTitle}
         >
           {moreIcon}

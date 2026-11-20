@@ -10,7 +10,8 @@ export function notifyNavigationStart(targetHref?: string) {
       const currentUrl = new URL(window.location.href);
       const targetUrl = new URL(targetHref, window.location.href);
       if (targetUrl.origin !== currentUrl.origin) return;
-      if (targetUrl.pathname === currentUrl.pathname && targetUrl.search === currentUrl.search) {
+      // Do not trigger top progress bar for in-page view/tab or search param changes
+      if (targetUrl.pathname === currentUrl.pathname) {
         return;
       }
     } catch {
@@ -90,6 +91,11 @@ function ProgressTracker() {
     }, 8000);
   }, [clearAllTimers, done]);
 
+  const lastPathnameRef = useRef(pathname);
+  useEffect(() => {
+    lastPathnameRef.current = pathname;
+  }, [pathname]);
+
   // Complete progress whenever route or query params change
   useEffect(() => {
     done();
@@ -108,6 +114,7 @@ function ProgressTracker() {
 
       if (anchor.target && anchor.target !== "_self") return;
       if (anchor.hasAttribute("download")) return;
+      if (anchor.hasAttribute("data-no-progress") || anchor.closest("[data-no-progress]")) return;
 
       const rawHref = anchor.getAttribute("href");
       if (!rawHref) return;
@@ -126,10 +133,8 @@ function ProgressTracker() {
 
         if (targetUrl.origin !== currentUrl.origin) return;
 
-        if (
-          targetUrl.pathname === currentUrl.pathname &&
-          targetUrl.search === currentUrl.search
-        ) {
+        // In-page view/tab switching or query param changes do not trigger progress bar
+        if (targetUrl.pathname === currentUrl.pathname) {
           return;
         }
 
@@ -140,7 +145,12 @@ function ProgressTracker() {
     };
 
     const handlePopState = () => {
-      start();
+      if (typeof window !== "undefined") {
+        if (window.location.pathname !== lastPathnameRef.current) {
+          lastPathnameRef.current = window.location.pathname;
+          start();
+        }
+      }
     };
 
     const handleFormSubmit = (e: SubmitEvent) => {
@@ -157,7 +167,9 @@ function ProgressTracker() {
         try {
           const prev = new URL(prevHref);
           const next = new URL(String(url), prevHref);
-          if (prev.pathname !== next.pathname || prev.search !== next.search) {
+          // Only start top progress bar if navigating to an entirely different page/route pathname
+          if (prev.pathname !== next.pathname) {
+            lastPathnameRef.current = next.pathname;
             window.setTimeout(() => start(), 0);
           }
         } catch {

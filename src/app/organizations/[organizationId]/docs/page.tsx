@@ -100,7 +100,7 @@ export default async function OrganizationDocsPage({
   const currentWorkspaceId = workspaces?.[0]?.id ?? "";
 
   return (
-    <div className="hierarchy-layout">
+    <div className="hierarchy-layout is-collapsed">
       <HierarchyNavigation
         organizationId={organizationId}
         organizationName={organization.name}

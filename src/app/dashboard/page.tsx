@@ -83,6 +83,7 @@ export default async function Dashboard({
   return (
     <AppRailLayout
       organizationId={organizations[0]?.id}
+      organizationName={organizations[0]?.name}
       workspaceId={workspaces[0]?.id}
       projectId={projects[0]?.id}
     >

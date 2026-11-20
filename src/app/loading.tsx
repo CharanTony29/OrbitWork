@@ -18,6 +18,11 @@ export default function GlobalLoading() {
           align-items: flex-start;
           justify-content: center;
           padding-top: 56px;
+          opacity: 0;
+          animation: orbitworkFadeIn 0.16s ease-out 0.26s forwards;
+        }
+        @keyframes orbitworkFadeIn {
+          to { opacity: 1; }
         }
         .global-route-progress-track {
           position: fixed;

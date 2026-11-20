@@ -204,6 +204,7 @@ export default async function PlannerPage({
   return (
     <AppRailLayout
       organizationId={initialOrgId}
+      organizationName={organizations.find((o) => o.id === initialOrgId)?.name || organizations[0]?.name}
       projectId={projects[0]?.id}
     >
       <div className="planner-shell">
