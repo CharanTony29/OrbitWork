@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import {
   Brain,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   Clock,
   Layers,
   Users,
@@ -12,7 +14,15 @@ import {
   Sparkles,
   RefreshCw,
   ArrowRight,
-  TrendingUp,
+  GitBranch,
+  ShieldAlert,
+  Zap,
+  History,
+  MessageSquare,
+  ChevronLeft,
+  ChevronRight,
+  Send,
+  ExternalLink,
 } from "lucide-react";
 import type { PortfolioBrainPayload, TaskCatalogFilter } from "@/lib/brain/portfolio-brain";
 
@@ -21,16 +31,68 @@ interface WorkspaceBrainViewProps {
   initialData?: PortfolioBrainPayload;
 }
 
+export type PortfolioBrainSubTab =
+  | "overview"
+  | "why"
+  | "recommendations"
+  | "dependencies"
+  | "workload"
+  | "projects"
+  | "timeline"
+  | "chat";
+
 export default function WorkspaceBrainView({
   workspaceId,
   initialData,
 }: WorkspaceBrainViewProps) {
   const [data, setData] = useState<PortfolioBrainPayload | null>(initialData || null);
   const [loading, setLoading] = useState(!initialData);
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<PortfolioBrainSubTab>("overview");
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+
+  // Task Catalog Filter State
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [selectedPriorities, setSelectedPriorities] = useState<string[]>([]);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+
+  // AI Chat State
+  const [chatMessages, setChatMessages] = useState<
+    Array<{ role: "user" | "assistant" | "system"; content: string }>
+  >([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatStreaming, setChatStreaming] = useState(false);
+
+  // Subnav scrolling movers
+  const subnavRef = useRef<HTMLDivElement | null>(null);
+  const [canScrollSubnavLeft, setCanScrollSubnavLeft] = useState(false);
+  const [canScrollSubnavRight, setCanScrollSubnavRight] = useState(false);
+
+  const updateSubnavScrollState = useCallback(() => {
+    const el = subnavRef.current;
+    if (!el) return;
+    setCanScrollSubnavLeft(el.scrollLeft > 4);
+    setCanScrollSubnavRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  const scrollSubnavBy = useCallback((delta: number) => {
+    const el = subnavRef.current;
+    if (!el) return;
+    el.scrollBy({ left: delta, behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    const el = subnavRef.current;
+    if (!el) return;
+    updateSubnavScrollState();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateSubnavScrollState) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", updateSubnavScrollState);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", updateSubnavScrollState);
+    };
+  }, [loading, data, updateSubnavScrollState]);
 
   const fetchBrain = async (filter?: TaskCatalogFilter) => {
     try {
@@ -73,221 +135,1168 @@ export default function WorkspaceBrainView({
     fetchBrain({});
   };
 
+  const handleSendChatMessage = async (presetPrompt?: string) => {
+    const textToSend = presetPrompt || chatInput;
+    if (!textToSend.trim() || chatStreaming) return;
+
+    const newMessages = [
+      ...chatMessages,
+      { role: "user" as const, content: textToSend.trim() },
+    ];
+    setChatMessages(newMessages);
+    if (!presetPrompt) setChatInput("");
+    setChatStreaming(true);
+
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/brain/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: newMessages }),
+      });
+
+      if (!res.ok) throw new Error("Portfolio AI Chat failed");
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let assistantText = "";
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          assistantText += chunk;
+          setChatMessages([
+            ...newMessages,
+            { role: "assistant", content: assistantText },
+          ]);
+        }
+      }
+    } catch (err) {
+      console.error("Chat error:", err);
+      setChatMessages([
+        ...newMessages,
+        {
+          role: "assistant",
+          content:
+            "I encountered a temporary communication issue connecting to Workspace Brain. Please try again or rephrase your question.",
+        },
+      ]);
+    } finally {
+      setChatStreaming(false);
+    }
+  };
+
   if (loading || !data) {
     return (
-      <div style={{ padding: "40px 20px", textAlign: "center", color: "#64748b" }}>
-        <RefreshCw size={28} className="animate-spin" style={{ margin: "0 auto 12px" }} />
-        <p style={{ fontSize: 15, fontWeight: 500 }}>Assembling Workspace Brain Intelligence...</p>
+      <div style={{ padding: "60px 20px", textAlign: "center", color: "var(--muted, #64748b)" }}>
+        <RefreshCw size={32} className="animate-spin" style={{ margin: "0 auto 16px", color: "var(--green, #167c58)" }} />
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--ink, #0f172a)", margin: "0 0 6px" }}>
+          Assembling Workspace Brain Intelligence
+        </h3>
+        <p style={{ fontSize: 14, color: "var(--muted, #64748b)", margin: 0 }}>
+          Synthesizing cross-project dependencies, effort-weighted workload, and portfolio velocity...
+        </p>
       </div>
     );
   }
 
-  const { health, metrics, aiExecutiveSummary, portfolioProjects, workload, crossProjectDependencies } = data;
+  const {
+    health,
+    metrics,
+    aiExecutiveSummary,
+    portfolioProjects,
+    workload,
+    crossProjectDependencies,
+    risks,
+    recommendations,
+    timeline,
+  } = data;
+
+  const overloadedCount = workload.filter(
+    (w) => w.status === "over_capacity" || w.status === "severely_overloaded"
+  ).length;
+
+  const todayDateFormatted = new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 
   return (
-    <div style={{ padding: "24px 0", maxWidth: 1200, margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
-      {/* Top Header & Task Catalog Action */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: "#6366f1", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-              <Brain size={20} />
-            </div>
-            <div>
-              <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: "#0f172a" }}>
-                Workspace Brain • {data.scopeName}
-              </h1>
-              <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>
-                Consolidated cross-project portfolio health, team workload, and dependency intelligence.
-              </p>
-            </div>
+    <div className="brain-container" style={{ width: "100%", maxWidth: 1280, margin: "0 auto" }}>
+      {/* 1. TOP HEADER & HEALTH GLANCE */}
+      <div className="brain-header">
+        <div className="brain-title-wrap">
+          <div className="brain-icon-badge">
+            <Brain size={24} />
+          </div>
+          <div className="brain-title-area">
+            <h1>
+              {data.scopeName} Workspace Brain
+              <span className="brain-badge-layer">WORKSPACE PORTFOLIO</span>
+            </h1>
+            <p>
+              Cross-project portfolio health, effort-based capacity intelligence, and dependency analytics.
+            </p>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="brain-header-actions">
           <button
             onClick={() => setShowCatalogModal(true)}
-            className="button button-secondary"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, padding: "7px 14px", height: 36 }}
+            className="brain-refresh-btn"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
           >
-            <Filter size={15} />
-            <span>Select Task Catalog ({selectedProjects.length > 0 ? `${selectedProjects.length} Projects` : "All Projects"})</span>
+            <Filter size={13} />
+            <span>
+              Task Catalog ({selectedProjects.length > 0 ? `${selectedProjects.length} Projects` : "All Projects"})
+            </span>
           </button>
 
           <button
+            className="brain-refresh-btn"
             onClick={() => fetchBrain()}
             disabled={refreshing}
-            className="button button-secondary"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, padding: "7px 14px", height: 36 }}
           >
-            <RefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
-            <span>Refresh</span>
+            <RefreshCw size={13} className={refreshing ? "spin" : ""} />
+            Recalculate
           </button>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
-        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 18 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", textTransform: "uppercase" }}>Portfolio Health</div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
-            <span style={{ fontSize: 28, fontWeight: 750, color: health.overallScore >= 75 ? "#16a34a" : health.overallScore >= 50 ? "#d97706" : "#dc2626" }}>
-              {health.overallScore}%
-            </span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>{health.statusLabel}</span>
-          </div>
-          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>Across {metrics.totalProjects} active projects</div>
+      {/* 2. SUB-NAV TABS */}
+      <div className="brain-subnav-wrap">
+        {canScrollSubnavLeft && (
+          <button
+            type="button"
+            className="brain-subnav-mover brain-subnav-mover-left"
+            onClick={() => scrollSubnavBy(-240)}
+            aria-label="Scroll tabs left"
+          >
+            <ChevronLeft size={15} />
+          </button>
+        )}
+        <div ref={subnavRef} className="brain-subnav" onScroll={updateSubnavScrollState}>
+          <button
+            className={`brain-nav-tab ${activeTab === "overview" ? "active" : ""}`}
+            onClick={() => setActiveTab("overview")}
+          >
+            <Layers size={13} /> Overview
+          </button>
+          <button
+            className={`brain-nav-tab ${activeTab === "why" ? "active" : ""}`}
+            onClick={() => setActiveTab("why")}
+          >
+            <AlertCircle size={13} /> Why At Risk?
+          </button>
+          <button
+            className={`brain-nav-tab ${activeTab === "recommendations" ? "active" : ""}`}
+            onClick={() => setActiveTab("recommendations")}
+          >
+            <Zap
+              size={13}
+              style={{ color: recommendations.length > 0 ? "var(--green)" : "var(--muted)" }}
+            />{" "}
+            Recommendations ({recommendations.length})
+          </button>
+          <button
+            className={`brain-nav-tab ${activeTab === "dependencies" ? "active" : ""}`}
+            onClick={() => setActiveTab("dependencies")}
+          >
+            <GitBranch size={13} /> Dependencies ({crossProjectDependencies.length})
+          </button>
+          <button
+            className={`brain-nav-tab ${activeTab === "workload" ? "active" : ""}`}
+            onClick={() => setActiveTab("workload")}
+          >
+            <Users size={13} /> Workload ({overloadedCount} Overloaded)
+          </button>
+          <button
+            className={`brain-nav-tab ${activeTab === "projects" ? "active" : ""}`}
+            onClick={() => setActiveTab("projects")}
+          >
+            <Layers size={13} /> Projects ({portfolioProjects.length})
+          </button>
+          <button
+            className={`brain-nav-tab ${activeTab === "timeline" ? "active" : ""}`}
+            onClick={() => setActiveTab("timeline")}
+          >
+            <History size={13} /> Timeline ({timeline.length})
+          </button>
+          <button
+            className={`brain-nav-tab ${activeTab === "chat" ? "active" : ""}`}
+            onClick={() => setActiveTab("chat")}
+          >
+            <MessageSquare size={13} /> AI Portfolio Chat
+          </button>
         </div>
-
-        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 18 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", textTransform: "uppercase" }}>Completion Velocity</div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
-            <span style={{ fontSize: 28, fontWeight: 750, color: "#2563eb" }}>{metrics.completionPercentage}%</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>{metrics.completedTasks}/{metrics.totalTasks} Done</span>
-          </div>
-          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>{metrics.totalEstimatedHours} hours estimated</div>
-        </div>
-
-        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 18 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", textTransform: "uppercase" }}>Deadline Slips</div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
-            <span style={{ fontSize: 28, fontWeight: 750, color: metrics.overdueTasks > 0 ? "#dc2626" : "#16a34a" }}>
-              {metrics.overdueTasks}
-            </span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>Overdue Items</span>
-          </div>
-          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>{metrics.inProgressTasks} currently in progress</div>
-        </div>
-
-        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 18 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#64748b", textTransform: "uppercase" }}>Cross-Project Dependencies</div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
-            <span style={{ fontSize: 28, fontWeight: 750, color: crossProjectDependencies.length > 0 ? "#d97706" : "#16a34a" }}>
-              {crossProjectDependencies.length}
-            </span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>Linkages</span>
-          </div>
-          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>Cross-project blocking chains</div>
-        </div>
+        {canScrollSubnavRight && (
+          <button
+            type="button"
+            className="brain-subnav-mover brain-subnav-mover-right"
+            onClick={() => scrollSubnavBy(240)}
+            aria-label="Scroll tabs right"
+          >
+            <ChevronRight size={15} />
+          </button>
+        )}
       </div>
 
-      {/* AI Executive Intelligence Card */}
-      <div style={{ background: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)", border: "1px solid #c7d2fe", borderRadius: 12, padding: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#4f46e5", fontWeight: 700, fontSize: 14 }}>
-          <Sparkles size={18} />
-          <span>AI Portfolio Executive Briefing</span>
-        </div>
-        <h3 style={{ fontSize: 17, fontWeight: 700, color: "#0f172a", margin: "8px 0 6px" }}>
-          {aiExecutiveSummary.headline}
-        </h3>
-        <p style={{ fontSize: 14, color: "#334155", lineHeight: 1.5, margin: "0 0 12px" }}>
-          {aiExecutiveSummary.summary}
-        </p>
+      {/* 3. TAB CONTENT */}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {aiExecutiveSummary.recommendations.map((rec, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "#4338ca" }}>
-              <ArrowRight size={14} style={{ flexShrink: 0, marginTop: 3 }} />
-              <span>{rec}</span>
+      {/* TAB: OVERVIEW */}
+      {activeTab === "overview" && (
+        <>
+          {/* Today's Portfolio Brief */}
+          <div className="today-brief-card">
+            <div className="today-brief-header">
+              <h3>
+                <Sparkles size={16} style={{ color: "var(--green)" }} />
+                Today&apos;s Portfolio Brief
+              </h3>
+              <span className="today-brief-date">{todayDateFormatted}</span>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Cross-Project Dependencies Table */}
-      {crossProjectDependencies.length > 0 && (
-        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 20 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
-            <Layers size={18} color="#6366f1" />
-            <span>Cross-Project Dependency Bottlenecks</span>
-          </h3>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
-                  <th style={{ padding: "8px 12px" }}>Blocking Project</th>
-                  <th style={{ padding: "8px 12px" }}>Blocker Task</th>
-                  <th style={{ padding: "8px 12px" }}>Impacted Project</th>
-                  <th style={{ padding: "8px 12px" }}>Blocked Task</th>
-                </tr>
-              </thead>
-              <tbody>
-                {crossProjectDependencies.map((dep, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={{ padding: "8px 12px", fontWeight: 600, color: "#dc2626" }}>{dep.blockingProject}</td>
-                    <td style={{ padding: "8px 12px" }}>{dep.blockingTask}</td>
-                    <td style={{ padding: "8px 12px", fontWeight: 600, color: "#2563eb" }}>{dep.blockedProject}</td>
-                    <td style={{ padding: "8px 12px" }}>{dep.blockedTask}</td>
-                  </tr>
+            <div className="today-brief-items">
+              <div className="today-brief-item">
+                <div
+                  className={`today-brief-item-dot ${
+                    metrics.overdueTasks > 10
+                      ? "dot-critical"
+                      : metrics.overdueTasks > 0
+                      ? "dot-high"
+                      : "dot-normal"
+                  }`}
+                />
+                <div className="today-brief-item-content">
+                  <p className="today-brief-item-title">
+                    {metrics.overdueTasks > 0
+                      ? `${metrics.overdueTasks} Overdue Tasks Across Projects`
+                      : "All Tasks On Schedule"}
+                  </p>
+                  <p className="today-brief-item-detail">
+                    {metrics.overdueTasks > 0
+                      ? `${metrics.inProgressTasks} items currently in execution across ${metrics.totalProjects} active projects.`
+                      : "Zero past-due deliverables detected across active sprints."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="today-brief-item">
+                <div
+                  className={`today-brief-item-dot ${
+                    crossProjectDependencies.length > 0 ? "dot-high" : "dot-normal"
+                  }`}
+                />
+                <div className="today-brief-item-content">
+                  <p className="today-brief-item-title">
+                    {crossProjectDependencies.length > 0
+                      ? `${crossProjectDependencies.length} Cross-Project Dependencies`
+                      : "No Blocking Dependency Chains"}
+                  </p>
+                  <p className="today-brief-item-detail">
+                    {crossProjectDependencies.length > 0
+                      ? "Inter-project deliverables require alignment to avoid delivery bottlenecks."
+                      : "Workflows between projects are decoupled and unblocked."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="today-brief-item">
+                <div
+                  className={`today-brief-item-dot ${
+                    overloadedCount > 0 ? "dot-critical" : "dot-normal"
+                  }`}
+                />
+                <div className="today-brief-item-content">
+                  <p className="today-brief-item-title">
+                    {overloadedCount > 0
+                      ? `${overloadedCount} Team Members Over Capacity`
+                      : "Team Capacity Balanced"}
+                  </p>
+                  <p className="today-brief-item-detail">
+                    {overloadedCount > 0
+                      ? "Estimated effort exceeds 40h standard capacity for multiple contributors."
+                      : "Workload distribution is within sustainable capacity thresholds."}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="today-brief-footer">
+              <span>
+                <strong>Portfolio Health:</strong> {health.overallScore}% ({health.statusLabel})
+              </span>
+              <span>
+                <strong>Velocity:</strong> {metrics.completionPercentage}% delivered ({metrics.completedTasks}/{metrics.totalTasks} tasks) · {metrics.totalEstimatedHours}h estimated effort
+              </span>
+            </div>
+          </div>
+
+          {/* Portfolio Health Score & Category Breakdown */}
+          <div className="health-overview-card">
+            <div className="health-score-row">
+              <div className="health-score-main">
+                <div
+                  className={`health-number-circle ${
+                    health.overallStatus === "healthy"
+                      ? "health-circle-healthy"
+                      : health.overallStatus === "needs_attention"
+                      ? "health-circle-attention"
+                      : health.overallStatus === "at_risk"
+                      ? "health-circle-at_risk"
+                      : "health-circle-critical"
+                  }`}
+                >
+                  {health.overallScore}%
+                </div>
+                <div className="health-label-area">
+                  <h2>
+                    Portfolio Health: {health.statusLabel}
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        padding: "2px 8px",
+                        borderRadius: "12px",
+                        background:
+                          health.overallStatus === "healthy"
+                            ? "rgba(22, 163, 74, 0.15)"
+                            : health.overallStatus === "needs_attention"
+                            ? "rgba(234, 179, 8, 0.15)"
+                            : "rgba(220, 38, 38, 0.15)",
+                        color:
+                          health.overallStatus === "healthy"
+                            ? "#16a34a"
+                            : health.overallStatus === "needs_attention"
+                            ? "#ca8a04"
+                            : "#dc2626",
+                      }}
+                    >
+                      {health.overallStatus.toUpperCase().replace("_", " ")}
+                    </span>
+                  </h2>
+                  <p>{health.headlineExplanation}</p>
+                </div>
+              </div>
+
+              {health.overallStatus !== "healthy" && (
+                <button className="why-at-risk-btn" onClick={() => setActiveTab("why")}>
+                  <AlertTriangle size={14} /> Why is my portfolio at risk?
+                </button>
+              )}
+            </div>
+
+            {/* Expandable Category Pills */}
+            <div className="health-categories-grid">
+              {health.categories &&
+                Object.values(health.categories).map((cat: any) => (
+                  <div
+                    key={cat.key}
+                    className="health-category-pill"
+                    onClick={() =>
+                      setExpandedCategory(expandedCategory === cat.key ? null : cat.key)
+                    }
+                    title="Click to view detailed score breakdown"
+                  >
+                    <div className="health-category-header">
+                      <span className="health-cat-name">{cat.label}</span>
+                      <span className="health-cat-status-icon">
+                        {cat.status === "good" ? "🟢" : cat.status === "warning" ? "🟠" : "🔴"}
+                      </span>
+                    </div>
+                    <div
+                      className={`health-cat-score ${
+                        cat.status === "good"
+                          ? "score-good"
+                          : cat.status === "warning"
+                          ? "score-warning"
+                          : "score-danger"
+                      }`}
+                    >
+                      {cat.score}%
+                    </div>
+                    <div className="health-cat-metric">{cat.metricLabel}</div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+            </div>
+
+            {expandedCategory && health.categories && (health.categories as any)[expandedCategory] && (
+              <div
+                style={{
+                  marginTop: "12px",
+                  padding: "12px 14px",
+                  borderRadius: "8px",
+                  background: "var(--surface-subtle)",
+                  border: "1px dashed var(--line)",
+                  fontSize: "13px",
+                  color: "var(--ink)",
+                }}
+              >
+                <strong>{(health.categories as any)[expandedCategory].label} Breakdown:</strong>{" "}
+                {(health.categories as any)[expandedCategory].details}
+              </div>
+            )}
+          </div>
+
+          {/* AI Portfolio Executive Briefing Card */}
+          <div className="ai-summary-card">
+            <div className="ai-summary-header">
+              <div className="ai-summary-title">
+                <Brain size={16} style={{ color: "var(--green)" }} />
+                AI Portfolio Executive Briefing
+                <span className="ai-badge">Live Context</span>
+              </div>
+              <div className="transparency-pills">
+                <span className="pill-fact">FACT</span>
+                <span className="pill-analysis">ANALYSIS</span>
+                <span className="pill-recommendation">RECOMMENDATION</span>
+              </div>
+            </div>
+
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--ink)", margin: "4px 0 2px" }}>
+              {aiExecutiveSummary.headline}
+            </h3>
+            <p style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.6, margin: "0 0 10px" }}>
+              {aiExecutiveSummary.summary}
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {aiExecutiveSummary.recommendations.map((rec, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                    fontSize: 13,
+                    color: "var(--green-dark, #0c6243)",
+                    fontWeight: 500,
+                  }}
+                >
+                  <ArrowRight size={14} style={{ flexShrink: 0, marginTop: 3 }} />
+                  <span>{rec}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Two-Column Grid: Predictive Risks & Recommendations */}
+          <div className="brain-two-col">
+            {/* Predictive Risks */}
+            <div className="brain-card">
+              <div className="brain-card-header">
+                <h3 className="brain-card-title">
+                  <ShieldAlert size={16} style={{ color: "#dc2626" }} />
+                  Predictive Portfolio Risks ({risks.length})
+                </h3>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>Algorithmic Trajectory</span>
+              </div>
+
+              {risks.length === 0 ? (
+                <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>
+                  ✓ No critical portfolio risks currently detected.
+                </p>
+              ) : (
+                risks.slice(0, 4).map((r) => (
+                  <div
+                    key={r.id}
+                    className={`risk-item-card ${
+                      r.severity === "critical"
+                        ? "risk-critical"
+                        : r.severity === "high"
+                        ? "risk-high"
+                        : "risk-medium"
+                    }`}
+                    style={{ marginBottom: 10 }}
+                  >
+                    <div className="risk-item-header">
+                      <p className="risk-title" style={{ fontWeight: 650, color: "var(--ink)" }}>{r.title}</p>
+                      <span
+                        className={`risk-probability-badge ${
+                          r.severity === "critical" ? "prob-critical" : "prob-high"
+                        }`}
+                      >
+                        {r.severity.toUpperCase()}
+                      </span>
+                    </div>
+                    <p className="risk-reason" style={{ fontSize: 12, color: "var(--muted)", margin: "4px 0 0" }}>
+                      {r.reason}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Actionable Recommendations */}
+            <div className="brain-card">
+              <div className="brain-card-header">
+                <h3 className="brain-card-title">
+                  <Zap size={16} style={{ color: "var(--green)" }} />
+                  Actionable Recommendations ({recommendations.length})
+                </h3>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>Autonomous Guidance</span>
+              </div>
+
+              {recommendations.length === 0 ? (
+                <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>
+                  ✓ Portfolio is operating smoothly. No immediate rebalancing actions required.
+                </p>
+              ) : (
+                recommendations.slice(0, 4).map((rec) => (
+                  <div key={rec.id} className="rec-item-card" style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span className="rec-category-badge">{rec.category.toUpperCase()}</span>
+                    </div>
+                    <h4 style={{ margin: "6px 0 4px", fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+                      {rec.title}
+                    </h4>
+                    <p style={{ fontSize: 12, color: "var(--muted)", margin: "0 0 6px" }}>{rec.description}</p>
+                    <div style={{ fontSize: 11, color: "var(--green)", fontWeight: 600 }}>
+                      Expected Benefit: {rec.expectedBenefit}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* TAB: WHY AT RISK */}
+      {activeTab === "why" && (
+        <div className="brain-card">
+          <div className="brain-card-header">
+            <h3 className="brain-card-title">
+              <AlertCircle size={16} style={{ color: "#dc2626" }} />
+              Why Is This Workspace Portfolio At Risk?
+            </h3>
+            <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+              Root Cause & Causal Chain Analysis
+            </span>
+          </div>
+
+          <p style={{ fontSize: 13, color: "var(--muted)", margin: "0 0 16px" }}>
+            The Portfolio Brain traces interconnected risk factors from past-due milestones, through overloaded contributors, to blocking dependency chains.
+          </p>
+
+          <div className="why-chain-wrapper">
+            <div className="why-chain-step">
+              <div className="why-step-index">1</div>
+              <div className="why-step-content">
+                <div className="why-step-stage">Root Factor: Slipped Delivery Deadlines</div>
+                <div className="why-step-desc">
+                  {metrics.overdueTasks > 0
+                    ? `${metrics.overdueTasks} tasks across active projects have passed their scheduled delivery date.`
+                    : "Task delivery deadlines are currently on schedule."}
+                </div>
+                <div className="why-step-evidence">
+                  Evidence: {metrics.inProgressTasks} tasks currently in progress with {metrics.totalEstimatedHours}h estimated effort remaining.
+                </div>
+              </div>
+            </div>
+
+            <div className="why-chain-step">
+              <div className="why-step-index">2</div>
+              <div className="why-step-content">
+                <div className="why-step-stage">Resource Constraint: Contributor Overallocation</div>
+                <div className="why-step-desc">
+                  {overloadedCount > 0
+                    ? `${overloadedCount} team members are overloaded beyond their 40h standard working capacity.`
+                    : "All contributors are operating within sustainable capacity boundaries."}
+                </div>
+                <div className="why-step-evidence">
+                  Evidence: Workload calculated strictly as (Estimated Effort ÷ Available Capacity). Effort bottlenecks accumulate when assigned hours exceed available capacity.
+                </div>
+              </div>
+            </div>
+
+            <div className="why-chain-step">
+              <div className="why-step-index">3</div>
+              <div className="why-step-content">
+                <div className="why-step-stage">Structural Friction: Cross-Project Dependencies</div>
+                <div className="why-step-desc">
+                  {crossProjectDependencies.length > 0
+                    ? `${crossProjectDependencies.length} cross-project dependencies link deliverables across different projects.`
+                    : "No cross-project blocking chains detected."}
+                </div>
+                <div className="why-step-evidence">
+                  Evidence: When upstream deliverables in one project slip, downstream tasks in partner projects are blocked.
+                </div>
+              </div>
+            </div>
+
+            <div className="why-chain-step">
+              <div className="why-step-index">4</div>
+              <div className="why-step-content">
+                <div className="why-step-stage">Portfolio Trajectory & Expected Impact</div>
+                <div className="why-step-desc">
+                  Portfolio health stands at {health.overallScore}% ({health.statusLabel}). Rebalancing contributor effort and clearing overdue blocker deliverables will restore healthy velocity.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Multi-Project Workload Heatmap */}
-      <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 20 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
-          <Users size={18} color="#6366f1" />
-          <span>Cross-Project Team Workload & Allocation</span>
-        </h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
-          {workload.map((m) => (
-            <div
-              key={m.userId}
-              style={{
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-                padding: 14,
-                background: m.status === "overloaded" ? "#fef2f2" : "#f8fafc",
-                borderColor: m.status === "overloaded" ? "#fca5a5" : "#e2e8f0",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontWeight: 650, fontSize: 14, color: "#0f172a" }}>{m.name}</span>
-                <span
+      {/* TAB: RECOMMENDATIONS */}
+      {activeTab === "recommendations" && (
+        <div className="brain-card">
+          <div className="brain-card-header">
+            <h3 className="brain-card-title">
+              <Zap size={16} style={{ color: "var(--green)" }} />
+              Actionable Portfolio Recommendations ({recommendations.length})
+            </h3>
+            <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+              Data-grounded optimizations
+            </span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {recommendations.length === 0 ? (
+              <p style={{ fontSize: 13, color: "var(--muted)", margin: 0 }}>
+                ✓ No active rebalancing recommendations. Workload and schedules are optimal.
+              </p>
+            ) : (
+              recommendations.map((rec) => (
+                <div key={rec.id} className="rec-item-card">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span className="rec-category-badge">{rec.category.toUpperCase()}</span>
+                  </div>
+                  <h4 style={{ margin: "8px 0 4px", fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>
+                    {rec.title}
+                  </h4>
+                  <p style={{ fontSize: 13, color: "var(--muted)", margin: "0 0 8px" }}>{rec.description}</p>
+                  <div style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>
+                    Expected Benefit: {rec.expectedBenefit}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: DEPENDENCIES */}
+      {activeTab === "dependencies" && (
+        <div className="brain-card">
+          <div className="brain-card-header">
+            <h3 className="brain-card-title">
+              <GitBranch size={16} style={{ color: "var(--green)" }} />
+              Cross-Project Dependency Bottlenecks ({crossProjectDependencies.length})
+            </h3>
+            <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+              Inter-project blocking chains
+            </span>
+          </div>
+
+          {crossProjectDependencies.length === 0 ? (
+            <p style={{ fontSize: 13, color: "var(--muted)", margin: 0 }}>
+              ✓ No cross-project dependency bottlenecks detected. Projects operate independently.
+            </p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "var(--surface-subtle)", borderBottom: "1px solid var(--line)", textAlign: "left" }}>
+                    <th style={{ padding: "10px 14px", color: "var(--ink)", fontWeight: 650 }}>Blocking Project</th>
+                    <th style={{ padding: "10px 14px", color: "var(--ink)", fontWeight: 650 }}>Prerequisite Blocker Task</th>
+                    <th style={{ padding: "10px 14px", color: "var(--ink)", fontWeight: 650 }}>Blocked Project</th>
+                    <th style={{ padding: "10px 14px", color: "var(--ink)", fontWeight: 650 }}>Dependent Task</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {crossProjectDependencies.map((dep, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid var(--line)" }}>
+                      <td style={{ padding: "10px 14px", fontWeight: 700, color: "#dc2626" }}>
+                        {dep.blockingProject}
+                      </td>
+                      <td style={{ padding: "10px 14px", color: "var(--ink)" }}>{dep.blockingTask}</td>
+                      <td style={{ padding: "10px 14px", fontWeight: 700, color: "var(--green)" }}>
+                        {dep.blockedProject}
+                      </td>
+                      <td style={{ padding: "10px 14px", color: "var(--ink)" }}>{dep.blockedTask}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: WORKLOAD (ENGINE V2 REDESIGN) */}
+      {activeTab === "workload" && (
+        <div className="brain-card">
+          <div className="brain-card-header">
+            <h3 className="brain-card-title">
+              <Users size={16} style={{ color: "var(--green)" }} />
+              Cross-Project Team Workload & Capacity Intelligence
+            </h3>
+            <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+              {overloadedCount} overloaded | {workload.length} contributors analyzed
+            </span>
+          </div>
+
+          {/* Workload Principle Explainer Banner */}
+          <div
+            style={{
+              padding: "12px 16px",
+              background: "var(--surface-subtle)",
+              border: "1px solid var(--line)",
+              borderRadius: "8px",
+              marginBottom: 16,
+              fontSize: 12,
+              color: "var(--ink)",
+              lineHeight: 1.5,
+            }}
+          >
+            <strong>Workload Principle:</strong> Workload ={" "}
+            <span style={{ color: "var(--green)", fontWeight: 700 }}>Total Estimated Effort ÷ Available Capacity</span>{" "}
+            (Adjusted by Role & Seniority). Tasks are NOT counted equally: 10 small 2h tasks (20h) represent less effort than 3 large 8h development tasks (24h).
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 14 }}>
+            {workload.map((m) => {
+              const isOverloaded = m.status === "over_capacity" || m.status === "severely_overloaded";
+              const isHeavy = m.status === "high";
+              const isOptimal = m.status === "healthy";
+              const badgeBg = isOverloaded
+                ? "rgba(220, 38, 38, 0.15)"
+                : isHeavy
+                ? "rgba(234, 179, 8, 0.15)"
+                : isOptimal
+                ? "rgba(59, 130, 246, 0.15)"
+                : "rgba(22, 163, 74, 0.15)";
+              const badgeColor = isOverloaded
+                ? "#dc2626"
+                : isHeavy
+                ? "#d97706"
+                : isOptimal
+                ? "#2563eb"
+                : "#16a34a";
+
+              return (
+                <div
+                  key={m.userId}
+                  className="workload-member-row"
                   style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    padding: "2px 8px",
-                    borderRadius: 12,
-                    background: m.status === "overloaded" ? "#dc2626" : m.status === "heavy" ? "#d97706" : "#16a34a",
-                    color: "#fff",
+                    background: isOverloaded ? "rgba(254, 242, 242, 0.6)" : "var(--surface)",
+                    borderColor: isOverloaded ? "#fca5a5" : "var(--line)",
+                    padding: 16,
                   }}
                 >
-                  {m.status}
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{m.email}</div>
-              <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 12, color: "#334155" }}>
-                <div><strong>{m.totalTasks}</strong> tasks</div>
-                <div><strong>{m.totalEstimatedHours}</strong> hrs</div>
-                <div><strong>{m.projectCount}</strong> projects</div>
-                {m.overdueTasks > 0 && <div style={{ color: "#dc2626" }}><strong>{m.overdueTasks}</strong> overdue</div>}
-              </div>
-            </div>
-          ))}
+                  <div className="workload-member-info">
+                    <div>
+                      <span className="workload-member-name" style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>
+                        {m.name}
+                      </span>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                        {m.role || "Software Engineer"} · {m.experienceLevel?.toUpperCase()} ({m.experienceFactor}x factor)
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: "3px 8px",
+                        borderRadius: 12,
+                        background: badgeBg,
+                        color: badgeColor,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {m.statusLabel || m.status.replace("_", " ")} ({m.utilizationPercentage}%)
+                    </span>
+                  </div>
+
+                  {/* Utilization Progress Bar */}
+                  <div className="workload-bar-track" style={{ height: 8, marginTop: 8 }}>
+                    <div
+                      className="workload-bar-fill"
+                      style={{
+                        width: `${Math.min(100, m.utilizationPercentage)}%`,
+                        background: isOverloaded ? "#dc2626" : isHeavy ? "#ea580c" : "var(--green)",
+                      }}
+                    />
+                  </div>
+
+                  {/* Effort & Capacity Breakdown */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(4, 1fr)",
+                      gap: 8,
+                      marginTop: 10,
+                      padding: "8px 0",
+                      borderTop: "1px dashed var(--line)",
+                      borderBottom: "1px dashed var(--line)",
+                      fontSize: 11,
+                      color: "var(--ink)",
+                    }}
+                  >
+                    <div>
+                      <div style={{ color: "var(--muted)" }}>Effort</div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{m.totalEstimatedHours}h</div>
+                    </div>
+                    <div>
+                      <div style={{ color: "var(--muted)" }}>Capacity</div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{m.effectiveCapacityHours}h</div>
+                    </div>
+                    <div>
+                      <div style={{ color: "var(--muted)" }}>Tasks</div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{m.totalTasks}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: "var(--muted)" }}>Projects</div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{m.projectCount}</div>
+                    </div>
+                  </div>
+
+                  {/* Confidence Alert */}
+                  {m.unestimatedTasksCount > 0 && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "#b45309",
+                        background: "rgba(245, 158, 11, 0.1)",
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        marginTop: 8,
+                      }}
+                    >
+                      ⚠️ Confidence: {m.confidence?.toUpperCase()} ({m.unestimatedTasksCount} tasks lack hour estimates)
+                    </div>
+                  )}
+
+                  {/* Explanation */}
+                  {m.explanation && (
+                    <p style={{ fontSize: 11, color: "var(--muted)", margin: "8px 0 0", lineHeight: 1.4 }}>
+                      {m.explanation}
+                    </p>
+                  )}
+
+                  {/* Potential Rebalance Recommendation */}
+                  {m.potentialRedistribution?.recommended && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        padding: "6px 10px",
+                        borderRadius: 6,
+                        background: "rgba(22, 163, 74, 0.08)",
+                        border: "1px solid rgba(22, 163, 74, 0.2)",
+                        fontSize: 11,
+                        color: "var(--green-dark)",
+                      }}
+                    >
+                      💡 <strong>Rebalance:</strong> Shift divisible tasks to{" "}
+                      <strong>{m.potentialRedistribution.targetMemberName || "available team member"}</strong> (
+                      {m.potentialRedistribution.reason})
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* TAB: PROJECTS CATALOG */}
+      {activeTab === "projects" && (
+        <div className="brain-card">
+          <div className="brain-card-header">
+            <h3 className="brain-card-title">
+              <Layers size={16} style={{ color: "var(--green)" }} />
+              Workspace Portfolio Projects ({portfolioProjects.length})
+            </h3>
+            <button
+              onClick={() => setShowCatalogModal(true)}
+              className="brain-refresh-btn"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <Filter size={13} />
+              Filter Scope
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14 }}>
+            {portfolioProjects.map((p) => (
+              <div
+                key={p.id}
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 10,
+                  padding: 16,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div>
+                    <h4 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: "var(--ink)" }}>
+                      {p.name}
+                    </h4>
+                    <p style={{ fontSize: 12, color: "var(--muted)", margin: "2px 0 0" }}>
+                      {p.description || "Active workspace deliverable."}
+                    </p>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: "2px 8px",
+                      borderRadius: 10,
+                      background: p.healthScore >= 75 ? "rgba(22, 163, 74, 0.15)" : "rgba(220, 38, 38, 0.15)",
+                      color: p.healthScore >= 75 ? "#16a34a" : "#dc2626",
+                    }}
+                  >
+                    {p.healthScore}% HEALTH
+                  </span>
+                </div>
+
+                {/* Progress bar */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div className="workload-bar-track" style={{ flex: 1, height: 6 }}>
+                    <div
+                      className="workload-bar-fill"
+                      style={{
+                        width: `${p.taskCount > 0 ? Math.round((p.completedTaskCount / p.taskCount) * 100) : 0}%`,
+                        background: "var(--green)",
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)" }}>
+                    {p.taskCount > 0 ? Math.round((p.completedTaskCount / p.taskCount) * 100) : 0}%
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--ink)" }}>
+                  <span>Tasks: <strong>{p.completedTaskCount}/{p.taskCount}</strong></span>
+                  {p.overdueTaskCount > 0 && (
+                    <span style={{ color: "#dc2626", fontWeight: 600 }}>
+                      {p.overdueTaskCount} overdue
+                    </span>
+                  )}
+                  {p.due_date && (
+                    <span style={{ color: "var(--muted)" }}>
+                      Due {new Date(p.due_date).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ paddingTop: 8, borderTop: "1px dashed var(--line)" }}>
+                  <Link
+                    href={`/projects/${p.id}/brain`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "var(--green)",
+                    }}
+                  >
+                    Open Project Brain <ExternalLink size={12} />
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: TIMELINE */}
+      {activeTab === "timeline" && (
+        <div className="brain-card">
+          <div className="brain-card-header">
+            <h3 className="brain-card-title">
+              <History size={16} style={{ color: "var(--green)" }} />
+              Portfolio Delivery Timeline ({timeline.length})
+            </h3>
+            <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+              Multi-project milestones & deadlines
+            </span>
+          </div>
+
+          {timeline.length === 0 ? (
+            <p style={{ fontSize: 13, color: "var(--muted)", margin: 0 }}>
+              ✓ No timeline deadlines recorded for current portfolio projects.
+            </p>
+          ) : (
+            <div className="timeline-event-list">
+              {timeline.map((evt) => (
+                <div key={evt.id} className="timeline-event-card">
+                  <div className="timeline-event-dot" />
+                  <div className="timeline-event-content">
+                    <div className="timeline-event-date">
+                      {new Date(evt.date).toLocaleDateString(undefined, {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </div>
+                    <div className="timeline-event-title">{evt.title}</div>
+                    <div className="timeline-event-desc">Project: {evt.projectName}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: AI PORTFOLIO CHAT */}
+      {activeTab === "chat" && (
+        <div className="brain-chat-container">
+          <div className="brain-chat-messages">
+            {chatMessages.length === 0 && (
+              <div style={{ textAlign: "center", margin: "auto", maxWidth: 440 }}>
+                <Brain size={32} style={{ color: "var(--green)", margin: "0 auto 8px" }} />
+                <h4 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>
+                  Ask {data.scopeName} Workspace Brain
+                </h4>
+                <p style={{ fontSize: 12, color: "var(--muted)", margin: 0 }}>
+                  Ask questions across all projects about deadlines, cross-project blockers, overloaded contributors, or executive status reports. Grounded strictly in your workspace database.
+                </p>
+              </div>
+            )}
+
+            {chatMessages.map((msg, i) => (
+              <div
+                key={i}
+                className={`brain-chat-bubble ${msg.role === "user" ? "user" : "assistant"}`}
+              >
+                {msg.content}
+              </div>
+            ))}
+
+            {chatStreaming && (
+              <div className="brain-chat-bubble assistant" style={{ fontStyle: "italic", opacity: 0.8 }}>
+                Synthesizing multi-project context and reasoning...
+              </div>
+            )}
+          </div>
+
+          <div className="brain-chat-starters">
+            <button
+              className="brain-starter-chip"
+              onClick={() => handleSendChatMessage("Why is the portfolio delayed or at risk?")}
+            >
+              Why is the portfolio at risk?
+            </button>
+            <button
+              className="brain-starter-chip"
+              onClick={() => handleSendChatMessage("Who is overloaded across projects?")}
+            >
+              Who is overloaded?
+            </button>
+            <button
+              className="brain-starter-chip"
+              onClick={() => handleSendChatMessage("What cross-project dependencies exist?")}
+            >
+              Cross-project dependencies
+            </button>
+            <button
+              className="brain-starter-chip"
+              onClick={() => handleSendChatMessage("Prepare an executive portfolio status report.")}
+            >
+              Executive portfolio report
+            </button>
+          </div>
+
+          <form
+            className="brain-chat-input-bar"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSendChatMessage();
+            }}
+          >
+            <input
+              className="brain-chat-input"
+              placeholder={`Ask anything about ${data.scopeName} workspace portfolio...`}
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              disabled={chatStreaming}
+            />
+            <button
+              type="submit"
+              className="brain-chat-send-btn"
+              disabled={chatStreaming || !chatInput.trim()}
+            >
+              <Send size={14} />
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Task Catalog Modal */}
       {showCatalogModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "#fff", borderRadius: 12, maxWidth: 540, width: "100%", padding: 24, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px", color: "#0f172a" }}>Select Task Catalog for Brain Analysis</h3>
-            <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 18px" }}>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.6)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: "var(--surface, #fff)",
+              borderRadius: 12,
+              maxWidth: 540,
+              width: "100%",
+              padding: 24,
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+              border: "1px solid var(--line, #e2e8f0)",
+            }}
+          >
+            <h3 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px", color: "var(--ink, #0f172a)" }}>
+              Select Task Catalog for Brain Analysis
+            </h3>
+            <p style={{ fontSize: 13, color: "var(--muted, #64748b)", margin: "0 0 18px" }}>
               Choose which projects and priority levels are analyzed in the Workspace Brain context.
             </p>
 
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 8 }}>Included Projects:</div>
-              <div style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6, border: "1px solid #e2e8f0", padding: 10, borderRadius: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink, #334155)", marginBottom: 8 }}>
+                Included Projects:
+              </div>
+              <div
+                style={{
+                  maxHeight: 180,
+                  overflowY: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  border: "1px solid var(--line, #e2e8f0)",
+                  padding: 10,
+                  borderRadius: 8,
+                }}
+              >
                 {data.availableProjects.map((proj) => {
-                  const isChecked = selectedProjects.length === 0 || selectedProjects.includes(proj.id);
+                  const isChecked =
+                    selectedProjects.length === 0 || selectedProjects.includes(proj.id);
                   return (
-                    <label key={proj.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+                    <label
+                      key={proj.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        color: "var(--ink, #0f172a)",
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={isChecked}
@@ -295,9 +1304,11 @@ export default function WorkspaceBrainView({
                           if (e.target.checked) {
                             setSelectedProjects([...selectedProjects, proj.id]);
                           } else {
-                            const newSelection = (selectedProjects.length === 0 ? data.availableProjects.map((p) => p.id) : selectedProjects).filter(
-                              (id) => id !== proj.id
-                            );
+                            const newSelection = (
+                              selectedProjects.length === 0
+                                ? data.availableProjects.map((p) => p.id)
+                                : selectedProjects
+                            ).filter((id) => id !== proj.id);
                             setSelectedProjects(newSelection);
                           }
                         }}
@@ -310,7 +1321,9 @@ export default function WorkspaceBrainView({
             </div>
 
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 8 }}>Filter by Priority:</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink, #334155)", marginBottom: 8 }}>
+                Filter by Priority:
+              </div>
               <div style={{ display: "flex", gap: 8 }}>
                 {["urgent", "high", "normal", "low"].map((prio) => {
                   const active = selectedPriorities.includes(prio);
@@ -323,14 +1336,14 @@ export default function WorkspaceBrainView({
                         else setSelectedPriorities([...selectedPriorities, prio]);
                       }}
                       style={{
-                        padding: "4px 10px",
+                        padding: "5px 12px",
                         fontSize: 12,
                         borderRadius: 6,
                         border: "1px solid",
-                        borderColor: active ? "#6366f1" : "#cbd5e1",
-                        background: active ? "#eef2ff" : "#fff",
-                        color: active ? "#4f46e5" : "#475569",
-                        fontWeight: active ? 600 : 400,
+                        borderColor: active ? "var(--green)" : "var(--line, #cbd5e1)",
+                        background: active ? "rgba(22, 163, 74, 0.1)" : "var(--surface, #fff)",
+                        color: active ? "var(--green)" : "var(--ink, #475569)",
+                        fontWeight: active ? 700 : 500,
                         cursor: "pointer",
                         textTransform: "capitalize",
                       }}
@@ -343,10 +1356,18 @@ export default function WorkspaceBrainView({
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button onClick={resetCatalogFilter} className="button button-secondary" style={{ fontSize: 13, padding: "6px 12px" }}>
+              <button
+                onClick={resetCatalogFilter}
+                className="button button-secondary"
+                style={{ fontSize: 13, padding: "6px 14px" }}
+              >
                 Reset to All
               </button>
-              <button onClick={applyCatalogFilter} className="button button-primary" style={{ fontSize: 13, padding: "6px 16px" }}>
+              <button
+                onClick={applyCatalogFilter}
+                className="button button-primary"
+                style={{ fontSize: 13, padding: "6px 16px" }}
+              >
                 Apply Catalog Filter
               </button>
             </div>

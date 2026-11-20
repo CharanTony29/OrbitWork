@@ -3,10 +3,19 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { generateTextWithFallback } from "@/lib/ai/client";
+import {
+  calculateWorkload,
+  MemberProfileInput,
+  TaskWorkloadInput,
+  OverloadStatus,
+  WorkloadConfidence,
+} from "@/lib/workload/engine";
 import type {
   HealthCategoryScore,
   ProjectHealthBreakdown,
-  DependencyNodeInfo,
+  RiskItem,
+  ActionableRecommendation,
+  TimelineEvent,
 } from "./types";
 
 export interface TaskCatalogFilter {
@@ -33,12 +42,34 @@ export interface PortfolioMemberWorkload {
   userId: string;
   name: string;
   email: string;
-  avatarUrl?: string;
+  avatarUrl?: string | null;
+  role: string;
+  experienceLevel: string;
+  experienceFactor: number;
   totalTasks: number;
+  unestimatedTasksCount: number;
+  confidence: WorkloadConfidence;
+  confidenceReason: string;
   totalEstimatedHours: number;
+  rawCapacityHours: number;
+  effectiveCapacityHours: number;
+  utilizationPercentage: number;
   overdueTasks: number;
   projectCount: number;
-  status: "optimal" | "heavy" | "overloaded";
+  status: OverloadStatus;
+  statusLabel: string;
+  explanation: string;
+  potentialRedistribution?: {
+    recommended: boolean;
+    reason: string;
+    targetMemberId?: string;
+    targetMemberName?: string;
+    taskId?: string;
+    taskTitle?: string;
+    hoursToShift?: number;
+    resultingUtilizationSelf?: number;
+    resultingUtilizationTarget?: number;
+  };
 }
 
 export interface PortfolioBrainPayload {
@@ -70,6 +101,27 @@ export interface PortfolioBrainPayload {
     totalEstimatedHours: number;
     completionPercentage: number;
   };
+  risks: Array<{
+    id: string;
+    title: string;
+    severity: "critical" | "high" | "medium" | "low";
+    reason: string;
+    affectedProject?: string;
+  }>;
+  recommendations: Array<{
+    id: string;
+    title: string;
+    description: string;
+    category: "workload" | "schedule" | "dependency";
+    expectedBenefit: string;
+  }>;
+  timeline: Array<{
+    id: string;
+    title: string;
+    date: string;
+    type: "milestone" | "deadline" | "delivery";
+    projectName: string;
+  }>;
 }
 
 export async function buildWorkspaceBrain(
@@ -112,7 +164,7 @@ export async function buildWorkspaceBrain(
   let tasksQuery = supabase
     .from("tasks")
     .select(
-      "id, project_id, generated_key, title, priority, status_id, due_date, estimate_minutes, primary_assignee_id, secondary_assignee_id, parent_task_id"
+      "id, project_id, generated_key, title, priority, status_id, due_date, estimate_minutes, primary_assignee_id, secondary_assignee_id, parent_task_id, task_type"
     )
     .in("project_id", targetProjectIds.length > 0 ? targetProjectIds : ["00000000-0000-0000-0000-000000000000"]);
 
@@ -127,22 +179,82 @@ export async function buildWorkspaceBrain(
   const { data: statuses } = await supabase
     .from("task_statuses")
     .select("id, name, category, project_id");
-
   const statusMap = new Map((statuses || []).map((s) => [s.id, s]));
 
-  // Fetch profiles for workload calculation
-  const { data: profiles } = await supabase
+  // Fetch profiles with display_name
+  const { data: rawProfiles } = await supabase
     .from("profiles")
-    .select("id, full_name, email, avatar_url");
+    .select("id, display_name, email, avatar_url");
 
-  const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+  const profileMap = new Map(
+    (rawProfiles || []).map((p) => {
+      const cleanName = p.display_name?.trim() || p.email?.split("@")[0] || "Team Member";
+      return [p.id, { id: p.id, name: cleanName, email: p.email || "", avatarUrl: p.avatar_url }];
+    })
+  );
 
   // Fetch dependencies across target projects
   const { data: deps } = await supabase
     .from("task_dependencies")
     .select("id, task_id, depends_on_task_id");
 
-  // Calculate metrics
+  // Collect all assignees
+  const assigneeUserIds = new Set<string>();
+  for (const t of tasks) {
+    if (t.primary_assignee_id) assigneeUserIds.add(t.primary_assignee_id);
+    if (t.secondary_assignee_id) assigneeUserIds.add(t.secondary_assignee_id);
+  }
+
+  // Build profile inputs for centralized Workload Engine
+  const profileInputs: MemberProfileInput[] = [];
+  for (const uid of assigneeUserIds) {
+    const prof = profileMap.get(uid);
+    profileInputs.push({
+      userId: uid,
+      name: prof?.name || "Team Member",
+      email: prof?.email || "",
+      avatarUrl: prof?.avatarUrl || null,
+      role: "Software Engineer",
+      rawCapacityHours: 40,
+    });
+  }
+
+  // Also include project profiles if few
+  for (const [, prof] of profileMap) {
+    if (!profileInputs.some((p) => p.userId === prof.id)) {
+      profileInputs.push({
+        userId: prof.id,
+        name: prof.name,
+        email: prof.email,
+        avatarUrl: prof.avatarUrl,
+        role: "Software Engineer",
+        rawCapacityHours: 40,
+      });
+    }
+  }
+
+  // Prepare tasks for Workload Engine
+  const taskInputs: TaskWorkloadInput[] = tasks.map((t) => {
+    const s = statusMap.get(t.status_id);
+    const isCompleted = s?.category === "done" || s?.category === "completed" || s?.category === "cancelled";
+    return {
+      id: t.id,
+      title: t.title,
+      estimateMinutes: t.estimate_minutes,
+      priority: (t.priority as any) || "normal",
+      dueDate: t.due_date,
+      primaryAssigneeId: t.primary_assignee_id,
+      secondaryAssigneeId: t.secondary_assignee_id,
+      category: t.task_type || s?.category,
+      isCompleted,
+      parentTaskId: t.parent_task_id,
+    };
+  });
+
+  // RUN CENTRALIZED WORKLOAD ENGINE
+  const workloadEngineResult = calculateWorkload(profileInputs, taskInputs);
+
+  // Calculate project tracking metrics
   const now = new Date();
   let completedTasks = 0;
   let overdueTasks = 0;
@@ -158,25 +270,12 @@ export async function buildWorkspaceBrain(
     projectStats.set(p.id, { total: 0, completed: 0, overdue: 0 });
   });
 
-  const memberStats = new Map<
-    string,
-    {
-      name: string;
-      email: string;
-      avatarUrl?: string;
-      tasks: number;
-      minutes: number;
-      overdue: number;
-      projectSet: Set<string>;
-    }
-  >();
-
-  const taskMap = new Map(tasks.map((t) => [t.id, t]));
-
+  // Track project counts per member
+  const memberProjectCount = new Map<string, Set<string>>();
   for (const t of tasks) {
     const status = statusMap.get(t.status_id);
     const category = status?.category || "todo";
-    const isCompleted = category === "done";
+    const isCompleted = category === "done" || category === "completed";
     const isOverdue = !isCompleted && t.due_date ? new Date(t.due_date) < now : false;
     const est = t.estimate_minutes || 0;
 
@@ -192,30 +291,15 @@ export async function buildWorkspaceBrain(
       if (isOverdue) pStat.overdue++;
     }
 
-    // Assignee stats
     const assignees = [t.primary_assignee_id, t.secondary_assignee_id].filter(Boolean) as string[];
     for (const uid of assignees) {
-      if (!memberStats.has(uid)) {
-        const prof = profileMap.get(uid);
-        memberStats.set(uid, {
-          name: prof?.full_name || "Team Member",
-          email: prof?.email || "",
-          avatarUrl: prof?.avatar_url || undefined,
-          tasks: 0,
-          minutes: 0,
-          overdue: 0,
-          projectSet: new Set(),
-        });
-      }
-      const m = memberStats.get(uid)!;
-      m.tasks++;
-      m.minutes += est;
-      if (isOverdue) m.overdue++;
-      m.projectSet.add(t.project_id);
+      if (!memberProjectCount.has(uid)) memberProjectCount.set(uid, new Set());
+      memberProjectCount.get(uid)!.add(t.project_id);
     }
   }
 
   // Cross-project dependencies
+  const taskMap = new Map(tasks.map((t) => [t.id, t]));
   const projectNameMap = new Map(targetProjects.map((p) => [p.id, p.name]));
   const crossProjectDeps: PortfolioBrainPayload["crossProjectDependencies"] = [];
 
@@ -232,7 +316,37 @@ export async function buildWorkspaceBrain(
     }
   }
 
-  // Calculate overall portfolio health
+  // Map workload engine results to PortfolioMemberWorkload
+  const workloads: PortfolioMemberWorkload[] = workloadEngineResult.members
+    .filter((m) => m.assignedTasksCount > 0 || profileInputs.length <= 6)
+    .map((m) => {
+      const projSet = memberProjectCount.get(m.userId);
+      return {
+        userId: m.userId,
+        name: m.name,
+        email: m.email,
+        avatarUrl: m.avatarUrl,
+        role: m.role,
+        experienceLevel: m.experienceLevel,
+        experienceFactor: m.experienceFactor,
+        totalTasks: m.assignedTasksCount,
+        unestimatedTasksCount: m.unestimatedTasksCount,
+        confidence: m.confidence,
+        confidenceReason: m.confidenceReason,
+        totalEstimatedHours: m.estimatedWorkloadHours,
+        rawCapacityHours: m.rawCapacityHours,
+        effectiveCapacityHours: m.effectiveCapacityHours,
+        utilizationPercentage: m.utilizationPercentage,
+        overdueTasks: m.taskBreakdown.filter((t) => t.isOverdue).length,
+        projectCount: projSet ? projSet.size : 1,
+        status: m.status,
+        statusLabel: m.statusLabel,
+        explanation: m.explanation,
+        potentialRedistribution: m.potentialRedistribution,
+      };
+    });
+
+  // Overall Health Score
   const totalTasks = tasks.length;
   const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 100;
   const overduePercentage = totalTasks > 0 ? Math.round((overdueTasks / totalTasks) * 100) : 0;
@@ -241,50 +355,19 @@ export async function buildWorkspaceBrain(
   if (totalTasks > 0) {
     overallScore = Math.max(
       20,
-      Math.min(100, Math.round(completionPercentage * 0.4 + (100 - overduePercentage * 2.5) * 0.4 + (crossProjectDeps.length === 0 ? 20 : 10)))
+      Math.min(
+        100,
+        Math.round(
+          completionPercentage * 0.4 +
+            (100 - overduePercentage * 2.5) * 0.4 +
+            (crossProjectDeps.length === 0 ? 20 : 10)
+        )
+      )
     );
   }
 
   const overallStatus =
     overallScore >= 80 ? "healthy" : overallScore >= 60 ? "needs_attention" : overallScore >= 40 ? "at_risk" : "critical";
-
-  // Build Portfolio Member Workloads
-  const workloads: PortfolioMemberWorkload[] = [];
-  for (const [uid, m] of memberStats) {
-    const hours = Math.round(m.minutes / 60);
-    const status: PortfolioMemberWorkload["status"] =
-      hours > 45 || m.tasks > 12 ? "overloaded" : hours > 30 || m.tasks > 8 ? "heavy" : "optimal";
-
-    workloads.push({
-      userId: uid,
-      name: m.name,
-      email: m.email,
-      avatarUrl: m.avatarUrl,
-      totalTasks: m.tasks,
-      totalEstimatedHours: hours,
-      overdueTasks: m.overdue,
-      projectCount: m.projectSet.size,
-      status,
-    });
-  }
-
-  // Build Portfolio Projects Info
-  const portfolioProjects: PortfolioProjectInfo[] = targetProjects.map((p) => {
-    const st = projectStats.get(p.id) || { total: 0, completed: 0, overdue: 0 };
-    const pScore = st.total > 0 ? Math.max(30, Math.min(100, Math.round((st.completed / st.total) * 60 + (1 - st.overdue / st.total) * 40))) : 100;
-    return {
-      id: p.id,
-      name: p.name,
-      description: p.description || "",
-      status: p.status,
-      priority: p.priority,
-      due_date: p.due_date,
-      taskCount: st.total,
-      completedTaskCount: st.completed,
-      overdueTaskCount: st.overdue,
-      healthScore: pScore,
-    };
-  });
 
   // Synthesize AI Executive Summary
   const prompt = `You are a Chief Technology Officer and Portfolio Director.
@@ -296,12 +379,12 @@ METRICS:
 - Completed: ${completedTasks} (${completionPercentage}%)
 - Overdue: ${overdueTasks} (${overduePercentage}%)
 - Cross-Project Blocking Dependencies: ${crossProjectDeps.length}
-- Overloaded Team Members: ${workloads.filter((w) => w.status === "overloaded").length}
+- Overloaded Team Members: ${workloads.filter((w) => w.status === "over_capacity" || w.status === "severely_overloaded").length}
 
 Provide a concise 3-part JSON output:
 {
   "headline": "A sharp 1-sentence executive summary headline",
-  "summary": "2-3 sentences synthesizing current velocity, delivery bottlenecks, and portfolio trajectory.",
+  "summary": "2-3 sentences synthesizing velocity, delivery bottlenecks, and portfolio trajectory.",
   "recommendations": [
     "Concrete actionable recommendation 1",
     "Concrete actionable recommendation 2",
@@ -362,9 +445,9 @@ Return only JSON.`;
     workload: {
       key: "workload",
       label: "Resource Allocation",
-      score: workloads.some((w) => w.status === "overloaded") ? 55 : 90,
-      status: workloads.some((w) => w.status === "overloaded") ? "warning" : "good",
-      details: `${workloads.filter((w) => w.status === "overloaded").length} members overloaded across projects`,
+      score: workloads.some((w) => w.status === "over_capacity" || w.status === "severely_overloaded") ? 55 : 90,
+      status: workloads.some((w) => w.status === "over_capacity" || w.status === "severely_overloaded") ? "warning" : "good",
+      details: `${workloads.filter((w) => w.status === "over_capacity" || w.status === "severely_overloaded").length} members over capacity`,
       metricLabel: `${workloads.length} Active Members`,
     },
     blockers: {
@@ -402,6 +485,68 @@ Return only JSON.`;
     calculatedAt: new Date().toISOString(),
   };
 
+  // Build Portfolio Projects Info
+  const portfolioProjects: PortfolioProjectInfo[] = targetProjects.map((p) => {
+    const st = projectStats.get(p.id) || { total: 0, completed: 0, overdue: 0 };
+    const pScore = st.total > 0 ? Math.max(30, Math.min(100, Math.round((st.completed / st.total) * 60 + (1 - st.overdue / st.total) * 40))) : 100;
+    return {
+      id: p.id,
+      name: p.name,
+      description: p.description || "",
+      status: p.status,
+      priority: p.priority,
+      due_date: p.due_date,
+      taskCount: st.total,
+      completedTaskCount: st.completed,
+      overdueTaskCount: st.overdue,
+      healthScore: pScore,
+    };
+  });
+
+  // Generate Risks
+  const risks: PortfolioBrainPayload["risks"] = [];
+  if (overdueTasks > 0) {
+    risks.push({
+      id: "risk-overdue",
+      title: `${overdueTasks} Overdue Portfolio Deliverables`,
+      severity: overdueTasks > 10 ? "critical" : "high",
+      reason: `Slipped delivery commitments in active sprints are accumulating schedule variance.`,
+    });
+  }
+  for (const m of workloads.filter((w) => w.status === "over_capacity" || w.status === "severely_overloaded")) {
+    risks.push({
+      id: `risk-workload-${m.userId}`,
+      title: `Resource Overallocation: ${m.name} (${m.utilizationPercentage}% load)`,
+      severity: m.status === "severely_overloaded" ? "critical" : "high",
+      reason: `${m.name} has ${m.totalEstimatedHours}h of estimated work against ${m.effectiveCapacityHours}h effective capacity.`,
+    });
+  }
+
+  // Generate Recommendations
+  const recs: PortfolioBrainPayload["recommendations"] = [];
+  for (const m of workloads) {
+    if (m.potentialRedistribution && m.potentialRedistribution.recommended) {
+      recs.push({
+        id: `rec-${m.userId}`,
+        title: `Rebalance workload: Shift work from ${m.name}`,
+        description: m.potentialRedistribution.reason,
+        category: "workload",
+        expectedBenefit: `Prevents burn-out and levels contributor utilization across the sprint.`,
+      });
+    }
+  }
+
+  // Generate Timeline
+  const timeline: PortfolioBrainPayload["timeline"] = targetProjects
+    .filter((p) => p.due_date)
+    .map((p) => ({
+      id: `timeline-${p.id}`,
+      title: `${p.name} Final Milestone`,
+      date: p.due_date!,
+      type: "deadline",
+      projectName: p.name,
+    }));
+
   return {
     scopeType: "workspace",
     scopeId: workspaceId,
@@ -422,6 +567,9 @@ Return only JSON.`;
       totalEstimatedHours: Math.round(totalEstimatedMinutes / 60),
       completionPercentage,
     },
+    risks,
+    recommendations: recs,
+    timeline,
   };
 }
 
@@ -470,7 +618,7 @@ export async function buildOrganizationBrain(
   let tasksQuery = supabase
     .from("tasks")
     .select(
-      "id, project_id, generated_key, title, priority, status_id, due_date, estimate_minutes, primary_assignee_id, secondary_assignee_id"
+      "id, project_id, generated_key, title, priority, status_id, due_date, estimate_minutes, primary_assignee_id, secondary_assignee_id, parent_task_id, task_type"
     )
     .in("project_id", targetProjectIds.length > 0 ? targetProjectIds : ["00000000-0000-0000-0000-000000000000"]);
 
@@ -486,6 +634,62 @@ export async function buildOrganizationBrain(
     .select("id, name, category, project_id");
   const statusMap = new Map((statuses || []).map((s) => [s.id, s]));
 
+  // Profiles with display_name
+  const { data: rawProfiles } = await supabase
+    .from("profiles")
+    .select("id, display_name, email, avatar_url");
+
+  const profileMap = new Map(
+    (rawProfiles || []).map((p) => {
+      const cleanName = p.display_name?.trim() || p.email?.split("@")[0] || "Team Member";
+      return [p.id, { id: p.id, name: cleanName, email: p.email || "", avatarUrl: p.avatar_url }];
+    })
+  );
+
+  // Fetch dependencies across organization projects
+  const { data: deps } = await supabase
+    .from("task_dependencies")
+    .select("id, task_id, depends_on_task_id");
+
+  // Collect assignees
+  const assigneeUserIds = new Set<string>();
+  for (const t of tasks) {
+    if (t.primary_assignee_id) assigneeUserIds.add(t.primary_assignee_id);
+    if (t.secondary_assignee_id) assigneeUserIds.add(t.secondary_assignee_id);
+  }
+
+  const profileInputs: MemberProfileInput[] = [];
+  for (const uid of assigneeUserIds) {
+    const prof = profileMap.get(uid);
+    profileInputs.push({
+      userId: uid,
+      name: prof?.name || "Team Member",
+      email: prof?.email || "",
+      avatarUrl: prof?.avatarUrl || null,
+      role: "Software Engineer",
+      rawCapacityHours: 40,
+    });
+  }
+
+  const taskInputs: TaskWorkloadInput[] = tasks.map((t) => {
+    const s = statusMap.get(t.status_id);
+    const isCompleted = s?.category === "done" || s?.category === "completed" || s?.category === "cancelled";
+    return {
+      id: t.id,
+      title: t.title,
+      estimateMinutes: t.estimate_minutes,
+      priority: (t.priority as any) || "normal",
+      dueDate: t.due_date,
+      primaryAssigneeId: t.primary_assignee_id,
+      secondaryAssigneeId: t.secondary_assignee_id,
+      category: t.task_type || s?.category,
+      isCompleted,
+      parentTaskId: t.parent_task_id,
+    };
+  });
+
+  const workloadEngineResult = calculateWorkload(profileInputs, taskInputs);
+
   const now = new Date();
   let completedTasks = 0;
   let overdueTasks = 0;
@@ -495,7 +699,7 @@ export async function buildOrganizationBrain(
   for (const t of tasks) {
     const status = statusMap.get(t.status_id);
     const category = status?.category || "todo";
-    const isCompleted = category === "done";
+    const isCompleted = category === "done" || category === "completed";
     const isOverdue = !isCompleted && t.due_date ? new Date(t.due_date) < now : false;
     const est = t.estimate_minutes || 0;
 
@@ -513,6 +717,92 @@ export async function buildOrganizationBrain(
   const overallStatus =
     overallScore >= 80 ? "healthy" : overallScore >= 60 ? "needs_attention" : overallScore >= 40 ? "at_risk" : "critical";
 
+  const orgWorkloads: PortfolioMemberWorkload[] = workloadEngineResult.members.map((m) => ({
+    userId: m.userId,
+    name: m.name,
+    email: m.email,
+    avatarUrl: m.avatarUrl,
+    role: m.role,
+    experienceLevel: m.experienceLevel,
+    experienceFactor: m.experienceFactor,
+    totalTasks: m.assignedTasksCount,
+    unestimatedTasksCount: m.unestimatedTasksCount,
+    confidence: m.confidence,
+    confidenceReason: m.confidenceReason,
+    totalEstimatedHours: m.estimatedWorkloadHours,
+    rawCapacityHours: m.rawCapacityHours,
+    effectiveCapacityHours: m.effectiveCapacityHours,
+    utilizationPercentage: m.utilizationPercentage,
+    overdueTasks: m.taskBreakdown.filter((t) => t.isOverdue).length,
+    projectCount: 1,
+    status: m.status,
+    statusLabel: m.statusLabel,
+    explanation: m.explanation,
+    potentialRedistribution: m.potentialRedistribution,
+  }));
+
+  // Cross-project dependencies
+  const taskMap = new Map(tasks.map((t) => [t.id, t]));
+  const projectNameMap = new Map(targetProjects.map((p) => [p.id, p.name]));
+  const crossProjectDeps: PortfolioBrainPayload["crossProjectDependencies"] = [];
+
+  for (const d of deps || []) {
+    const blocked = taskMap.get(d.task_id);
+    const blocker = taskMap.get(d.depends_on_task_id);
+    if (blocked && blocker && blocked.project_id !== blocker.project_id) {
+      crossProjectDeps.push({
+        blockingProject: projectNameMap.get(blocker.project_id) || "External Project",
+        blockingTask: blocker.title,
+        blockedProject: projectNameMap.get(blocked.project_id) || "Target Project",
+        blockedTask: blocked.title,
+      });
+    }
+  }
+
+  // Generate Risks
+  const risks: PortfolioBrainPayload["risks"] = [];
+  if (overdueTasks > 0) {
+    risks.push({
+      id: "risk-overdue",
+      title: `${overdueTasks} Overdue Organization Deliverables`,
+      severity: overdueTasks > 10 ? "critical" : "high",
+      reason: `Slipped delivery commitments across business units are impacting enterprise milestones.`,
+    });
+  }
+  for (const m of orgWorkloads.filter((w) => w.status === "over_capacity" || w.status === "severely_overloaded")) {
+    risks.push({
+      id: `risk-workload-${m.userId}`,
+      title: `Resource Overallocation: ${m.name} (${m.utilizationPercentage}% load)`,
+      severity: m.status === "severely_overloaded" ? "critical" : "high",
+      reason: `${m.name} has ${m.totalEstimatedHours}h of estimated work against ${m.effectiveCapacityHours}h effective capacity.`,
+    });
+  }
+
+  // Generate Recommendations
+  const recs: PortfolioBrainPayload["recommendations"] = [];
+  for (const m of orgWorkloads) {
+    if (m.potentialRedistribution && m.potentialRedistribution.recommended) {
+      recs.push({
+        id: `rec-${m.userId}`,
+        title: `Rebalance workload: Shift work from ${m.name}`,
+        description: m.potentialRedistribution.reason,
+        category: "workload",
+        expectedBenefit: `Prevents burn-out and levels contributor utilization across organization teams.`,
+      });
+    }
+  }
+
+  // Generate Timeline
+  const timeline: PortfolioBrainPayload["timeline"] = targetProjects
+    .filter((p) => p.due_date)
+    .map((p) => ({
+      id: `timeline-${p.id}`,
+      title: `${p.name} Final Milestone`,
+      date: p.due_date!,
+      type: "deadline",
+      projectName: p.name,
+    }));
+
   return {
     scopeType: "organization",
     scopeId: organizationId,
@@ -524,7 +814,40 @@ export async function buildOrganizationBrain(
       overallStatus,
       statusLabel: overallStatus.replace("_", " ").toUpperCase(),
       headlineExplanation: `Enterprise Portfolio Governance for ${org.name}: ${targetProjects.length} projects analyzed.`,
-      categories: {} as any,
+      categories: {
+        schedule: {
+          key: "schedule",
+          label: "Schedule Alignment",
+          score: Math.max(0, 100 - overduePercentage * 3),
+          status: overduePercentage > 15 ? "danger" : overduePercentage > 5 ? "warning" : "good",
+          metricLabel: `${overdueTasks} overdue deliverables`,
+          details: `Across ${targetProjects.length} enterprise projects, ${overdueTasks} tasks have exceeded their due dates.`,
+        },
+        completion: {
+          key: "completion",
+          label: "Deliverables Completion",
+          score: completionPercentage,
+          status: completionPercentage >= 75 ? "good" : completionPercentage >= 40 ? "warning" : "danger",
+          metricLabel: `${completionPercentage}% delivered (${completedTasks}/${totalTasks})`,
+          details: `${completedTasks} of ${totalTasks} total portfolio work packages completed.`,
+        },
+        workload: {
+          key: "workload",
+          label: "Workload & Capacity",
+          score: Math.max(30, Math.min(100, 100 - orgWorkloads.filter((w) => w.status === "over_capacity" || w.status === "severely_overloaded").length * 20)),
+          status: orgWorkloads.some((w) => w.status === "severely_overloaded") ? "danger" : orgWorkloads.some((w) => w.status === "over_capacity") ? "warning" : "good",
+          metricLabel: `${orgWorkloads.filter((w) => w.status === "over_capacity" || w.status === "severely_overloaded").length} overloaded members`,
+          details: `Calculated from total estimated hours vs available member capacity across enterprise projects.`,
+        },
+        dependencies: {
+          key: "dependencies",
+          label: "Cross-Project Dependencies",
+          score: crossProjectDeps.length === 0 ? 100 : Math.max(40, 100 - crossProjectDeps.length * 15),
+          status: crossProjectDeps.length > 3 ? "danger" : crossProjectDeps.length > 0 ? "warning" : "good",
+          metricLabel: `${crossProjectDeps.length} blocking links`,
+          details: `${crossProjectDeps.length} cross-project dependencies detected between teams.`,
+        },
+      } as any,
       calculatedAt: new Date().toISOString(),
     },
     portfolioProjects: targetProjects.map((p) => ({
@@ -539,8 +862,8 @@ export async function buildOrganizationBrain(
       overdueTaskCount: tasks.filter((t) => t.project_id === p.id && t.due_date && new Date(t.due_date) < now && statusMap.get(t.status_id)?.category !== "done").length,
       healthScore: 85,
     })),
-    workload: [],
-    crossProjectDependencies: [],
+    workload: orgWorkloads,
+    crossProjectDependencies: crossProjectDeps,
     aiExecutiveSummary: {
       headline: `Organization Enterprise Health: ${overallScore}/100`,
       summary: `${org.name} has ${workspaces?.length || 0} active workspaces and ${targetProjects.length} projects currently tracked in the enterprise portfolio catalog.`,
@@ -558,5 +881,8 @@ export async function buildOrganizationBrain(
       totalEstimatedHours: Math.round(totalEstimatedMinutes / 60),
       completionPercentage,
     },
+    risks,
+    recommendations: recs,
+    timeline,
   };
 }

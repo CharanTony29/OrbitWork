@@ -85,6 +85,22 @@ export interface MemberWorkloadInfo {
   workloadPercentage: number;
   status: "underutilized" | "balanced" | "overloaded";
   taskTitles: string[];
+  rawCapacityHours?: number;
+  effectiveCapacityHours?: number;
+  confidence?: "high" | "medium" | "low";
+  confidenceReason?: string;
+  explanation?: string;
+  role?: string;
+  experienceLevel?: string;
+  unestimatedTasksCount?: number;
+  potentialRedistribution?: {
+    recommended: boolean;
+    reason: string;
+    targetMemberId?: string;
+    targetMemberName?: string;
+    taskId?: string;
+    taskTitle?: string;
+  };
 }
 
 export interface WorkloadAnalysis {

@@ -162,6 +162,129 @@ ${dynamicContext}
 }
 
 /**
+ * Streams Portfolio-Scoped Natural Language AI Chat (Workspace / Organization)
+ */
+export async function streamPortfolioBrainChat(options: {
+  messages: Array<{ role: "user" | "assistant" | "system"; content: string }>;
+  portfolioData: {
+    scopeType: "workspace" | "organization";
+    scopeName: string;
+    health: { overallScore: number; statusLabel: string };
+    metrics: {
+      totalProjects: number;
+      totalTasks: number;
+      completedTasks: number;
+      overdueTasks: number;
+      inProgressTasks: number;
+      totalEstimatedHours: number;
+      completionPercentage: number;
+    };
+    portfolioProjects: Array<{
+      name: string;
+      status: string;
+      taskCount: number;
+      completedTaskCount: number;
+      overdueTaskCount: number;
+      healthScore: number;
+    }>;
+    workload: Array<{
+      name: string;
+      role?: string;
+      totalTasks: number;
+      totalEstimatedHours: number;
+      effectiveCapacityHours?: number;
+      utilizationPercentage?: number;
+      status: string;
+      statusLabel?: string;
+      explanation?: string;
+    }>;
+    crossProjectDependencies: Array<{
+      blockingProject: string;
+      blockingTask: string;
+      blockedProject: string;
+      blockedTask: string;
+    }>;
+    risks: Array<{ title: string; severity: string; reason: string }>;
+    recommendations: Array<{ title: string; description: string; category: string }>;
+  };
+}) {
+  const { messages, portfolioData } = options;
+
+  const trimmedMessages = messages.slice(-6).map((m) => ({
+    role: m.role,
+    content: m.content.length > 1500 ? `${m.content.slice(0, 1500)}…` : m.content,
+  }));
+
+  const projectsSummary = portfolioData.portfolioProjects
+    .map(
+      (p) =>
+        `- **${p.name}** (${p.status}, Health: ${p.healthScore}%): ${p.completedTaskCount}/${p.taskCount} tasks done, ${p.overdueTaskCount} overdue`
+    )
+    .join("\n");
+
+  const workloadSummary = portfolioData.workload
+    .map(
+      (w) =>
+        `- **${w.name}** (${w.status.toUpperCase()}): ${w.totalEstimatedHours}h estimated work / ${w.effectiveCapacityHours || 40}h capacity (${w.utilizationPercentage || 0}% load). ${w.explanation || ""}`
+    )
+    .join("\n");
+
+  const depsSummary =
+    portfolioData.crossProjectDependencies.length > 0
+      ? portfolioData.crossProjectDependencies
+          .map(
+            (d) =>
+              `- [${d.blockingProject}] "${d.blockingTask}" blocks [${d.blockedProject}] "${d.blockedTask}"`
+          )
+          .join("\n")
+      : "None";
+
+  const dynamicContext = `
+SCOPE: ${portfolioData.scopeType.toUpperCase()} "${portfolioData.scopeName}"
+HEALTH: ${portfolioData.health.overallScore}% (${portfolioData.health.statusLabel})
+PORTFOLIO METRICS:
+- Active Projects: ${portfolioData.metrics.totalProjects}
+- Total Tasks: ${portfolioData.metrics.totalTasks} (Completed: ${portfolioData.metrics.completedTasks}, Overdue: ${portfolioData.metrics.overdueTasks})
+- Total Effort: ${portfolioData.metrics.totalEstimatedHours} hours
+- Completion Velocity: ${portfolioData.metrics.completionPercentage}%
+
+PROJECTS:
+${projectsSummary}
+
+TEAM WORKLOAD & CAPACITY (Calculated via Effort / Capacity):
+${workloadSummary}
+
+CROSS-PROJECT DEPENDENCIES:
+${depsSummary}
+
+RISKS:
+${portfolioData.risks.map((r) => `- [${r.severity.toUpperCase()}] ${r.title}: ${r.reason}`).join("\n")}
+`.trim();
+
+  const system = `
+You are the **Orbitwork Portfolio Brain AI Assistant**, providing executive-level reasoning for the ${portfolioData.scopeType} "${portfolioData.scopeName}".
+You understand multi-project dependencies, cross-team workload allocation based on effort divided by capacity, milestone delivery schedules, and portfolio bottlenecks.
+
+STRICT CRITICAL RULES:
+1. Ground all responses strictly in the provided portfolio data. Never fabricate projects, members, or numbers.
+2. When discussing workload, always cite estimated effort vs available capacity, NOT raw task count.
+3. Use real team member names from the context.
+4. Distinguish between FACT, ANALYSIS, and RECOMMENDATION.
+5. Format clearly with bullet points and bold project names.
+
+CURRENT PORTFOLIO CONTEXT:
+${dynamicContext}
+`.trim();
+
+  return streamTextWithFallback({
+    messages: trimmedMessages,
+    system,
+    temperature: 0.3,
+    maxOutputTokens: 750,
+  });
+}
+
+/**
  * AI Task & Goal Breakdown Generator
  */
 export async function generateTasksFromGoalAI(options: {

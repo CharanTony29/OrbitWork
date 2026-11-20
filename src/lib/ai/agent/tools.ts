@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateProjectScope, generateTaskScope } from "@/lib/ai/utilities/scope-writer";
 import { buildWorkspaceBrain } from "@/lib/brain/portfolio-brain";
+import { calculateWorkload, MemberProfileInput, TaskWorkloadInput } from "@/lib/workload/engine";
 
 export interface AgentToolsContext {
   supabase: SupabaseClient;
@@ -1334,95 +1335,107 @@ export function createAutonomousAgentTools(context: AgentToolsContext) {
      */
     analyze_workload_and_capacity: tool({
       description:
-        "Analyze member workloads, calculate estimated hours, detect overloaded members and team members with spare capacity, identify bottlenecks, overdue tasks, and unassigned deliverables.",
+        "Authoritative effort-based workload analysis. Calculates estimated workload hours against available and effective capacity, evaluates experience factors, detects unestimated tasks, identifies overloaded members, and recommends role-compatible reassignments.",
       inputSchema: z.object({
-        weeklyThresholdHours: z.number().optional().describe("Weekly capacity threshold in hours (default: 40 hours)"),
+        weeklyThresholdHours: z.number().optional().describe("Weekly raw capacity in hours (default: 40 hours)"),
       }),
       execute: async ({ weeklyThresholdHours = 40 }) => {
-        const thresholdMins = weeklyThresholdHours * 60;
-
         const { data: tasks, error: tErr } = await supabase
           .from("tasks")
-          .select("id, title, priority, estimate_minutes, due_date, status_id, primary_assignee_id, project_statuses(name, category)")
+          .select("id, title, priority, estimate_minutes, due_date, status_id, primary_assignee_id, secondary_assignee_id, task_type, project_statuses(name, category)")
           .eq("project_id", projectId);
 
         if (tErr) return { error: `Failed to fetch project tasks: ${tErr.message}` };
 
-        const memberMap = new Map<string, {
-          userId: string;
-          name: string;
-          email: string;
-          activeTaskCount: number;
-          completedTaskCount: number;
-          totalEstimateMinutes: number;
-          overdueTaskCount: number;
-          status: "overloaded" | "balanced" | "available";
-        }>();
+        // Fetch real profiles for names and designations
+        const { data: rawProfiles } = await supabase
+          .from("profiles")
+          .select("id, display_name, email, avatar_url");
 
-        const unassignedTasks: Array<{ id: string; title: string; priority: string; estimateMinutes: number | null }> = [];
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const profileMap = new Map(
+          (rawProfiles || []).map((p) => [
+            p.id,
+            { id: p.id, name: p.display_name?.trim() || p.email?.split("@")[0] || "Team Member", email: p.email || "" },
+          ])
+        );
 
+        // Collect assignees
+        const assigneeIds = new Set<string>();
         for (const t of tasks || []) {
-          const isComplete = (t.project_statuses as any)?.category === "completed";
-          const isOverdue = !isComplete && t.due_date && t.due_date < todayStr;
+          if (t.primary_assignee_id) assigneeIds.add(t.primary_assignee_id);
+          if (t.secondary_assignee_id) assigneeIds.add(t.secondary_assignee_id);
+        }
 
-          if (!t.primary_assignee_id) {
-            if (!isComplete) {
-              unassignedTasks.push({ id: t.id, title: t.title, priority: t.priority, estimateMinutes: t.estimate_minutes });
-            }
-            continue;
-          }
+        const profileInputs: MemberProfileInput[] = [];
+        for (const uid of assigneeIds) {
+          const prof = profileMap.get(uid);
+          profileInputs.push({
+            userId: uid,
+            name: prof?.name || "Team Member",
+            email: prof?.email || "",
+            role: "Software Engineer",
+            rawCapacityHours: weeklyThresholdHours,
+          });
+        }
 
-          let m = memberMap.get(t.primary_assignee_id);
-          if (!m) {
-            m = {
-              userId: t.primary_assignee_id,
-              name: "Assignee " + t.primary_assignee_id.slice(0, 8),
-              email: "",
-              activeTaskCount: 0,
-              completedTaskCount: 0,
-              totalEstimateMinutes: 0,
-              overdueTaskCount: 0,
-              status: "available",
-            };
-            memberMap.set(t.primary_assignee_id, m);
-          }
-
-          if (isComplete) {
-            m.completedTaskCount++;
-          } else {
-            m.activeTaskCount++;
-            m.totalEstimateMinutes += (t.estimate_minutes || 60);
-            if (isOverdue) m.overdueTaskCount++;
+        // Include any profiles in profileMap if few
+        for (const [uid, prof] of profileMap) {
+          if (!profileInputs.some((p) => p.userId === uid)) {
+            profileInputs.push({
+              userId: uid,
+              name: prof.name,
+              email: prof.email,
+              role: "Software Engineer",
+              rawCapacityHours: weeklyThresholdHours,
+            });
           }
         }
 
-        for (const m of memberMap.values()) {
-          if (m.totalEstimateMinutes > thresholdMins || m.activeTaskCount > 8) {
-            m.status = "overloaded";
-          } else if (m.totalEstimateMinutes < (thresholdMins * 0.4) && m.activeTaskCount < 3) {
-            m.status = "available";
-          } else {
-            m.status = "balanced";
-          }
-        }
+        const taskInputs: TaskWorkloadInput[] = (tasks || []).map((t) => {
+          const isComplete = (t.project_statuses as any)?.category === "completed" || (t.project_statuses as any)?.category === "cancelled";
+          return {
+            id: t.id,
+            title: t.title,
+            estimateMinutes: t.estimate_minutes,
+            priority: (t.priority as any) || "normal",
+            dueDate: t.due_date,
+            primaryAssigneeId: t.primary_assignee_id,
+            secondaryAssigneeId: t.secondary_assignee_id,
+            category: t.task_type,
+            isCompleted: isComplete,
+          };
+        });
 
-        const memberList = Array.from(memberMap.values()).sort((a, b) => b.totalEstimateMinutes - a.totalEstimateMinutes);
-        const overloaded = memberList.filter((m) => m.status === "overloaded");
-        const available = memberList.filter((m) => m.status === "available");
+        // Run Centralized Workload Engine
+        const engineResult = calculateWorkload(profileInputs, taskInputs);
 
-        actionLog.push(`Analyzed team workload: ${overloaded.length} overloaded members, ${available.length} members with available capacity, ${unassignedTasks.length} unassigned tasks.`);
+        actionLog.push(
+          `Analyzed effort-based workload: ${engineResult.metrics.overloadedMembersCount} over capacity, ${engineResult.metrics.underutilizedMembersCount} available, ${engineResult.metrics.unassignedTasksCount} unassigned tasks.`
+        );
 
         return {
           totalTasks: (tasks || []).length,
-          unassignedTasksCount: unassignedTasks.length,
-          unassignedTasks: unassignedTasks.slice(0, 10),
-          overloadedCount: overloaded.length,
-          availableCount: available.length,
-          teamWorkload: memberList,
-          recommendation: overloaded.length > 0
-            ? `Recommend reassigning tasks from overloaded members (${overloaded.map((o) => o.name).join(", ")}) to available members (${available.map((a) => a.name).join(", ")}).`
-            : "Workload is currently well balanced across the team.",
+          unassignedTasksCount: engineResult.metrics.unassignedTasksCount,
+          totalBacklogHours: engineResult.metrics.totalBacklogHours,
+          totalTeamCapacityHours: engineResult.metrics.totalTeamEffectiveCapacityHours,
+          overallTeamUtilization: `${engineResult.metrics.overallTeamUtilizationPercentage}%`,
+          overallHealthStatus: engineResult.metrics.overallHealthStatus,
+          overloadedCount: engineResult.metrics.overloadedMembersCount,
+          members: engineResult.members.map((m) => ({
+            name: m.name,
+            role: m.role,
+            assignedTasksCount: m.assignedTasksCount,
+            estimatedWorkloadHours: m.estimatedWorkloadHours,
+            rawCapacityHours: m.rawCapacityHours,
+            effectiveCapacityHours: m.effectiveCapacityHours,
+            utilizationPercentage: `${m.utilizationPercentage}%`,
+            status: m.statusLabel,
+            confidence: m.confidence,
+            confidenceReason: m.confidenceReason,
+            explanation: m.explanation,
+            potentialRedistribution: m.potentialRedistribution?.reason,
+          })),
+          recommendations: engineResult.metrics.recommendations,
         };
       },
     }),
@@ -2031,7 +2044,9 @@ export function createAutonomousAgentTools(context: AgentToolsContext) {
             totalTasks: brain.metrics.totalTasks,
             overdueTasks: brain.metrics.overdueTasks,
             crossProjectDependenciesCount: brain.crossProjectDependencies.length,
-            overloadedMembersCount: brain.workload.filter((w) => w.status === "overloaded").length,
+            overloadedMembersCount: brain.workload.filter(
+              (w) => w.status === "over_capacity" || w.status === "severely_overloaded"
+            ).length,
             aiSummaryHeadline: brain.aiExecutiveSummary.headline,
           };
         } catch (err: any) {

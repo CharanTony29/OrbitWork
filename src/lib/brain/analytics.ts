@@ -1,6 +1,7 @@
 // src/lib/brain/analytics.ts
 // Deterministic Intelligence Engine for Orbitwork Project Brain
 
+import { calculateWorkload, MemberProfileInput, TaskWorkloadInput } from "@/lib/workload/engine";
 import type {
   ActionableRecommendation,
   AnalyticsContext,
@@ -310,167 +311,109 @@ export function analyzeWorkload(ctx: AnalyticsContext): WorkloadAnalysis {
     taskAssigneesMap.get(a.task_id)!.add(a.user_id);
   }
 
-  const todayStr = new Date().toISOString().split("T")[0];
-
-  // Active tasks only
-  const activeTasks = ctx.tasks.filter((t) => {
-    const s = statusMap.get(t.status_id);
-    return s?.category !== "completed" && s?.category !== "cancelled";
+  // 1. Prepare Member Profiles for Workload Engine
+  const profileInputs: MemberProfileInput[] = ctx.profiles.map((p) => {
+    const rawName = p.display_name?.trim() || p.email?.split("@")[0] || "Team Member";
+    return {
+      userId: p.id,
+      name: rawName,
+      email: p.email || "",
+      avatarUrl: p.avatar_url,
+      role: "Software Engineer",
+      rawCapacityHours: 40,
+    };
   });
 
-  let unassignedCount = 0;
-  const userStats = new Map<
-    string,
-    {
-      activeCount: number;
-      overdueCount: number;
-      criticalCount: number;
-      minutesTotal: number;
-      taskTitles: string[];
+  // Ensure all known assignees exist in profiles
+  for (const a of ctx.taskAssignees) {
+    if (!profileInputs.some((p) => p.userId === a.user_id)) {
+      profileInputs.push({
+        userId: a.user_id,
+        name: profileMap.get(a.user_id)?.name || "Team Member",
+        email: profileMap.get(a.user_id)?.email || "",
+        avatarUrl: profileMap.get(a.user_id)?.avatarUrl || null,
+        rawCapacityHours: 40,
+      });
     }
-  >();
-
-  // Initialize for all known profiles in workspace
-  for (const p of ctx.profiles) {
-    userStats.set(p.id, {
-      activeCount: 0,
-      overdueCount: 0,
-      criticalCount: 0,
-      minutesTotal: 0,
-      taskTitles: [],
-    });
   }
 
-  for (const t of activeTasks) {
+  // 2. Prepare Tasks for Workload Engine
+  const taskInputs: TaskWorkloadInput[] = ctx.tasks.map((t) => {
+    const s = statusMap.get(t.status_id);
+    const isCompleted = s?.category === "completed" || s?.category === "cancelled";
     const assignees = getTaskAssigneeIds(t, taskAssigneesMap);
-    if (assignees.length === 0) {
-      unassignedCount++;
-      continue;
-    }
 
-    const dStr = t.due_date ? String(t.due_date).split("T")[0] : null;
-    const isOverdue = Boolean(dStr && dStr < todayStr);
-    const isCritical = t.priority === "urgent" || t.priority === "high";
-    const minutes = t.estimate_minutes || 60; // default 1hr if no estimate
+    return {
+      id: t.id,
+      title: t.title,
+      estimateMinutes: t.estimate_minutes,
+      priority: (t.priority as any) || "normal",
+      dueDate: t.due_date,
+      primaryAssigneeId: assignees[0] || t.primary_assignee_id,
+      secondaryAssigneeId: assignees[1] || t.secondary_assignee_id,
+      category: t.task_type || s?.category,
+      isCompleted,
+      parentTaskId: t.parent_task_id,
+    };
+  });
 
-    for (const uid of assignees) {
-      if (!userStats.has(uid)) {
-        userStats.set(uid, {
-          activeCount: 0,
-          overdueCount: 0,
-          criticalCount: 0,
-          minutesTotal: 0,
-          taskTitles: [],
-        });
-      }
-      const st = userStats.get(uid)!;
-      st.activeCount++;
-      if (isOverdue) st.overdueCount++;
-      if (isCritical) st.criticalCount++;
-      st.minutesTotal += Math.round(minutes / assignees.length);
-      st.taskTitles.push(t.title);
-    }
-  }
+  // 3. Execute Authoritative Workload Calculation
+  const engineRes = calculateWorkload(profileInputs, taskInputs);
 
-  // Calculate statistical workload metrics relative to team
-  const members: MemberWorkloadInfo[] = [];
-  let overloadedCount = 0;
-  let underutilizedCount = 0;
+  // 4. Map to MemberWorkloadInfo format
+  const members: MemberWorkloadInfo[] = engineRes.members.map((m) => {
+    const legacyStatus: MemberWorkloadInfo["status"] =
+      m.status === "over_capacity" || m.status === "severely_overloaded"
+        ? "overloaded"
+        : m.status === "healthy"
+        ? "underutilized"
+        : "balanced";
 
-  // Filter to members who either have tasks or belong to the project
-  const relevantUserIds = [...userStats.entries()]
-    .filter(([_, s]) => s.activeCount > 0 || ctx.profiles.length <= 8)
-    .map(([uid]) => uid);
+    const overdueCount = m.taskBreakdown.filter((t) => t.isOverdue).length;
+    const criticalCount = m.taskBreakdown.filter((t) => t.priority === "urgent" || t.priority === "high").length;
 
-  const effectiveTeamSize = Math.max(1, relevantUserIds.length);
-  const totalActiveTasksAssigned = [...userStats.values()].reduce((acc, s) => acc + s.activeCount, 0);
-  const teamMean = totalActiveTasksAssigned / effectiveTeamSize;
-  const maxTasks = Math.max(...[...userStats.values()].map((s) => s.activeCount), 1);
-
-  for (const uid of relevantUserIds) {
-    const p = profileMap.get(uid);
-    const s = userStats.get(uid)!;
-
-    // Workload score based on active tasks and overdue pressure
-    // Benchmark represents healthy upper bound of capacity (1.4x team mean or at least 7 tasks)
-    const capacityBenchmark = Math.max(teamMean * 1.4, 7);
-    const rawScore = Math.min(
-      100,
-      Math.max(
-        0,
-        Math.round((s.activeCount / capacityBenchmark) * 75) + Math.min(25, s.overdueCount * 8)
-      )
-    );
-
-    let status: MemberWorkloadInfo["status"] = "balanced";
-
-    // A member is only overloaded if they have high overdue pressure OR are a statistical outlier
-    // carrying significantly higher task volume than the team average
-    const isOutlier =
-      (effectiveTeamSize > 1 &&
-        s.activeCount >= 7 &&
-        s.activeCount >= Math.round(teamMean * 1.35) &&
-        s.activeCount - teamMean >= 2.5) ||
-      s.overdueCount >= 3 ||
-      (effectiveTeamSize === 1 && s.activeCount >= 18);
-
-    if (isOutlier) {
-      status = "overloaded";
-      overloadedCount++;
-    } else if (
-      effectiveTeamSize > 1 &&
-      totalActiveTasksAssigned >= 6 &&
-      s.activeCount <= Math.max(1, Math.floor(teamMean * 0.4)) &&
-      teamMean - s.activeCount >= 2.5
-    ) {
-      status = "underutilized";
-      underutilizedCount++;
-    }
-
-    members.push({
-      userId: uid,
-      name: p?.name || "Team Member",
-      email: p?.email || "",
-      avatarUrl: p?.avatarUrl || null,
-      activeTaskCount: s.activeCount,
-      overdueTaskCount: s.overdueCount,
-      criticalTaskCount: s.criticalCount,
-      estimatedMinutesTotal: s.minutesTotal,
-      workloadPercentage: rawScore,
-      status,
-      taskTitles: s.taskTitles.slice(0, 5),
-    });
-  }
+    return {
+      userId: m.userId,
+      name: m.name,
+      email: m.email,
+      avatarUrl: m.avatarUrl || null,
+      activeTaskCount: m.assignedTasksCount,
+      overdueTaskCount: overdueCount,
+      criticalTaskCount: criticalCount,
+      estimatedMinutesTotal: Math.round(m.estimatedWorkloadHours * 60),
+      workloadPercentage: m.utilizationPercentage,
+      status: legacyStatus,
+      rawCapacityHours: m.rawCapacityHours,
+      effectiveCapacityHours: m.effectiveCapacityHours,
+      confidence: m.confidence,
+      confidenceReason: m.confidenceReason,
+      explanation: m.explanation,
+      role: m.role,
+      experienceLevel: m.experienceLevel,
+      unestimatedTasksCount: m.unestimatedTasksCount,
+      potentialRedistribution: m.potentialRedistribution
+        ? {
+            recommended: m.potentialRedistribution.recommended,
+            reason: m.potentialRedistribution.reason,
+            targetMemberId: m.potentialRedistribution.targetMemberId,
+            targetMemberName: m.potentialRedistribution.targetMemberName,
+            taskId: m.potentialRedistribution.taskId,
+            taskTitle: m.potentialRedistribution.taskTitle,
+          }
+        : undefined,
+      taskTitles: m.taskBreakdown.map((t) => t.title).slice(0, 5),
+    };
+  });
 
   // Sort overloaded first, then highest workload
   members.sort((a, b) => b.workloadPercentage - a.workloadPercentage);
 
-  const recommendations: string[] = [];
-  const overloaded = members.filter((m) => m.status === "overloaded");
-  const under = members.filter((m) => m.status === "underutilized");
-
-  if (overloaded.length > 0 && under.length > 0) {
-    recommendations.push(
-      `${overloaded[0].name} is carrying ${overloaded[0].activeTaskCount} active tasks (${overloaded[0].workloadPercentage}% load). Consider reassigning tasks to ${under[0].name}.`
-    );
-  } else if (overloaded.length > 0) {
-    recommendations.push(
-      `${overloaded[0].name} has high task volume with ${overloaded[0].overdueTaskCount} overdue tasks. Consider splitting deadlines or adding support.`
-    );
-  }
-
-  if (unassignedCount > 0) {
-    recommendations.push(
-      `There are ${unassignedCount} active unassigned task${unassignedCount > 1 ? "s" : ""}. Assigning owners will prevent schedule drift.`
-    );
-  }
-
   return {
     members,
-    overloadedCount,
-    underutilizedCount,
-    unassignedTaskCount: unassignedCount,
-    recommendations,
+    overloadedCount: engineRes.metrics.overloadedMembersCount,
+    underutilizedCount: engineRes.metrics.underutilizedMembersCount,
+    unassignedTaskCount: engineRes.metrics.unassignedTasksCount,
+    recommendations: engineRes.metrics.recommendations,
   };
 }
 
