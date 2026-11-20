@@ -46,6 +46,7 @@ type Props = {
     month?: string;
     group?: string;
   };
+  onViewSelect?: (view: ProjectTabKey) => void;
 };
 
 const STORAGE_KEY = "orbitwork_project_tab_order_v1";
@@ -89,6 +90,7 @@ export default function ProjectViewTabsClient({
   activeView,
   initialTabOrder,
   preservedFilters,
+  onViewSelect,
 }: Props) {
   const router = useRouter();
   const [tabOrder, setTabOrder] = useState<ProjectTabKey[]>(() =>
@@ -279,6 +281,11 @@ export default function ProjectViewTabsClient({
                   e.preventDefault();
                   return;
                 }
+                if (onViewSelect) {
+                  e.preventDefault();
+                  onViewSelect(key);
+                  return;
+                }
                 if (pendingView === key) {
                   e.preventDefault();
                   return;
@@ -389,6 +396,11 @@ export default function ProjectViewTabsClient({
                         setMoreOpen(false);
                         if (key === activeView) {
                           e.preventDefault();
+                          return;
+                        }
+                        if (onViewSelect) {
+                          e.preventDefault();
+                          onViewSelect(key);
                           return;
                         }
                         if (pendingView === key) {

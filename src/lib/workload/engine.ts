@@ -49,11 +49,191 @@ export interface MemberProfileInput {
   role?: string;
   designations?: string[];
   experienceLevel?: ExperienceLevel;
-  rawCapacityHours?: number; // default 40
+  rawCapacityHours?: number; // calculated from period, holidays & leaves
   workingDays?: number;      // default 5
   workingHoursPerDay?: number; // default 8
   holidaysHours?: number;    // default 0
   leaveHours?: number;       // default 0
+}
+
+export interface PeriodCapacityOptions {
+  userId: string;
+  period: "daily" | "weekly" | "monthly" | "yearly" | "custom" | "all";
+  startDate?: string | Date | null;
+  endDate?: string | Date | null;
+  month?: string | null; // e.g. "2026-11"
+  year?: number | null;
+  workingHoursPerDay?: number; // default 8
+  holidays?: Array<{ holiday_date: string; name?: string }>;
+  leaveRequests?: Array<{
+    user_id: string;
+    start_date: string;
+    end_date: string;
+    status?: string;
+  }>;
+}
+
+export interface PeriodCapacityResult {
+  periodType: string;
+  startDate: string;
+  endDate: string;
+  totalCalendarDays: number;
+  totalWorkingDays: number; // weekdays
+  holidayDays: number;
+  holidayHours: number;
+  leaveDays: number;
+  leaveHours: number;
+  netWorkingDays: number;
+  rawCapacityHours: number;
+}
+
+/**
+ * Calculates authentic working capacity for a team member over a given planning period,
+ * strictly counting Monday-Friday weekdays and excluding organization holidays and approved leaves.
+ */
+export function calculatePeriodCapacity(options: PeriodCapacityOptions): PeriodCapacityResult {
+  const {
+    userId,
+    period,
+    startDate,
+    endDate,
+    month,
+    year,
+    workingHoursPerDay = 8,
+    holidays = [],
+    leaveRequests = [],
+  } = options;
+
+  const now = new Date();
+  let start: Date;
+  let end: Date;
+
+  if (period === "daily") {
+    start = startDate ? new Date(startDate) : new Date(now);
+    start.setUTCHours(0, 0, 0, 0);
+    end = new Date(start);
+    end.setUTCHours(23, 59, 59, 999);
+  } else if (period === "weekly") {
+    if (startDate && endDate) {
+      start = new Date(startDate);
+      end = new Date(endDate);
+    } else {
+      const curr = new Date(now);
+      const day = curr.getUTCDay();
+      const diff = curr.getUTCDate() - day + (day === 0 ? -6 : 1); // Monday
+      start = new Date(Date.UTC(curr.getUTCFullYear(), curr.getUTCMonth(), diff, 0, 0, 0));
+      end = new Date(start);
+      end.setUTCDate(start.getUTCDate() + 4); // Friday
+      end.setUTCHours(23, 59, 59, 999);
+    }
+  } else if (period === "monthly") {
+    let y = now.getUTCFullYear();
+    let m = now.getUTCMonth(); // 0-based
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const parts = month.split("-").map(Number);
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        y = parts[0];
+        m = parts[1] - 1;
+      }
+    }
+    start = new Date(Date.UTC(y, m, 1, 0, 0, 0));
+    // Last day of month
+    end = new Date(Date.UTC(y, m + 1, 0, 23, 59, 59, 999));
+  } else if (period === "yearly") {
+    const y = year || (startDate ? new Date(startDate).getUTCFullYear() : now.getUTCFullYear());
+    start = new Date(Date.UTC(y, 0, 1, 0, 0, 0));
+    end = new Date(Date.UTC(y, 11, 31, 23, 59, 59, 999));
+  } else if (period === "custom" && startDate && endDate) {
+    start = new Date(startDate);
+    end = new Date(endDate);
+  } else {
+    // "all" or default fallback: align to month bounds of target date/now
+    let y = now.getUTCFullYear();
+    let m = now.getUTCMonth();
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const parts = month.split("-").map(Number);
+      y = parts[0];
+      m = parts[1] - 1;
+    }
+    start = new Date(Date.UTC(y, m, 1, 0, 0, 0));
+    end = new Date(Date.UTC(y, m + 1, 0, 23, 59, 59, 999));
+  }
+
+  // Pre-index holidays by date string 'YYYY-MM-DD'
+  const holidayDateSet = new Set<string>();
+  for (const h of holidays) {
+    if (h.holiday_date) {
+      holidayDateSet.add(h.holiday_date.slice(0, 10));
+    }
+  }
+
+  // Pre-filter approved leave requests for this user
+  const userLeaves = leaveRequests.filter(
+    (l) =>
+      l.user_id === userId &&
+      (!l.status || l.status.toLowerCase() === "approved")
+  );
+
+  let totalCalendarDays = 0;
+  let totalWorkingDays = 0;
+  let holidayDays = 0;
+  let leaveDays = 0;
+
+  const cur = new Date(start);
+  cur.setUTCHours(12, 0, 0, 0); // midday UTC to prevent DST shifts
+  const endUtcTime = end.getTime();
+
+  while (cur.getTime() <= endUtcTime) {
+    totalCalendarDays++;
+    const dayOfWeek = cur.getUTCDay();
+    const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6; // Sunday (0) or Saturday (6)
+
+    if (!isWeekendDay) {
+      totalWorkingDays++;
+      const dateStr = cur.toISOString().slice(0, 10);
+
+      // Check if organization holiday falls on this weekday
+      if (holidayDateSet.has(dateStr)) {
+        holidayDays++;
+      } else {
+        // Check if user has an approved leave request covering this weekday
+        const hasLeave = userLeaves.some((l) => {
+          const lStart = l.start_date.slice(0, 10);
+          const lEnd = l.end_date.slice(0, 10);
+          return dateStr >= lStart && dateStr <= lEnd;
+        });
+        if (hasLeave) {
+          leaveDays++;
+        }
+      }
+    }
+
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+
+  const holidayHours = holidayDays * workingHoursPerDay;
+  const leaveHours = leaveDays * workingHoursPerDay;
+  const grossCapacityHours = totalWorkingDays * workingHoursPerDay;
+  const netWorkingDays = Math.max(0, totalWorkingDays - holidayDays - leaveDays);
+  // Ensure minimum capacity of at least 8h if there are working days in the period
+  const rawCapacityHours = Math.max(
+    totalWorkingDays > 0 ? 8 : 0,
+    grossCapacityHours - holidayHours - leaveHours
+  );
+
+  return {
+    periodType: period,
+    startDate: start.toISOString().slice(0, 10),
+    endDate: end.toISOString().slice(0, 10),
+    totalCalendarDays,
+    totalWorkingDays,
+    holidayDays,
+    holidayHours,
+    leaveDays,
+    leaveHours,
+    netWorkingDays,
+    rawCapacityHours,
+  };
 }
 
 export interface TaskWorkloadInput {

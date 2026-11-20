@@ -14,6 +14,7 @@ import ChatNotificationListener from "./ChatNotificationListener";
 import AuthRecoveryListener from "./AuthRecoveryListener";
 import TopProgressBar from "./TopProgressBar";
 import GlobalInteractionFeedback from "./GlobalInteractionFeedback";
+import GlobalContextMenuHandler from "./GlobalContextMenuHandler";
 import GlobalMobileDrawer from "./GlobalMobileDrawer";
 import AIChatDrawer from "./ai/AIChatDrawer";
 import AIAgentGlobalNotifier from "./ai/AIAgentGlobalNotifier";
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         />
       </head>
       <body>
+        <GlobalContextMenuHandler />
         <TopProgressBar />
         <GlobalInteractionFeedback />
         {children}

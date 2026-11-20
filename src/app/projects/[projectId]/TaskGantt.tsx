@@ -1,8 +1,26 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Sparkles } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarIcon,
+  Clock,
+  Sparkles,
+  Link as LinkIcon,
+  AlertTriangle,
+  ShieldAlert,
+  ArrowRight,
+  Plus,
+  Trash2,
+  Check,
+  Flag,
+  User,
+  X,
+  Search,
+} from "lucide-react";
 
 type Task = {
   id: string;
@@ -16,6 +34,7 @@ type Task = {
   status_category?: string;
   parent_task_id?: string | null;
   assigneeIds?: string[];
+  priority?: string;
 };
 
 type ScheduleEvent = {
@@ -133,6 +152,43 @@ export default function TaskGantt({
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const hasInitializedScroll = useRef(false);
+
+  // Local optimistic tasks & dependencies for instant responsiveness
+  const [localTasks, setLocalTasks] = useState<Task[]>(tasks);
+  useEffect(() => {
+    setLocalTasks(tasks);
+  }, [tasks]);
+
+  const [localDeps, setLocalDeps] = useState<TaskDependency[]>(dependencies || []);
+  useEffect(() => {
+    setLocalDeps(dependencies || []);
+  }, [dependencies]);
+
+  // Dragging state for horizontal date moving and edge resizing
+  const [dragState, setDragState] = useState<{
+    taskId: string;
+    mode: "move" | "resize-left" | "resize-right";
+    startX: number;
+    initialStartDay: number;
+    initialDueDay: number;
+    currentDelta: number;
+  } | null>(null);
+
+  // Custom context menu state (suppresses native browser menu)
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    task?: Task;
+    dateStr?: string;
+  } | null>(null);
+
+  // Blocker / Dependency Target Picker Modal state
+  const [pickerModal, setPickerModal] = useState<{
+    sourceTask: Task;
+    relation: "blocks" | "depends_on" | "relates_to";
+  } | null>(null);
+  const [pickerSearch, setPickerSearch] = useState("");
 
   // Dependency line filter and hover state
   const [dependencyFilter, setDependencyFilter] = useState<"all" | "blocked" | "related" | "none">("all");
@@ -271,9 +327,9 @@ export default function TaskGantt({
   const hierarchicalTasks = useMemo(() => {
     const subtasksByParent = new Map<string, Task[]>();
     const topParents: Task[] = [];
-    const taskIdSet = new Set((tasks ?? []).map((t) => t.id));
+    const taskIdSet = new Set((localTasks ?? []).map((t) => t.id));
 
-    for (const task of tasks ?? []) {
+    for (const task of localTasks ?? []) {
       if (task.parent_task_id && taskIdSet.has(task.parent_task_id)) {
         const list = subtasksByParent.get(task.parent_task_id) ?? [];
         list.push(task);
@@ -299,14 +355,14 @@ export default function TaskGantt({
     for (const p of topParents) {
       addNode(p, 0);
     }
-    for (const t of tasks ?? []) {
+    for (const t of localTasks ?? []) {
       if (!visited.has(t.id)) {
         result.push({ task: t, depth: t.parent_task_id ? 1 : 0 });
       }
     }
 
     return result;
-  }, [tasks]);
+  }, [localTasks]);
 
   // CSS Grid columns: 1 sticky Task/Member column + exactly 365 or 366 days ending on 31st December
   const gridColumns = useMemo(() => {
@@ -372,7 +428,7 @@ export default function TaskGantt({
 
   // Dynamically compute exact SVG coordinate paths for task dependency lines inside the cell grid
   const updateDepLines = useCallback(() => {
-    if (!gridRef.current || !dependencies || dependencies.length === 0) {
+    if (!gridRef.current || !localDeps || localDeps.length === 0) {
       setComputedDepLines([]);
       return;
     }
@@ -388,7 +444,7 @@ export default function TaskGantt({
       midY: number;
     }> = [];
 
-    for (const dep of dependencies) {
+    for (const dep of localDeps) {
       let sourceId = dep.task_id;
       let targetId = dep.linked_task_id;
       const isBlocked = dep.relation === "blocks" || dep.relation === "blocked_by";
@@ -443,15 +499,15 @@ export default function TaskGantt({
         relation: dep.relation,
         path: d,
         isBlocked,
-        fromTitle: tasks.find((t) => t.id === sourceId)?.title || "Task",
-        toTitle: tasks.find((t) => t.id === targetId)?.title || "Task",
+        fromTitle: localTasks.find((t) => t.id === sourceId)?.title || "Task",
+        toTitle: localTasks.find((t) => t.id === targetId)?.title || "Task",
         midX,
         midY,
       });
     }
 
     setComputedDepLines(lines);
-  }, [dependencies, tasks]);
+  }, [localDeps, localTasks]);
 
   useEffect(() => {
     const timer = setTimeout(updateDepLines, 60);
@@ -461,6 +517,215 @@ export default function TaskGantt({
       window.removeEventListener("resize", updateDepLines);
     };
   }, [updateDepLines, hierarchicalTasks]);
+
+  // Window mouse listener during bar drag / resize
+  useEffect(() => {
+    if (!dragState) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const dx = e.clientX - dragState.startX;
+      const deltaDays = Math.round(dx / DAY_COL_WIDTH);
+      if (deltaDays !== dragState.currentDelta) {
+        setDragState((prev) => (prev ? { ...prev, currentDelta: deltaDays } : null));
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (!dragState) return;
+      const { taskId, mode, initialStartDay, initialDueDay, currentDelta } = dragState;
+
+      let newStartIdx = initialStartDay;
+      let newDueIdx = initialDueDay;
+
+      if (mode === "move") {
+        newStartIdx += currentDelta;
+        newDueIdx += currentDelta;
+      } else if (mode === "resize-left") {
+        newStartIdx = Math.min(newDueIdx, newStartIdx + currentDelta);
+      } else if (mode === "resize-right") {
+        newDueIdx = Math.max(newStartIdx, newDueIdx + currentDelta);
+      }
+
+      newStartIdx = Math.max(0, Math.min(totalDays - 1, newStartIdx));
+      newDueIdx = Math.max(newStartIdx, Math.min(totalDays - 1, newDueIdx));
+
+      const newStartDate = days[newStartIdx]?.dateStr || null;
+      const newDueDate = days[newDueIdx]?.dateStr || null;
+
+      setLocalTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId ? { ...t, start_date: newStartDate, due_date: newDueDate } : t
+        )
+      );
+      setDragState(null);
+
+      // Persist to server in background
+      void fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ start_date: newStartDate, due_date: newDueDate }),
+      });
+      setTimeout(updateDepLines, 50);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dragState, days, totalDays, updateDepLines]);
+
+  // Close context menu on outside click or escape
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleClick = () => setContextMenu(null);
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextMenu(null);
+    };
+    window.addEventListener("click", handleClick);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("click", handleClick);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [contextMenu]);
+
+  const handleShiftDates = useCallback(
+    (task: Task, deltaDays: number) => {
+      const startStr = task.start_date?.slice(0, 10);
+      const dueStr = task.due_date?.slice(0, 10) || startStr;
+
+      let newStartStr: string | null = null;
+      let newDueStr: string | null = null;
+
+      if (startStr) {
+        const sDate = new Date(startStr);
+        sDate.setDate(sDate.getDate() + deltaDays);
+        newStartStr = sDate.toISOString().slice(0, 10);
+      }
+      if (dueStr) {
+        const dDate = new Date(dueStr);
+        dDate.setDate(dDate.getDate() + deltaDays);
+        newDueStr = dDate.toISOString().slice(0, 10);
+      }
+
+      setLocalTasks((prev) =>
+        prev.map((t) =>
+          t.id === task.id ? { ...t, start_date: newStartStr, due_date: newDueStr } : t
+        )
+      );
+      setContextMenu(null);
+
+      void fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ start_date: newStartStr, due_date: newDueStr }),
+      });
+      setTimeout(updateDepLines, 60);
+    },
+    [updateDepLines]
+  );
+
+  const handleStartDrag = (
+    e: React.MouseEvent,
+    taskId: string,
+    mode: "move" | "resize-left" | "resize-right",
+    startDay: number,
+    dueDay: number
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragState({
+      taskId,
+      mode,
+      startX: e.clientX,
+      initialStartDay: startDay,
+      initialDueDay: dueDay,
+      currentDelta: 0,
+    });
+  };
+
+  const handleChangePriority = useCallback((task: Task, priority: string) => {
+    setLocalTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, priority } : t))
+    );
+    setContextMenu(null);
+    void fetch(`/api/tasks/${task.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ priority }),
+    });
+  }, []);
+
+  const handleCreateDependency = useCallback(
+    async (sourceTaskId: string, targetTaskId: string, relation: string) => {
+      const newDep: TaskDependency = {
+        task_id: sourceTaskId,
+        linked_task_id: targetTaskId,
+        relation,
+      };
+
+      setLocalDeps((prev) => [
+        ...prev.filter(
+          (d) => !(d.task_id === sourceTaskId && d.linked_task_id === targetTaskId)
+        ),
+        newDep,
+      ]);
+      setPickerModal(null);
+      setContextMenu(null);
+
+      try {
+        await fetch(`/api/task-dependencies`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId,
+            taskId: sourceTaskId,
+            linkedTaskId: targetTaskId,
+            relation,
+          }),
+        });
+        setTimeout(updateDepLines, 60);
+      } catch (err) {
+        console.error("Failed to create dependency:", err);
+      }
+    },
+    [projectId, updateDepLines]
+  );
+
+  const handleRemoveDependency = useCallback(
+    async (taskId: string, linkedTaskId: string, relation: string) => {
+      setLocalDeps((prev) =>
+        prev.filter(
+          (d) =>
+            !(
+              d.task_id === taskId &&
+              d.linked_task_id === linkedTaskId &&
+              d.relation === relation
+            )
+        )
+      );
+      setContextMenu(null);
+
+      try {
+        await fetch(`/api/task-dependencies`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId,
+            taskId,
+            linkedTaskId,
+            relation,
+          }),
+        });
+        setTimeout(updateDepLines, 60);
+      } catch (err) {
+        console.error("Failed to remove dependency:", err);
+      }
+    },
+    [projectId, updateDepLines]
+  );
 
   // Upcoming holidays in the year for the top strip
   const yearHolidays = useMemo(() => {
@@ -1709,6 +1974,16 @@ export default function TaskGantt({
                     <span
                       key={`cell-bg-${task.id}-${day.dayIndex}`}
                       className={`gantt-cell${day.holidayLabels ? " is-holiday" : ""}${isTodayCell ? " is-today" : ""}`}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setContextMenu({
+                          visible: true,
+                          x: Math.min(window.innerWidth - 220, e.clientX),
+                          y: Math.min(window.innerHeight - 200, e.clientY),
+                          dateStr: day.dateStr,
+                        });
+                      }}
                       title={
                         isTodayCell
                           ? `Today (${day.dateStr}) · Time: ${timeLabel}`
@@ -1758,88 +2033,176 @@ export default function TaskGantt({
                 })}
 
                 {/* Continuous Task Bar Filling Inside the Cells directly OVER background */}
-                {visible && (
-                  <Link
-                    className={`gantt-bar${isLate ? " is-overdue" : ""}`}
-                    data-gantt-bar={task.id}
-                    href={`/projects/${projectId}/tasks/${task.id}`}
-                    style={
-                      {
-                        gridColumn: `${clampedStart + 2} / ${clampedEnd + 3}`,
-                        gridRow: 1,
-                        height: 24,
-                        borderRadius: 6,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "0 8px",
-                        overflow: "hidden",
-                        minWidth: 0,
-                        zIndex: 4,
-                        textDecoration: "none",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                        margin: "0 1px",
-                        background: isDone
-                          ? "linear-gradient(135deg, #167c58, #10b981)"
-                          : isLate
-                          ? "linear-gradient(135deg, #dc2626, #ef4444)"
-                          : isSubtask
-                          ? "linear-gradient(135deg, #0284c7, #38bdf8)"
-                          : "linear-gradient(135deg, #2563eb, #3b82f6)",
-                        "--bar-progress": `${Math.max(0, Math.min(100, progress))}%`,
-                      } as React.CSSProperties
+                {visible && (() => {
+                  let displayStart = clampedStart;
+                  let displayEnd = clampedEnd;
+                  if (dragState && dragState.taskId === task.id) {
+                    if (dragState.mode === "move") {
+                      displayStart = Math.max(0, Math.min(totalDays - 1, clampedStart + dragState.currentDelta));
+                      displayEnd = Math.max(displayStart, Math.min(totalDays - 1, clampedEnd + dragState.currentDelta));
+                    } else if (dragState.mode === "resize-left") {
+                      displayStart = Math.max(0, Math.min(clampedEnd, clampedStart + dragState.currentDelta));
+                    } else if (dragState.mode === "resize-right") {
+                      displayEnd = Math.max(clampedStart, Math.min(totalDays - 1, clampedEnd + dragState.currentDelta));
                     }
-                    title={`${task.title} · ${startRaw} to ${task.due_date ?? endRaw}${
-                      isLate ? " (Overdue)" : ""
-                    }`}
-                  >
-                    {assigneeId && (
-                      <span
-                        style={{
-                          width: 16,
-                          height: 16,
-                          borderRadius: "50%",
-                          backgroundColor: "rgba(255, 255, 255, 0.25)",
-                          color: "#fff",
-                          fontSize: 8,
-                          fontWeight: 700,
+                  }
+
+                  return (
+                    <div
+                      className={`gantt-bar${isLate ? " is-overdue" : ""}`}
+                      data-gantt-bar={task.id}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setContextMenu({
+                          visible: true,
+                          x: Math.min(window.innerWidth - 260, e.clientX),
+                          y: Math.min(window.innerHeight - 380, e.clientY),
+                          task,
+                        });
+                      }}
+                      style={
+                        {
+                          gridColumn: `${displayStart + 2} / ${displayEnd + 3}`,
+                          gridRow: 1,
+                          height: 24,
+                          borderRadius: 6,
                           display: "inline-flex",
                           alignItems: "center",
-                          justifyContent: "center",
+                          gap: 6,
+                          padding: "0 4px",
                           overflow: "hidden",
-                          flexShrink: 0,
-                          border: "1px solid rgba(255, 255, 255, 0.4)",
-                        }}
-                        title={assigneeName}
-                      >
-                        {assigneeAvatar ? (
-                          <img
-                            src={assigneeAvatar}
-                            alt=""
-                            loading="lazy"
-                            decoding="async"
-                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                          />
-                        ) : (
-                          (assigneeName?.charAt(0) || "?").toUpperCase()
-                        )}
-                      </span>
-                    )}
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 650,
-                        color: "#ffffff",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                          minWidth: 0,
+                          zIndex: 4,
+                          position: "relative",
+                          cursor: dragState?.taskId === task.id ? "grabbing" : "grab",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                          margin: "0 1px",
+                          background: isDone
+                            ? "linear-gradient(135deg, #167c58, #10b981)"
+                            : isLate
+                            ? "linear-gradient(135deg, #dc2626, #ef4444)"
+                            : isSubtask
+                            ? "linear-gradient(135deg, #0284c7, #38bdf8)"
+                            : "linear-gradient(135deg, #2563eb, #3b82f6)",
+                          "--bar-progress": `${Math.max(0, Math.min(100, progress))}%`,
+                          userSelect: "none",
+                        } as React.CSSProperties
+                      }
+                      title={`${task.title} · ${startRaw} to ${task.due_date ?? endRaw}${
+                        isLate ? " (Overdue)" : ""
+                      } (Drag bar to move, drag edges to resize, right-click for options)`}
+                      onMouseDown={(e) => {
+                        if (e.button === 0) {
+                          handleStartDrag(e, task.id, "move", clampedStart, clampedEnd);
+                        }
                       }}
                     >
-                      {task.title}
-                    </span>
-                  </Link>
-                )}
+                      {/* Left Resize Handle */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: 7,
+                          cursor: "col-resize",
+                          zIndex: 10,
+                          background: "rgba(255,255,255,0.25)",
+                          borderRadius: "6px 0 0 6px",
+                        }}
+                        title="Drag edge to change start date"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          if (e.button === 0) {
+                            handleStartDrag(e, task.id, "resize-left", clampedStart, clampedEnd);
+                          }
+                        }}
+                      />
+
+                      {/* Content Area */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          overflow: "hidden",
+                          padding: "0 4px",
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
+                        {assigneeId && (
+                          <span
+                            style={{
+                              width: 16,
+                              height: 16,
+                              borderRadius: "50%",
+                              backgroundColor: "rgba(255, 255, 255, 0.25)",
+                              color: "#fff",
+                              fontSize: 8,
+                              fontWeight: 700,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              overflow: "hidden",
+                              flexShrink: 0,
+                              border: "1px solid rgba(255, 255, 255, 0.4)",
+                            }}
+                            title={assigneeName}
+                          >
+                            {assigneeAvatar ? (
+                              <img
+                                src={assigneeAvatar}
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              />
+                            ) : (
+                              (assigneeName?.charAt(0) || "?").toUpperCase()
+                            )}
+                          </span>
+                        )}
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 650,
+                            color: "#ffffff",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                          }}
+                        >
+                          {task.title}
+                        </span>
+                      </div>
+
+                      {/* Right Resize Handle */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          right: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: 7,
+                          cursor: "col-resize",
+                          zIndex: 10,
+                          background: "rgba(255,255,255,0.25)",
+                          borderRadius: "0 6px 6px 0",
+                        }}
+                        title="Drag edge to change due date"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          if (e.button === 0) {
+                            handleStartDrag(e, task.id, "resize-right", clampedStart, clampedEnd);
+                          }
+                        }}
+                      />
+                    </div>
+                  );
+                })()}
 
                 {/* Unscheduled Indicator */}
                 {!visible && (
@@ -2003,6 +2366,488 @@ export default function TaskGantt({
           )}
         </div>
       </div>
+
+      {/* ======================================================== */}
+      {/* SECTION: CUSTOM ORBITWORK CONTEXT MENU (Suppresses Native)*/}
+      {/* ======================================================== */}
+      {typeof document !== "undefined" && contextMenu?.visible && createPortal(
+        <div
+          className="orbitwork-timeline-context-menu"
+          style={{
+            position: "fixed",
+            top: contextMenu.y,
+            left: contextMenu.x,
+            zIndex: 99999,
+            background: "#ffffff",
+            border: "1px solid #cbd5e1",
+            borderRadius: 10,
+            boxShadow: "0 12px 30px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.06)",
+            minWidth: 240,
+            maxWidth: 320,
+            padding: "6px 0",
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: 12,
+            color: "#0f172a",
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          {contextMenu.task ? (
+            <>
+              <div
+                style={{
+                  padding: "6px 12px 8px",
+                  borderBottom: "1px solid #e2e8f0",
+                  marginBottom: 4,
+                }}
+              >
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: 0.5 }}>
+                  Task Actions
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {contextMenu.task.title}
+                </div>
+              </div>
+
+              {/* Blocker & Dependency triggers */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPickerModal({ sourceTask: contextMenu.task!, relation: "blocks" });
+                  setContextMenu(null);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  padding: "7px 12px",
+                  background: "transparent",
+                  border: 0,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#dc2626",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#fef2f2")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <ShieldAlert size={14} />
+                <span>⛔ Add Blocker (Blocks Another Task)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPickerModal({ sourceTask: contextMenu.task!, relation: "depends_on" });
+                  setContextMenu(null);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  padding: "7px 12px",
+                  background: "transparent",
+                  border: 0,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#ea580c",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#fff7ed")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <AlertTriangle size={14} />
+                <span>⚠️ Mark Blocked By Task...</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPickerModal({ sourceTask: contextMenu.task!, relation: "relates_to" });
+                  setContextMenu(null);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  padding: "7px 12px",
+                  background: "transparent",
+                  border: 0,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#7c3aed",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f5f3ff")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <LinkIcon size={14} />
+                <span>🔗 Add Related Dependency...</span>
+              </button>
+
+              <div style={{ height: 1, background: "#e2e8f0", margin: "4px 0" }} />
+
+              {/* Date Shifting */}
+              <div style={{ padding: "4px 12px" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>
+                  Shift Task Schedule
+                </div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[
+                    { label: "-7d", days: -7 },
+                    { label: "-1d", days: -1 },
+                    { label: "+1d", days: 1 },
+                    { label: "+7d", days: 7 },
+                  ].map((btn) => (
+                    <button
+                      key={btn.label}
+                      type="button"
+                      onClick={() => handleShiftDates(contextMenu.task!, btn.days)}
+                      style={{
+                        flex: 1,
+                        padding: "4px 0",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        border: "1px solid #cbd5e1",
+                        borderRadius: 4,
+                        background: "#f8fafc",
+                        color: "#0f172a",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ height: 1, background: "#e2e8f0", margin: "4px 0" }} />
+
+              {/* Priority */}
+              <div style={{ padding: "4px 12px" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>
+                  Priority
+                </div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[
+                    { label: "Urgent", color: "#dc2626", bg: "#fef2f2" },
+                    { label: "High", color: "#ea580c", bg: "#fff7ed" },
+                    { label: "Medium", color: "#2563eb", bg: "#eff6ff" },
+                    { label: "Low", color: "#64748b", bg: "#f1f5f9" },
+                  ].map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => handleChangePriority(contextMenu.task!, p.label.toLowerCase())}
+                      style={{
+                        flex: 1,
+                        padding: "3px 0",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        border: `1px solid ${p.color}40`,
+                        borderRadius: 4,
+                        background: p.bg,
+                        color: p.color,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Active Links list */}
+              {localDeps.filter(
+                (d) => d.task_id === contextMenu.task!.id || d.linked_task_id === contextMenu.task!.id
+              ).length > 0 && (
+                <>
+                  <div style={{ height: 1, background: "#e2e8f0", margin: "4px 0" }} />
+                  <div style={{ padding: "4px 12px" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>
+                      Active Dependencies
+                    </div>
+                    {localDeps
+                      .filter(
+                        (d) =>
+                          d.task_id === contextMenu.task!.id || d.linked_task_id === contextMenu.task!.id
+                      )
+                      .map((dep) => {
+                        const otherId =
+                          dep.task_id === contextMenu.task!.id ? dep.linked_task_id : dep.task_id;
+                        const otherTask = localTasks.find((t) => t.id === otherId);
+                        const isSource = dep.task_id === contextMenu.task!.id;
+                        const label =
+                          dep.relation === "blocks"
+                            ? isSource
+                              ? "Blocks"
+                              : "Blocked by"
+                            : "Related";
+
+                        return (
+                          <div
+                            key={`${dep.task_id}-${dep.linked_task_id}-${dep.relation}`}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              fontSize: 11,
+                              padding: "3px 0",
+                              gap: 6,
+                            }}
+                          >
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, color: "#334155" }}>
+                              <strong>{label}:</strong> {otherTask?.title || "Task"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDependency(dep.task_id, dep.linked_task_id, dep.relation)}
+                              title="Delete dependency"
+                              style={{
+                                border: 0,
+                                background: "transparent",
+                                color: "#dc2626",
+                                cursor: "pointer",
+                                padding: 2,
+                                display: "inline-flex",
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </>
+              )}
+
+              <div style={{ height: 1, background: "#e2e8f0", margin: "4px 0" }} />
+
+              <Link
+                href={`/projects/${projectId}/tasks/${contextMenu.task.id}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "6px 12px",
+                  color: "#0f172a",
+                  textDecoration: "none",
+                  fontWeight: 600,
+                  fontSize: 12,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <ArrowRight size={13} />
+                <span>View Full Task Details</span>
+              </Link>
+            </>
+          ) : (
+            <div style={{ padding: "6px 12px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", marginBottom: 6 }}>
+                📅 Date: {contextMenu.dateStr}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  scrollToToday();
+                  setContextMenu(null);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  width: "100%",
+                  padding: "6px 8px",
+                  background: "#f1f5f9",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#0f172a",
+                  cursor: "pointer",
+                }}
+              >
+                <CalendarIcon size={13} />
+                <span>Go to Today</span>
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+
+      {/* ======================================================== */}
+      {/* SECTION: TARGET PICKER MODAL (Add Blocker / Dependency)   */}
+      {/* ======================================================== */}
+      {typeof document !== "undefined" && pickerModal && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.45)",
+            backdropFilter: "blur(2px)",
+            zIndex: 999999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setPickerModal(null)}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: 14,
+              boxShadow: "0 20px 45px rgba(0,0,0,0.25)",
+              width: "100%",
+              maxWidth: 480,
+              maxHeight: "80vh",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              border: "1px solid #cbd5e1",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "14px 18px",
+                borderBottom: "1px solid #e2e8f0",
+                background: "#f8fafc",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 750, color: "#0f172a" }}>
+                  {pickerModal.relation === "blocks"
+                    ? "Select Task to Block"
+                    : pickerModal.relation === "depends_on"
+                    ? "Select Prerequisite Task"
+                    : "Select Related Dependency"}
+                </div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>
+                  Current Task: <strong>{pickerModal.sourceTask.title}</strong>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPickerModal(null)}
+                style={{ border: 0, background: "transparent", cursor: "pointer", color: "#64748b", padding: 4 }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div style={{ padding: "10px 18px", borderBottom: "1px solid #e2e8f0" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  border: "1px solid #cbd5e1",
+                  background: "#f8fafc",
+                }}
+              >
+                <Search size={14} color="#64748b" />
+                <input
+                  type="text"
+                  placeholder="Filter tasks by name or key..."
+                  value={pickerSearch}
+                  onChange={(e) => setPickerSearch(e.target.value)}
+                  style={{
+                    border: 0,
+                    outline: "none",
+                    background: "transparent",
+                    fontSize: 12,
+                    width: "100%",
+                    color: "#0f172a",
+                  }}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Task List */}
+            <div style={{ overflowY: "auto", padding: "8px 12px", flex: 1, display: "grid", gap: 4 }}>
+              {localTasks
+                .filter(
+                  (t) =>
+                    t.id !== pickerModal.sourceTask.id &&
+                    (!pickerSearch ||
+                      t.title.toLowerCase().includes(pickerSearch.toLowerCase()) ||
+                      t.generated_key?.toLowerCase().includes(pickerSearch.toLowerCase()))
+                )
+                .map((targetTask) => {
+                  const isBlocked = pickerModal.relation === "blocks";
+                  return (
+                    <button
+                      key={targetTask.id}
+                      type="button"
+                      onClick={() =>
+                        handleCreateDependency(
+                          pickerModal.sourceTask.id,
+                          targetTask.id,
+                          pickerModal.relation
+                        )
+                      }
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #e2e8f0",
+                        background: "#ffffff",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        transition: "all 0.12s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = isBlocked ? "#fef2f2" : "#f5f3ff";
+                        e.currentTarget.style.borderColor = isBlocked ? "#dc2626" : "#8b5cf6";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "#ffffff";
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>
+                          {targetTask.generated_key || "TASK"}
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 650, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {targetTask.title}
+                        </div>
+                      </div>
+                      <Plus size={14} color={isBlocked ? "#dc2626" : "#8b5cf6"} />
+                    </button>
+                  );
+                })}
+
+              {localTasks.filter((t) => t.id !== pickerModal.sourceTask.id).length === 0 && (
+                <div style={{ padding: 24, textAlign: "center", color: "#64748b", fontSize: 12 }}>
+                  No other tasks available to link.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </section>
   );
 }

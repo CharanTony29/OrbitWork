@@ -105,6 +105,15 @@ export async function injectProjectDataIntoCompanyTemplate(
   return generatedBuffer;
 }
 
+function formatStatusBadge(status?: string): string {
+  const s = (status || "healthy").toUpperCase();
+  if (s.includes("SEVERELY") || s.includes("OVERLOAD")) return "OVERLOADED";
+  if (s.includes("CAPACITY")) return "OVER_CAP";
+  if (s.includes("HIGH")) return "HIGH";
+  if (s.includes("NORMAL") || s.includes("BALANCED")) return "BALANCED";
+  return "HEALTHY";
+}
+
 /**
  * High-fidelity injection for the canonical Orbitwork Project & Workload Review Template
  * strictly using authentic Orbitwork project data with zero fabricated information.
@@ -132,7 +141,7 @@ async function injectOrbitworkReviewDeck(
           hours: Math.round(m.estimatedWorkloadHours || 0),
           capacity: Math.round(m.effectiveCapacityHours || m.rawCapacityHours || 40),
           util: Math.round(m.utilizationPercentage || 0),
-          status: (m.status || "healthy").toUpperCase(),
+          status: formatStatusBadge(m.status),
           taskCount: m.assignedTasksCount || 0,
         }))
       : data.resourceMetrics.map((r: any) => ({
@@ -141,7 +150,7 @@ async function injectOrbitworkReviewDeck(
           hours: Math.round(r.totalAssigned * 5),
           capacity: 40,
           util: Math.round(((r.totalAssigned * 5) / 40) * 100),
-          status: r.totalAssigned > 8 ? "OVER_CAPACITY" : "HEALTHY",
+          status: r.totalAssigned > 8 ? "OVERLOADED" : "HEALTHY",
           taskCount: r.totalAssigned,
         }));
 
@@ -510,7 +519,7 @@ async function injectCorporateTemplateDeck(
           hours: Math.round(m.estimatedWorkloadHours || 0),
           capacity: Math.round(m.effectiveCapacityHours || m.rawCapacityHours || 40),
           util: Math.round(m.utilizationPercentage || 0),
-          status: (m.status || "healthy").toUpperCase(),
+          status: formatStatusBadge(m.status),
           taskCount: m.assignedTasksCount || 0,
         }))
       : data.resourceMetrics.map((r: any) => ({
@@ -519,7 +528,7 @@ async function injectCorporateTemplateDeck(
           hours: Math.round(r.totalAssigned * 5),
           capacity: 40,
           util: Math.round(((r.totalAssigned * 5) / 40) * 100),
-          status: r.totalAssigned > 8 ? "OVER_CAPACITY" : "HEALTHY",
+          status: r.totalAssigned > 8 ? "OVERLOADED" : "HEALTHY",
           taskCount: r.totalAssigned,
         }));
   realMembers.sort((a: any, b: any) => b.hours - a.hours || b.taskCount - a.taskCount);

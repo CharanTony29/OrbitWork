@@ -8,6 +8,7 @@ import {
 } from "@/lib/export-presentation";
 import type { ProjectTemplateData } from "@/lib/presentation/template-injector";
 import {
+  calculatePeriodCapacity,
   calculateWorkload,
   inferExperienceLevel,
   type MemberProfileInput,
@@ -41,6 +42,11 @@ export async function GET(
     if (projectError || !project) {
       return NextResponse.json({ error: "Project not found or access denied" }, { status: 404 });
     }
+
+    const workspaceObj = Array.isArray(project.workspaces)
+      ? project.workspaces[0]
+      : project.workspaces;
+    const orgId = workspaceObj?.organization_id;
 
     const period: ReportPeriodType = (searchParams.get("period") as ReportPeriodType) || "all";
     const customStartDate = searchParams.get("startDate");
@@ -97,7 +103,7 @@ export async function GET(
       }`;
     }
 
-    // Fetch statuses, tasks, assignees, profiles, dependencies, goals, decisions, and members in parallel
+    // Fetch statuses, tasks, assignees, profiles, dependencies, goals, decisions, members, holidays, and leaves in parallel
     const [
       statusesResult,
       tasksResult,
@@ -107,6 +113,8 @@ export async function GET(
       goalsResult,
       decisionsResult,
       membersResult,
+      holidaysResult,
+      leavesResult,
     ] = await Promise.all([
       supabase
         .from("project_statuses")
@@ -140,6 +148,19 @@ export async function GET(
         .from("project_members")
         .select("user_id, role")
         .eq("project_id", projectId),
+      orgId
+        ? supabase
+            .from("organization_holidays")
+            .select("id, name, holiday_date")
+            .eq("organization_id", orgId)
+        : Promise.resolve({ data: [] }),
+      orgId
+        ? supabase
+            .from("leave_requests")
+            .select("id, user_id, start_date, end_date, status, leave_type")
+            .eq("organization_id", orgId)
+            .or("status.eq.approved,status.eq.Approved")
+        : Promise.resolve({ data: [] }),
     ]);
 
     const rawStatuses = statusesResult.data ?? [];
@@ -150,6 +171,8 @@ export async function GET(
     const rawGoals = goalsResult.data ?? [];
     const rawDecisions = decisionsResult.data ?? [];
     const rawMembers = membersResult.data ?? [];
+    const rawHolidays = holidaysResult.data ?? [];
+    const rawLeaves = leavesResult.data ?? [];
 
     const profileMap = new Map(
       rawProfiles.map((p) => [p.id, p.display_name?.trim() || p.email || "Team member"])
@@ -314,9 +337,6 @@ export async function GET(
       (a, b) => b.totalAssigned - a.totalAssigned
     );
 
-    const workspaceObj = Array.isArray(project.workspaces)
-      ? project.workspaces[0]
-      : project.workspaces;
     const orgObj = workspaceObj && "organizations" in workspaceObj
       ? (workspaceObj as { organizations?: { name?: string } | { name?: string }[] }).organizations
       : null;
@@ -359,6 +379,19 @@ export async function GET(
       const p = rawProfiles.find((x) => x.id === uid);
       const pm = rawMembers.find((x) => x.user_id === uid);
       const roleStr = p?.designation || pm?.role || "Software Engineer";
+
+      const periodCap = calculatePeriodCapacity({
+        userId: uid,
+        period,
+        startDate: filterStart,
+        endDate: filterEnd,
+        month: monthParam,
+        year: yearParam ? Number(yearParam) : undefined,
+        workingHoursPerDay: 8,
+        holidays: (rawHolidays as any) || [],
+        leaveRequests: (rawLeaves as any) || [],
+      });
+
       return {
         userId: uid,
         name: p?.display_name?.trim() || p?.email?.split("@")[0] || "Team Member",
@@ -366,9 +399,11 @@ export async function GET(
         avatarUrl: p?.avatar_url || null,
         role: roleStr,
         experienceLevel: inferExperienceLevel(roleStr),
-        rawCapacityHours: 40,
-        workingDays: 5,
+        rawCapacityHours: periodCap.rawCapacityHours,
+        workingDays: periodCap.netWorkingDays,
         workingHoursPerDay: 8,
+        holidaysHours: periodCap.holidayHours,
+        leaveHours: periodCap.leaveHours,
       };
     });
 
