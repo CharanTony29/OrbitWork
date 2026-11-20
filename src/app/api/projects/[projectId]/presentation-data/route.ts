@@ -121,7 +121,7 @@ export async function GET(
         .eq("project_id", projectId)
         .order("created_at", { ascending: false }),
       supabase.from("task_assignees").select("task_id, user_id"),
-      supabase.from("profiles").select("id, display_name, email, role, avatar_url"),
+      supabase.from("profiles").select("id, display_name, email, avatar_url, designation"),
       supabase
         .from("task_dependencies")
         .select("project_id, task_id, linked_task_id, relation")
@@ -358,7 +358,7 @@ export async function GET(
     const memberProfiles: MemberProfileInput[] = Array.from(memberUserIds).map((uid) => {
       const p = rawProfiles.find((x) => x.id === uid);
       const pm = rawMembers.find((x) => x.user_id === uid);
-      const roleStr = p?.role || pm?.role || "Software Engineer";
+      const roleStr = p?.designation || pm?.role || "Software Engineer";
       return {
         userId: uid,
         name: p?.display_name?.trim() || p?.email?.split("@")[0] || "Team Member",

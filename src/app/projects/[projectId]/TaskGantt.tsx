@@ -107,6 +107,12 @@ interface DayMetadata {
   holidayLabels?: string[];
 }
 
+export type TaskDependency = {
+  task_id: string;
+  linked_task_id: string;
+  relation: string;
+};
+
 export default function TaskGantt({
   projectId,
   tasks = [],
@@ -114,6 +120,7 @@ export default function TaskGantt({
   events = [],
   people,
   profileAvatars,
+  dependencies = [],
 }: {
   projectId: string;
   tasks: Task[];
@@ -121,9 +128,27 @@ export default function TaskGantt({
   events?: ScheduleEvent[];
   people?: Map<string, string>;
   profileAvatars?: Map<string, string | null>;
+  dependencies?: TaskDependency[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const hasInitializedScroll = useRef(false);
+
+  // Dependency line filter and hover state
+  const [dependencyFilter, setDependencyFilter] = useState<"all" | "blocked" | "related" | "none">("all");
+  const [hoveredDepKey, setHoveredDepKey] = useState<string | null>(null);
+  const [computedDepLines, setComputedDepLines] = useState<
+    Array<{
+      key: string;
+      relation: string;
+      path: string;
+      isBlocked: boolean;
+      fromTitle: string;
+      toTitle: string;
+      midX: number;
+      midY: number;
+    }>
+  >([]);
 
   // Time metrics for "Current Time Line" (e.g., at 12:00 PM it sits precisely at the middle 18px of the 36px cell)
   const now = useMemo(() => new Date(), []);
@@ -345,6 +370,98 @@ export default function TaskGantt({
     }
   }, [days, totalDays, visibleMonthIndex]);
 
+  // Dynamically compute exact SVG coordinate paths for task dependency lines inside the cell grid
+  const updateDepLines = useCallback(() => {
+    if (!gridRef.current || !dependencies || dependencies.length === 0) {
+      setComputedDepLines([]);
+      return;
+    }
+
+    const lines: Array<{
+      key: string;
+      relation: string;
+      path: string;
+      isBlocked: boolean;
+      fromTitle: string;
+      toTitle: string;
+      midX: number;
+      midY: number;
+    }> = [];
+
+    for (const dep of dependencies) {
+      let sourceId = dep.task_id;
+      let targetId = dep.linked_task_id;
+      const isBlocked = dep.relation === "blocks" || dep.relation === "blocked_by";
+
+      if (dep.relation === "blocked_by") {
+        sourceId = dep.linked_task_id;
+        targetId = dep.task_id;
+      }
+
+      const sourceEl = gridRef.current.querySelector(`[data-task-id="${sourceId}"]`) as HTMLElement | null;
+      const targetEl = gridRef.current.querySelector(`[data-task-id="${targetId}"]`) as HTMLElement | null;
+
+      if (!sourceEl || !targetEl) continue;
+
+      const sourceBar = sourceEl.querySelector(`[data-gantt-bar="${sourceId}"]`) as HTMLElement | null;
+      const targetBar = targetEl.querySelector(`[data-gantt-bar="${targetId}"]`) as HTMLElement | null;
+
+      const sTop = sourceEl.offsetTop;
+      const sH = sourceEl.offsetHeight || 40;
+      const tTop = targetEl.offsetTop;
+      const tH = targetEl.offsetHeight || 40;
+
+      const y1 = sTop + sH / 2;
+      const y2 = tTop + tH / 2;
+
+      const x1 = sourceBar
+        ? sourceBar.offsetLeft + sourceBar.offsetWidth
+        : TASK_COL_WIDTH + 80;
+      const x2 = targetBar
+        ? targetBar.offsetLeft
+        : TASK_COL_WIDTH + 10;
+
+      let d = "";
+      let midX = (x1 + x2) / 2;
+      let midY = (y1 + y2) / 2;
+
+      if (x2 >= x1 + 16) {
+        // Smooth curved S-bezier forward
+        const c1 = x1 + (x2 - x1) * 0.45;
+        const c2 = x2 - (x2 - x1) * 0.45;
+        d = `M ${x1} ${y1} C ${c1} ${y1}, ${c2} ${y2}, ${x2 - 3} ${y2}`;
+      } else {
+        // Orthogonal backward route
+        const loopX = x1 + 16;
+        const approachX = Math.max(TASK_COL_WIDTH + 10, x2 - 14);
+        midX = loopX;
+        d = `M ${x1} ${y1} L ${loopX} ${y1} L ${loopX} ${midY} L ${approachX} ${midY} L ${approachX} ${y2} L ${x2 - 3} ${y2}`;
+      }
+
+      lines.push({
+        key: `${dep.task_id}-${dep.linked_task_id}-${dep.relation}`,
+        relation: dep.relation,
+        path: d,
+        isBlocked,
+        fromTitle: tasks.find((t) => t.id === sourceId)?.title || "Task",
+        toTitle: tasks.find((t) => t.id === targetId)?.title || "Task",
+        midX,
+        midY,
+      });
+    }
+
+    setComputedDepLines(lines);
+  }, [dependencies, tasks]);
+
+  useEffect(() => {
+    const timer = setTimeout(updateDepLines, 60);
+    window.addEventListener("resize", updateDepLines);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateDepLines);
+    };
+  }, [updateDepLines, hierarchicalTasks]);
+
   // Upcoming holidays in the year for the top strip
   const yearHolidays = useMemo(() => {
     return events.filter(
@@ -474,6 +591,94 @@ export default function TaskGantt({
             <Clock size={12} />
             Today ({timeLabel})
           </button>
+
+          {/* Dependencies Filter Controls */}
+          {dependencies.length > 0 && (
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 2,
+                background: "var(--app-bg, #f8fafc)",
+                padding: "2px 5px",
+                borderRadius: 7,
+                border: "1px solid var(--line, #cbd5e1)",
+                fontSize: 10.5,
+              }}
+            >
+              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--muted, #64748b)", padding: "0 3px" }}>
+                Lines:
+              </span>
+              <button
+                type="button"
+                onClick={() => setDependencyFilter("all")}
+                style={{
+                  border: 0,
+                  borderRadius: 5,
+                  padding: "2px 7px",
+                  fontSize: 10,
+                  fontWeight: dependencyFilter === "all" ? 700 : 500,
+                  background: dependencyFilter === "all" ? "var(--green, #167c58)" : "transparent",
+                  color: dependencyFilter === "all" ? "#fff" : "var(--ink)",
+                  cursor: "pointer",
+                }}
+                title="Show all dependency lines"
+              >
+                All ({dependencies.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDependencyFilter("blocked")}
+                style={{
+                  border: 0,
+                  borderRadius: 5,
+                  padding: "2px 7px",
+                  fontSize: 10,
+                  fontWeight: dependencyFilter === "blocked" ? 700 : 500,
+                  background: dependencyFilter === "blocked" ? "#dc2626" : "transparent",
+                  color: dependencyFilter === "blocked" ? "#fff" : "#dc2626",
+                  cursor: "pointer",
+                }}
+                title="Filter blocked dependency lines only"
+              >
+                Blocked
+              </button>
+              <button
+                type="button"
+                onClick={() => setDependencyFilter("related")}
+                style={{
+                  border: 0,
+                  borderRadius: 5,
+                  padding: "2px 7px",
+                  fontSize: 10,
+                  fontWeight: dependencyFilter === "related" ? 700 : 500,
+                  background: dependencyFilter === "related" ? "#8b5cf6" : "transparent",
+                  color: dependencyFilter === "related" ? "#fff" : "#8b5cf6",
+                  cursor: "pointer",
+                }}
+                title="Filter related dependency lines only"
+              >
+                Related
+              </button>
+              <button
+                type="button"
+                onClick={() => setDependencyFilter("none")}
+                style={{
+                  border: 0,
+                  borderRadius: 5,
+                  padding: "2px 7px",
+                  fontSize: 10,
+                  fontWeight: dependencyFilter === "none" ? 700 : 500,
+                  background: dependencyFilter === "none" ? "#64748b" : "transparent",
+                  color: dependencyFilter === "none" ? "#fff" : "var(--muted)",
+                  cursor: "pointer",
+                }}
+                title="Hide all dependency lines"
+              >
+                Hide
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Center: Month Fast-Jump Pills */}
@@ -549,6 +754,18 @@ export default function TaskGantt({
             <span style={{ width: 8, height: 2, background: "#16a34a" }} />
             Today Line
           </span>
+          {dependencies.length > 0 && (
+            <>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <span style={{ width: 14, height: 2.5, background: "#dc2626", borderRadius: 1 }} />
+                ⛔ Blocks
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <span style={{ width: 14, height: 2, borderTop: "2px dashed #8b5cf6" }} />
+                🔗 Relates
+              </span>
+            </>
+          )}
         </div>
       </header>
 
@@ -665,6 +882,7 @@ export default function TaskGantt({
         }}
       >
         <div
+          ref={gridRef}
           style={{
             display: "grid",
             gridTemplateColumns: gridColumns,
@@ -1345,6 +1563,7 @@ export default function TaskGantt({
             return (
               <div
                 key={task.id}
+                data-task-id={task.id}
                 className={`gantt-row${isSubtask ? " is-subtask-row" : ""}`}
                 style={{
                   gridColumn: "1 / -1",
@@ -1542,6 +1761,7 @@ export default function TaskGantt({
                 {visible && (
                   <Link
                     className={`gantt-bar${isLate ? " is-overdue" : ""}`}
+                    data-gantt-bar={task.id}
                     href={`/projects/${projectId}/tasks/${task.id}`}
                     style={
                       {
@@ -1657,6 +1877,129 @@ export default function TaskGantt({
             >
               No tasks match the current filters.
             </p>
+          )}
+
+          {/* Non-intrusive SVG Task Dependency Connectors layer situated strictly inside cell grid canvas */}
+          {dependencyFilter !== "none" && computedDepLines.length > 0 && (
+            <svg
+              className="gantt-dependency-lines-layer"
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                pointerEvents: "none",
+                zIndex: 8,
+                overflow: "visible",
+              }}
+            >
+              <defs>
+                <marker
+                  id="arrow-blocked"
+                  viewBox="0 0 10 10"
+                  refX="8"
+                  refY="5"
+                  markerWidth="6"
+                  markerHeight="6"
+                  orient="auto"
+                >
+                  <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#dc2626" />
+                </marker>
+                <marker
+                  id="arrow-related"
+                  viewBox="0 0 10 10"
+                  refX="8"
+                  refY="5"
+                  markerWidth="6"
+                  markerHeight="6"
+                  orient="auto"
+                >
+                  <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#8b5cf6" />
+                </marker>
+              </defs>
+
+              {computedDepLines
+                .filter((l) => {
+                  if (dependencyFilter === "all") return true;
+                  if (dependencyFilter === "blocked") return l.isBlocked;
+                  if (dependencyFilter === "related") return !l.isBlocked;
+                  return false;
+                })
+                .map((line) => {
+                  const isHovered = hoveredDepKey === line.key;
+                  const color = line.isBlocked ? "#dc2626" : "#8b5cf6";
+                  const marker = line.isBlocked ? "url(#arrow-blocked)" : "url(#arrow-related)";
+
+                  return (
+                    <g key={line.key}>
+                      {/* Wider hit-area for easy hover */}
+                      <path
+                        d={line.path}
+                        fill="none"
+                        stroke="transparent"
+                        strokeWidth={14}
+                        style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                        onMouseEnter={() => setHoveredDepKey(line.key)}
+                        onMouseLeave={() => setHoveredDepKey(null)}
+                      >
+                        <title>{`${line.isBlocked ? "Blocked By: " : "Related To: "} ${line.fromTitle} → ${line.toTitle}`}</title>
+                      </path>
+
+                      {/* Visual Line */}
+                      <path
+                        d={line.path}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={line.isBlocked ? (isHovered ? 3.5 : 2.2) : isHovered ? 3 : 1.8}
+                        strokeDasharray={line.isBlocked ? undefined : "5,4"}
+                        markerEnd={marker}
+                        style={{
+                          pointerEvents: "none",
+                          filter: isHovered
+                            ? `drop-shadow(0 2px 4px ${color}88)`
+                            : line.isBlocked
+                            ? "drop-shadow(0 1px 2px rgba(220, 38, 38, 0.35))"
+                            : undefined,
+                          transition: "stroke-width 0.15s ease",
+                        }}
+                      />
+
+                      {/* Midpoint badge for instant understanding */}
+                      {line.midX > 0 && line.midY > 0 && (
+                        <g
+                          transform={`translate(${line.midX}, ${line.midY})`}
+                          style={{ pointerEvents: "auto", cursor: "pointer" }}
+                          onMouseEnter={() => setHoveredDepKey(line.key)}
+                          onMouseLeave={() => setHoveredDepKey(null)}
+                        >
+                          <rect
+                            x={-28}
+                            y={-9}
+                            width={56}
+                            height={18}
+                            rx={9}
+                            fill={line.isBlocked ? "#fef2f2" : "#f5f3ff"}
+                            stroke={color}
+                            strokeWidth={1.2}
+                          />
+                          <text
+                            x={0}
+                            y={3.5}
+                            textAnchor="middle"
+                            fill={color}
+                            fontSize={8.5}
+                            fontWeight={700}
+                            fontFamily="'DM Sans', sans-serif"
+                          >
+                            {line.isBlocked ? "⛔ BLOCKS" : "🔗 RELATES"}
+                          </text>
+                        </g>
+                      )}
+                    </g>
+                  );
+                })}
+            </svg>
           )}
         </div>
       </div>

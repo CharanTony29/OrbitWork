@@ -214,7 +214,7 @@ export default async function ProjectPage({ params, searchParams }: {
   const taskIds = (tasks ?? []).map((task) => task.id);
   const customFieldIds = (customFields ?? []).map((field) => field.id);
   const needsProjectDocs = view === "list" || view === "whiteboard" || view === "flowchart";
-  const [fieldValuesResult, taskAssigneesResult, projectDocsResult, attachmentsResult, commentsResult, timeEntriesResult, runningTimersResult, projectGoalsResult] = await Promise.all([
+  const [fieldValuesResult, taskAssigneesResult, projectDocsResult, attachmentsResult, commentsResult, timeEntriesResult, runningTimersResult, projectGoalsResult, taskDependenciesResult] = await Promise.all([
     taskIds.length && customFieldIds.length ? supabase.from("task_custom_field_values").select("task_id, field_id, value").in("task_id", taskIds).in("field_id", customFieldIds) : Promise.resolve({ data: [] }),
     taskIds.length ? supabase.from("task_assignees").select("task_id, user_id, assigned_at").in("task_id", taskIds).order("assigned_at", { ascending: true }) : Promise.resolve({ data: [] }),
     needsProjectDocs
@@ -227,6 +227,7 @@ export default async function ProjectPage({ params, searchParams }: {
     view === "goals"
       ? supabase.from("project_goals").select("*").eq("project_id", projectId).order("created_at", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
+    supabase.from("task_dependencies").select("task_id, linked_task_id, relation").eq("project_id", projectId),
   ]);
   const { data: fieldValues } = fieldValuesResult;
   const { data: taskAssigneeRows } = taskAssigneesResult;
@@ -521,6 +522,11 @@ export default async function ProjectPage({ params, searchParams }: {
             people={people}
             profileAvatars={profileAvatars}
             month={filters.month}
+            dependencies={(taskDependenciesResult.data ?? []).map((d: any) => ({
+              task_id: d.task_id,
+              linked_task_id: d.linked_task_id,
+              relation: d.relation,
+            }))}
           />
         ) : view === "whiteboard" ? (
           <ProjectWhiteboardView projectId={project.id} documents={projectDocs ?? []} />

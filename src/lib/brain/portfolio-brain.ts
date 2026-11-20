@@ -196,7 +196,7 @@ export async function buildWorkspaceBrain(
   // Fetch dependencies across target projects
   const { data: deps } = await supabase
     .from("task_dependencies")
-    .select("id, task_id, depends_on_task_id");
+    .select("task_id, linked_task_id, relation");
 
   // Collect all assignees
   const assigneeUserIds = new Set<string>();
@@ -305,7 +305,7 @@ export async function buildWorkspaceBrain(
 
   for (const d of deps || []) {
     const blocked = taskMap.get(d.task_id);
-    const blocker = taskMap.get(d.depends_on_task_id);
+    const blocker = taskMap.get(d.linked_task_id);
     if (blocked && blocker && blocked.project_id !== blocker.project_id) {
       crossProjectDeps.push({
         blockingProject: projectNameMap.get(blocker.project_id) || "External Project",
@@ -649,7 +649,7 @@ export async function buildOrganizationBrain(
   // Fetch dependencies across organization projects
   const { data: deps } = await supabase
     .from("task_dependencies")
-    .select("id, task_id, depends_on_task_id");
+    .select("task_id, linked_task_id, relation");
 
   // Collect assignees
   const assigneeUserIds = new Set<string>();
@@ -748,7 +748,7 @@ export async function buildOrganizationBrain(
 
   for (const d of deps || []) {
     const blocked = taskMap.get(d.task_id);
-    const blocker = taskMap.get(d.depends_on_task_id);
+    const blocker = taskMap.get(d.linked_task_id);
     if (blocked && blocker && blocked.project_id !== blocker.project_id) {
       crossProjectDeps.push({
         blockingProject: projectNameMap.get(blocker.project_id) || "External Project",

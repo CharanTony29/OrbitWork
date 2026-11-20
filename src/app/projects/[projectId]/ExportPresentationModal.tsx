@@ -207,9 +207,9 @@ export default function ExportPresentationModal({
     setIsUploadingCompanyTemplate(true);
     setUploadError(null);
     try {
-      const { parseAndRegisterCompanyTemplate, companyTemplateToPresentationTemplate } = await import("@/lib/presentation/company-template");
+      const { parseAndRegisterCompanyTemplate, companyTemplateToPresentationTemplate, humanizeTemplateName } = await import("@/lib/presentation/company-template");
       const buffer = await file.arrayBuffer();
-      const cleanName = file.name.replace(/\.pptx$/i, "").replace(/[-_]/g, " ");
+      const cleanName = humanizeTemplateName(file.name);
       const companyDef = await parseAndRegisterCompanyTemplate(new Uint8Array(buffer), {
         templateName: cleanName,
         companyName: cleanName,

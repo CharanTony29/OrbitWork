@@ -99,6 +99,28 @@ export function loadStoredCompanyTemplates(): CompanyTemplateDefinition[] {
   return Array.from(COMPANY_TEMPLATES.values());
 }
 
+export function humanizeTemplateName(rawName: string): string {
+  let name = rawName.replace(/\.pptx$/i, "").trim();
+  const isHexHeavy =
+    /^[a-f0-9\s_-]{12,}$/i.test(name) ||
+    ((name.match(/[a-f0-9]{6,}/gi)?.join("").length ?? 0) > name.length * 0.4);
+  if (isHexHeavy) {
+    const stripped = name
+      .replace(/[a-f0-9]{6,}/gi, "")
+      .replace(/[-_]wac/gi, "")
+      .replace(/[-_]+/g, " ")
+      .trim();
+    if (stripped.length >= 3) {
+      name = stripped;
+    } else {
+      name = "Corporate Executive Deck";
+    }
+  } else {
+    name = name.replace(/[-_]+/g, " ").trim();
+  }
+  return name.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 /**
  * Register a company template directly into memory and storage
  */
@@ -217,12 +239,15 @@ export async function parseAndRegisterCompanyTemplate(
     }
   }
 
-  const finalCompanyName = options.companyName || detectedCompanyName || "Company Template";
+  const cleanTemplateName = humanizeTemplateName(options.templateName);
+  const finalCompanyName = options.companyName && options.companyName !== options.templateName
+    ? options.companyName
+    : detectedCompanyName || cleanTemplateName || "Company Template";
   const templateId = `company_${options.templateName.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 40)}`;
 
   const companyDef: CompanyTemplateDefinition = {
     templateId,
-    templateName: options.templateName,
+    templateName: cleanTemplateName,
     category: (options.category || "custom") as TemplateCategory,
     industry: options.industry || "Enterprise Corporate",
     description: `Official branded template for ${finalCompanyName} (Preserves logos, typography, headers & legal disclaimers intact)`,
