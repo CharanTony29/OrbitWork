@@ -517,14 +517,17 @@ export async function createWorkspace(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { error } = await supabase.from("workspaces").insert({
+  const { data: newWs, error } = await supabase.from("workspaces").insert({
     organization_id: parsed.data.organizationId,
     name: parsed.data.name,
     description: parsed.data.description ?? "",
     created_by: user.id,
-  });
+  }).select("id").maybeSingle();
   if (error) redirect("/dashboard?error=workspace_failed");
   revalidatePath("/dashboard");
+  if (newWs?.id) {
+    redirect(`/workspaces/${newWs.id}`);
+  }
   redirect("/dashboard");
 }
 

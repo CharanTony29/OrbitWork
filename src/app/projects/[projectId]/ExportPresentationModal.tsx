@@ -386,8 +386,16 @@ export default function ExportPresentationModal({
 
       // When exporting Orbitwork Master or an uploaded company template, run high-speed zero-payload client-side generation
       if (targetBuffer) {
+        const queryParams = new URLSearchParams({
+          period,
+          month: selectedMonth,
+          year: String(selectedYear),
+          startDate: startDate || "",
+          endDate: endDate || "",
+          taskIds: Array.from(selectedTaskIds).join(","),
+        });
         const dataRes = await fetch(
-          `/api/projects/${projectId}/presentation-data?period=${period}&taskIds=${Array.from(selectedTaskIds).join(",")}`
+          `/api/projects/${projectId}/presentation-data?${queryParams.toString()}`
         );
         let projectData: any;
         if (dataRes.ok) {
@@ -398,6 +406,35 @@ export default function ExportPresentationModal({
           const inProgressTasks = tasks.filter((t) => !t.isCompleted && !t.isOverdue);
           const pendingTasks = tasks.filter((t) => t.isPending);
           const overdueTasks = tasks.filter((t) => t.isOverdue);
+
+          // Build resource stats from client tasks
+          const resMap = new Map<string, any>();
+          for (const t of tasks) {
+            const assignees = (t as any).assignees || [];
+            for (const a of assignees) {
+              if (!resMap.has(a.id)) {
+                resMap.set(a.id, {
+                  id: a.id,
+                  name: a.name,
+                  totalAssigned: 0,
+                  completedCount: 0,
+                  inProgressCount: 0,
+                  holdCount: 0,
+                  pendingCount: 0,
+                  overdueCount: 0,
+                });
+              }
+              const st = resMap.get(a.id)!;
+              st.totalAssigned += 1;
+              if (t.isCompleted) st.completedCount += 1;
+              if (!t.isCompleted && !t.isOverdue) st.inProgressCount += 1;
+              if (t.isOverdue) st.overdueCount += 1;
+            }
+          }
+          const clientResourceMetrics = Array.from(resMap.values()).sort(
+            (a, b) => b.totalAssigned - a.totalAssigned
+          );
+
           projectData = {
             projectName,
             periodLabel: "Project Deliverables Snapshot",
@@ -412,7 +449,7 @@ export default function ExportPresentationModal({
             holdRate: 0,
             pendingRate: 0,
             statusMetrics: [],
-            resourceMetrics: [],
+            resourceMetrics: clientResourceMetrics,
             allTasks: tasks,
           };
         }

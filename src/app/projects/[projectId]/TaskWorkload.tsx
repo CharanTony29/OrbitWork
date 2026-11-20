@@ -285,8 +285,10 @@ export default function TaskWorkload({
 
           const expMultiplier = DEFAULT_EXPERIENCE_CONFIG[`${experienceLevel}Factor` as keyof ExperienceConfig] ?? 1.0;
           const grossCapacityHours = capResult.totalWorkingDays * 8;
-          const effectiveCap = id ? Math.max(8, Math.round(capResult.rawCapacityHours * expMultiplier)) : 40;
-          const rawCap = id ? capResult.rawCapacityHours : 40;
+          const effectiveCap = id
+            ? Math.max(8, Math.round(capResult.rawCapacityHours * expMultiplier))
+            : Math.max(8, capResult.rawCapacityHours);
+          const rawCap = capResult.rawCapacityHours;
           const estimatedHours = Number((row.minutes / 60).toFixed(1));
           const utilization = Math.round((estimatedHours / Math.max(1, effectiveCap)) * 100);
 

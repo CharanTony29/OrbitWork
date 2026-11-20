@@ -46,7 +46,6 @@ type Props = {
     month?: string;
     group?: string;
   };
-  onViewSelect?: (view: ProjectTabKey) => void;
 };
 
 const STORAGE_KEY = "orbitwork_project_tab_order_v1";
@@ -90,7 +89,6 @@ export default function ProjectViewTabsClient({
   activeView,
   initialTabOrder,
   preservedFilters,
-  onViewSelect,
 }: Props) {
   const router = useRouter();
   const [tabOrder, setTabOrder] = useState<ProjectTabKey[]>(() =>
@@ -274,16 +272,11 @@ export default function ProjectViewTabsClient({
             <Link
               key={key}
               href={buildViewHref(key)}
-              prefetch={false}
+              prefetch={true}
               draggable
               onClick={(e) => {
                 if (key === activeView) {
                   e.preventDefault();
-                  return;
-                }
-                if (onViewSelect) {
-                  e.preventDefault();
-                  onViewSelect(key);
                   return;
                 }
                 if (pendingView === key) {
@@ -291,12 +284,6 @@ export default function ProjectViewTabsClient({
                   return;
                 }
                 setPendingView(key);
-                notifyNavigationStart(buildViewHref(key));
-                window.dispatchEvent(
-                  new CustomEvent("orbitwork:tab-transition-start", {
-                    detail: { from: activeView, to: key, label: PROJECT_TAB_LABELS[key] },
-                  })
-                );
               }}
               onDragStart={(e) => {
                 setDragKey(key);
@@ -391,16 +378,11 @@ export default function ProjectViewTabsClient({
                     <Link
                       key={key}
                       href={buildViewHref(key)}
-                      prefetch={false}
+                      prefetch={true}
                       onClick={(e) => {
                         setMoreOpen(false);
                         if (key === activeView) {
                           e.preventDefault();
-                          return;
-                        }
-                        if (onViewSelect) {
-                          e.preventDefault();
-                          onViewSelect(key);
                           return;
                         }
                         if (pendingView === key) {
@@ -408,12 +390,6 @@ export default function ProjectViewTabsClient({
                           return;
                         }
                         setPendingView(key);
-                        notifyNavigationStart(buildViewHref(key));
-                        window.dispatchEvent(
-                          new CustomEvent("orbitwork:tab-transition-start", {
-                            detail: { from: activeView, to: key, label: PROJECT_TAB_LABELS[key] },
-                          })
-                        );
                       }}
                       className={`view-tabs-more-item${isSelected ? " selected" : ""}${isPending ? " is-pending-tab" : ""}`}
                       role="menuitem"

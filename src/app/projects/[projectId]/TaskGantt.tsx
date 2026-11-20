@@ -737,6 +737,11 @@ export default function TaskGantt({
   return (
     <section
       className="gantt-view"
+      onContextMenu={(e) => {
+        if (!e.defaultPrevented) {
+          e.preventDefault();
+        }
+      }}
       style={{
         display: "flex",
         flexDirection: "column",

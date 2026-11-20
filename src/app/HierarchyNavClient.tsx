@@ -20,34 +20,12 @@ import {
   UsersRound,
   X,
   Plus,
-  Edit3,
-  Inbox,
-  CornerUpLeft,
-  Megaphone,
-  Heart,
-  CheckSquare,
-  MoreHorizontal,
-  Sparkles,
-  Lock,
-  GitBranch,
-  ChevronRight,
-  Circle,
-  FileCode2,
-  Orbit,
-  FlaskConical,
-  Download,
-  UserPlus,
+  FolderPlus,
 } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 import ProjectSublinks from "./ProjectSublinks";
 import { NavRailDynamicItems, type RailNavItem } from "./NavRailOverflowMenu";
-import UniversalCreateModal from "./UniversalCreateModal";
-
-type MemberItem = {
-  id: string;
-  name: string;
-  avatarUrl?: string | null;
-};
+import { createProject, createWorkspace } from "@/app/actions";
 
 type Props = {
   organizationId: string;
@@ -62,18 +40,11 @@ type Props = {
     icon?: string | null;
     taskCount?: number;
   }>;
-  members?: MemberItem[];
+  members?: Array<{ id: string; name: string; avatarUrl?: string | null }>;
 };
 
 const STORAGE_KEY = "orbitwork:sidebar-collapsed";
 const POPULAR_PROJECT_ICONS = ["📁", "🚀", "⚡", "🎯", "📊", "🛠️", "💻", "💡", "🔥", "🌟", "📦", "🎨", "🌐", "🔒", "🤖", "📈", "🧪", "📑"];
-
-function getAvatarColor(name: string) {
-  const colors = ["#f97316", "#06b6d4", "#8b5cf6", "#ec4899", "#10b981", "#3b82f6", "#eab308"];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
-}
 
 export default function HierarchyNavClient({
   organizationId,
@@ -82,16 +53,18 @@ export default function HierarchyNavClient({
   currentProjectId,
   workspaces,
   projects,
-  members = [],
 }: Props) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [customIcons, setCustomIcons] = useState<Record<string, string>>({});
   const [editingIconProjectId, setEditingIconProjectId] = useState<string | null>(null);
-  const [isUniversalCreateOpen, setIsUniversalCreateOpen] = useState(false);
-  const [showMoreQuickHub, setShowMoreQuickHub] = useState(false);
-  const [channelsOpen, setChannelsOpen] = useState(true);
+
+  // Modal states for creating Workspace (New Space) and Project
+  const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
+  const [projectModalTarget, setProjectModalTarget] = useState<{ id: string; name: string } | null>(null);
+  const [selectedEmoji, setSelectedEmoji] = useState("📁");
+
   const pathname = usePathname();
 
   // Initialize collapse preference and custom project icons from localStorage
@@ -202,13 +175,15 @@ export default function HierarchyNavClient({
         e.preventDefault();
         toggleCollapsed();
       }
-      if (e.key === "Escape" && isMobileOpen) {
-        setIsMobileOpen(false);
+      if (e.key === "Escape") {
+        if (workspaceModalOpen) setWorkspaceModalOpen(false);
+        if (projectModalTarget) setProjectModalTarget(null);
+        if (isMobileOpen) setIsMobileOpen(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleCollapsed, isMobileOpen]);
+  }, [toggleCollapsed, isMobileOpen, workspaceModalOpen, projectModalTarget]);
 
   const railRef = useRef<HTMLElement | null>(null);
 
@@ -222,19 +197,27 @@ export default function HierarchyNavClient({
       isActive: pathname === "/dashboard",
     },
     {
-      key: "spaces",
-      label: "Spaces",
-      title: "Workspaces & Projects",
-      href: `/workspaces/${currentWorkspaceId}`,
-      icon: <Orbit size={18} />,
-      isActive: pathname.startsWith("/workspaces"),
+      key: "dashboard",
+      label: "Dashboard",
+      title: "Dashboard",
+      href: "/my-dashboard",
+      icon: <LayoutDashboard size={17} />,
+      isActive: pathname === "/my-dashboard",
+    },
+    {
+      key: "inbox",
+      label: "Inbox",
+      title: "Inbox",
+      href: "/inbox",
+      icon: <Bell size={17} />,
+      isActive: pathname.startsWith("/inbox"),
     },
     {
       key: "planner",
       label: "Planner",
       title: "Planner & Meeting Rooms",
       href: organizationId ? `/planner?org=${organizationId}` : "/planner",
-      icon: <CalendarDays size={18} />,
+      icon: <CalendarDays size={17} />,
       isActive: pathname.startsWith("/planner"),
     },
     {
@@ -244,23 +227,15 @@ export default function HierarchyNavClient({
       href: currentProjectId
         ? `/projects/${currentProjectId}/documents`
         : `/organizations/${organizationId}/docs`,
-      icon: <FileText size={18} />,
+      icon: <FileText size={17} />,
       isActive: pathname.includes("/docs") || pathname.includes("/documents"),
     },
     {
-      key: "dashboard",
-      label: "Dashboard",
-      title: "My Dashboard & Metrics",
-      href: "/my-dashboard",
-      icon: <LayoutDashboard size={18} />,
-      isActive: pathname === "/my-dashboard",
-    },
-    {
       key: "time",
-      label: "Timesheet",
+      label: "Time",
       title: "Workspace Timesheets",
       href: `/workspaces/${currentWorkspaceId}/timesheets`,
-      icon: <Clock3 size={18} />,
+      icon: <Clock3 size={17} />,
       isActive: pathname.includes("/timesheets"),
     },
     {
@@ -268,15 +243,15 @@ export default function HierarchyNavClient({
       label: "Chat",
       title: "Team & Personal Chat",
       href: "/chat",
-      icon: <MessageSquare size={18} />,
+      icon: <MessageSquare size={17} />,
       isActive: pathname.startsWith("/chat"),
     },
     {
       key: "people",
       label: "People",
-      title: "Members Directory",
+      title: "Members",
       href: `/organizations/${organizationId}/members`,
-      icon: <UsersRound size={18} />,
+      icon: <UsersRound size={17} />,
       isActive: pathname.includes("/members"),
     },
   ];
@@ -292,37 +267,15 @@ export default function HierarchyNavClient({
 
       {/* Navigation Group Container: Rail + Hierarchy Sidebar */}
       <div className={`hierarchy-nav-group${isCollapsed ? " is-collapsed" : ""}`}>
-        {/* Compact Icon Rail (Dark Obsidian) */}
+        {/* Compact Icon Rail (Orbitwork Deep Green) */}
         <nav ref={railRef} className="work-icon-rail" aria-label="Main navigation">
-          {/* Top Logo with Notification Badge */}
           <Link
             className="work-rail-logo"
             href="/dashboard"
             prefetch={false}
             aria-label="Orbitwork home"
-            style={{ position: "relative" }}
           >
-            <BrandMark className="brand-mark" size={26} />
-            <span
-              style={{
-                position: "absolute",
-                top: 0,
-                right: 0,
-                width: 14,
-                height: 14,
-                borderRadius: "50%",
-                background: "#f43f5e",
-                color: "#ffffff",
-                fontSize: 9,
-                fontWeight: 800,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "2px solid #111317",
-              }}
-            >
-              1
-            </span>
+            <BrandMark className="brand-mark" size={25} />
           </Link>
 
           {/* Toggle button on rail to expand sidebar when collapsed on desktop */}
@@ -333,7 +286,7 @@ export default function HierarchyNavClient({
             title={isCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar (Ctrl+B)"}
             aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {isCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            {isCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
           </button>
 
           <NavRailDynamicItems
@@ -344,98 +297,20 @@ export default function HierarchyNavClient({
             moreIsActive={pathname.includes("/calendar")}
             moreIcon={<Layers3 size={17} />}
           />
-
-          {/* Bottom Utility Rail Items */}
-          <div
-            style={{
-              marginTop: "auto",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 8,
-              paddingBottom: 8,
-            }}
-          >
-            <Link
-              href="/ai/agents"
-              title="Labs / AI Studio"
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#a855f7",
-                fontSize: 8,
-                textDecoration: "none",
-                fontWeight: 700,
-              }}
-            >
-              <FlaskConical size={16} />
-              <span>Labs</span>
-            </Link>
-            <Link
-              href={`/organizations/${organizationId}/members`}
-              title="Invite Members"
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#94a3b8",
-                fontSize: 8,
-                textDecoration: "none",
-                fontWeight: 700,
-              }}
-            >
-              <UserPlus size={16} />
-              <span>Invite</span>
-            </Link>
-          </div>
         </nav>
 
-        {/* Tree Sidebar (Dark Obsidian Drawer) */}
+        {/* Tree Sidebar */}
         <aside
           className="hierarchy-sidebar"
           aria-label="Workspace navigation"
           aria-hidden={isCollapsed}
         >
-          {/* Top Header: Title + Create [ + v ] Button */}
           <div className="hierarchy-sidebar-heading">
             <div className="hierarchy-sidebar-heading-text">
-              <strong style={{ fontSize: 15, fontWeight: 750, color: "#ffffff" }}>
-                Home
-              </strong>
+              <span>ORGANIZATION</span>
+              <strong>{organizationName}</strong>
             </div>
-            <div className="hierarchy-sidebar-actions" style={{ gap: 6 }}>
-              {/* Quick Create [ + v ] button */}
-              <button
-                type="button"
-                onClick={() => setIsUniversalCreateOpen(true)}
-                title="Create Task or Document"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 3,
-                  padding: "3px 8px",
-                  borderRadius: 6,
-                  border: "1px solid #2d333b",
-                  background: "#1c2128",
-                  color: "#ffffff",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                <Plus size={13} />
-                <ChevronDown size={11} style={{ opacity: 0.7 }} />
-              </button>
-
+            <div className="hierarchy-sidebar-actions">
               <button
                 type="button"
                 className="hierarchy-collapse-btn desktop-only"
@@ -457,575 +332,595 @@ export default function HierarchyNavClient({
             </div>
           </div>
 
-          {/* Quick Hub Section */}
-          <div className="hierarchy-quick-hub" style={{ display: "grid", gap: 1, padding: "8px 0" }}>
+          <Link className="hierarchy-dashboard" href="/dashboard" prefetch={false}>
+            <Layers3 size={15} /> All organizations
+          </Link>
+          <Link className="hierarchy-dashboard" href="/my-dashboard" prefetch={false}>
+            <LayoutDashboard size={15} /> Dashboard
+          </Link>
+          <Link className="hierarchy-dashboard" href="/inbox" prefetch={false}>
+            <Bell size={15} /> Inbox
+          </Link>
+          <Link
+            className="hierarchy-dashboard"
+            href={`/organizations/${organizationId}/docs`}
+            prefetch={false}
+          >
+            <FileText size={15} /> Docs &amp; Attachments
+          </Link>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              margin: "18px 9px 8px",
+            }}
+          >
+            <p className="hierarchy-section-label" style={{ margin: 0 }}>
+              SPACES (WORKSPACES)
+            </p>
             <button
               type="button"
-              className="hierarchy-item-btn"
-              onClick={() => setIsUniversalCreateOpen(true)}
+              onClick={() => setWorkspaceModalOpen(true)}
+              title="Create New Space (Workspace)"
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                padding: "6px 10px",
-                borderRadius: 7,
                 border: 0,
                 background: "transparent",
-                color: "#e2e8f0",
-                fontSize: 12.5,
-                fontWeight: 600,
+                color: "var(--green, #167c58)",
                 cursor: "pointer",
-                textAlign: "left",
-                width: "100%",
-              }}
-            >
-              <Edit3 size={15} style={{ opacity: 0.85 }} />
-              <span>New</span>
-            </button>
-
-            <Link
-              className={`hierarchy-dashboard${pathname.startsWith("/inbox") ? " is-active" : ""}`}
-              href="/inbox"
-              prefetch={false}
-              style={{
-                display: "flex",
+                padding: "2px 4px",
+                borderRadius: 4,
+                display: "inline-flex",
                 alignItems: "center",
-                justifyContent: "space-between",
-                padding: "6px 10px",
-                borderRadius: 7,
-                color: pathname.startsWith("/inbox") ? "#ffffff" : "#e2e8f0",
-                background: pathname.startsWith("/inbox") ? "#22272e" : "transparent",
-                fontSize: 12.5,
-                fontWeight: 650,
-                textDecoration: "none",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <Inbox size={15} style={{ opacity: 0.85 }} />
-                <span>Inbox</span>
-              </div>
-              <span
-                style={{
-                  background: "#f43f5e",
-                  color: "#ffffff",
-                  fontSize: 10,
-                  fontWeight: 800,
-                  padding: "1px 6px",
-                  borderRadius: 10,
-                }}
-              >
-                1
-              </span>
-            </Link>
-
-            <Link
-              className="hierarchy-dashboard"
-              href="/chat?tab=replies"
-              prefetch={false}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                padding: "6px 10px",
-                borderRadius: 7,
-                color: "#94a3b8",
-                fontSize: 12.5,
-                fontWeight: 550,
-                textDecoration: "none",
-              }}
-            >
-              <CornerUpLeft size={15} style={{ opacity: 0.85 }} />
-              <span>Replies</span>
-            </Link>
-
-            <Link
-              className="hierarchy-dashboard"
-              href="/chat"
-              prefetch={false}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                padding: "6px 10px",
-                borderRadius: 7,
-                color: "#94a3b8",
-                fontSize: 12.5,
-                fontWeight: 550,
-                textDecoration: "none",
-              }}
-            >
-              <Megaphone size={15} style={{ opacity: 0.85 }} />
-              <span>Posts</span>
-            </Link>
-
-            <Link
-              className="hierarchy-dashboard"
-              href={currentProjectId ? `/projects/${currentProjectId}/documents` : `/organizations/${organizationId}/docs`}
-              prefetch={false}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                padding: "6px 10px",
-                borderRadius: 7,
-                color: "#94a3b8",
-                fontSize: 12.5,
-                fontWeight: 550,
-                textDecoration: "none",
-              }}
-            >
-              <Heart size={15} color="#ec4899" style={{ opacity: 0.9 }} />
-              <span>Artifacts</span>
-            </Link>
-
-            <Link
-              className="hierarchy-dashboard"
-              href="/my-dashboard"
-              prefetch={false}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                padding: "6px 10px",
-                borderRadius: 7,
-                color: "#94a3b8",
-                fontSize: 12.5,
-                fontWeight: 550,
-                textDecoration: "none",
-              }}
-            >
-              <CheckSquare size={15} style={{ opacity: 0.85 }} />
-              <span>My Tasks</span>
-            </Link>
-
-            <button
-              type="button"
-              onClick={() => setShowMoreQuickHub(!showMoreQuickHub)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                padding: "6px 10px",
-                borderRadius: 7,
-                border: 0,
-                background: "transparent",
-                color: "#64748b",
-                fontSize: 12,
-                cursor: "pointer",
-                textAlign: "left",
-              }}
-            >
-              <MoreHorizontal size={15} />
-              <span>{showMoreQuickHub ? "Less" : "More"}</span>
-            </button>
-
-            {showMoreQuickHub && (
-              <div style={{ paddingLeft: 12, display: "grid", gap: 2 }}>
-                <Link
-                  className="hierarchy-dashboard"
-                  href={`/workspaces/${currentWorkspaceId}/timesheets`}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", color: "#94a3b8", fontSize: 12, textDecoration: "none" }}
-                >
-                  <Clock3 size={14} /> Timesheets
-                </Link>
-                <Link
-                  className="hierarchy-dashboard"
-                  href={`/organizations/${organizationId}/calendar`}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", color: "#94a3b8", fontSize: 12, textDecoration: "none" }}
-                >
-                  <CalendarDays size={14} /> Holidays &amp; Leaves
-                </Link>
-              </div>
-            )}
-          </div>
-
-          <div style={{ height: 1, background: "#22262e", margin: "6px 0" }} />
-
-          {/* Favorites Section */}
-          <div style={{ padding: "4px 0" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", padding: "4px 10px", letterSpacing: 0.3 }}>
-              Favorites
-            </div>
-            <Link
-              href={currentProjectId ? `/projects/${currentProjectId}/documents` : `/organizations/${organizationId}/docs`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "5px 10px",
-                borderRadius: 6,
-                color: "#cbd5e1",
-                fontSize: 12,
-                textDecoration: "none",
-              }}
-            >
-              <FileText size={14} color="#38bdf8" />
-              <span>KB Document</span>
-            </Link>
-            <Link
-              href={currentProjectId ? `/projects/${currentProjectId}/documents` : `/organizations/${organizationId}/docs`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "5px 10px",
-                borderRadius: 6,
-                color: "#cbd5e1",
-                fontSize: 12,
-                textDecoration: "none",
-              }}
-            >
-              <FileText size={14} color="#38bdf8" />
-              <span>Learnings</span>
-            </Link>
-          </div>
-
-          <div style={{ height: 1, background: "#22262e", margin: "6px 0" }} />
-
-          {/* Agents Section */}
-          <div style={{ padding: "4px 0" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", padding: "4px 10px", letterSpacing: 0.3 }}>
-              Agents
-            </div>
-            <Link
-              href={currentProjectId ? `/projects/${currentProjectId}?view=brain` : `/dashboard`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "6px 10px",
-                borderRadius: 6,
-                color: "#e2e8f0",
-                fontSize: 12,
-                fontWeight: 650,
-                textDecoration: "none",
-                background: pathname.includes("view=brain") ? "#22272e" : "transparent",
-              }}
-            >
-              <span style={{ fontSize: 14 }}>🌸</span>
-              <span>Brain</span>
-            </Link>
-            <button
-              type="button"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent("orbitwork:open-ai-chat"));
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "6px 10px",
-                borderRadius: 6,
-                border: 0,
-                background: "transparent",
-                color: "#64748b",
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
-                width: "100%",
-                textAlign: "left",
-              }}
-            >
-              <Plus size={14} />
-              <span>New Super Agent</span>
-            </button>
-          </div>
-
-          <div style={{ height: 1, background: "#22262e", margin: "6px 0" }} />
-
-          {/* Spaces Section */}
-          <div style={{ padding: "4px 0" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "4px 10px",
-              }}
-            >
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b", letterSpacing: 0.3 }}>
-                Spaces
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsUniversalCreateOpen(true)}
-                title="Create Space"
-                style={{ border: 0, background: "transparent", color: "#64748b", cursor: "pointer", padding: 2 }}
-              >
-                <Plus size={13} />
-              </button>
-            </div>
-
-            {/* All Tasks Link */}
-            <Link
-              href="/dashboard"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "6px 10px",
-                borderRadius: 6,
-                color: "#cbd5e1",
-                fontSize: 12,
-                textDecoration: "none",
-              }}
-            >
-              <span style={{ fontSize: 12, opacity: 0.8 }}>✳️</span>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                All Tasks - {organizationName}
-              </span>
-            </Link>
-
-            {/* Workspaces & Projects Tree */}
-            <nav className="hierarchy-tree" aria-label="Organization workspaces and projects">
-              {workspaces.map((workspace) => (
-                <details
-                  key={workspace.id}
-                  open={workspace.id === currentWorkspaceId}
-                  style={{ marginTop: 2 }}
-                >
-                  <summary
-                    style={{
-                      listStyle: "none",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "6px 8px",
-                      borderRadius: 6,
-                      color: "#e2e8f0",
-                      fontSize: 12,
-                      fontWeight: 650,
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0, flex: 1 }}>
-                      <span
-                        style={{
-                          width: 18,
-                          height: 18,
-                          borderRadius: 4,
-                          background: "#2563eb",
-                          color: "#ffffff",
-                          fontSize: 10,
-                          fontWeight: 800,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {workspace.name.charAt(0).toUpperCase()}
-                      </span>
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {workspace.name}
-                      </span>
-                      <Lock size={11} color="#64748b" style={{ flexShrink: 0 }} />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsUniversalCreateOpen(true);
-                      }}
-                      style={{ border: 0, background: "transparent", color: "#64748b", cursor: "pointer", padding: 2 }}
-                    >
-                      <Plus size={12} />
-                    </button>
-                  </summary>
-
-                  <div className="hierarchy-projects" style={{ paddingLeft: 14, margin: "2px 0 6px 6px", borderLeft: "1px solid #2d333b" }}>
-                    {projects
-                      .filter((project) => project.workspace_id === workspace.id)
-                      .map((project) => (
-                        <div className="hierarchy-project-group" key={project.id}>
-                          <Link
-                            className={`hierarchy-project-link${
-                              project.id === currentProjectId ? " is-current" : ""
-                            }`}
-                            href={`/projects/${project.id}`}
-                            prefetch={false}
-                            title={project.name}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              padding: "5px 8px",
-                              borderRadius: 6,
-                              color: project.id === currentProjectId ? "#ffffff" : "#cbd5e1",
-                              background: project.id === currentProjectId ? "#22272e" : "transparent",
-                              fontSize: 12,
-                              fontWeight: project.id === currentProjectId ? 700 : 500,
-                              textDecoration: "none",
-                              margin: "1px 0",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                              <span style={{ fontSize: 12, flexShrink: 0 }}>
-                                {customIcons[project.id] || project.icon || "🔀"}
-                              </span>
-                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {project.name}
-                              </span>
-                            </div>
-                            {typeof project.taskCount === "number" && project.taskCount > 0 && (
-                              <span
-                                style={{
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  color: "#94a3b8",
-                                  background: "#1c2128",
-                                  padding: "1px 6px",
-                                  borderRadius: 8,
-                                  border: "1px solid #2d333b",
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {project.taskCount}
-                              </span>
-                            )}
-                          </Link>
-
-                          {project.id === currentProjectId && (
-                            <ProjectSublinks projectId={project.id} />
-                          )}
-                        </div>
-                      ))}
-                  </div>
-                </details>
-              ))}
-            </nav>
-
-            <button
-              type="button"
-              onClick={() => setIsUniversalCreateOpen(true)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "6px 10px",
-                borderRadius: 6,
-                border: 0,
-                background: "transparent",
-                color: "#64748b",
-                fontSize: 12,
-                cursor: "pointer",
-                width: "100%",
-                marginTop: 2,
-              }}
-            >
-              <Plus size={14} />
-              <span>New Space</span>
-            </button>
-          </div>
-
-          <div style={{ height: 1, background: "#22262e", margin: "6px 0" }} />
-
-          {/* Channels Section */}
-          <div style={{ padding: "4px 0" }}>
-            <Link
-              href="/chat"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "4px 10px",
-                color: "#64748b",
+                gap: 2,
                 fontSize: 11,
                 fontWeight: 700,
-                textDecoration: "none",
               }}
             >
-              <span>Channels</span>
-              <ChevronRight size={12} />
-            </Link>
+              <Plus size={13} />
+            </button>
           </div>
 
-          <div style={{ height: 1, background: "#22262e", margin: "6px 0" }} />
-
-          {/* Direct Messages Section */}
-          <div style={{ padding: "4px 0", marginTop: "auto" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", padding: "4px 10px", letterSpacing: 0.3 }}>
-              Direct Messages
-            </div>
-            <div style={{ display: "grid", gap: 2, marginTop: 2 }}>
-              {members.length ? (
-                members.map((member) => (
-                  <Link
-                    key={member.id}
-                    href={`/chat?user=${member.id}`}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "5px 10px",
-                      borderRadius: 6,
-                      color: "#cbd5e1",
-                      fontSize: 12,
-                      textDecoration: "none",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#20242c")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                  >
-                    <span
-                      style={{
-                        position: "relative",
-                        width: 20,
-                        height: 20,
-                        borderRadius: "50%",
-                        background: getAvatarColor(member.name),
-                        color: "#ffffff",
-                        fontSize: 9.5,
-                        fontWeight: 800,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
+          <nav
+            className="hierarchy-tree"
+            aria-label="Organization workspaces and projects"
+          >
+            {workspaces.map((workspace) => (
+              <details
+                key={workspace.id}
+                open={workspace.id === currentWorkspaceId}
+              >
+                <summary
+                  className={
+                    workspace.id === currentWorkspaceId && !currentProjectId
+                      ? "is-current"
+                      : ""
+                  }
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                    <ChevronDown size={13} />
+                    <FolderKanban size={14} />
+                    <Link
+                      className="hierarchy-workspace-title-link"
+                      href={`/workspaces/${workspace.id}`}
+                      prefetch={false}
                     >
-                      {member.avatarUrl ? (
-                        <img
-                          src={member.avatarUrl}
-                          alt={member.name}
-                          style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
-                        />
-                      ) : (
-                        (member.name.charAt(0) || "?").toUpperCase()
-                      )}
-                      <span
-                        style={{
-                          position: "absolute",
-                          bottom: -1,
-                          right: -1,
-                          width: 6,
-                          height: 6,
-                          borderRadius: "50%",
-                          background: "#10b981",
-                          border: "1.5px solid #16181d",
-                        }}
-                      />
-                    </span>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {member.name}
-                    </span>
+                      {workspace.name}
+                    </Link>
+                  </div>
+
+                  {/* Create Project (+) Button for this workspace */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setProjectModalTarget(workspace);
+                    }}
+                    title={`Create new project in ${workspace.name}`}
+                    style={{
+                      border: "1px solid var(--line, #cbd5e1)",
+                      background: "var(--surface, #ffffff)",
+                      color: "var(--green, #167c58)",
+                      cursor: "pointer",
+                      padding: "2px 5px",
+                      borderRadius: 4,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      marginLeft: 4,
+                    }}
+                  >
+                    <Plus size={11} />
+                  </button>
+                </summary>
+
+                <div className="hierarchy-projects">
+                  <Link
+                    className={`hierarchy-workspace-link${
+                      workspace.id === currentWorkspaceId && !currentProjectId
+                        ? " is-current"
+                        : ""
+                    }`}
+                    href={`/workspaces/${workspace.id}`}
+                    prefetch={false}
+                  >
+                    Workspace overview
                   </Link>
-                ))
-              ) : (
-                <div style={{ fontSize: 11, color: "#64748b", padding: "4px 10px" }}>
-                  No members yet.
+                  {projects
+                    .filter((project) => project.workspace_id === workspace.id)
+                    .map((project) => (
+                      <div className="hierarchy-project-group" key={project.id}>
+                        <Link
+                          className={`hierarchy-project-link${
+                            project.id === currentProjectId ? " is-current" : ""
+                          }`}
+                          href={`/projects/${project.id}`}
+                          prefetch={false}
+                          title={project.name}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setEditingIconProjectId(editingIconProjectId === project.id ? null : project.id);
+                              }}
+                              className="hierarchy-project-icon"
+                              title="Click to customize project icon"
+                              style={{
+                                border: 0,
+                                background: "transparent",
+                                padding: 0,
+                                cursor: "pointer",
+                                fontSize: 13,
+                                lineHeight: 1,
+                                flexShrink: 0,
+                                marginRight: 2,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {customIcons[project.id] || project.icon || "📁"}
+                            </button>
+                            <span className="hierarchy-link-label">
+                              {project.name}
+                            </span>
+                          </div>
+
+                          {typeof project.taskCount === "number" && project.taskCount > 0 && (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                color: "var(--muted, #64748b)",
+                                background: "var(--line-light, #f1f5f9)",
+                                padding: "1px 6px",
+                                borderRadius: 8,
+                                border: "1px solid var(--line, #e2e8f0)",
+                                flexShrink: 0,
+                                marginLeft: 4,
+                              }}
+                            >
+                              {project.taskCount}
+                            </span>
+                          )}
+                        </Link>
+
+                        {editingIconProjectId === project.id && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              margin: "4px 0 8px 10px",
+                              padding: "8px 10px",
+                              background: "var(--surface, #ffffff)",
+                              border: "1px solid var(--line, #e2e8f0)",
+                              borderRadius: 10,
+                              boxShadow: "0 10px 25px rgba(0,0,0,0.18)",
+                              zIndex: 50,
+                              display: "grid",
+                              gap: 6,
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--ink, #0f172a)" }}>
+                                Choose Project Icon
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingIconProjectId(null);
+                                }}
+                                style={{ border: 0, background: "transparent", cursor: "pointer", color: "var(--muted)", padding: 2 }}
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4 }}>
+                              {POPULAR_PROJECT_ICONS.map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handlePickIcon(project.id, emoji);
+                                  }}
+                                  style={{
+                                    border: (customIcons[project.id] || project.icon || "📁") === emoji ? "1.5px solid var(--green, #167c58)" : "1px solid var(--line, #e2e8f0)",
+                                    background: (customIcons[project.id] || project.icon || "📁") === emoji ? "color-mix(in srgb, var(--green, #167c58) 12%, var(--surface))" : "var(--surface)",
+                                    borderRadius: 6,
+                                    padding: "4px 2px",
+                                    fontSize: 14,
+                                    cursor: "pointer",
+                                    display: "grid",
+                                    placeItems: "center",
+                                  }}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {project.id === currentProjectId && (
+                          <ProjectSublinks projectId={project.id} />
+                        )}
+                      </div>
+                    ))}
                 </div>
-              )}
-            </div>
+              </details>
+            ))}
+            {!workspaces.length && (
+              <p className="hierarchy-empty">No workspaces yet.</p>
+            )}
+
+            {/* Quick + New Space button */}
+            <button
+              type="button"
+              onClick={() => setWorkspaceModalOpen(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "7px 9px",
+                margin: "4px 0 0",
+                border: "1px dashed var(--line, #cbd5e1)",
+                borderRadius: 6,
+                background: "transparent",
+                color: "var(--green, #167c58)",
+                fontSize: 12,
+                fontWeight: 650,
+                cursor: "pointer",
+                width: "100%",
+                textAlign: "left",
+              }}
+            >
+              <Plus size={13} />
+              <span>New Space (Workspace)</span>
+            </button>
+          </nav>
+
+          <div className="hierarchy-sidebar-footer">
+            <Link
+              href={`/organizations/${organizationId}/calendar`}
+              prefetch={false}
+            >
+              Holidays &amp; leave
+            </Link>
           </div>
         </aside>
       </div>
 
-      {/* Universal Create Modal Triggered from Nav Drawer */}
-      <UniversalCreateModal
-        isOpen={isUniversalCreateOpen}
-        onClose={() => setIsUniversalCreateOpen(false)}
-        projectId={currentProjectId}
-        members={members.map((m) => ({ id: m.id, label: m.name }))}
-      />
+      {/* ======================================================== */}
+      {/* MODAL: CREATE NEW SPACE (WORKSPACE)                      */}
+      {/* ======================================================== */}
+      {workspaceModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.45)",
+            backdropFilter: "blur(2px)",
+            zIndex: 99999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setWorkspaceModalOpen(false)}
+        >
+          <div
+            style={{
+              background: "var(--surface, #ffffff)",
+              border: "1px solid var(--line, #cbd5e1)",
+              borderRadius: 12,
+              padding: "20px 24px",
+              width: "100%",
+              maxWidth: 420,
+              boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+              color: "var(--ink, #0f172a)",
+              display: "grid",
+              gap: 14,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <FolderKanban size={18} color="var(--green, #167c58)" />
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 750 }}>Create New Space</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWorkspaceModalOpen(false)}
+                style={{ border: 0, background: "transparent", cursor: "pointer", color: "var(--muted, #64748b)" }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p style={{ margin: 0, fontSize: 12, color: "var(--muted, #64748b)" }}>
+              Spaces organize your teams, projects, documents, and timesheets within <strong>{organizationName}</strong>.
+            </p>
+
+            <form action={createWorkspace} style={{ display: "grid", gap: 12 }}>
+              <input type="hidden" name="organizationId" value={organizationId} />
+
+              <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 650 }}>
+                Space Name
+                <input
+                  name="name"
+                  type="text"
+                  placeholder="e.g. Engineering, Marketing, Client Operations"
+                  required
+                  autoFocus
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    border: "1px solid var(--line, #cbd5e1)",
+                    fontSize: 13,
+                    outline: "none",
+                    background: "var(--surface-raised, #ffffff)",
+                    color: "var(--ink, #0f172a)",
+                  }}
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 650 }}>
+                Description (optional)
+                <input
+                  name="description"
+                  type="text"
+                  placeholder="Brief description of this space"
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    border: "1px solid var(--line, #cbd5e1)",
+                    fontSize: 13,
+                    outline: "none",
+                    background: "var(--surface-raised, #ffffff)",
+                    color: "var(--ink, #0f172a)",
+                  }}
+                />
+              </label>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceModalOpen(false)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: 6,
+                    border: "1px solid var(--line, #cbd5e1)",
+                    background: "transparent",
+                    color: "var(--ink, #0f172a)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 6,
+                    border: 0,
+                    background: "var(--green, #167c58)",
+                    color: "#ffffff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Create Space
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: CREATE NEW PROJECT IN WORKSPACE                   */}
+      {/* ======================================================== */}
+      {projectModalTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.45)",
+            backdropFilter: "blur(2px)",
+            zIndex: 99999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setProjectModalTarget(null)}
+        >
+          <div
+            style={{
+              background: "var(--surface, #ffffff)",
+              border: "1px solid var(--line, #cbd5e1)",
+              borderRadius: 12,
+              padding: "20px 24px",
+              width: "100%",
+              maxWidth: 440,
+              boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+              color: "var(--ink, #0f172a)",
+              display: "grid",
+              gap: 14,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <FolderPlus size={18} color="var(--green, #167c58)" />
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 750 }}>
+                  Create Project in {projectModalTarget.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProjectModalTarget(null)}
+                style={{ border: 0, background: "transparent", cursor: "pointer", color: "var(--muted, #64748b)" }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form action={createProject} style={{ display: "grid", gap: 12 }}>
+              <input type="hidden" name="workspaceId" value={projectModalTarget.id} />
+              <input type="hidden" name="icon" value={selectedEmoji} />
+
+              <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 650 }}>
+                Project Name
+                <div style={{ display: "flex", gap: 6 }}>
+                  <span
+                    style={{
+                      width: 36,
+                      height: 36,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 6,
+                      border: "1px solid var(--line, #cbd5e1)",
+                      background: "var(--line-light, #f8fafc)",
+                      fontSize: 16,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {selectedEmoji}
+                  </span>
+                  <input
+                    name="name"
+                    type="text"
+                    placeholder="e.g. Sprint 02, Q4 Roadmap, Client Portal"
+                    required
+                    autoFocus
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                      border: "1px solid var(--line, #cbd5e1)",
+                      fontSize: 13,
+                      outline: "none",
+                      background: "var(--surface-raised, #ffffff)",
+                      color: "var(--ink, #0f172a)",
+                      flex: 1,
+                    }}
+                  />
+                </div>
+              </label>
+
+              {/* Icon Choice Strip */}
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", margin: "2px 0" }}>
+                {["📁", "🚀", "⚡", "🎯", "📊", "🛠️", "💻", "💡", "🌟", "📦", "🎨", "🤖"].map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => setSelectedEmoji(emoji)}
+                    style={{
+                      border: selectedEmoji === emoji ? "1.5px solid var(--green, #167c58)" : "1px solid var(--line, #cbd5e1)",
+                      background: selectedEmoji === emoji ? "color-mix(in srgb, var(--green, #167c58) 12%, var(--surface))" : "var(--surface)",
+                      borderRadius: 6,
+                      width: 28,
+                      height: 28,
+                      fontSize: 13,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 0,
+                    }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 650 }}>
+                Description (optional)
+                <input
+                  name="description"
+                  type="text"
+                  placeholder="Project purpose and scope"
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    border: "1px solid var(--line, #cbd5e1)",
+                    fontSize: 13,
+                    outline: "none",
+                    background: "var(--surface-raised, #ffffff)",
+                    color: "var(--ink, #0f172a)",
+                  }}
+                />
+              </label>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => setProjectModalTarget(null)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: 6,
+                    border: "1px solid var(--line, #cbd5e1)",
+                    background: "transparent",
+                    color: "var(--ink, #0f172a)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 6,
+                    border: 0,
+                    background: "var(--green, #167c58)",
+                    color: "#ffffff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Create Project
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }

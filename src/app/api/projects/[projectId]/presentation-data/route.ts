@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import {
   ReportPeriodType,
   ResourceMetric,
@@ -103,6 +103,28 @@ export async function GET(
       }`;
     }
 
+    const adminClient = createAdminClient();
+    const db = adminClient || supabase;
+
+    // Fetch user identities from auth.users via adminClient to guarantee real full names
+    const authUsersMap = new Map<string, { name?: string; email?: string }>();
+    if (adminClient) {
+      try {
+        const { data: userList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+        if (userList?.users) {
+          for (const u of userList.users) {
+            const fullName = (u.user_metadata?.full_name || u.user_metadata?.name || u.user_metadata?.display_name || "").trim();
+            authUsersMap.set(u.id, {
+              name: fullName || u.email?.split("@")[0],
+              email: u.email,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to query auth users:", err);
+      }
+    }
+
     // Fetch statuses, tasks, assignees, profiles, dependencies, goals, decisions, members, holidays, and leaves in parallel
     const [
       statusesResult,
@@ -116,46 +138,46 @@ export async function GET(
       holidaysResult,
       leavesResult,
     ] = await Promise.all([
-      supabase
+      db
         .from("project_statuses")
         .select("id, name, color, category, position")
         .eq("project_id", projectId)
         .order("position"),
-      supabase
+      db
         .from("tasks")
         .select(
           "id, generated_key, title, task_type, priority, start_date, due_date, status_id, created_at, primary_assignee_id, secondary_assignee_id, estimate_minutes, parent_task_id"
         )
         .eq("project_id", projectId)
         .order("created_at", { ascending: false }),
-      supabase.from("task_assignees").select("task_id, user_id"),
-      supabase.from("profiles").select("id, display_name, email, avatar_url, designation"),
-      supabase
+      db.from("task_assignees").select("task_id, user_id"),
+      db.from("profiles").select("id, display_name, email, avatar_url, designation"),
+      db
         .from("task_dependencies")
         .select("project_id, task_id, linked_task_id, relation")
         .eq("project_id", projectId),
-      supabase
+      db
         .from("project_goals")
         .select("id, project_id, title, description, target_date, progress, status, completed_at")
         .eq("project_id", projectId)
         .order("created_at", { ascending: true }),
-      supabase
+      db
         .from("project_decisions")
         .select("id, project_id, title, decision_date, reason, impact, status, decided_by")
         .eq("project_id", projectId)
         .order("decision_date", { ascending: false }),
-      supabase
+      db
         .from("project_members")
         .select("user_id, role")
         .eq("project_id", projectId),
       orgId
-        ? supabase
+        ? db
             .from("organization_holidays")
             .select("id, name, holiday_date")
             .eq("organization_id", orgId)
         : Promise.resolve({ data: [] }),
       orgId
-        ? supabase
+        ? db
             .from("leave_requests")
             .select("id, user_id, start_date, end_date, status, leave_type")
             .eq("organization_id", orgId)
@@ -174,9 +196,17 @@ export async function GET(
     const rawHolidays = holidaysResult.data ?? [];
     const rawLeaves = leavesResult.data ?? [];
 
-    const profileMap = new Map(
-      rawProfiles.map((p) => [p.id, p.display_name?.trim() || p.email || "Team member"])
-    );
+    const profileMap = new Map<string, string>();
+    for (const p of rawProfiles) {
+      const authInfo = authUsersMap.get(p.id);
+      const name = p.display_name?.trim() || p.email?.split("@")[0] || authInfo?.name || authInfo?.email?.split("@")[0];
+      if (name) profileMap.set(p.id, name);
+    }
+    for (const [uid, authInfo] of authUsersMap.entries()) {
+      if (!profileMap.has(uid) && (authInfo.name || authInfo.email)) {
+        profileMap.set(uid, (authInfo.name || authInfo.email?.split("@")[0])!);
+      }
+    }
     const statusMap = new Map(rawStatuses.map((s) => [s.id, s]));
 
     // Index task assignees
@@ -229,7 +259,7 @@ export async function GET(
       const assigneeIds = Array.from(taskAssigneeMap.get(t.id) || []);
       const assignees = assigneeIds.map((uid) => ({
         id: uid,
-        name: profileMap.get(uid) || "Team member",
+        name: profileMap.get(uid) || authUsersMap.get(uid)?.name || authUsersMap.get(uid)?.email?.split("@")[0] || "Team Member",
       }));
 
       return {
@@ -392,10 +422,18 @@ export async function GET(
         leaveRequests: (rawLeaves as any) || [],
       });
 
+      const authInfo = authUsersMap.get(uid);
+      const memberName =
+        p?.display_name?.trim() ||
+        p?.email?.split("@")[0] ||
+        authInfo?.name ||
+        authInfo?.email?.split("@")[0] ||
+        `Team Member (${uid.slice(0, 4)})`;
+
       return {
         userId: uid,
-        name: p?.display_name?.trim() || p?.email?.split("@")[0] || "Team Member",
-        email: p?.email || "",
+        name: memberName,
+        email: p?.email || authInfo?.email || "",
         avatarUrl: p?.avatar_url || null,
         role: roleStr,
         experienceLevel: inferExperienceLevel(roleStr),

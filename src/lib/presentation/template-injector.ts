@@ -477,11 +477,11 @@ async function injectOrbitworkReviewDeck(
     }
 
     // Global fallback for any leftover placeholder names in this slide
-    if (m1) xml = xml.replace(/A\. Kumar/g, escapeXml(m1.name));
-    if (m2) xml = xml.replace(/M\. Rao/g, escapeXml(m2.name));
-    if (m3) xml = xml.replace(/S\. Lee/g, escapeXml(m3.name));
-    if (m4) xml = xml.replace(/P\. Singh/g, escapeXml(m4.name));
-    if (realMembers[4]) xml = xml.replace(/R\. Das/g, escapeXml(realMembers[4].name));
+    xml = xml.replace(/A\. Kumar/g, escapeXml(m1?.name || "Lead Contributor"));
+    xml = xml.replace(/M\. Rao/g, escapeXml(m2?.name || m1?.name || "Core Contributor"));
+    xml = xml.replace(/S\. Lee/g, escapeXml(m3?.name || m1?.name || "Core Contributor"));
+    xml = xml.replace(/P\. Singh/g, escapeXml(m4?.name || m1?.name || "Core Contributor"));
+    xml = xml.replace(/R\. Das/g, escapeXml(realMembers[4]?.name || m1?.name || "Core Contributor"));
 
     zip.file(sPath, xml);
   }
@@ -809,6 +809,13 @@ async function injectTeamCapacityCharts(
         `$1${axisMax.toFixed(1)}$3`
       );
 
+      // Clean up any remaining legacy placeholder names in chart XML
+      xml = xml.replace(/A\. Kumar/g, escapeXml(members[0]?.name || "Lead Contributor"));
+      xml = xml.replace(/M\. Rao/g, escapeXml(members[1]?.name || members[0]?.name || "Core Contributor"));
+      xml = xml.replace(/S\. Lee/g, escapeXml(members[2]?.name || members[0]?.name || "Core Contributor"));
+      xml = xml.replace(/P\. Singh/g, escapeXml(members[3]?.name || members[0]?.name || "Core Contributor"));
+      xml = xml.replace(/R\. Das/g, escapeXml(members[4]?.name || members[0]?.name || "Core Contributor"));
+
       zip.file(cPath, xml);
     }
   }
@@ -820,7 +827,7 @@ async function injectTeamCapacityCharts(
     const xFile = zip.file(xPath);
     if (!xFile) continue;
     try {
-      const xBuf = await xFile.async("nodebuffer");
+      const xBuf = await xFile.async("uint8array");
       const xZip = await JSZip.loadAsync(xBuf);
       const count = members.length;
 
@@ -847,7 +854,7 @@ async function injectTeamCapacityCharts(
       xZip.file("xl/worksheets/sheet1.xml", sheetXml);
 
       const updatedXlsx = await xZip.generateAsync({
-        type: "nodebuffer",
+        type: "uint8array",
         compression: "DEFLATE",
       });
       zip.file(xPath, updatedXlsx);
