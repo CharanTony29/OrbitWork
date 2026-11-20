@@ -44,6 +44,7 @@ import type {
   ProjectBrainFullPayload,
   ProjectDecision,
 } from "@/lib/brain/types";
+import { markdownToSafeHtml } from "@/lib/markdown";
 import "./brain.css";
 
 interface ProjectBrainViewProps {
@@ -2240,9 +2241,10 @@ export default function ProjectBrainView({
               <div
                 key={i}
                 className={`brain-chat-bubble ${msg.role === "user" ? "user" : "assistant"}`}
-              >
-                {msg.content}
-              </div>
+                dangerouslySetInnerHTML={{
+                  __html: markdownToSafeHtml(msg.content),
+                }}
+              />
             ))}
 
             {chatStreaming && (

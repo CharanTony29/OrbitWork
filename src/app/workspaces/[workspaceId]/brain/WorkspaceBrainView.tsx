@@ -25,6 +25,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import type { PortfolioBrainPayload, TaskCatalogFilter } from "@/lib/brain/portfolio-brain";
+import { markdownToSafeHtml } from "@/lib/markdown";
 
 interface WorkspaceBrainViewProps {
   workspaceId: string;
@@ -1170,9 +1171,10 @@ export default function WorkspaceBrainView({
               <div
                 key={i}
                 className={`brain-chat-bubble ${msg.role === "user" ? "user" : "assistant"}`}
-              >
-                {msg.content}
-              </div>
+                dangerouslySetInnerHTML={{
+                  __html: markdownToSafeHtml(msg.content),
+                }}
+              />
             ))}
 
             {chatStreaming && (
