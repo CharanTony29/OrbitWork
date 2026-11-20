@@ -27,6 +27,7 @@ export interface TaskReportItem {
   isHold: boolean;
   isInProgress: boolean;
   isPending: boolean;
+  estimatedHours?: number;
 }
 
 export type PresentationThemeStyle =

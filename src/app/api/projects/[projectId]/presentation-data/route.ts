@@ -7,6 +7,12 @@ import {
   TaskReportItem,
 } from "@/lib/export-presentation";
 import type { ProjectTemplateData } from "@/lib/presentation/template-injector";
+import {
+  calculateWorkload,
+  inferExperienceLevel,
+  type MemberProfileInput,
+  type TaskWorkloadInput,
+} from "@/lib/workload/engine";
 
 export async function GET(
   request: NextRequest,
@@ -91,8 +97,17 @@ export async function GET(
       }`;
     }
 
-    // Fetch statuses, tasks, assignees, and profiles in parallel
-    const [statusesResult, tasksResult, assigneesResult, profilesResult] = await Promise.all([
+    // Fetch statuses, tasks, assignees, profiles, dependencies, goals, decisions, and members in parallel
+    const [
+      statusesResult,
+      tasksResult,
+      assigneesResult,
+      profilesResult,
+      dependenciesResult,
+      goalsResult,
+      decisionsResult,
+      membersResult,
+    ] = await Promise.all([
       supabase
         .from("project_statuses")
         .select("id, name, color, category, position")
@@ -101,18 +116,40 @@ export async function GET(
       supabase
         .from("tasks")
         .select(
-          "id, generated_key, title, task_type, priority, start_date, due_date, status_id, created_at, primary_assignee_id, secondary_assignee_id"
+          "id, generated_key, title, task_type, priority, start_date, due_date, status_id, created_at, primary_assignee_id, secondary_assignee_id, estimate_minutes, parent_task_id"
         )
         .eq("project_id", projectId)
         .order("created_at", { ascending: false }),
       supabase.from("task_assignees").select("task_id, user_id"),
-      supabase.from("profiles").select("id, display_name, email"),
+      supabase.from("profiles").select("id, display_name, email, role, avatar_url"),
+      supabase
+        .from("task_dependencies")
+        .select("project_id, task_id, linked_task_id, relation")
+        .eq("project_id", projectId),
+      supabase
+        .from("project_goals")
+        .select("id, project_id, title, description, target_date, progress, status, completed_at")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("project_decisions")
+        .select("id, project_id, title, decision_date, reason, impact, status, decided_by")
+        .eq("project_id", projectId)
+        .order("decision_date", { ascending: false }),
+      supabase
+        .from("project_members")
+        .select("user_id, role")
+        .eq("project_id", projectId),
     ]);
 
     const rawStatuses = statusesResult.data ?? [];
     const rawTasks = tasksResult.data ?? [];
     const rawAssignees = assigneesResult.data ?? [];
     const rawProfiles = profilesResult.data ?? [];
+    const rawDependencies = dependenciesResult.data ?? [];
+    const rawGoals = goalsResult.data ?? [];
+    const rawDecisions = decisionsResult.data ?? [];
+    const rawMembers = membersResult.data ?? [];
 
     const profileMap = new Map(
       rawProfiles.map((p) => [p.id, p.display_name?.trim() || p.email || "Team member"])
@@ -190,6 +227,7 @@ export async function GET(
         isOverdue,
         assignees,
         createdAt: t.created_at,
+        estimatedHours: Math.round(((t.estimate_minutes || 0) / 60) * 10) / 10,
       };
     });
 
@@ -300,6 +338,94 @@ export async function GET(
     const holdRate = totalCount ? Math.round((holdTasks.length * 100) / totalCount) : 0;
     const pendingRate = totalCount ? Math.round((pendingTasks.length * 100) / totalCount) : 0;
 
+    // Calculate total estimated hours across all tasks
+    const totalEstimatedHours = Math.round(
+      rawTasks.reduce((acc, t) => acc + (t.estimate_minutes || 0) / 60, 0)
+    );
+
+    // Build unique set of project team members
+    const memberUserIds = new Set<string>();
+    for (const m of rawMembers) {
+      if (m.user_id) memberUserIds.add(m.user_id);
+    }
+    for (const t of rawTasks) {
+      const assignees = taskAssigneeMap.get(t.id);
+      if (assignees) {
+        for (const uid of assignees) memberUserIds.add(uid);
+      }
+    }
+
+    const memberProfiles: MemberProfileInput[] = Array.from(memberUserIds).map((uid) => {
+      const p = rawProfiles.find((x) => x.id === uid);
+      const pm = rawMembers.find((x) => x.user_id === uid);
+      const roleStr = p?.role || pm?.role || "Software Engineer";
+      return {
+        userId: uid,
+        name: p?.display_name?.trim() || p?.email?.split("@")[0] || "Team Member",
+        email: p?.email || "",
+        avatarUrl: p?.avatar_url || null,
+        role: roleStr,
+        experienceLevel: inferExperienceLevel(roleStr),
+        rawCapacityHours: 40,
+        workingDays: 5,
+        workingHoursPerDay: 8,
+      };
+    });
+
+    const workloadTasks: TaskWorkloadInput[] = rawTasks.map((t) => {
+      const st = t.status_id ? statusMap.get(t.status_id) : undefined;
+      const isCompleted =
+        st?.category === "completed" ||
+        st?.category === "cancelled" ||
+        (st?.name &&
+          (st.name.toLowerCase().includes("done") ||
+            st.name.toLowerCase().includes("complete") ||
+            st.name.toLowerCase().includes("closed")));
+      return {
+        id: t.id,
+        title: t.title,
+        estimateMinutes: t.estimate_minutes || 0,
+        priority: t.priority as any,
+        dueDate: t.due_date,
+        primaryAssigneeId: t.primary_assignee_id,
+        secondaryAssigneeId: t.secondary_assignee_id,
+        isCompleted: Boolean(isCompleted),
+        parentTaskId: t.parent_task_id,
+      };
+    });
+
+    const workloadResult = calculateWorkload(memberProfiles, workloadTasks);
+
+    // Map dependencies to real task keys and titles
+    const rawTaskMap = new Map(rawTasks.map((t) => [t.id, t]));
+    const dependencies = rawDependencies.map((d) => {
+      const t1 = rawTaskMap.get(d.task_id);
+      const t2 = rawTaskMap.get(d.linked_task_id);
+      return {
+        relation: d.relation || "blocks",
+        taskKey: t1?.generated_key || `#${d.task_id.slice(0, 6)}`,
+        taskTitle: t1?.title || "Deliverable",
+        linkedKey: t2?.generated_key || `#${d.linked_task_id.slice(0, 6)}`,
+        linkedTitle: t2?.title || "Linked Deliverable",
+      };
+    });
+
+    // Map goals
+    const goals = rawGoals.map((g) => ({
+      title: g.title,
+      targetDate: g.target_date || undefined,
+      progress: g.progress ?? undefined,
+      status: g.status || "active",
+    }));
+
+    // Map decisions
+    const decisions = rawDecisions.map((d) => ({
+      title: d.title,
+      owner: d.decided_by ? profileMap.get(d.decided_by) || "PMO" : "PMO",
+      dueDate: d.decision_date || undefined,
+      status: d.status || "CONFIRMED",
+    }));
+
     const data: ProjectTemplateData = {
       projectName: project.name,
       workspaceName: workspaceObj?.name,
@@ -318,6 +444,12 @@ export async function GET(
       statusMetrics,
       resourceMetrics,
       allTasks: filteredTasks,
+      totalEstimatedHours,
+      workloadResult,
+      dependencies,
+      goals,
+      decisions,
+      risks: [], // 0 risks recorded in project
     };
 
     return NextResponse.json(data);

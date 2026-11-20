@@ -31,7 +31,7 @@ export default function PresentationStudioModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [topic, setTopic] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState("");
-  const [selectedTemplateId, setSelectedTemplateId] = useState("pitch_sage");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("orbitwork_workload_review");
   const [slideCount, setSlideCount] = useState(6);
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [customTemplates, setCustomTemplates] = useState<PresentationTemplate[]>([]);
@@ -215,11 +215,15 @@ export default function PresentationStudioModal() {
 
     setIsExportingPptx(true);
     try {
+      const isOrbitworkMaster = selectedTemplateId === "orbitwork_workload_review";
       const isCompany = selectedTemplateId.startsWith("company_");
       const { getCompanyTemplateBuffer } = await import("@/lib/presentation/company-template");
-      const companyBuffer = isCompany ? await getCompanyTemplateBuffer(selectedTemplateId) : null;
+      const { getOrbitworkMasterTemplateBuffer, downloadInjectedCompanyPresentation } = await import("@/lib/presentation/template-injector");
 
-      if (isCompany && companyBuffer) {
+      const companyBuffer = isCompany ? await getCompanyTemplateBuffer(selectedTemplateId) : null;
+      const targetBuffer = isOrbitworkMaster ? getOrbitworkMasterTemplateBuffer() : companyBuffer;
+
+      if (targetBuffer) {
         // High-speed zero-payload client-side generation preserving full corporate template layout
         const dataRes = await fetch(`/api/projects/${targetProjId}/presentation-data`);
         let projectData: any;
@@ -246,10 +250,9 @@ export default function PresentationStudioModal() {
           };
         }
 
-        const { downloadInjectedCompanyPresentation } = await import("@/lib/presentation/template-injector");
         const projectName = projects.find((p) => p.id === targetProjId)?.name || "Project";
         const safeName = `${projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${selectedTemplateId}`;
-        await downloadInjectedCompanyPresentation(companyBuffer, projectData, safeName);
+        await downloadInjectedCompanyPresentation(targetBuffer, projectData, safeName);
 
         showAppToast("PowerPoint deck (.pptx) downloaded successfully!", "success", {
           title: "Export Complete",

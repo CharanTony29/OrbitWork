@@ -57,6 +57,31 @@ export interface PresentationTemplate {
 
 const BASE_PRESENTATION_TEMPLATES: PresentationTemplate[] = [
   // ==========================================
+  // 0. CANONICAL ORBITWORK REVIEW MASTER TEMPLATE
+  // ==========================================
+  {
+    id: "orbitwork_workload_review",
+    name: "Orbitwork Project & Workload Review (Master)",
+    category: "project",
+    archetype: "corporate",
+    tagline: "Official 10-slide executive review: project health, effort-based capacity, delivery risk & team planning",
+    bg: "FFFFFF",
+    cardBg: "F8FAFC",
+    cardBorder: "E2E8F0",
+    textPrimary: "0F172A",
+    textSecondary: "475569",
+    accent: "2563EB",
+    accentSecondary: "10B981",
+    fontTitle: "Inter",
+    fontBody: "Inter",
+    layoutStyle: "executive_grid",
+    badgeStyle: "pill",
+    transition: "fade",
+    isDark: false,
+    industry: "Enterprise Project & Workload Management",
+    recommendedUse: "Leadership project reviews, sprint health, effort-based workload & delivery planning",
+  },
+  // ==========================================
   // 1. EXECUTIVE & BOARDROOM
   // ==========================================
   {

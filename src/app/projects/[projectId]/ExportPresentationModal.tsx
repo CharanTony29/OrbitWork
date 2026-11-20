@@ -90,7 +90,7 @@ export default function ExportPresentationModal({
   const [includeCatalog, setIncludeCatalog] = useState(true);
 
   // Template Selection & Explorer State
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("pitch_sage");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("orbitwork_workload_review");
   const [activeCategory, setActiveCategory] = useState<TemplateCategory>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
@@ -376,12 +376,16 @@ export default function ExportPresentationModal({
     setIsExporting(true);
 
     try {
+      const isOrbitworkMaster = selectedTemplateId === "orbitwork_workload_review";
       const isCompany = selectedTemplateId.startsWith("company_");
       const { getCompanyTemplateBuffer } = await import("@/lib/presentation/company-template");
-      const companyBuffer = isCompany ? await getCompanyTemplateBuffer(selectedTemplateId) : null;
+      const { getOrbitworkMasterTemplateBuffer, downloadInjectedCompanyPresentation } = await import("@/lib/presentation/template-injector");
 
-      // When exporting an uploaded company template, run high-speed zero-payload client-side generation
-      if (isCompany && companyBuffer) {
+      const companyBuffer = isCompany ? await getCompanyTemplateBuffer(selectedTemplateId) : null;
+      const targetBuffer = isOrbitworkMaster ? getOrbitworkMasterTemplateBuffer() : companyBuffer;
+
+      // When exporting Orbitwork Master or an uploaded company template, run high-speed zero-payload client-side generation
+      if (targetBuffer) {
         const dataRes = await fetch(
           `/api/projects/${projectId}/presentation-data?period=${period}&taskIds=${Array.from(selectedTaskIds).join(",")}`
         );
@@ -413,9 +417,8 @@ export default function ExportPresentationModal({
           };
         }
 
-        const { downloadInjectedCompanyPresentation } = await import("@/lib/presentation/template-injector");
         const safeName = `${projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${selectedTemplateId}`;
-        await downloadInjectedCompanyPresentation(companyBuffer, projectData, safeName);
+        await downloadInjectedCompanyPresentation(targetBuffer, projectData, safeName);
 
         setTimeout(() => {
           setIsExporting(false);

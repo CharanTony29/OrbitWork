@@ -9,7 +9,16 @@ import {
   TaskReportItem,
 } from "@/lib/export-presentation";
 import { getCompanyTemplateById } from "@/lib/presentation/company-template";
-import { injectProjectDataIntoCompanyTemplate } from "@/lib/presentation/template-injector";
+import {
+  injectProjectDataIntoCompanyTemplate,
+  getOrbitworkMasterTemplateBuffer,
+} from "@/lib/presentation/template-injector";
+import {
+  calculateWorkload,
+  inferExperienceLevel,
+  type MemberProfileInput,
+  type TaskWorkloadInput,
+} from "@/lib/workload/engine";
 
 interface PptxExportConfig {
   period?: ReportPeriodType;
@@ -62,7 +71,7 @@ async function handleGeneratePptx(
   const yearParam = config.year;
   const includeCatalog = config.includeCatalog !== false;
   const aiPrompt = config.aiPrompt || undefined;
-  const templateId = config.templateId || config.style || "pitch_sage";
+  const templateId = config.templateId || config.style || "orbitwork_workload_review";
   const selectedTaskSet =
     config.selectedTaskIds && config.selectedTaskIds.length > 0
       ? new Set(config.selectedTaskIds)
@@ -113,8 +122,17 @@ async function handleGeneratePptx(
     }`;
   }
 
-  // Fetch statuses, tasks, assignees, and profiles in parallel
-  const [statusesResult, tasksResult, assigneesResult, profilesResult] = await Promise.all([
+  // Fetch statuses, tasks, assignees, profiles, dependencies, goals, decisions, and members in parallel
+  const [
+    statusesResult,
+    tasksResult,
+    assigneesResult,
+    profilesResult,
+    dependenciesResult,
+    goalsResult,
+    decisionsResult,
+    membersResult,
+  ] = await Promise.all([
     supabase
       .from("project_statuses")
       .select("id, name, color, category, position")
@@ -123,18 +141,40 @@ async function handleGeneratePptx(
     supabase
       .from("tasks")
       .select(
-        "id, generated_key, title, task_type, priority, start_date, due_date, status_id, created_at, primary_assignee_id, secondary_assignee_id"
+        "id, generated_key, title, task_type, priority, start_date, due_date, status_id, created_at, primary_assignee_id, secondary_assignee_id, estimate_minutes, parent_task_id"
       )
       .eq("project_id", projectId)
       .order("created_at", { ascending: false }),
     supabase.from("task_assignees").select("task_id, user_id"),
-    supabase.from("profiles").select("id, display_name, email"),
+    supabase.from("profiles").select("id, display_name, email, role, avatar_url"),
+    supabase
+      .from("task_dependencies")
+      .select("project_id, task_id, linked_task_id, relation")
+      .eq("project_id", projectId),
+    supabase
+      .from("project_goals")
+      .select("id, project_id, title, description, target_date, progress, status, completed_at")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("project_decisions")
+      .select("id, project_id, title, decision_date, reason, impact, status, decided_by")
+      .eq("project_id", projectId)
+      .order("decision_date", { ascending: false }),
+    supabase
+      .from("project_members")
+      .select("user_id, role")
+      .eq("project_id", projectId),
   ]);
 
   const rawStatuses = statusesResult.data ?? [];
   const rawTasks = tasksResult.data ?? [];
   const rawAssignees = assigneesResult.data ?? [];
   const rawProfiles = profilesResult.data ?? [];
+  const rawDependencies = dependenciesResult.data ?? [];
+  const rawGoals = goalsResult.data ?? [];
+  const rawDecisions = decisionsResult.data ?? [];
+  const rawMembers = membersResult.data ?? [];
 
   const profileMap = new Map(
     rawProfiles.map((p) => [p.id, p.display_name?.trim() || p.email || "Team member"])
@@ -363,14 +403,20 @@ async function handleGeneratePptx(
     selectedCharts: config.selectedCharts,
   };
 
-  // Check if this is an uploaded corporate template with raw base64 or stored definition
+  // Check if this is Orbitwork Master Review template or uploaded corporate template
+  const isOrbitworkMaster = templateId === "orbitwork_workload_review";
   const companyDef = templateId.startsWith("company_") ? getCompanyTemplateById(templateId) : null;
   const rawZipBase64 = config.rawZipBase64 || companyDef?.rawZipBase64;
 
   let buffer: Uint8Array | Buffer;
 
-  if (rawZipBase64) {
-    const templateBuffer = Buffer.from(rawZipBase64, "base64");
+  if (isOrbitworkMaster || rawZipBase64 || templateId.startsWith("company_")) {
+    const templateBuffer = isOrbitworkMaster
+      ? getOrbitworkMasterTemplateBuffer()
+      : rawZipBase64
+      ? Buffer.from(rawZipBase64, "base64")
+      : getOrbitworkMasterTemplateBuffer();
+
     const completedTasks = filteredTasks.filter((t) => t.isCompleted);
     const inProgressTasks = filteredTasks.filter((t) => t.isInProgress);
     const holdTasks = filteredTasks.filter((t) => t.isHold);
@@ -380,6 +426,94 @@ async function handleGeneratePptx(
     const completionRate = filteredTasks.length
       ? Math.round((completedTasks.length * 100) / filteredTasks.length)
       : 0;
+
+    // Calculate total estimated hours across all tasks
+    const totalEstimatedHours = Math.round(
+      rawTasks.reduce((acc, t) => acc + (t.estimate_minutes || 0) / 60, 0)
+    );
+
+    // Build unique set of project team members
+    const memberUserIds = new Set<string>();
+    for (const m of rawMembers) {
+      if (m.user_id) memberUserIds.add(m.user_id);
+    }
+    for (const t of rawTasks) {
+      const assignees = taskAssigneeMap.get(t.id);
+      if (assignees) {
+        for (const uid of assignees) memberUserIds.add(uid);
+      }
+    }
+
+    const memberProfiles: MemberProfileInput[] = Array.from(memberUserIds).map((uid) => {
+      const p = rawProfiles.find((x) => x.id === uid);
+      const pm = rawMembers.find((x) => x.user_id === uid);
+      const roleStr = p?.role || pm?.role || "Software Engineer";
+      return {
+        userId: uid,
+        name: p?.display_name?.trim() || p?.email?.split("@")[0] || "Team Member",
+        email: p?.email || "",
+        avatarUrl: p?.avatar_url || null,
+        role: roleStr,
+        experienceLevel: inferExperienceLevel(roleStr),
+        rawCapacityHours: 40,
+        workingDays: 5,
+        workingHoursPerDay: 8,
+      };
+    });
+
+    const workloadTasks: TaskWorkloadInput[] = rawTasks.map((t) => {
+      const st = t.status_id ? statusMap.get(t.status_id) : undefined;
+      const isCompleted =
+        st?.category === "completed" ||
+        st?.category === "cancelled" ||
+        (st?.name &&
+          (st.name.toLowerCase().includes("done") ||
+            st.name.toLowerCase().includes("complete") ||
+            st.name.toLowerCase().includes("closed")));
+      return {
+        id: t.id,
+        title: t.title,
+        estimateMinutes: t.estimate_minutes || 0,
+        priority: t.priority as any,
+        dueDate: t.due_date,
+        primaryAssigneeId: t.primary_assignee_id,
+        secondaryAssigneeId: t.secondary_assignee_id,
+        isCompleted: Boolean(isCompleted),
+        parentTaskId: t.parent_task_id,
+      };
+    });
+
+    const workloadResult = calculateWorkload(memberProfiles, workloadTasks);
+
+    // Map dependencies to real task keys and titles
+    const rawTaskMap = new Map(rawTasks.map((t) => [t.id, t]));
+    const dependencies = rawDependencies.map((d) => {
+      const t1 = rawTaskMap.get(d.task_id);
+      const t2 = rawTaskMap.get(d.linked_task_id);
+      return {
+        relation: d.relation || "blocks",
+        taskKey: t1?.generated_key || `#${d.task_id.slice(0, 6)}`,
+        taskTitle: t1?.title || "Deliverable",
+        linkedKey: t2?.generated_key || `#${d.linked_task_id.slice(0, 6)}`,
+        linkedTitle: t2?.title || "Linked Deliverable",
+      };
+    });
+
+    // Map goals
+    const goals = rawGoals.map((g) => ({
+      title: g.title,
+      targetDate: g.target_date || undefined,
+      progress: g.progress ?? undefined,
+      status: g.status || "active",
+    }));
+
+    // Map decisions
+    const decisions = rawDecisions.map((d) => ({
+      title: d.title,
+      owner: d.decided_by ? profileMap.get(d.decided_by) || "PMO" : "PMO",
+      dueDate: d.decision_date || undefined,
+      status: d.status || "CONFIRMED",
+    }));
 
     buffer = await injectProjectDataIntoCompanyTemplate(templateBuffer, {
       projectName: project.name,
@@ -393,12 +527,24 @@ async function handleGeneratePptx(
       pendingTasks,
       overdueTasks,
       completionRate,
-      inProgressRate: filteredTasks.length ? Math.round((inProgressTasks.length * 100) / filteredTasks.length) : 0,
-      holdRate: filteredTasks.length ? Math.round((holdTasks.length * 100) / filteredTasks.length) : 0,
-      pendingRate: filteredTasks.length ? Math.round((pendingTasks.length * 100) / filteredTasks.length) : 0,
+      inProgressRate: filteredTasks.length
+        ? Math.round((inProgressTasks.length * 100) / filteredTasks.length)
+        : 0,
+      holdRate: filteredTasks.length
+        ? Math.round((holdTasks.length * 100) / filteredTasks.length)
+        : 0,
+      pendingRate: filteredTasks.length
+        ? Math.round((pendingTasks.length * 100) / filteredTasks.length)
+        : 0,
       statusMetrics,
       resourceMetrics,
       allTasks: filteredTasks,
+      totalEstimatedHours,
+      workloadResult,
+      dependencies,
+      goals,
+      decisions,
+      risks: [],
     });
   } else {
     // Build the presentation deck using PptxGenJS
