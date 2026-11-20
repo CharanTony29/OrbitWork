@@ -406,9 +406,9 @@ export default function ExportPresentationModal({
   const presetBtnStyle: React.CSSProperties = {
     padding: "5px 10px",
     borderRadius: 6,
-    border: "1px solid rgba(255,255,255,0.1)",
-    background: "rgba(255,255,255,0.04)",
-    color: "#d1d5db",
+    border: "1px solid #cbd5e1",
+    background: "#ffffff",
+    color: "#0f172a",
     fontSize: 11,
     fontWeight: 600,
     cursor: "pointer",
@@ -452,10 +452,10 @@ export default function ExportPresentationModal({
           borderRadius: 16,
           overflow: "hidden",
           padding: 0,
-          background: "var(--surface, #111827)",
-          color: "var(--ink, #f3f4f6)",
-          border: "1px solid var(--line, #374151)",
-          boxShadow: "0 25px 60px rgba(0, 0, 0, 0.6)",
+          background: "#ffffff",
+          color: "#0f172a",
+          border: "1px solid #cbd5e1",
+          boxShadow: "0 25px 60px rgba(0, 0, 0, 0.35)",
         }}
         role="dialog"
         aria-modal="true"
@@ -581,6 +581,8 @@ export default function ExportPresentationModal({
             flexDirection: "column",
             gap: 20,
             scrollbarWidth: "thin",
+            background: "#ffffff",
+            color: "#0f172a",
           }}
         >
           {/* Top Level Step & View Tabs */}
@@ -589,7 +591,7 @@ export default function ExportPresentationModal({
               display: "flex",
               alignItems: "center",
               gap: 8,
-              borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+              borderBottom: "1px solid #e2e8f0",
               paddingBottom: 14,
             }}
           >
@@ -602,16 +604,16 @@ export default function ExportPresentationModal({
                 gap: 8,
                 padding: "8px 16px",
                 borderRadius: 8,
-                border: activeTab === "templates" ? "1px solid #3b82f6" : "1px solid rgba(255, 255, 255, 0.08)",
-                background: activeTab === "templates" ? "rgba(59, 130, 246, 0.18)" : "rgba(255, 255, 255, 0.03)",
-                color: activeTab === "templates" ? "#60a5fa" : "#9ca3af",
+                border: activeTab === "templates" ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                background: activeTab === "templates" ? "#eff6ff" : "#f8fafc",
+                color: activeTab === "templates" ? "#1d4ed8" : "#0f172a",
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: "pointer",
                 transition: "all 0.15s ease",
               }}
             >
-              <Layers size={15} />
+              <Layers size={15} style={{ color: activeTab === "templates" ? "#2563eb" : "#475569" }} />
               <span>1. Template Catalog ({allAvailableTemplates.length})</span>
             </button>
 
@@ -624,16 +626,16 @@ export default function ExportPresentationModal({
                 gap: 8,
                 padding: "8px 16px",
                 borderRadius: 8,
-                border: activeTab === "selection" ? "1px solid #10b981" : "1px solid rgba(255, 255, 255, 0.08)",
-                background: activeTab === "selection" ? "rgba(16, 185, 129, 0.18)" : "rgba(255, 255, 255, 0.03)",
-                color: activeTab === "selection" ? "#34d399" : "#9ca3af",
+                border: activeTab === "selection" ? "1px solid #059669" : "1px solid #cbd5e1",
+                background: activeTab === "selection" ? "#ecfdf5" : "#f8fafc",
+                color: activeTab === "selection" ? "#047857" : "#0f172a",
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: "pointer",
                 transition: "all 0.15s ease",
               }}
             >
-              <CheckSquare size={15} />
+              <CheckSquare size={15} style={{ color: activeTab === "selection" ? "#059669" : "#475569" }} />
               <span>2. Task &amp; Content Selection ({selectedTaskIds.size} / {tasks.length})</span>
             </button>
 
@@ -646,16 +648,16 @@ export default function ExportPresentationModal({
                 gap: 8,
                 padding: "8px 16px",
                 borderRadius: 8,
-                border: activeTab === "preview" ? "1px solid #a855f7" : "1px solid rgba(255, 255, 255, 0.08)",
-                background: activeTab === "preview" ? "rgba(168, 85, 247, 0.18)" : "rgba(255, 255, 255, 0.03)",
-                color: activeTab === "preview" ? "#c084fc" : "#9ca3af",
+                border: activeTab === "preview" ? "1px solid #7c3aed" : "1px solid #cbd5e1",
+                background: activeTab === "preview" ? "#faf5ff" : "#f8fafc",
+                color: activeTab === "preview" ? "#6d28d9" : "#0f172a",
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: "pointer",
                 transition: "all 0.15s ease",
               }}
             >
-              <Eye size={15} />
+              <Eye size={15} style={{ color: activeTab === "preview" ? "#7c3aed" : "#475569" }} />
               <span>3. Live Slide Deck Preview (6 Slides)</span>
             </button>
           </div>
@@ -665,8 +667,8 @@ export default function ExportPresentationModal({
           {/* Timeframe Selector Pills */}
           <div
             style={{
-              background: "rgba(255, 255, 255, 0.03)",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
+              background: "#f8fafc",
+              border: "1px solid #cbd5e1",
               borderRadius: 12,
               padding: "12px 16px",
               display: "flex",
@@ -677,10 +679,10 @@ export default function ExportPresentationModal({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", textTransform: "uppercase" }}>
                 Timeframe:
               </span>
-              <div style={{ display: "flex", gap: 4, background: "rgba(0,0,0,0.3)", padding: 3, borderRadius: 8 }}>
+              <div style={{ display: "flex", gap: 4, background: "#e2e8f0", padding: 3, borderRadius: 8 }}>
                 {(
                   [
                     { id: "weekly", label: "Weekly" },
@@ -699,8 +701,8 @@ export default function ExportPresentationModal({
                       borderRadius: 6,
                       padding: "5px 10px",
                       fontSize: 12,
-                      fontWeight: period === tab.id ? 700 : 500,
-                      color: period === tab.id ? "#ffffff" : "#9ca3af",
+                      fontWeight: period === tab.id ? 700 : 600,
+                      color: period === tab.id ? "#ffffff" : "#0f172a",
                       background: period === tab.id ? "#2563eb" : "transparent",
                       cursor: "pointer",
                     }}
@@ -714,7 +716,7 @@ export default function ExportPresentationModal({
             {/* Sub-selectors */}
             {period === "monthly" && (
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 11, color: "#9ca3af" }}>Month:</span>
+                <span style={{ fontSize: 11, color: "#0f172a", fontWeight: 600 }}>Month:</span>
                 <input
                   type="month"
                   value={selectedMonth}
@@ -722,9 +724,9 @@ export default function ExportPresentationModal({
                   style={{
                     padding: "4px 8px",
                     borderRadius: 6,
-                    border: "1px solid #4b5563",
-                    background: "#1f2937",
-                    color: "#ffffff",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#0f172a",
                     fontSize: 12,
                   }}
                 />
@@ -732,16 +734,16 @@ export default function ExportPresentationModal({
             )}
             {period === "yearly" && (
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 11, color: "#9ca3af" }}>Year:</span>
+                <span style={{ fontSize: 11, color: "#0f172a", fontWeight: 600 }}>Year:</span>
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(e.target.value)}
                   style={{
                     padding: "4px 8px",
                     borderRadius: 6,
-                    border: "1px solid #4b5563",
-                    background: "#1f2937",
-                    color: "#ffffff",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#0f172a",
                     fontSize: 12,
                   }}
                 >
@@ -760,13 +762,13 @@ export default function ExportPresentationModal({
                   style={{
                     padding: "4px 8px",
                     borderRadius: 6,
-                    border: "1px solid #4b5563",
-                    background: "#1f2937",
-                    color: "#ffffff",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#0f172a",
                     fontSize: 12,
                   }}
                 />
-                <span style={{ color: "#9ca3af" }}>→</span>
+                <span style={{ color: "#334155" }}>→</span>
                 <input
                   type="date"
                   value={endDate}
@@ -774,9 +776,9 @@ export default function ExportPresentationModal({
                   style={{
                     padding: "4px 8px",
                     borderRadius: 6,
-                    border: "1px solid #4b5563",
-                    background: "#1f2937",
-                    color: "#ffffff",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#0f172a",
                     fontSize: 12,
                   }}
                 />
@@ -1856,7 +1858,7 @@ export default function ExportPresentationModal({
                 paddingRight: 4,
               }}
             >
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#0f172a" }}>
                 SLIDES IN DECK ({slidesMeta.length})
               </span>
               {slidesMeta.map((s, idx) => {
@@ -1871,10 +1873,10 @@ export default function ExportPresentationModal({
                       borderRadius: 8,
                       border: isActive
                         ? `2px solid #${activeTemplate.accent}`
-                        : "1px solid rgba(255,255,255,0.1)",
+                        : "1px solid #cbd5e1",
                       background: isActive
-                        ? "rgba(37, 99, 235, 0.15)"
-                        : "rgba(255,255,255,0.03)",
+                        ? "#eff6ff"
+                        : "#ffffff",
                       cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
@@ -1887,10 +1889,10 @@ export default function ExportPresentationModal({
                         width: 24,
                         height: 24,
                         borderRadius: 6,
-                        background: isActive ? `#${activeTemplate.accent}` : "rgba(255,255,255,0.08)",
+                        background: isActive ? `#${activeTemplate.accent}` : "#f1f5f9",
                         display: "grid",
                         placeItems: "center",
-                        color: "#ffffff",
+                        color: isActive ? "#ffffff" : "#0f172a",
                         flexShrink: 0,
                       }}
                     >
@@ -1900,8 +1902,8 @@ export default function ExportPresentationModal({
                       <div
                         style={{
                           fontSize: 11,
-                          fontWeight: isActive ? 700 : 500,
-                          color: isActive ? "#ffffff" : "#d1d5db",
+                          fontWeight: isActive ? 700 : 600,
+                          color: "#0f172a",
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -1924,8 +1926,8 @@ export default function ExportPresentationModal({
               {/* Timeframe Selector Pills */}
               <div
                 style={{
-                  background: "rgba(255, 255, 255, 0.03)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  background: "#f8fafc",
+                  border: "1px solid #cbd5e1",
                   borderRadius: 12,
                   padding: "12px 16px",
                   display: "flex",
@@ -1936,10 +1938,10 @@ export default function ExportPresentationModal({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", textTransform: "uppercase" }}>
                     Timeframe:
                   </span>
-                  <div style={{ display: "flex", gap: 4, background: "rgba(0,0,0,0.3)", padding: 3, borderRadius: 8 }}>
+                  <div style={{ display: "flex", gap: 4, background: "#e2e8f0", padding: 3, borderRadius: 8 }}>
                     {(
                       [
                         { id: "weekly", label: "Weekly" },
@@ -1958,8 +1960,8 @@ export default function ExportPresentationModal({
                           borderRadius: 6,
                           padding: "5px 10px",
                           fontSize: 12,
-                          fontWeight: period === tab.id ? 700 : 500,
-                          color: period === tab.id ? "#ffffff" : "#9ca3af",
+                          fontWeight: period === tab.id ? 700 : 600,
+                          color: period === tab.id ? "#ffffff" : "#0f172a",
                           background: period === tab.id ? "#2563eb" : "transparent",
                           cursor: "pointer",
                         }}
@@ -1972,7 +1974,7 @@ export default function ExportPresentationModal({
 
                 {period === "monthly" && (
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 11, color: "#9ca3af" }}>Month:</span>
+                    <span style={{ fontSize: 11, color: "#0f172a", fontWeight: 600 }}>Month:</span>
                     <input
                       type="month"
                       value={selectedMonth}
@@ -1980,9 +1982,9 @@ export default function ExportPresentationModal({
                       style={{
                         padding: "4px 8px",
                         borderRadius: 6,
-                        border: "1px solid #4b5563",
-                        background: "#1f2937",
-                        color: "#ffffff",
+                        border: "1px solid #cbd5e1",
+                        background: "#ffffff",
+                        color: "#0f172a",
                         fontSize: 12,
                       }}
                     />
@@ -1990,16 +1992,16 @@ export default function ExportPresentationModal({
                 )}
                 {period === "yearly" && (
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 11, color: "#9ca3af" }}>Year:</span>
+                    <span style={{ fontSize: 11, color: "#0f172a", fontWeight: 600 }}>Year:</span>
                     <select
                       value={selectedYear}
                       onChange={(e) => setSelectedYear(e.target.value)}
                       style={{
                         padding: "4px 8px",
                         borderRadius: 6,
-                        border: "1px solid #4b5563",
-                        background: "#1f2937",
-                        color: "#ffffff",
+                        border: "1px solid #cbd5e1",
+                        background: "#ffffff",
+                        color: "#0f172a",
                         fontSize: 12,
                       }}
                     >
@@ -2018,13 +2020,13 @@ export default function ExportPresentationModal({
                       style={{
                         padding: "4px 8px",
                         borderRadius: 6,
-                        border: "1px solid #4b5563",
-                        background: "#1f2937",
-                        color: "#ffffff",
+                        border: "1px solid #cbd5e1",
+                        background: "#ffffff",
+                        color: "#0f172a",
                         fontSize: 12,
                       }}
                     />
-                    <span style={{ color: "#9ca3af" }}>→</span>
+                    <span style={{ color: "#334155" }}>→</span>
                     <input
                       type="date"
                       value={endDate}
@@ -2032,9 +2034,9 @@ export default function ExportPresentationModal({
                       style={{
                         padding: "4px 8px",
                         borderRadius: 6,
-                        border: "1px solid #4b5563",
-                        background: "#1f2937",
-                        color: "#ffffff",
+                        border: "1px solid #cbd5e1",
+                        background: "#ffffff",
+                        color: "#0f172a",
                         fontSize: 12,
                       }}
                     />
@@ -2045,8 +2047,8 @@ export default function ExportPresentationModal({
               {/* Quick Select Presets Bar */}
               <div
                 style={{
-                  background: "rgba(255, 255, 255, 0.03)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  background: "#f8fafc",
+                  border: "1px solid #cbd5e1",
                   borderRadius: 12,
                   padding: "12px 16px",
                   display: "flex",
@@ -2057,7 +2059,7 @@ export default function ExportPresentationModal({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", textTransform: "uppercase" }}>
                     Quick Select:
                   </span>
                   <button type="button" onClick={handleSelectAllTasks} style={presetBtnStyle}>
@@ -2072,15 +2074,15 @@ export default function ExportPresentationModal({
                   <button type="button" onClick={handleSelectPendingOnly} style={presetBtnStyle}>
                     Pending ({counts.pending})
                   </button>
-                  <button type="button" onClick={handleSelectOverdueOnly} style={{ ...presetBtnStyle, color: "#f87171" }}>
+                  <button type="button" onClick={handleSelectOverdueOnly} style={{ ...presetBtnStyle, color: "#dc2626", borderColor: "#fecaca", background: "#fef2f2" }}>
                     Overdue ({counts.overdue})
                   </button>
-                  <button type="button" onClick={handleSelectUrgentHighOnly} style={{ ...presetBtnStyle, color: "#fb923c" }}>
+                  <button type="button" onClick={handleSelectUrgentHighOnly} style={{ ...presetBtnStyle, color: "#ea580c", borderColor: "#fed7aa", background: "#fff7ed" }}>
                     Urgent / High ({counts.urgentHigh})
                   </button>
                 </div>
 
-                <div style={{ fontSize: 12, color: "#34d399", fontWeight: 700 }}>
+                <div style={{ fontSize: 12, color: "#059669", fontWeight: 700 }}>
                   {selectedTaskIds.size} of {tasks.length} selected
                 </div>
               </div>
@@ -2091,16 +2093,16 @@ export default function ExportPresentationModal({
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr",
                   gap: 14,
-                  background: "rgba(255, 255, 255, 0.02)",
-                  border: "1px solid rgba(255, 255, 255, 0.07)",
+                  background: "#f8fafc",
+                  border: "1px solid #cbd5e1",
                   borderRadius: 12,
                   padding: "14px 16px",
                 }}
               >
                 {/* Sections */}
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                    <Layers size={13} />
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                    <Layers size={13} style={{ color: "#2563eb" }} />
                     <span>Included Deck Sections</span>
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -2122,15 +2124,15 @@ export default function ExportPresentationModal({
                             gap: 6,
                             padding: "5px 10px",
                             borderRadius: 6,
-                            border: isChecked ? "1px solid #3b82f6" : "1px solid rgba(255,255,255,0.1)",
-                            background: isChecked ? "rgba(59, 130, 246, 0.15)" : "rgba(255,255,255,0.03)",
-                            color: isChecked ? "#93c5fd" : "#9ca3af",
+                            border: isChecked ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                            background: isChecked ? "#eff6ff" : "#ffffff",
+                            color: isChecked ? "#1d4ed8" : "#0f172a",
                             fontSize: 11,
                             fontWeight: 600,
                             cursor: "pointer",
                           }}
                         >
-                          {isChecked ? <CheckSquare size={13} style={{ color: "#60a5fa" }} /> : <Square size={13} />}
+                          {isChecked ? <CheckSquare size={13} style={{ color: "#2563eb" }} /> : <Square size={13} style={{ color: "#64748b" }} />}
                           <span>{sec.label}</span>
                         </label>
                       );
@@ -2140,8 +2142,8 @@ export default function ExportPresentationModal({
 
                 {/* Charts */}
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                    <PieChart size={13} />
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#0f172a", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                    <PieChart size={13} style={{ color: "#059669" }} />
                     <span>Included Vector Charts</span>
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -2162,15 +2164,15 @@ export default function ExportPresentationModal({
                             gap: 6,
                             padding: "5px 10px",
                             borderRadius: 6,
-                            border: isChecked ? "1px solid #10b981" : "1px solid rgba(255,255,255,0.1)",
-                            background: isChecked ? "rgba(16, 185, 129, 0.15)" : "rgba(255,255,255,0.03)",
-                            color: isChecked ? "#6ee7b7" : "#9ca3af",
+                            border: isChecked ? "1px solid #059669" : "1px solid #cbd5e1",
+                            background: isChecked ? "#ecfdf5" : "#ffffff",
+                            color: isChecked ? "#047857" : "#0f172a",
                             fontSize: 11,
                             fontWeight: 600,
                             cursor: "pointer",
                           }}
                         >
-                          {isChecked ? <CheckSquare size={13} style={{ color: "#34d399" }} /> : <Square size={13} />}
+                          {isChecked ? <CheckSquare size={13} style={{ color: "#059669" }} /> : <Square size={13} style={{ color: "#64748b" }} />}
                           <span>{ch.label}</span>
                         </label>
                       );
@@ -2186,15 +2188,15 @@ export default function ExportPresentationModal({
                     display: "flex",
                     alignItems: "center",
                     gap: 6,
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "#ffffff",
+                    border: "1px solid #cbd5e1",
                     borderRadius: 8,
                     padding: "6px 10px",
                     flex: 1,
                     maxWidth: 340,
                   }}
                 >
-                  <Search size={14} style={{ color: "#9ca3af" }} />
+                  <Search size={14} style={{ color: "#64748b" }} />
                   <input
                     type="text"
                     placeholder="Filter tasks by key or title..."
@@ -2204,7 +2206,7 @@ export default function ExportPresentationModal({
                       border: 0,
                       outline: "none",
                       background: "transparent",
-                      color: "#ffffff",
+                      color: "#0f172a",
                       fontSize: 12,
                       width: "100%",
                     }}
@@ -2218,9 +2220,9 @@ export default function ExportPresentationModal({
                     style={{
                       padding: "6px 10px",
                       borderRadius: 8,
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      background: "#1f2937",
-                      color: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      background: "#ffffff",
+                      color: "#0f172a",
                       fontSize: 12,
                     }}
                   >
@@ -2237,9 +2239,9 @@ export default function ExportPresentationModal({
                     style={{
                       padding: "6px 10px",
                       borderRadius: 8,
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      background: "#1f2937",
-                      color: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      background: "#ffffff",
+                      color: "#0f172a",
                       fontSize: 12,
                     }}
                   >
@@ -2254,20 +2256,20 @@ export default function ExportPresentationModal({
               {/* Scrollable Tasks Table */}
               <div
                 style={{
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  border: "1px solid #cbd5e1",
                   borderRadius: 10,
                   maxHeight: 280,
                   overflowY: "auto",
-                  background: "rgba(0,0,0,0.2)",
+                  background: "#ffffff",
                 }}
               >
                 {isLoadingTasks ? (
-                  <div style={{ padding: 32, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>
+                  <div style={{ padding: 32, textAlign: "center", color: "#64748b", fontSize: 13 }}>
                     <Loader2 size={18} className="spin" style={{ margin: "0 auto 8px" }} />
                     Loading project tasks...
                   </div>
                 ) : visibleTasks.length === 0 ? (
-                  <div style={{ padding: 32, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>
+                  <div style={{ padding: 32, textAlign: "center", color: "#64748b", fontSize: 13 }}>
                     No tasks match the filter criteria.
                   </div>
                 ) : (
@@ -2282,8 +2284,8 @@ export default function ExportPresentationModal({
                           alignItems: "center",
                           justifyContent: "space-between",
                           padding: "8px 14px",
-                          borderBottom: "1px solid rgba(255,255,255,0.05)",
-                          background: isSelected ? "rgba(59, 130, 246, 0.08)" : "transparent",
+                          borderBottom: "1px solid #e2e8f0",
+                          background: isSelected ? "#eff6ff" : "transparent",
                           cursor: "pointer",
                           transition: "background 0.1s ease",
                         }}
@@ -2300,10 +2302,10 @@ export default function ExportPresentationModal({
                               fontSize: 11,
                               fontWeight: 700,
                               fontFamily: "monospace",
-                              color: "#93c5fd",
+                              color: "#1d4ed8",
                               padding: "2px 6px",
                               borderRadius: 4,
-                              background: "rgba(59, 130, 246, 0.15)",
+                              background: "#dbeafe",
                             }}
                           >
                             {t.key}
@@ -2311,8 +2313,8 @@ export default function ExportPresentationModal({
                           <span
                             style={{
                               fontSize: 12,
-                              fontWeight: 500,
-                              color: isSelected ? "#ffffff" : "#9ca3af",
+                              fontWeight: 600,
+                              color: "#0f172a",
                               whiteSpace: "nowrap",
                               overflow: "hidden",
                               textOverflow: "ellipsis",
@@ -2332,16 +2334,22 @@ export default function ExportPresentationModal({
                               textTransform: "uppercase",
                               background:
                                 t.priority === "urgent"
-                                  ? "rgba(239, 68, 68, 0.2)"
+                                  ? "#fef2f2"
                                   : t.priority === "high"
-                                  ? "rgba(249, 115, 22, 0.2)"
-                                  : "rgba(107, 114, 128, 0.2)",
+                                  ? "#fff7ed"
+                                  : "#f1f5f9",
                               color:
                                 t.priority === "urgent"
-                                  ? "#f87171"
+                                  ? "#dc2626"
                                   : t.priority === "high"
-                                  ? "#fb923c"
-                                  : "#9ca3af",
+                                  ? "#ea580c"
+                                  : "#334155",
+                              border:
+                                t.priority === "urgent"
+                                  ? "1px solid #fecaca"
+                                  : t.priority === "high"
+                                  ? "1px solid #fed7aa"
+                                  : "1px solid #cbd5e1",
                             }}
                           >
                             {t.priority}
@@ -2353,9 +2361,9 @@ export default function ExportPresentationModal({
                               fontWeight: 600,
                               padding: "2px 8px",
                               borderRadius: 10,
-                              background: t.statusColor ? `${t.statusColor}25` : "rgba(255,255,255,0.08)",
-                              color: t.statusColor || "#d1d5db",
-                              border: `1px solid ${t.statusColor || "#4b5563"}40`,
+                              background: t.statusColor ? `${t.statusColor}18` : "#f1f5f9",
+                              color: t.statusColor || "#0f172a",
+                              border: `1px solid ${t.statusColor || "#cbd5e1"}`,
                             }}
                           >
                             {t.statusName}
@@ -2368,8 +2376,8 @@ export default function ExportPresentationModal({
                                 display: "inline-flex",
                                 alignItems: "center",
                                 gap: 4,
-                                color: t.isOverdue ? "#f87171" : "#9ca3af",
-                                fontWeight: t.isOverdue ? 700 : 400,
+                                color: t.isOverdue ? "#dc2626" : "#475569",
+                                fontWeight: t.isOverdue ? 700 : 500,
                               }}
                             >
                               <Clock size={11} />
@@ -2392,8 +2400,8 @@ export default function ExportPresentationModal({
               <div
                 style={{
                   marginBottom: 16,
-                  background: "linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)",
-                  border: "1px dashed rgba(59, 130, 246, 0.4)",
+                  background: "#f0f7ff",
+                  border: "1px dashed #93c5fd",
                   borderRadius: 12,
                   padding: "14px 18px",
                   display: "flex",
@@ -2408,24 +2416,24 @@ export default function ExportPresentationModal({
                       width: 36,
                       height: 36,
                       borderRadius: 8,
-                      background: "rgba(59, 130, 246, 0.2)",
-                      border: "1px solid rgba(59, 130, 246, 0.4)",
+                      background: "#dbeafe",
+                      border: "1px solid #93c5fd",
                       display: "grid",
                       placeItems: "center",
-                      color: "#60a5fa",
+                      color: "#1d4ed8",
                     }}
                   >
                     <Building2 size={18} />
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#ffffff" }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0f172a" }}>
                       Import Corporate Presentation Template (.pptx)
                     </div>
-                    <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: "#334155", marginTop: 2 }}>
                       Non-destructively parses corporate theme color scheme, major/minor fonts, and preserves company logos &amp; legal disclaimers.
                     </div>
                     {uploadError && (
-                      <div style={{ fontSize: 11, color: "#f87171", marginTop: 4 }}>
+                      <div style={{ fontSize: 11, color: "#dc2626", marginTop: 4, fontWeight: 600 }}>
                         {uploadError}
                       </div>
                     )}
@@ -2474,10 +2482,10 @@ export default function ExportPresentationModal({
 
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#ffffff" }}>
+                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f172a" }}>
                     Select Presentation Style &amp; Template ({filteredTemplates.length} Available)
                   </h3>
-                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "#9ca3af" }}>
+                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "#475569" }}>
                     Pick from 16 corporate categories, strategy consulting, engineering, finance, or upload your company deck.
                   </p>
                 </div>
@@ -2488,14 +2496,14 @@ export default function ExportPresentationModal({
                     display: "flex",
                     alignItems: "center",
                     gap: 6,
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "#ffffff",
+                    border: "1px solid #cbd5e1",
                     borderRadius: 8,
                     padding: "6px 10px",
                     width: 240,
                   }}
                 >
-                  <Search size={14} style={{ color: "#9ca3af" }} />
+                  <Search size={14} style={{ color: "#64748b" }} />
                   <input
                     type="text"
                     placeholder="Search 262+ templates..."
@@ -2505,7 +2513,7 @@ export default function ExportPresentationModal({
                       border: 0,
                       outline: "none",
                       background: "transparent",
-                      color: "#ffffff",
+                      color: "#0f172a",
                       fontSize: 12,
                       width: "100%",
                     }}
@@ -2541,13 +2549,14 @@ export default function ExportPresentationModal({
                     style={{
                       padding: "6px 12px",
                       borderRadius: 20,
-                      border: activeCategory === cat.id ? "1px solid #3b82f6" : "1px solid rgba(255,255,255,0.08)",
-                      background: activeCategory === cat.id ? "rgba(59, 130, 246, 0.2)" : "rgba(255,255,255,0.03)",
-                      color: activeCategory === cat.id ? "#60a5fa" : "#9ca3af",
+                      border: activeCategory === cat.id ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                      background: activeCategory === cat.id ? "#2563eb" : "#f1f5f9",
+                      color: activeCategory === cat.id ? "#ffffff" : "#0f172a",
                       fontSize: 12,
-                      fontWeight: activeCategory === cat.id ? 700 : 500,
+                      fontWeight: activeCategory === cat.id ? 700 : 600,
                       cursor: "pointer",
                       whiteSpace: "nowrap",
+                      transition: "all 0.12s ease",
                     }}
                   >
                     {cat.label}
@@ -2576,11 +2585,11 @@ export default function ExportPresentationModal({
                       padding: "12px 14px",
                       borderRadius: 10,
                       border: isSelected
-                        ? "2px solid #3b82f6"
-                        : "1px solid rgba(255,255,255,0.1)",
+                        ? "2px solid #2563eb"
+                        : "1px solid #cbd5e1",
                       background: isSelected
-                        ? "rgba(59, 130, 246, 0.12)"
-                        : "rgba(255,255,255,0.03)",
+                        ? "#f0f7ff"
+                        : "#ffffff",
                       cursor: "pointer",
                       display: "flex",
                       flexDirection: "column",
@@ -2588,12 +2597,12 @@ export default function ExportPresentationModal({
                       gap: 8,
                       position: "relative",
                       transition: "all 0.15s ease",
-                      boxShadow: isSelected ? "0 4px 16px rgba(59, 130, 246, 0.25)" : "none",
+                      boxShadow: isSelected ? "0 4px 14px rgba(37, 99, 235, 0.18)" : "0 1px 3px rgba(0,0,0,0.06)",
                     }}
                   >
                     <div>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#ffffff" }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: "#0f172a" }}>
                           {t.name}
                         </span>
                         {isSelected && (
@@ -2602,7 +2611,7 @@ export default function ExportPresentationModal({
                               width: 18,
                               height: 18,
                               borderRadius: "50%",
-                              background: "#3b82f6",
+                              background: "#2563eb",
                               color: "#ffffff",
                               display: "grid",
                               placeItems: "center",
@@ -2615,13 +2624,13 @@ export default function ExportPresentationModal({
                       <div style={{ display: "flex", alignItems: "center", gap: 6, margin: "2px 0 6px" }}>
                         <span
                           style={{
-                            fontSize: 9,
+                            fontSize: 9.5,
                             fontWeight: 800,
-                            padding: "2px 6px",
+                            padding: "2px 7px",
                             borderRadius: 4,
-                            background: "rgba(59, 130, 246, 0.15)",
-                            border: "1px solid rgba(59, 130, 246, 0.3)",
-                            color: "#93c5fd",
+                            background: "#eff6ff",
+                            border: "1px solid #bfdbfe",
+                            color: "#1d4ed8",
                             textTransform: "uppercase",
                             letterSpacing: "0.5px",
                           }}
@@ -2629,7 +2638,7 @@ export default function ExportPresentationModal({
                           {ARCHETYPE_SYSTEMS[getArchetype(t)].label}
                         </span>
                       </div>
-                      <p style={{ margin: 0, fontSize: 11, color: "#9ca3af", lineHeight: 1.4 }}>
+                      <p style={{ margin: 0, fontSize: 11.5, color: "#1e293b", lineHeight: 1.4, fontWeight: 500 }}>
                         {t.tagline}
                       </p>
                     </div>
@@ -2644,7 +2653,7 @@ export default function ExportPresentationModal({
                             height: 14,
                             borderRadius: "50%",
                             background: `#${t.bg}`,
-                            border: "1px solid rgba(255,255,255,0.3)",
+                            border: "1px solid #cbd5e1",
                           }}
                         />
                         <span
@@ -2654,7 +2663,7 @@ export default function ExportPresentationModal({
                             height: 14,
                             borderRadius: "50%",
                             background: `#${t.cardBg}`,
-                            border: "1px solid rgba(255,255,255,0.3)",
+                            border: "1px solid #cbd5e1",
                           }}
                         />
                         <span
@@ -2664,15 +2673,15 @@ export default function ExportPresentationModal({
                             height: 14,
                             borderRadius: "50%",
                             background: `#${t.accent}`,
-                            border: "1px solid rgba(255,255,255,0.3)",
+                            border: "1px solid #cbd5e1",
                           }}
                         />
                       </div>
                       <span
                         style={{
                           fontSize: 10,
-                          fontWeight: 600,
-                          color: "#6b7280",
+                          fontWeight: 700,
+                          color: "#334155",
                           textTransform: "uppercase",
                         }}
                       >
@@ -2689,43 +2698,43 @@ export default function ExportPresentationModal({
               <div
                 style={{
                   marginTop: 16,
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "#f8fafc",
+                  border: "1px solid #cbd5e1",
                   borderRadius: 12,
                   padding: "16px 20px",
                   display: "grid",
                   gap: 14,
                 }}
               >
-                <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#ffffff" }}>
+                <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
                   Custom Brand RGB Palette &amp; AI Prompt
                 </h4>
                 <div style={{ display: "flex", gap: 16 }}>
                   <div>
-                    <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 4 }}>Canvas Background</label>
+                    <label style={{ fontSize: 11, color: "#0f172a", fontWeight: 700, display: "block", marginBottom: 4 }}>Canvas Background</label>
                     <input
                       type="color"
                       value={customPrimary}
                       onChange={(e) => setCustomPrimary(e.target.value)}
-                      style={{ width: 44, height: 32, borderRadius: 6, border: 0, cursor: "pointer" }}
+                      style={{ width: 44, height: 32, borderRadius: 6, border: "1px solid #cbd5e1", cursor: "pointer" }}
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 4 }}>Card Surface</label>
+                    <label style={{ fontSize: 11, color: "#0f172a", fontWeight: 700, display: "block", marginBottom: 4 }}>Card Surface</label>
                     <input
                       type="color"
                       value={customCard}
                       onChange={(e) => setCustomCard(e.target.value)}
-                      style={{ width: 44, height: 32, borderRadius: 6, border: 0, cursor: "pointer" }}
+                      style={{ width: 44, height: 32, borderRadius: 6, border: "1px solid #cbd5e1", cursor: "pointer" }}
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: 11, color: "#9ca3af", display: "block", marginBottom: 4 }}>Accent Highlight</label>
+                    <label style={{ fontSize: 11, color: "#0f172a", fontWeight: 700, display: "block", marginBottom: 4 }}>Accent Highlight</label>
                     <input
                       type="color"
                       value={customAccent}
                       onChange={(e) => setCustomAccent(e.target.value)}
-                      style={{ width: 44, height: 32, borderRadius: 6, border: 0, cursor: "pointer" }}
+                      style={{ width: 44, height: 32, borderRadius: 6, border: "1px solid #cbd5e1", cursor: "pointer" }}
                     />
                   </div>
                 </div>
@@ -2738,9 +2747,9 @@ export default function ExportPresentationModal({
                     width: "100%",
                     padding: "8px 12px",
                     borderRadius: 8,
-                    border: "1px solid #4b5563",
-                    background: "#1f2937",
-                    color: "#ffffff",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#0f172a",
                     fontSize: 12,
                   }}
                 />
