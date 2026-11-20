@@ -44,12 +44,12 @@ export default async function HierarchyNavigation({
     .eq("organization_id", organizationId);
   const userIds = (orgMembers ?? []).map((m) => m.user_id);
   const { data: profiles } = userIds.length
-    ? await supabase.from("profiles").select("id, full_name, avatar_url").in("id", userIds)
+    ? await supabase.from("profiles").select("id, display_name, avatar_url").in("id", userIds)
     : { data: [] };
 
   const memberList = (profiles ?? []).map((p) => ({
     id: p.id,
-    name: p.full_name || "Team member",
+    name: p.display_name || "Team member",
     avatarUrl: p.avatar_url || null,
   }));
 

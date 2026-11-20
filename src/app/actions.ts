@@ -523,8 +523,13 @@ export async function createWorkspace(formData: FormData) {
     description: parsed.data.description ?? "",
     created_by: user.id,
   }).select("id").maybeSingle();
-  if (error) redirect("/dashboard?error=workspace_failed");
+  if (error) {
+    console.error("[createWorkspace] Insert error:", error);
+    redirect(`/dashboard?error=${encodeURIComponent(error.message || "workspace_failed")}`);
+  }
+  revalidatePath("/", "layout");
   revalidatePath("/dashboard");
+  revalidatePath(`/organizations/${parsed.data.organizationId}`);
   if (newWs?.id) {
     redirect(`/workspaces/${newWs.id}`);
   }

@@ -115,7 +115,7 @@ export function createAutonomousAgentTools(context: AgentToolsContext) {
           (members || []).map(async (m) => {
             const { data: prof } = await supabase
               .from("profiles")
-              .select("id, full_name, email, designation")
+              .select("id, display_name, email, designation")
               .eq("id", m.user_id)
               .single();
 
@@ -129,7 +129,7 @@ export function createAutonomousAgentTools(context: AgentToolsContext) {
             return {
               userId: m.user_id,
               role: m.role,
-              fullName: prof?.full_name || "Unknown",
+              fullName: (prof as any)?.display_name || "Unknown",
               email: prof?.email || "",
               designation: prof?.designation || "",
               currentWorkload: openTaskCount || 0,
@@ -368,10 +368,10 @@ export function createAutonomousAgentTools(context: AgentToolsContext) {
         if (task.primary_assignee_id) {
           const { data: profile } = await supabase
             .from("profiles")
-            .select("full_name, email")
+            .select("display_name, email")
             .eq("id", task.primary_assignee_id)
             .single();
-          if (profile) assigneeName = profile.full_name || profile.email;
+          if (profile) assigneeName = (profile as any).display_name || profile.email;
         }
 
         let parentTask: Record<string, unknown> | null = null;
