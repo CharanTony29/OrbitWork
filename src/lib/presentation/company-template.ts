@@ -41,6 +41,60 @@ export interface CompanyTemplateDefinition {
 // In-memory registry for uploaded company templates during session / workspace lifetime
 const COMPANY_TEMPLATES = new Map<string, CompanyTemplateDefinition>();
 
+// Helper to convert Uint8Array/Buffer to base64
+function bufferToBase64(buf: Buffer | Uint8Array): string {
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(buf)) {
+    return buf.toString("base64");
+  }
+  let binary = "";
+  const bytes = new Uint8Array(buf);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return typeof btoa !== "undefined" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64");
+}
+
+function persistToStorage(def: CompanyTemplateDefinition) {
+  if (typeof window !== "undefined" && window.localStorage) {
+    try {
+      const stored = window.localStorage.getItem("orbitwork:custom_templates");
+      const list: CompanyTemplateDefinition[] = stored ? JSON.parse(stored) : [];
+      const updated = [def, ...list.filter((x) => x.templateId !== def.templateId)].slice(0, 10);
+      window.localStorage.setItem("orbitwork:custom_templates", JSON.stringify(updated));
+    } catch (e) {
+      console.warn("Could not persist company template to localStorage:", e);
+    }
+  }
+}
+
+export function loadStoredCompanyTemplates(): CompanyTemplateDefinition[] {
+  if (typeof window !== "undefined" && window.localStorage) {
+    try {
+      const stored = window.localStorage.getItem("orbitwork:custom_templates");
+      if (stored) {
+        const list: CompanyTemplateDefinition[] = JSON.parse(stored);
+        for (const def of list) {
+          if (!COMPANY_TEMPLATES.has(def.templateId)) {
+            COMPANY_TEMPLATES.set(def.templateId, def);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load stored templates from localStorage:", e);
+    }
+  }
+  return Array.from(COMPANY_TEMPLATES.values());
+}
+
+/**
+ * Register a company template directly into memory and storage
+ */
+export function registerCompanyTemplate(companyDef: CompanyTemplateDefinition): void {
+  COMPANY_TEMPLATES.set(companyDef.templateId, companyDef);
+  persistToStorage(companyDef);
+}
+
 /**
  * Inspect an uploaded PPTX file, extracting theme colors, fonts, slide layouts,
  * and company branding (logos, copyrights, disclaimers, headers/footers) while preserving them intact.
@@ -185,11 +239,13 @@ export async function parseAndRegisterCompanyTemplate(
     slidesCount,
     slideLayouts: ["title", "executive_summary", "metrics_kpi", "status_table", "milestone_timeline", "closing"],
     supportedSlideTypes: ["title", "kpi", "status_graph", "team_workload", "critical_tasks", "cards", "split", "timeline"],
+    rawZipBase64: bufferToBase64(fileBuffer),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 
   COMPANY_TEMPLATES.set(templateId, companyDef);
+  persistToStorage(companyDef);
   return companyDef;
 }
 
@@ -227,6 +283,9 @@ export function companyTemplateToPresentationTemplate(comp: CompanyTemplateDefin
  * List all registered company templates
  */
 export function getRegisteredCompanyTemplates(): CompanyTemplateDefinition[] {
+  if (COMPANY_TEMPLATES.size === 0) {
+    loadStoredCompanyTemplates();
+  }
   return Array.from(COMPANY_TEMPLATES.values());
 }
 
@@ -234,5 +293,8 @@ export function getRegisteredCompanyTemplates(): CompanyTemplateDefinition[] {
  * Get a registered company template by ID
  */
 export function getCompanyTemplateById(templateId: string): CompanyTemplateDefinition | undefined {
+  if (!COMPANY_TEMPLATES.has(templateId)) {
+    loadStoredCompanyTemplates();
+  }
   return COMPANY_TEMPLATES.get(templateId);
 }

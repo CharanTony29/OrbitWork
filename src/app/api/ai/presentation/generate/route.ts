@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateTextWithFallback } from "@/lib/ai/client";
 import { PRESENTATION_TEMPLATES } from "@/lib/presentation/templates";
+import {
+  getCompanyTemplateById,
+  companyTemplateToPresentationTemplate,
+} from "@/lib/presentation/company-template";
 
 export interface StatusGraphItem {
   label: string;
@@ -428,8 +432,12 @@ PROJECT GROUNDING WITH REAL METRICS:
       ];
     }
 
+    const companyDef = getCompanyTemplateById(templateId);
     const selectedTemplate =
-      PRESENTATION_TEMPLATES.find((t) => t.id === templateId) || PRESENTATION_TEMPLATES[0];
+      body.customTemplate ||
+      (companyDef ? companyTemplateToPresentationTemplate(companyDef) : undefined) ||
+      PRESENTATION_TEMPLATES.find((t) => t.id === templateId) ||
+      PRESENTATION_TEMPLATES[0];
 
     const systemPrompt = `
 You are the Executive Presentation Deck Architect in Orbitwork (similar to Gamma and expert PowerPoint consulting).

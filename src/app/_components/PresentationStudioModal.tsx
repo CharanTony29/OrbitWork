@@ -21,7 +21,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { showAppToast } from "@/lib/app-feedback";
-import { PRESENTATION_TEMPLATES } from "@/lib/presentation/templates";
+import { PRESENTATION_TEMPLATES, PresentationTemplate } from "@/lib/presentation/templates";
 import type {
   GeneratedPresentationDeck,
   GeneratedSlide,
@@ -34,6 +34,7 @@ export default function PresentationStudioModal() {
   const [selectedTemplateId, setSelectedTemplateId] = useState("pitch_sage");
   const [slideCount, setSlideCount] = useState(6);
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [customTemplates, setCustomTemplates] = useState<PresentationTemplate[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isExportingPptx, setIsExportingPptx] = useState(false);
@@ -41,6 +42,22 @@ export default function PresentationStudioModal() {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSavingDoc, setIsSavingDoc] = useState(false);
+
+  // Load registered/stored company templates
+  useEffect(() => {
+    if (!isOpen) return;
+    import("@/lib/presentation/company-template").then(({ getRegisteredCompanyTemplates, companyTemplateToPresentationTemplate }) => {
+      const registered = getRegisteredCompanyTemplates().map(companyTemplateToPresentationTemplate);
+      if (registered.length > 0) {
+        setCustomTemplates((prev) => {
+          const map = new Map<string, PresentationTemplate>();
+          for (const t of registered) map.set(t.id, t);
+          for (const t of prev) map.set(t.id, t);
+          return Array.from(map.values());
+        });
+      }
+    }).catch(() => {});
+  }, [isOpen]);
 
   const generateDeckFor = useCallback(
     async (
@@ -63,6 +80,7 @@ export default function PresentationStudioModal() {
 
       setIsLoading(true);
       try {
+        const customTmpl = customTemplates.find((x) => x.id === tmpl);
         const res = await fetch("/api/ai/presentation/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -70,6 +88,7 @@ export default function PresentationStudioModal() {
             topic: top.trim(),
             projectId: pId || undefined,
             templateId: tmpl,
+            customTemplate: customTmpl,
             slideCount: cnt,
           }),
         });
@@ -90,7 +109,7 @@ export default function PresentationStudioModal() {
         setIsLoading(false);
       }
     },
-    [selectedProjectId, topic, selectedTemplateId, slideCount]
+    [selectedProjectId, topic, selectedTemplateId, slideCount, customTemplates]
   );
 
   // Listen for open event
@@ -98,22 +117,35 @@ export default function PresentationStudioModal() {
     const handleOpen = (e: CustomEvent) => {
       setIsOpen(true);
       const projId = e.detail?.projectId || "";
+      const projName = e.detail?.projectName || "";
       const t = e.detail?.topic || "";
+      const tmplId = e.detail?.templateId || "";
+      const compTmpl = e.detail?.companyTemplate;
+
+      if (compTmpl) {
+        setCustomTemplates((prev) => [compTmpl, ...prev.filter((x) => x.id !== compTmpl.id)]);
+      }
       if (projId) {
         setSelectedProjectId(projId);
+        if (projName) {
+          setProjects((prev) => (prev.some((p) => p.id === projId) ? prev : [{ id: projId, name: projName }, ...prev]));
+        }
       }
       if (t) {
         setTopic(t);
       }
+      if (tmplId) {
+        setSelectedTemplateId(tmplId);
+      }
       if (projId || t) {
-        generateDeckFor(t, projId);
+        generateDeckFor(t, projId, tmplId || selectedTemplateId);
       }
     };
 
     window.addEventListener("orbitwork:open-presentation-studio" as any, handleOpen);
     return () =>
       window.removeEventListener("orbitwork:open-presentation-studio" as any, handleOpen);
-  }, [generateDeckFor]);
+  }, [generateDeckFor, selectedTemplateId]);
 
   // Fetch projects list
   useEffect(() => {
@@ -122,7 +154,13 @@ export default function PresentationStudioModal() {
       .then((res) => (res.ok ? res.json() : { projects: [] }))
       .then((data) => {
         const list = data.projects || [];
-        setProjects(list);
+        setProjects((prev) => {
+          // Merge to preserve any project injected via handleOpen
+          const map = new Map<string, { id: string; name: string }>();
+          for (const p of list) map.set(p.id, p);
+          for (const p of prev) if (!map.has(p.id)) map.set(p.id, p);
+          return Array.from(map.values());
+        });
         if (!selectedProjectId && list.length > 0) {
           setSelectedProjectId(list[0].id);
         }
@@ -163,9 +201,27 @@ export default function PresentationStudioModal() {
 
     setIsExportingPptx(true);
     try {
-      const exportUrl = `/api/projects/${targetProjId}/presentation.pptx?templateId=${selectedTemplateId}&period=all`;
+      const { getCompanyTemplateById } = await import("@/lib/presentation/company-template");
+      const companyDef = getCompanyTemplateById(selectedTemplateId);
+      const rawZipBase64 = companyDef?.rawZipBase64;
+
+      const res = await fetch(`/api/projects/${targetProjId}/presentation.pptx`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId: selectedTemplateId,
+          rawZipBase64,
+          period: "all",
+          includeCatalog: true,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to export PPTX");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = exportUrl;
+      link.href = url;
       const projectName = projects.find((p) => p.id === targetProjId)?.name || "Project";
       link.download = `${projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${selectedTemplateId}.pptx`;
       document.body.appendChild(link);
@@ -255,8 +311,9 @@ ${s.cards?.length ? "\n### Strategic Pillars\n" + s.cards.map((c) => `- **${c.ti
 
   if (!isOpen) return null;
 
+  const allTemplates = [...customTemplates, ...PRESENTATION_TEMPLATES];
   const currentTemplate =
-    PRESENTATION_TEMPLATES.find((t) => t.id === selectedTemplateId) || PRESENTATION_TEMPLATES[0];
+    allTemplates.find((t) => t.id === selectedTemplateId) || allTemplates[0] || PRESENTATION_TEMPLATES[0];
 
   const currentSlide: GeneratedSlide | undefined = deck?.slides[currentSlideIndex];
 
@@ -525,13 +582,25 @@ ${s.cards?.length ? "\n### Strategic Pillars\n" + s.cards.map((c) => `- **${c.ti
                     border: "1px solid var(--line, #e2e8f0)",
                     fontSize: "11px",
                     background: "var(--surface, #ffffff)",
+                    color: "var(--ink, #0f172a)",
                   }}
                 >
-                  {PRESENTATION_TEMPLATES.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
+                  {customTemplates.length > 0 && (
+                    <optgroup label="Uploaded Company Templates">
+                      {customTemplates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          ⭐ {t.name} (Uploaded Template)
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="Standard Pitch Styles (32+)">
+                    {PRESENTATION_TEMPLATES.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
 

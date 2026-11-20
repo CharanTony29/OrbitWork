@@ -8,6 +8,8 @@ import {
   StatusMetric,
   TaskReportItem,
 } from "@/lib/export-presentation";
+import { getCompanyTemplateById } from "@/lib/presentation/company-template";
+import { injectProjectDataIntoCompanyTemplate } from "@/lib/presentation/template-injector";
 
 interface PptxExportConfig {
   period?: ReportPeriodType;
@@ -26,6 +28,7 @@ interface PptxExportConfig {
   selectedTaskIds?: string[];
   selectedSections?: string[];
   selectedCharts?: string[];
+  rawZipBase64?: string;
 }
 
 async function handleGeneratePptx(
@@ -360,11 +363,48 @@ async function handleGeneratePptx(
     selectedCharts: config.selectedCharts,
   };
 
-  // Build the presentation deck
-  const pptx = buildPresentationDeck(options, filteredTasks, statusMetrics, resourceMetrics);
+  // Check if this is an uploaded corporate template with raw base64 or stored definition
+  const companyDef = templateId.startsWith("company_") ? getCompanyTemplateById(templateId) : null;
+  const rawZipBase64 = config.rawZipBase64 || companyDef?.rawZipBase64;
 
-  // Generate binary node buffer
-  const buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
+  let buffer: Buffer;
+
+  if (rawZipBase64) {
+    const templateBuffer = Buffer.from(rawZipBase64, "base64");
+    const completedTasks = filteredTasks.filter((t) => t.isCompleted);
+    const inProgressTasks = filteredTasks.filter((t) => t.isInProgress);
+    const holdTasks = filteredTasks.filter((t) => t.isHold);
+    const pendingTasks = filteredTasks.filter((t) => t.isPending);
+    const overdueTasks = filteredTasks.filter((t) => t.isOverdue && !t.isCompleted);
+
+    const completionRate = filteredTasks.length
+      ? Math.round((completedTasks.length * 100) / filteredTasks.length)
+      : 0;
+
+    buffer = await injectProjectDataIntoCompanyTemplate(templateBuffer, {
+      projectName: project.name,
+      workspaceName: workspaceObj?.name,
+      organizationName: orgName,
+      periodLabel,
+      totalTasks: filteredTasks.length,
+      completedTasks,
+      inProgressTasks,
+      holdTasks,
+      pendingTasks,
+      overdueTasks,
+      completionRate,
+      inProgressRate: filteredTasks.length ? Math.round((inProgressTasks.length * 100) / filteredTasks.length) : 0,
+      holdRate: filteredTasks.length ? Math.round((holdTasks.length * 100) / filteredTasks.length) : 0,
+      pendingRate: filteredTasks.length ? Math.round((pendingTasks.length * 100) / filteredTasks.length) : 0,
+      statusMetrics,
+      resourceMetrics,
+      allTasks: filteredTasks,
+    });
+  } else {
+    // Build the presentation deck using PptxGenJS
+    const pptx = buildPresentationDeck(options, filteredTasks, statusMetrics, resourceMetrics);
+    buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
+  }
 
   const safeProjectSlug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const fileName = `${safeProjectSlug}-status-report-${period}.pptx`;

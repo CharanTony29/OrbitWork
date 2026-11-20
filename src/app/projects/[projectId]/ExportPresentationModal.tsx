@@ -189,6 +189,17 @@ export default function ExportPresentationModal({
     };
   }, [isOpen, projectId, todayStr]);
 
+  // Load existing uploaded templates on mount/open
+  useEffect(() => {
+    if (!isOpen) return;
+    import("@/lib/presentation/company-template").then(({ getRegisteredCompanyTemplates, companyTemplateToPresentationTemplate }) => {
+      const registered = getRegisteredCompanyTemplates().map(companyTemplateToPresentationTemplate);
+      if (registered.length > 0) {
+        setUploadedCompanyTemplates(registered);
+      }
+    }).catch(() => {});
+  }, [isOpen]);
+
   // Handle Company Template Upload
   const handleCompanyTemplateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -207,6 +218,13 @@ export default function ExportPresentationModal({
       setUploadedCompanyTemplates((prev) => [newTemplate, ...prev.filter((t) => t.id !== newTemplate.id)]);
       setSelectedTemplateId(newTemplate.id);
       setActiveCategory("custom");
+
+      // Sync to server registry for persistence
+      fetch("/api/presentation/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ definition: companyDef }),
+      }).catch((err) => console.warn("Failed to sync template to server:", err));
     } catch (err: any) {
       console.error("Company template upload failed:", err);
       setUploadError(err?.message || "Failed to parse PPTX template");
@@ -352,6 +370,10 @@ export default function ExportPresentationModal({
     setIsExporting(true);
 
     try {
+      const { getCompanyTemplateById } = await import("@/lib/presentation/company-template");
+      const companyDef = getCompanyTemplateById(selectedTemplateId);
+      const rawZipBase64 = companyDef?.rawZipBase64;
+
       const payload = {
         period,
         month: period === "monthly" ? selectedMonth : undefined,
@@ -360,6 +382,7 @@ export default function ExportPresentationModal({
         endDate: period === "custom" ? endDate : undefined,
         includeCatalog,
         templateId: selectedTemplateId,
+        rawZipBase64,
         style: selectedTemplateId === "custom_brand" ? "custom" : undefined,
         customPrimary: selectedTemplateId === "custom_brand" ? customPrimary : undefined,
         customSecondary: selectedTemplateId === "custom_brand" ? customCard : undefined,
@@ -523,7 +546,10 @@ export default function ExportPresentationModal({
                   new CustomEvent("orbitwork:open-presentation-studio", {
                     detail: {
                       projectId,
+                      projectName,
                       topic: `${projectName} Executive Strategy, Milestones & KPI Deck`,
+                      templateId: selectedTemplateId,
+                      companyTemplate: activeTemplate,
                     },
                   })
                 );
