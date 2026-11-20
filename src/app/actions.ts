@@ -749,10 +749,17 @@ export async function inviteOrganizationMember(formData: FormData) {
     allowed_roles: ["owner", "co_owner", "admin"],
   });
   if (!canInvite) {
-    const forbiddenRedirect = parsed.data.workspaceId
-      ? `/workspaces/${parsed.data.workspaceId}?error=invitation_forbidden`
-      : `/dashboard?error=invitation_forbidden`;
-    redirect(forbiddenRedirect);
+    const { data: orgCheck } = await supabase
+      .from("organizations")
+      .select("created_by")
+      .eq("id", parsed.data.organizationId)
+      .maybeSingle();
+    if (orgCheck?.created_by !== user.id) {
+      const forbiddenRedirect = parsed.data.workspaceId
+        ? `/workspaces/${parsed.data.workspaceId}?error=invitation_forbidden`
+        : `/dashboard?error=invitation_forbidden`;
+      redirect(forbiddenRedirect);
+    }
   }
 
   const rawEnvAppUrl = process.env.NEXT_PUBLIC_APP_URL || "";
@@ -772,7 +779,59 @@ export async function inviteOrganizationMember(formData: FormData) {
   const organizationName = org?.name || "the organization";
 
   let successCount = 0;
-  for (const recipientEmail of emails) {
+  for (const rawRecipientEmail of emails) {
+    const recipientEmail = rawRecipientEmail.trim().toLowerCase();
+
+    // 1. Check if user already exists in profiles (Direct Add)
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("id, display_name")
+      .eq("email", recipientEmail)
+      .maybeSingle();
+
+    if (existingProfile) {
+      const { error: memberError } = await supabase.from("organization_members").upsert({
+        organization_id: parsed.data.organizationId,
+        user_id: existingProfile.id,
+        role: parsed.data.role,
+        status: "active",
+      }, { onConflict: "organization_id,user_id" });
+
+      if (memberError) {
+        console.error(`Failed to add existing member ${recipientEmail}:`, memberError);
+      } else {
+        if (parsed.data.workspaceId) {
+          await supabase.from("workspace_members").upsert({
+            organization_id: parsed.data.organizationId,
+            workspace_id: parsed.data.workspaceId,
+            user_id: existingProfile.id,
+            role: parsed.data.role === "co_owner" ? "admin" : parsed.data.role,
+            status: "active",
+          }, { onConflict: "workspace_id,user_id" });
+        }
+
+        await supabase.from("notifications").insert({
+          recipient_id: existingProfile.id,
+          actor_id: user.id,
+          organization_id: parsed.data.organizationId,
+          event_type: "task_mentioned",
+          message: `You were added to ${organizationName} as a ${parsed.data.role.replace("_", " ")}.`,
+          action_url: parsed.data.workspaceId ? `/workspaces/${parsed.data.workspaceId}` : `/organizations/${parsed.data.organizationId}/members`,
+        });
+
+        sendOrganizationInvitationEmail({
+          recipientEmail,
+          inviterName,
+          organizationName,
+          acceptUrl: `${appUrl}/dashboard`,
+        }).catch((err) => console.warn("Direct add email notice:", err));
+
+        successCount++;
+        continue;
+      }
+    }
+
+    // 2. New user: generate token and send invitation
     const token = randomBytes(32).toString("base64url");
     const tokenHash = createHash("sha256").update(token).digest("hex");
 
@@ -803,15 +862,10 @@ export async function inviteOrganizationMember(formData: FormData) {
     if (!emailRes.ok) {
       // Optional fallback via supabase auth OTP if direct SMTP failed
       const emailRedirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(acceptUrl.replace(appUrl, ""))}`;
-      const { error: mailError } = await supabase.auth.signInWithOtp({
+      await supabase.auth.signInWithOtp({
         email: recipientEmail,
         options: { shouldCreateUser: true, emailRedirectTo },
       });
-      if (mailError) {
-        console.error(`Failed to send invitation email to ${recipientEmail}:`, mailError);
-        await supabase.from("invitations").update({ status: "revoked" }).eq("token_hash", tokenHash);
-        continue;
-      }
     }
 
     successCount++;
@@ -850,11 +904,12 @@ export async function addWorkspaceMember(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
   const { data: canManage } = await supabase.rpc("can_manage_workspace", { target_workspace: parsed.data.workspaceId });
-  if (!canManage) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
-  const { data: workspace } = await supabase.from("workspaces").select("organization_id").eq("id", parsed.data.workspaceId).maybeSingle();
+  const { data: workspace } = await supabase.from("workspaces").select("organization_id, created_by").eq("id", parsed.data.workspaceId).maybeSingle();
   if (!workspace) redirect("/dashboard?error=workspace_not_found");
-  const { data: isOrgAdmin } = await supabase.rpc("has_org_role", { target_org: workspace.organization_id, allowed_roles: ["owner", "admin"] });
-  if (parsed.data.role === "admin" && !isOrgAdmin) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
+  const isWsCreator = workspace.created_by === user.id;
+  if (!canManage && !isWsCreator) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
+  const { data: isOrgAdmin } = await supabase.rpc("has_org_role", { target_org: workspace.organization_id, allowed_roles: ["owner", "co_owner", "admin"] });
+  if (parsed.data.role === "admin" && !isOrgAdmin && !isWsCreator) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
   const { data: organizationMember } = await supabase.from("organization_members").select("user_id").eq("organization_id", workspace.organization_id).eq("user_id", parsed.data.userId).eq("status", "active").maybeSingle();
   if (!organizationMember) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_not_in_org`);
   const { error } = await supabase.from("workspace_members").upsert({ organization_id: workspace.organization_id, workspace_id: parsed.data.workspaceId, user_id: parsed.data.userId, role: parsed.data.role, status: "active" }, { onConflict: "workspace_id,user_id" });
@@ -879,11 +934,12 @@ export async function updateWorkspaceMemberRole(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
   const { data: canManage } = await supabase.rpc("can_manage_workspace", { target_workspace: parsed.data.workspaceId });
-  if (!canManage) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
-  const { data: workspace } = await supabase.from("workspaces").select("organization_id").eq("id", parsed.data.workspaceId).maybeSingle();
+  const { data: workspace } = await supabase.from("workspaces").select("organization_id, created_by").eq("id", parsed.data.workspaceId).maybeSingle();
   if (!workspace) redirect("/dashboard?error=workspace_not_found");
-  const { data: isOrgAdmin } = await supabase.rpc("has_org_role", { target_org: workspace.organization_id, allowed_roles: ["owner", "admin"] });
-  if (parsed.data.role === "admin" && !isOrgAdmin) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
+  const isWsCreator = workspace.created_by === user.id;
+  if (!canManage && !isWsCreator) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
+  const { data: isOrgAdmin } = await supabase.rpc("has_org_role", { target_org: workspace.organization_id, allowed_roles: ["owner", "co_owner", "admin"] });
+  if (parsed.data.role === "admin" && !isOrgAdmin && !isWsCreator) redirect(`/workspaces/${parsed.data.workspaceId}?error=workspace_member_forbidden`);
 
   const { error } = await supabase
     .from("workspace_members")
@@ -1213,9 +1269,25 @@ export async function createProject(formData: FormData) {
     icon: parsed.data.icon || "📁",
     created_by: user.id,
   }).select("id").single();
-  if (error || !newProject) redirect(`/workspaces/${parsed.data.workspaceId}?error=project_failed`);
+  let projectId = newProject?.id;
+  if (!projectId) {
+    const { data: fallbackProj } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("workspace_id", parsed.data.workspaceId)
+      .eq("name", parsed.data.name)
+      .eq("created_by", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    projectId = fallbackProj?.id;
+  }
+  if (!projectId) {
+    console.error("createProject error:", error);
+    redirect(`/workspaces/${parsed.data.workspaceId}?error=project_failed`);
+  }
   revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
-  redirect(`/projects/${newProject.id}`);
+  redirect(`/projects/${projectId}`);
 }
 
 export async function updateProjectDetails(formData: FormData) {

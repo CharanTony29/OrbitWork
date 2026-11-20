@@ -52,6 +52,7 @@ export default async function WorkspacePage({
     { data: organizationMembers },
     { data: workspaceMembers },
     { data: canManage },
+    { data: canCreateProj },
     { data: isOrgOwner },
     { data: isOrgCoOwner },
     { data: isOrgAdmin },
@@ -73,6 +74,7 @@ export default async function WorkspacePage({
       .select("user_id, role, status")
       .eq("workspace_id", workspaceId),
     supabase.rpc("can_manage_workspace", { target_workspace: workspaceId }),
+    supabase.rpc("can_create_project", { target_workspace: workspaceId }),
     supabase.rpc("has_org_role", {
       target_org: workspace.organization_id,
       allowed_roles: ["owner"],
@@ -239,7 +241,7 @@ export default async function WorkspacePage({
             due_date: p.due_date,
             created_at: p.created_at,
           }))}
-          canManage={Boolean(canManage)}
+          canManage={Boolean(canManage || canCreateProj || isOrgOwner || isOrgCoOwner || isOrgAdmin)}
           isCoOwner={!isOrgOwner && Boolean(isOrgCoOwner)}
         />
 
@@ -334,7 +336,7 @@ export default async function WorkspacePage({
           workspaceName={workspace.name}
           storageInfo={storageInfo}
           driveConnection={driveConnection}
-          canManage={Boolean(canManage)}
+          canManage={Boolean(canManage || canCreateProj || isOrgOwner || isOrgCoOwner || isOrgAdmin)}
           googleConfigured={configured}
           microsoftConfigured={microsoftConfigured}
           driveStatus={drive}

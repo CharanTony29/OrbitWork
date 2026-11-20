@@ -29,7 +29,7 @@ export default async function OrganizationMembersPage({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: organization } = await supabase.from("organizations").select("id, name").eq("id", organizationId).maybeSingle();
+  const { data: organization } = await supabase.from("organizations").select("id, name, created_by").eq("id", organizationId).maybeSingle();
   if (!organization) notFound();
 
   const extMemberQuery = await supabase
@@ -68,9 +68,9 @@ export default async function OrganizationMembersPage({
     memberships = extMemberQuery.data ?? [];
   }
 
-  const [{ data: workspaces }, { data: canManageOrg }, { data: isOwner }] = await Promise.all([
+  const [{ data: workspaces }, { data: canManageOrg }, { data: isOwnerRpc }] = await Promise.all([
     supabase.from("workspaces").select("id, name").eq("organization_id", organizationId).order("name"),
-    supabase.rpc("has_org_role", { target_org: organizationId, allowed_roles: ["owner", "admin"] }),
+    supabase.rpc("has_org_role", { target_org: organizationId, allowed_roles: ["owner", "co_owner", "admin"] }),
     supabase.rpc("has_org_role", { target_org: organizationId, allowed_roles: ["owner"] }),
   ]);
 
@@ -94,10 +94,14 @@ export default async function OrganizationMembersPage({
 
   const memberIds = memberships.map((member) => member.user_id);
   const currentUserMembership = memberships.find((m) => m.user_id === user.id);
+  const isOrgCreator = organization.created_by === user.id;
+  const isOwner = Boolean(isOwnerRpc || isOrgCreator || currentUserMembership?.role === "owner");
   const isOrgAdminOrOwner = Boolean(
     canManageOrg ||
     isOwner ||
+    isOrgCreator ||
     currentUserMembership?.role === "owner" ||
+    currentUserMembership?.role === "co_owner" ||
     currentUserMembership?.role === "admin"
   );
   const isManagerOrHigher = Boolean(

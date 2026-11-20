@@ -83,6 +83,58 @@ END $$;
 
 -- 3. Access Control Functions
 
+-- has_org_role: checks membership and honors organization creator as Owner
+CREATE OR REPLACE FUNCTION public.has_org_role(target_org uuid, allowed_roles public.organization_role[])
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.organization_members m
+    WHERE m.organization_id = target_org AND m.user_id = (SELECT auth.uid())
+      AND m.status = 'active' AND m.role = ANY(allowed_roles)
+  )
+  OR (
+    'owner'::public.organization_role = ANY(allowed_roles)
+    AND EXISTS (
+      SELECT 1 FROM public.organizations o
+      WHERE o.id = target_org AND o.created_by = (SELECT auth.uid())
+    )
+  );
+$$;
+
+-- can_access_workspace: Owner, Co-Owner, Admin, Manager, and active workspace members
+CREATE OR REPLACE FUNCTION public.can_access_workspace(target_workspace uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.workspaces w
+    JOIN public.organization_members om ON om.organization_id = w.organization_id
+    LEFT JOIN public.workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = (SELECT auth.uid())
+    WHERE w.id = target_workspace AND om.user_id = (SELECT auth.uid()) AND om.status = 'active'
+      AND (
+        w.created_by = (SELECT auth.uid())
+        OR om.role::text IN ('owner', 'co_owner', 'admin', 'manager')
+        OR (wm.user_id IS NOT NULL AND wm.status = 'active')
+      )
+  )
+  OR EXISTS (
+    SELECT 1 FROM public.workspaces w
+    JOIN public.organizations o ON o.id = w.organization_id
+    WHERE w.id = target_workspace AND o.created_by = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1 FROM public.workspaces w
+    WHERE w.id = target_workspace AND w.created_by = (SELECT auth.uid())
+  );
+$$;
+
 -- can_manage_workspace: Owner, Co-Owner, Admin
 CREATE OR REPLACE FUNCTION public.can_manage_workspace(target_workspace uuid)
 RETURNS boolean
@@ -99,6 +151,19 @@ AS $$
       AND om.user_id = (SELECT auth.uid())
       AND om.status = 'active'
       AND om.role::text IN ('owner', 'co_owner', 'admin')
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.workspaces w
+    JOIN public.organizations o ON o.id = w.organization_id
+    WHERE w.id = target_workspace
+      AND o.created_by = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.workspaces w
+    WHERE w.id = target_workspace
+      AND w.created_by = (SELECT auth.uid())
   )
   OR EXISTS (
     SELECT 1
@@ -129,11 +194,64 @@ AS $$
   )
   OR EXISTS (
     SELECT 1
+    FROM public.workspaces w
+    JOIN public.organizations o ON o.id = w.organization_id
+    WHERE w.id = target_workspace
+      AND o.created_by = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.workspaces w
+    WHERE w.id = target_workspace
+      AND w.created_by = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1
     FROM public.workspace_members wm
     WHERE wm.workspace_id = target_workspace
       AND wm.user_id = (SELECT auth.uid())
       AND wm.status = 'active'
       AND wm.role::text IN ('owner', 'co_owner', 'admin', 'manager')
+  );
+$$;
+
+-- can_access_project: Owner, Co-Owner, Admin, Manager, and active project members
+CREATE OR REPLACE FUNCTION public.can_access_project(target_project uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.projects p
+    JOIN public.workspaces w ON w.id = p.workspace_id
+    JOIN public.organization_members om ON om.organization_id = w.organization_id
+    LEFT JOIN public.workspace_members wm ON wm.workspace_id = w.id AND wm.user_id = (SELECT auth.uid())
+    LEFT JOIN public.project_members pm ON pm.project_id = p.id AND pm.user_id = (SELECT auth.uid())
+    WHERE p.id = target_project
+      AND om.user_id = (SELECT auth.uid())
+      AND om.status = 'active'
+      AND (
+        om.role::text IN ('owner', 'co_owner', 'admin', 'manager')
+        OR (wm.user_id IS NOT NULL AND wm.status = 'active')
+        OR pm.user_id IS NOT NULL
+      )
+  )
+  OR EXISTS (
+    SELECT 1 FROM public.projects p
+    JOIN public.workspaces w ON w.id = p.workspace_id
+    JOIN public.organizations o ON o.id = w.organization_id
+    WHERE p.id = target_project AND o.created_by = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1 FROM public.projects p
+    JOIN public.workspaces w ON w.id = p.workspace_id
+    WHERE p.id = target_project AND w.created_by = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1 FROM public.projects p
+    WHERE p.id = target_project AND p.created_by = (SELECT auth.uid())
   );
 $$;
 
@@ -158,6 +276,24 @@ AS $$
   OR EXISTS (
     SELECT 1
     FROM public.projects p
+    JOIN public.workspaces w ON w.id = p.workspace_id
+    JOIN public.organizations o ON o.id = w.organization_id
+    WHERE p.id = target_project AND o.created_by = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.projects p
+    JOIN public.workspaces w ON w.id = p.workspace_id
+    WHERE p.id = target_project AND w.created_by = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.projects p
+    WHERE p.id = target_project AND p.created_by = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.projects p
     JOIN public.workspace_members wm ON wm.workspace_id = p.workspace_id
     WHERE p.id = target_project
       AND wm.user_id = (SELECT auth.uid())
@@ -169,7 +305,7 @@ AS $$
     FROM public.project_members pm
     WHERE pm.project_id = target_project
       AND pm.user_id = (SELECT auth.uid())
-      AND pm.role::text = 'manager'
+      AND pm.role::text IN ('manager', 'lead', 'owner')
   );
 $$;
 
@@ -190,6 +326,19 @@ AS $$
       AND om.user_id = (SELECT auth.uid())
       AND om.status = 'active'
       AND om.role::text IN ('owner', 'admin', 'manager')
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.projects p
+    JOIN public.workspaces w ON w.id = p.workspace_id
+    JOIN public.organizations o ON o.id = w.organization_id
+    WHERE p.id = target_project AND o.created_by = (SELECT auth.uid())
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM public.projects p
+    JOIN public.workspaces w ON w.id = p.workspace_id
+    WHERE p.id = target_project AND w.created_by = (SELECT auth.uid())
   )
   OR EXISTS (
     SELECT 1
@@ -392,6 +541,20 @@ CREATE POLICY workspaces_create_admins ON public.workspaces
     )
   );
 
+-- projects: Select uses non-recursive workspace/project member check
+DROP POLICY IF EXISTS projects_read_accessible ON public.projects;
+CREATE POLICY projects_read_accessible ON public.projects
+  FOR SELECT
+  TO authenticated
+  USING (
+    created_by = (SELECT auth.uid())
+    OR public.can_access_workspace(workspace_id)
+    OR (EXISTS (
+      SELECT 1 FROM public.project_members pm
+      WHERE pm.project_id = projects.id AND pm.user_id = (SELECT auth.uid())
+    ))
+  );
+
 -- projects: Insert uses can_create_project (Owner, Co-Owner, Admin, Manager).
 DROP POLICY IF EXISTS projects_create_admins ON public.projects;
 DROP POLICY IF EXISTS projects_create_workspace_managers ON public.projects;
@@ -489,6 +652,71 @@ CREATE POLICY org_members_update_admins ON public.organization_members
       OR public.has_org_role(organization_id, ARRAY['owner'::public.organization_role])
     )
     AND public.has_org_role(organization_id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role])
+  );
+
+DROP POLICY IF EXISTS org_members_add_admins ON public.organization_members;
+CREATE POLICY org_members_add_admins ON public.organization_members
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    role::text <> 'owner'
+    AND (
+      public.has_org_role(organization_id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role])
+      OR (EXISTS (
+        SELECT 1 FROM public.organizations o WHERE o.id = organization_id AND o.created_by = (SELECT auth.uid())
+      ))
+    )
+    AND (
+      role::text <> 'co_owner'
+      OR public.has_org_role(organization_id, ARRAY['owner'::public.organization_role])
+      OR (EXISTS (
+        SELECT 1 FROM public.organizations o WHERE o.id = organization_id AND o.created_by = (SELECT auth.uid())
+      ))
+    )
+  );
+
+-- invitations: Owner, Co-Owner, Admin can invite and manage invitations
+DROP POLICY IF EXISTS invitations_create_admins ON public.invitations;
+CREATE POLICY invitations_create_admins ON public.invitations
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    invited_by = (SELECT auth.uid())
+    AND (
+      public.has_org_role(organization_id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role])
+      OR (EXISTS (
+        SELECT 1 FROM public.organizations o WHERE o.id = organization_id AND o.created_by = (SELECT auth.uid())
+      ))
+    )
+  );
+
+DROP POLICY IF EXISTS invitations_read_admins ON public.invitations;
+CREATE POLICY invitations_read_admins ON public.invitations
+  FOR SELECT
+  TO authenticated
+  USING (
+    invited_by = (SELECT auth.uid())
+    OR public.has_org_role(organization_id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role])
+    OR (EXISTS (
+      SELECT 1 FROM public.organizations o WHERE o.id = organization_id AND o.created_by = (SELECT auth.uid())
+    ))
+  );
+
+DROP POLICY IF EXISTS invitations_update_admins ON public.invitations;
+CREATE POLICY invitations_update_admins ON public.invitations
+  FOR UPDATE
+  TO authenticated
+  USING (
+    public.has_org_role(organization_id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role])
+    OR (EXISTS (
+      SELECT 1 FROM public.organizations o WHERE o.id = organization_id AND o.created_by = (SELECT auth.uid())
+    ))
+  )
+  WITH CHECK (
+    public.has_org_role(organization_id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role])
+    OR (EXISTS (
+      SELECT 1 FROM public.organizations o WHERE o.id = organization_id AND o.created_by = (SELECT auth.uid())
+    ))
   );
 
 -- 5. Stored Procedures for Deletion Requests and Ownership Transfer
