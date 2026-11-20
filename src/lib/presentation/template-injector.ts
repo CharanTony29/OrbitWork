@@ -145,6 +145,9 @@ async function injectOrbitworkReviewDeck(
           taskCount: r.totalAssigned,
         }));
 
+  // Sort real members by total effort descending, then task count descending
+  realMembers.sort((a: any, b: any) => b.hours - a.hours || b.taskCount - a.taskCount);
+
   const m1 = realMembers[0];
   const m2 = realMembers[1];
   const m3 = realMembers[2];
@@ -278,23 +281,28 @@ async function injectOrbitworkReviewDeck(
     // Slide 4: 03 / WORKLOAD LOGIC
     else if (slideNumber === 4) {
       const devA = m1 || { name: "Lead", taskCount: totalCount, hours: totalEffortHours, util: completionPercent };
-      const devB = m3 || m2 || devA;
+      const devB =
+        realMembers.slice().reverse().find((m: any) => m.taskCount > 0 && m.name !== devA.name) ||
+        m2 ||
+        devA;
 
       xml = xml.replace(/<a:t>Developer A<\/a:t>/g, `<a:t>${escapeXml(devA.name)}</a:t>`);
-      xml = xml.replace(/<a:t>Many small tasks<\/a:t>/g, `<a:t>Core Task Volume</a:t>`);
+      xml = xml.replace(/<a:t>Many small tasks<\/a:t>/g, `<a:t>High Task Volume</a:t>`);
       xml = xml.replace(/<a:t>10 tasks<\/a:t>/g, `<a:t>${devA.taskCount} tasks</a:t>`);
       xml = xml.replace(/<a:t>20h<\/a:t>/g, `<a:t>${devA.hours}h</a:t>`);
       xml = xml.replace(/<a:t>50%<\/a:t>/g, `<a:t>${devA.util}%</a:t>`);
 
       xml = xml.replace(/<a:t>Developer B<\/a:t>/g, `<a:t>${escapeXml(devB.name)}</a:t>`);
-      xml = xml.replace(/<a:t>Fewer, larger tasks<\/a:t>/g, `<a:t>High-Effort Scope</a:t>`);
+      xml = xml.replace(/<a:t>Fewer, larger tasks<\/a:t>/g, `<a:t>Focused Scope</a:t>`);
       xml = xml.replace(/<a:t>3 tasks<\/a:t>/g, `<a:t>${devB.taskCount} tasks</a:t>`);
       xml = xml.replace(/<a:t>18h<\/a:t>/g, `<a:t>${devB.hours}h</a:t>`);
       xml = xml.replace(/<a:t>45%<\/a:t>/g, `<a:t>${devB.util}%</a:t>`);
 
+      const avgA = (devA.hours / Math.max(1, devA.taskCount)).toFixed(1);
+      const avgB = (devB.hours / Math.max(1, devB.taskCount)).toFixed(1);
       xml = xml.replace(
         /<a:t>20h vs 18h → workload is broadly balanced despite 10 vs 3 tasks\.<\/a:t>/g,
-        `<a:t>${escapeXml(devB.name)} averages ${(devB.hours / Math.max(1, devB.taskCount)).toFixed(1)}h/task vs ${escapeXml(devA.name)} at ${(devA.hours / Math.max(1, devA.taskCount)).toFixed(1)}h/task → effort drives true workload, not card count.</a:t>`
+        `<a:t>${escapeXml(devA.name)} (${devA.taskCount} tasks, ${devA.hours}h avg ${avgA}h/task) vs ${escapeXml(devB.name)} (${devB.taskCount} tasks, ${devB.hours}h avg ${avgB}h/task) → effort drives true workload, not card count.</a:t>`
       );
     }
 
@@ -370,20 +378,36 @@ async function injectOrbitworkReviewDeck(
     else if (slideNumber === 8) {
       const overloaded = realMembers.filter((m: any) => m.util > 100);
       const available = realMembers.filter((m: any) => m.util <= 100);
-      xml = xml.replace(/<a:t>1 overloaded<\/a:t>/g, `<a:t>${overloaded.length} high-effort contributors</a:t>`);
+      xml = xml.replace(
+        /<a:t>1 overloaded<\/a:t>/g,
+        `<a:t>${overloaded.length > 0 ? `${overloaded.length} overloaded` : "0 overloaded"}</a:t>`
+      );
       xml = xml.replace(
         /<a:t>S\. Lee at 90% utilization\.<\/a:t>/g,
-        `<a:t>${overloaded.map((m: any) => m.name).slice(0, 3).join(", ") || "All workload balanced"} active on project deliverables.</a:t>`
+        `<a:t>${
+          overloaded.length > 0
+            ? `${overloaded.map((m: any) => m.name).slice(0, 3).join(", ")} exceed target capacity.`
+            : "Workload balanced across active contributors."
+        }</a:t>`
       );
       xml = xml.replace(/<a:t>2 available<\/a:t>/g, `<a:t>${available.length} available</a:t>`);
       xml = xml.replace(
         /<a:t>A\. Kumar and P\. Singh have headroom\.<\/a:t>/g,
-        `<a:t>${available.map((m: any) => m.name).join(", ") || "Full team active"} have headroom.</a:t>`
+        `<a:t>${
+          available.length > 0
+            ? `${available.map((m: any) => m.name).slice(0, 4).join(", ")} have headroom.`
+            : "Full team allocated at capacity."
+        }</a:t>`
       );
-      xml = xml.replace(/<a:t>1 action<\/a:t>/g, `<a:t>Capacity Status</a:t>`);
+      xml = xml.replace(/<a:t>1 action<\/a:t>/g, `<a:t>Capacity Action</a:t>`);
       xml = xml.replace(
         /<a:t>Shift compatible QA work before release\.<\/a:t>/g,
-        `<a:t>${data.workloadResult?.metrics?.recommendations?.[0] || "Maintain balanced allocation across active contributors."}</a:t>`
+        `<a:t>${
+          data.workloadResult?.metrics?.recommendations?.[0] ||
+          (overloaded.length > 0
+            ? `Rebalance ${overloaded.length} workstreams before next milestone.`
+            : "Maintain balanced allocation across active contributors.")
+        }</a:t>`
       );
     }
 
@@ -443,8 +467,18 @@ async function injectOrbitworkReviewDeck(
       );
     }
 
+    // Global fallback for any leftover placeholder names in this slide
+    if (m1) xml = xml.replace(/A\. Kumar/g, escapeXml(m1.name));
+    if (m2) xml = xml.replace(/M\. Rao/g, escapeXml(m2.name));
+    if (m3) xml = xml.replace(/S\. Lee/g, escapeXml(m3.name));
+    if (m4) xml = xml.replace(/P\. Singh/g, escapeXml(m4.name));
+    if (realMembers[4]) xml = xml.replace(/R\. Das/g, escapeXml(realMembers[4].name));
+
     zip.file(sPath, xml);
   }
+
+  // Inject real members and utilization into embedded charts and spreadsheets
+  await injectTeamCapacityCharts(zip, realMembers);
 }
 
 /**
@@ -466,6 +500,29 @@ async function injectCorporateTemplateDeck(
   const completionPercent = totalCount > 0 ? Math.round((completedCount * 100) / totalCount) : 0;
   const topTasks = data.allTasks.slice(0, 10);
   const topResources = data.resourceMetrics.slice(0, 5);
+
+  const workloadMembers = data.workloadResult?.members || [];
+  const realMembers =
+    workloadMembers.length > 0
+      ? workloadMembers.map((m: any) => ({
+          name: m.name,
+          role: m.role || "Team Contributor",
+          hours: Math.round(m.estimatedWorkloadHours || 0),
+          capacity: Math.round(m.effectiveCapacityHours || m.rawCapacityHours || 40),
+          util: Math.round(m.utilizationPercentage || 0),
+          status: (m.status || "healthy").toUpperCase(),
+          taskCount: m.assignedTasksCount || 0,
+        }))
+      : data.resourceMetrics.map((r: any) => ({
+          name: r.name,
+          role: "Team Contributor",
+          hours: Math.round(r.totalAssigned * 5),
+          capacity: 40,
+          util: Math.round(((r.totalAssigned * 5) / 40) * 100),
+          status: r.totalAssigned > 8 ? "OVER_CAPACITY" : "HEALTHY",
+          taskCount: r.totalAssigned,
+        }));
+  realMembers.sort((a: any, b: any) => b.hours - a.hours || b.taskCount - a.taskCount);
 
   for (let idx = 0; idx < slidePaths.length; idx++) {
     const sPath = slidePaths[idx];
@@ -696,6 +753,98 @@ async function injectCorporateTemplateDeck(
     }
 
     zip.file(sPath, xml);
+  }
+
+  // Also inject team capacity charts for any uploaded corporate template
+  await injectTeamCapacityCharts(zip, realMembers);
+}
+
+/**
+ * Injects actual team member names and utilization % into PowerPoint embedded charts (e.g. chart1.xml)
+ * and their underlying embedded Excel spreadsheet (Microsoft_Excel_Sheet1.xlsx).
+ */
+async function injectTeamCapacityCharts(
+  zip: JSZip,
+  members: Array<{ name: string; util: number }>
+): Promise<void> {
+  if (!members || members.length === 0) return;
+
+  const chartPaths = Object.keys(zip.files).filter((f) => /^ppt\/charts\/chart\d+\.xml$/i.test(f));
+  for (const cPath of chartPaths) {
+    let xml = await zip.file(cPath)!.async("string");
+    if (
+      xml.includes("Utilization") ||
+      xml.includes("Kumar") ||
+      xml.includes("Sheet1!$A$2") ||
+      xml.includes("barChart") ||
+      xml.includes("colChart")
+    ) {
+      const count = members.length;
+      const catPts = members
+        .map((m, i) => `<c:pt idx="${i}"><c:v>${escapeXml(m.name)}</c:v></c:pt>`)
+        .join("");
+      const valPts = members
+        .map((m, i) => `<c:pt idx="${i}"><c:v>${Math.round(m.util)}</c:v></c:pt>`)
+        .join("");
+
+      const newCat = `<c:cat><c:strRef><c:f>Sheet1!$A$2:$A$${count + 1}</c:f><c:strCache><c:ptCount val="${count}"/>${catPts}</c:strCache></c:strRef></c:cat>`;
+      const newVal = `<c:val><c:numRef><c:f>Sheet1!$B$2:$B$${count + 1}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${count}"/>${valPts}</c:numCache></c:numRef></c:val>`;
+
+      xml = xml.replace(/<c:cat>[\s\S]*?<\/c:cat>/, newCat);
+      xml = xml.replace(/<c:val>[\s\S]*?<\/c:val>/, newVal);
+
+      const maxUtil = Math.max(...members.map((m) => m.util), 100);
+      const axisMax = Math.ceil(maxUtil / 20) * 20;
+      xml = xml.replace(
+        /(<c:valAx>[\s\S]*?<c:scaling>[\s\S]*?<c:max val=")([^"]+)(")/,
+        `$1${axisMax.toFixed(1)}$3`
+      );
+
+      zip.file(cPath, xml);
+    }
+  }
+
+  const xlsxPaths = Object.keys(zip.files).filter((f) =>
+    /^ppt\/embeddings\/.*?\.xlsx$/i.test(f)
+  );
+  for (const xPath of xlsxPaths) {
+    const xFile = zip.file(xPath);
+    if (!xFile) continue;
+    try {
+      const xBuf = await xFile.async("nodebuffer");
+      const xZip = await JSZip.loadAsync(xBuf);
+      const count = members.length;
+
+      let sstXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${
+        count + 1
+      }" uniqueCount="${count + 1}">`;
+      members.forEach((m) => {
+        sstXml += `<si><t>${escapeXml(m.name)}</t></si>`;
+      });
+      sstXml += `<si><t>Utilization %</t></si></sst>`;
+      xZip.file("xl/sharedStrings.xml", sstXml);
+
+      let sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><dimension ref="A1:B${
+        count + 1
+      }"/><sheetViews><sheetView tabSelected="1" workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols><col min="1" max="1" width="15" customWidth="1"/></cols><sheetData>`;
+      sheetXml += `<row r="1" spans="1:2"><c r="B1" t="s"><v>${count}</v></c></row>`;
+      members.forEach((m, i) => {
+        const row = i + 2;
+        sheetXml += `<row r="${row}" spans="1:2"><c r="A${row}" s="1" t="s"><v>${i}</v></c><c r="B${row}" s="1"><v>${Math.round(
+          m.util
+        )}</v></c></row>`;
+      });
+      sheetXml += `</sheetData><pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>`;
+      xZip.file("xl/worksheets/sheet1.xml", sheetXml);
+
+      const updatedXlsx = await xZip.generateAsync({
+        type: "nodebuffer",
+        compression: "DEFLATE",
+      });
+      zip.file(xPath, updatedXlsx);
+    } catch (e) {
+      console.warn("Failed to update embedded spreadsheet:", e);
+    }
   }
 }
 

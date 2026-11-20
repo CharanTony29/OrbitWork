@@ -64,6 +64,7 @@ export interface TaskWorkloadInput {
   dueDate?: string | null;
   primaryAssigneeId?: string | null;
   secondaryAssigneeId?: string | null;
+  assigneeIds?: string[];
   category?: string | null;
   isCompleted?: boolean;
   parentTaskId?: string | null;
@@ -284,8 +285,9 @@ export function calculateWorkload(
 ): WorkloadEngineResult {
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // Active tasks only
-  const activeTasks = tasks.filter((t) => !t.isCompleted);
+  // Active tasks only, or fall back to all tasks if all are completed (e.g. completed sprint/review)
+  const nonCompletedTasks = tasks.filter((t) => !t.isCompleted);
+  const activeTasks = nonCompletedTasks.length > 0 ? nonCompletedTasks : tasks;
 
   // Group active tasks by assignee
   const tasksByMember = new Map<string, TaskWorkloadInput[]>();
@@ -296,7 +298,10 @@ export function calculateWorkload(
   }
 
   for (const t of activeTasks) {
-    const assignees = [t.primaryAssigneeId, t.secondaryAssigneeId].filter(Boolean) as string[];
+    const assignees =
+      t.assigneeIds && t.assigneeIds.length > 0
+        ? t.assigneeIds
+        : ([t.primaryAssigneeId, t.secondaryAssigneeId].filter(Boolean) as string[]);
     if (assignees.length === 0) {
       unassignedCount++;
       continue;

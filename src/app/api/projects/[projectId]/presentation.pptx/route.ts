@@ -470,14 +470,19 @@ async function handleGeneratePptx(
           (st.name.toLowerCase().includes("done") ||
             st.name.toLowerCase().includes("complete") ||
             st.name.toLowerCase().includes("closed")));
+      const assignees = Array.from(taskAssigneeMap.get(t.id) || []);
       return {
         id: t.id,
         title: t.title,
         estimateMinutes: t.estimate_minutes || 0,
         priority: t.priority as any,
         dueDate: t.due_date,
-        primaryAssigneeId: t.primary_assignee_id,
-        secondaryAssigneeId: t.secondary_assignee_id,
+        primaryAssigneeId: t.primary_assignee_id || assignees[0] || null,
+        secondaryAssigneeId: t.secondary_assignee_id || assignees[1] || null,
+        assigneeIds:
+          assignees.length > 0
+            ? assignees
+            : ([t.primary_assignee_id].filter(Boolean) as string[]),
         isCompleted: Boolean(isCompleted),
         parentTaskId: t.parent_task_id,
       };
