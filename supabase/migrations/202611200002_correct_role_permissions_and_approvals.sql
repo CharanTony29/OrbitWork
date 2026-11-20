@@ -320,49 +320,146 @@ $$;
 -- 4. Correct Database RLS Policies
 
 -- organizations: Delete is strictly Owner only.
-ALTER POLICY organizations_delete_owner ON public.organizations
-  USING (public.has_org_role(id, ARRAY['owner'::public.organization_role]));
+DROP POLICY IF EXISTS organizations_delete_owner ON public.organizations;
+CREATE POLICY organizations_delete_owner ON public.organizations
+  FOR DELETE
+  TO authenticated
+  USING (
+    public.has_org_role(id, ARRAY['owner'::public.organization_role])
+    OR created_by = (SELECT auth.uid())
+  );
 
 -- organizations: Update allowed for Owner, Co-Owner, Admin.
-ALTER POLICY organizations_update_admins ON public.organizations
-  USING (public.has_org_role(id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role]))
-  WITH CHECK (public.has_org_role(id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role]));
+DROP POLICY IF EXISTS organizations_update_admins ON public.organizations;
+CREATE POLICY organizations_update_admins ON public.organizations
+  FOR UPDATE
+  TO authenticated
+  USING (
+    public.has_org_role(id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role])
+    OR created_by = (SELECT auth.uid())
+  )
+  WITH CHECK (
+    public.has_org_role(id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role])
+    OR created_by = (SELECT auth.uid())
+  );
 
 -- workspaces: Delete is strictly Owner only (Admin is revoked!).
-ALTER POLICY workspaces_delete_admins ON public.workspaces
-  USING (public.has_org_role(organization_id, ARRAY['owner'::public.organization_role]));
+DROP POLICY IF EXISTS workspaces_delete_admins ON public.workspaces;
+CREATE POLICY workspaces_delete_admins ON public.workspaces
+  FOR DELETE
+  TO authenticated
+  USING (
+    public.has_org_role(organization_id, ARRAY['owner'::public.organization_role])
+    OR (EXISTS (
+      SELECT 1 FROM public.organizations o
+      WHERE o.id = workspaces.organization_id AND o.created_by = (SELECT auth.uid())
+    ))
+  );
+
+-- workspaces: Update allowed for Owner, Co-Owner, Admin.
+DROP POLICY IF EXISTS workspaces_update_admins ON public.workspaces;
+CREATE POLICY workspaces_update_admins ON public.workspaces
+  FOR UPDATE
+  TO authenticated
+  USING (
+    public.has_org_role(organization_id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role])
+    OR (EXISTS (
+      SELECT 1 FROM public.organizations o
+      WHERE o.id = workspaces.organization_id AND o.created_by = (SELECT auth.uid())
+    ))
+  )
+  WITH CHECK (
+    public.has_org_role(organization_id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role])
+    OR (EXISTS (
+      SELECT 1 FROM public.organizations o
+      WHERE o.id = workspaces.organization_id AND o.created_by = (SELECT auth.uid())
+    ))
+  );
+
+-- workspaces: Insert allowed for Owner, Co-Owner, Admin.
+DROP POLICY IF EXISTS workspaces_create_admins ON public.workspaces;
+CREATE POLICY workspaces_create_admins ON public.workspaces
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    created_by = (SELECT auth.uid())
+    AND (
+      public.has_org_role(organization_id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role])
+      OR (EXISTS (
+        SELECT 1 FROM public.organizations o
+        WHERE o.id = workspaces.organization_id AND o.created_by = (SELECT auth.uid())
+      ))
+    )
+  );
 
 -- projects: Insert uses can_create_project (Owner, Co-Owner, Admin, Manager).
-ALTER POLICY projects_create_admins ON public.projects
-  WITH CHECK (public.can_create_project(workspace_id));
+DROP POLICY IF EXISTS projects_create_admins ON public.projects;
+DROP POLICY IF EXISTS projects_create_workspace_managers ON public.projects;
+CREATE POLICY projects_create_workspace_managers ON public.projects
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    created_by = (SELECT auth.uid())
+    AND public.can_create_project(workspace_id)
+  );
 
 -- projects: Update uses can_manage_project (Owner, Co-Owner, Admin, Manager).
-ALTER POLICY projects_update_admins ON public.projects
+DROP POLICY IF EXISTS projects_update_admins ON public.projects;
+DROP POLICY IF EXISTS projects_update_managers ON public.projects;
+CREATE POLICY projects_update_managers ON public.projects
+  FOR UPDATE
+  TO authenticated
   USING (public.can_manage_project(id))
   WITH CHECK (public.can_manage_project(id));
 
 -- projects: Delete uses can_delete_project (Owner, Admin, Manager directly).
-ALTER POLICY projects_delete_admins ON public.projects
+DROP POLICY IF EXISTS projects_delete_admins ON public.projects;
+DROP POLICY IF EXISTS projects_delete_managers ON public.projects;
+CREATE POLICY projects_delete_managers ON public.projects
+  FOR DELETE
+  TO authenticated
   USING (public.can_delete_project(id));
 
 -- tasks: Insert/Update uses can_edit_project_tasks (Viewer blocked).
-ALTER POLICY tasks_create_members ON public.tasks
-  WITH CHECK (public.can_edit_project_tasks(project_id));
+DROP POLICY IF EXISTS tasks_create_members ON public.tasks;
+CREATE POLICY tasks_create_members ON public.tasks
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    created_by = (SELECT auth.uid())
+    AND public.can_edit_project_tasks(project_id)
+  );
 
-ALTER POLICY tasks_update_members ON public.tasks
+DROP POLICY IF EXISTS tasks_update_members ON public.tasks;
+CREATE POLICY tasks_update_members ON public.tasks
+  FOR UPDATE
+  TO authenticated
   USING (public.can_edit_project_tasks(project_id))
   WITH CHECK (public.can_edit_project_tasks(project_id));
 
 -- tasks: Delete uses can_delete_project_tasks (Member & Viewer blocked).
-ALTER POLICY tasks_delete_managers ON public.tasks
+DROP POLICY IF EXISTS tasks_delete_managers ON public.tasks;
+DROP POLICY IF EXISTS tasks_delete_editors ON public.tasks;
+CREATE POLICY tasks_delete_editors ON public.tasks
+  FOR DELETE
+  TO authenticated
   USING (public.can_delete_project_tasks(project_id));
 
 -- task_comments: Insert uses can_access_project (Viewers CAN comment).
-ALTER POLICY task_comments_create_members ON public.task_comments
-  WITH CHECK (public.can_access_project(project_id));
+DROP POLICY IF EXISTS task_comments_create_members ON public.task_comments;
+CREATE POLICY task_comments_create_members ON public.task_comments
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    author_id = (SELECT auth.uid())
+    AND public.can_access_project(project_id)
+  );
 
 -- organization_members: Protect Owner from demotion and removal; protect co_owner management.
-ALTER POLICY org_members_remove_admins_or_self ON public.organization_members
+DROP POLICY IF EXISTS org_members_remove_admins_or_self ON public.organization_members;
+CREATE POLICY org_members_remove_admins_or_self ON public.organization_members
+  FOR DELETE
+  TO authenticated
   USING (
     role::text <> 'owner'
     AND (
@@ -377,7 +474,10 @@ ALTER POLICY org_members_remove_admins_or_self ON public.organization_members
     )
   );
 
-ALTER POLICY org_members_update_admins ON public.organization_members
+DROP POLICY IF EXISTS org_members_update_admins ON public.organization_members;
+CREATE POLICY org_members_update_admins ON public.organization_members
+  FOR UPDATE
+  TO authenticated
   USING (
     role::text <> 'owner'
     AND public.has_org_role(organization_id, ARRAY['owner'::public.organization_role, 'co_owner'::public.organization_role, 'admin'::public.organization_role])
