@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { Edit2, Check, X, Shield, Plus, Tag } from "lucide-react";
 import { updateMemberDesignations } from "@/app/actions";
 import { DEFAULT_DESIGNATIONS, type OrganizationDesignation } from "@/lib/designations";
@@ -27,23 +28,95 @@ export default function MemberDesignationsEditor({
   const [primary, setPrimary] = useState<string>(primaryDesignation || currentDesignations[0] || "");
   const [customInput, setCustomInput] = useState("");
   const [isPending, startTransition] = useTransition();
-  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
 
   useEffect(() => {
     setSelected(currentDesignations);
     setPrimary(primaryDesignation || currentDesignations[0] || "");
   }, [currentDesignations, primaryDesignation]);
 
-  // Close on outside click
+  const calculatePosition = () => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const popoverWidth = 320;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    const spaceBelow = viewportHeight - rect.bottom - 16;
+    const spaceAbove = rect.top - 16;
+
+    let top: number;
+    let maxHeight = 380;
+
+    // Determine whether to place below or above based on available space
+    if (spaceBelow >= 280 || spaceBelow >= spaceAbove) {
+      top = rect.bottom + 6;
+      maxHeight = Math.min(380, Math.max(180, spaceBelow));
+    } else {
+      const actualHeight = Math.min(380, Math.max(180, spaceAbove));
+      top = Math.max(12, rect.top - actualHeight - 6);
+      maxHeight = actualHeight;
+    }
+
+    // Horizontal positioning: align to trigger button, but keep inside viewport
+    let left = rect.left;
+    if (left + popoverWidth > viewportWidth - 16) {
+      left = Math.max(16, viewportWidth - popoverWidth - 16);
+    }
+    if (left < 16) left = 16;
+
+    setPopoverPos({ top, left, maxHeight });
+  };
+
+  const toggleOpen = () => {
+    if (!isOpen) {
+      calculatePosition();
+      setIsOpen(true);
+    } else {
+      setIsOpen(false);
+    }
+  };
+
+  // Close on outside click, escape key, or reposition on window scroll/resize
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(target) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     }
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    function handleScrollOrResize() {
+      if (isOpen) {
+        calculatePosition();
+      }
+    }
+
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+      window.addEventListener("resize", handleScrollOrResize);
+      window.addEventListener("scroll", handleScrollOrResize, true);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("keydown", handleKeyDown);
+        window.removeEventListener("resize", handleScrollOrResize);
+        window.removeEventListener("scroll", handleScrollOrResize, true);
+      };
     }
   }, [isOpen]);
 
@@ -112,7 +185,7 @@ export default function MemberDesignationsEditor({
   }
 
   return (
-    <div ref={dropdownRef} style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
+    <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
       {/* Display Designation Badges */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px" }}>
         {selected.length > 0 ? (
@@ -168,8 +241,9 @@ export default function MemberDesignationsEditor({
 
         {canManage && (
           <button
+            ref={triggerRef}
             type="button"
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={toggleOpen}
             aria-label={`Edit designations for ${memberName}`}
             style={{
               border: "1px dashed var(--line, #cbd5e1)",
@@ -192,23 +266,24 @@ export default function MemberDesignationsEditor({
         )}
       </div>
 
-      {/* Popover / Multi-Role Selector */}
-      {isOpen && (
+      {/* Floating Popover rendered in Portal so it overlays cleanly on top without clipping or double scrollbars */}
+      {isOpen && popoverPos && typeof document !== "undefined" && createPortal(
         <div
+          ref={popoverRef}
           style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            left: 0,
-            zIndex: 1000,
+            position: "fixed",
+            top: popoverPos.top,
+            left: popoverPos.left,
+            zIndex: 99999,
             width: 320,
-            maxHeight: 380,
-            overflowY: "auto",
+            maxHeight: popoverPos.maxHeight || 380,
             backgroundColor: "var(--surface, #ffffff)",
             border: "1px solid var(--line, #e2e8f0)",
             borderRadius: 8,
-            boxShadow: "0 10px 28px rgba(0,0,0,0.2)",
+            boxShadow: "0 14px 34px rgba(0,0,0,0.22)",
             padding: "12px",
-            display: "grid",
+            display: "flex",
+            flexDirection: "column",
             gap: "10px",
           }}
         >
@@ -261,7 +336,7 @@ export default function MemberDesignationsEditor({
           </div>
 
           {/* List of Available Roles */}
-          <div style={{ display: "grid", gap: "4px", maxHeight: 180, overflowY: "auto", paddingRight: 4 }}>
+          <div style={{ display: "grid", gap: "4px", flex: "1 1 auto", minHeight: 60, maxHeight: 200, overflowY: "auto", paddingRight: 4 }}>
             {designationNames.map((role) => {
               const isChecked = selected.includes(role);
               const color = getBadgeColor(role);
@@ -334,7 +409,8 @@ export default function MemberDesignationsEditor({
               {isPending ? "Saving…" : "Save Roles"}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
