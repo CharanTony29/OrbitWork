@@ -47,6 +47,9 @@ export default function FavoriteButton({
       const res = await toggleFavorite(fd);
       if (res.ok) {
         setFavorited(res.favorited);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("orbitwork:favorites-updated"));
+        }
       } else {
         setFavorited(!next);
       }

@@ -28,7 +28,25 @@ export default function TaskHeaderTimer({
   const [billable, setBillable] = useState(true);
   const [elapsed, setElapsed] = useState("00:00:00");
   const [currentEntry, setCurrentEntry] = useState(runningEntry);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("error=")) {
+      const url = new URL(window.location.href);
+      const err = url.searchParams.get("error");
+      url.searchParams.delete("error");
+      window.history.replaceState(null, "", url.toString());
+      if (err) {
+        showToast(err.replace(/_/g, " "));
+      }
+    }
+  }, []);
 
   useEffect(() => {
     setCurrentEntry(runningEntry);
@@ -75,9 +93,14 @@ export default function TaskHeaderTimer({
 
     startTransition(async () => {
       try {
-        await startTaskTimer(fd);
-      } catch {
+        const res = await startTaskTimer(fd);
+        if (res && !res.ok) {
+          setCurrentEntry(runningEntry);
+          showToast(res.error || "Could not start timer.");
+        }
+      } catch (err: any) {
         setCurrentEntry(runningEntry);
+        showToast(err?.message || "Could not start timer.");
       }
     });
   };
@@ -94,9 +117,14 @@ export default function TaskHeaderTimer({
 
     startTransition(async () => {
       try {
-        await stopTaskTimer(fd);
-      } catch {
+        const res = await stopTaskTimer(fd);
+        if (res && !res.ok) {
+          setCurrentEntry(prev);
+          showToast(res.error || "Could not stop timer.");
+        }
+      } catch (err: any) {
         setCurrentEntry(prev);
+        showToast(err?.message || "Could not stop timer.");
       }
     });
   };
@@ -208,6 +236,44 @@ export default function TaskHeaderTimer({
             </div>
           )}
         </>
+      )}
+
+      {toastMessage && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+            zIndex: 9999,
+            background: "#dc2626",
+            color: "#fff",
+            padding: "10px 16px",
+            borderRadius: "8px",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.2)",
+            fontSize: "13px",
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <span>⚠️ {toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            style={{
+              background: "none",
+              border: 0,
+              color: "#fff",
+              cursor: "pointer",
+              padding: 0,
+              marginLeft: 8,
+              display: "flex",
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
       )}
     </div>
   );

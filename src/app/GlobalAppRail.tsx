@@ -15,6 +15,7 @@ import {
   PanelLeft,
   UsersRound,
   FolderKanban,
+  Star,
 } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 import WorkspaceLovPopover, { preloadWorkspaceLov } from "./WorkspaceLovPopover";
@@ -113,6 +114,16 @@ export default function GlobalAppRail({
       isActive: lovOpen,
     },
     {
+      key: "favorites",
+      label: "Favorites",
+      title: "Pinned & Starred Favorites",
+      onClick: () => {
+        window.dispatchEvent(new CustomEvent("orbitwork:toggle-favorites-menu"));
+      },
+      icon: <Star size={17} />,
+      isActive: false,
+    },
+    {
       key: "inbox",
       label: "Inbox",
       title: "Inbox",
@@ -175,7 +186,7 @@ export default function GlobalAppRail({
       <Link
         className="work-rail-logo"
         href="/dashboard"
-        prefetch={false}
+        prefetch={true}
         aria-label="Orbitwork home"
       >
         <BrandMark className="brand-mark" size={25} />

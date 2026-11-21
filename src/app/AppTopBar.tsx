@@ -8,6 +8,7 @@ import { BrandMark } from "./BrandMark";
 import MeetingStudioTrigger from "./_components/MeetingStudioTrigger";
 import PresentationStudioTrigger from "./_components/PresentationStudioTrigger";
 import DeepResearchStudioTrigger from "./_components/DeepResearchStudioTrigger";
+import FavoritesNavTrigger from "./FavoritesNavTrigger";
 
 export default function AppTopBar({
   email,
@@ -30,7 +31,7 @@ export default function AppTopBar({
         {leftSlot ?? (
           <div className="topbar-default-brand-row">
             <TopBarMobileMenuToggle />
-            <Link className="brand ov-brand topbar-header-brand" href="/dashboard" prefetch={false}>
+            <Link className="brand ov-brand topbar-header-brand" href="/dashboard" prefetch={true}>
               <BrandMark size={24} />
               <span className="brand-header-text">
                 Orbit<span className="ov-brand-accent">Work</span>
@@ -53,6 +54,7 @@ export default function AppTopBar({
         />
       </div>
       <div className="topbar-right" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <FavoritesNavTrigger />
         <DeepResearchStudioTrigger projectId={projectId} />
         <PresentationStudioTrigger projectId={projectId} />
         <MeetingStudioTrigger projectId={projectId} workspaceId={workspaceId} />

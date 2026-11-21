@@ -229,11 +229,15 @@ export async function updateMyProfile(formData: FormData) {
     department: z.string().trim().max(100),
     designation: z.string().trim().max(100),
     contactInformation: z.string().trim().max(500),
+    country: z.string().trim().max(100).optional(),
+    timezone: z.string().trim().max(100).optional(),
   }).safeParse({
     displayName: formData.get("displayName"),
     department: formData.get("department") ?? "",
     designation: formData.get("designation") ?? "",
     contactInformation: formData.get("contactInformation") ?? "",
+    country: formData.get("country") ?? "India",
+    timezone: formData.get("timezone") ?? "Asia/Kolkata",
   });
   if (!parsed.success) redirect("/profile?error=invalid_profile");
   const supabase = await createClient();
@@ -246,7 +250,13 @@ export async function updateMyProfile(formData: FormData) {
     contact_information: parsed.data.contactInformation || null,
   }).eq("id", user.id);
   if (error) redirect("/profile?error=save_failed");
-  await supabase.auth.updateUser({ data: { full_name: parsed.data.displayName } });
+  await supabase.auth.updateUser({
+    data: {
+      full_name: parsed.data.displayName,
+      country: parsed.data.country || "India",
+      timezone: parsed.data.timezone || "Asia/Kolkata",
+    },
+  });
   revalidatePath("/", "layout");
   redirect("/profile?saved=1");
 }
@@ -3280,54 +3290,143 @@ export async function deleteChecklistItem(formData: FormData): Promise<{ ok: boo
   return { ok: true };
 }
 
-export async function startTaskTimer(formData: FormData) {
-  const parsed = z.object({
-    projectId: z.string().uuid(),
-    taskId: z.string().uuid(),
-    billable: z.enum(["true", "false"]).optional(),
-  }).safeParse({
-    projectId: formData.get("projectId"),
-    taskId: formData.get("taskId"),
-    billable: formData.get("billable") === "false" ? "false" : "true",
-  });
-  if (!parsed.success) redirect("/dashboard?error=invalid_timer");
+export async function startTaskTimer(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const projectId = String(formData.get("projectId") ?? "");
+  const taskId = String(formData.get("taskId") ?? "");
+  const billableRaw = formData.get("billable");
+  const isBillable = billableRaw !== "false";
+
+  if (!projectId || !taskId) {
+    return { ok: false, error: "Invalid task details." };
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/");
-  const { data: running } = await supabase.from("time_entries").select("id").eq("user_id", user.id).is("ended_at", null).maybeSingle();
-  if (running) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=timer_already_running`);
-  const isBillable = parsed.data.billable !== "false";
+  if (!user) return { ok: false, error: "Unauthorized" };
+
+  // If there is an active running timer on this task, close it cleanly first
+  const { data: runningThisTask } = await supabase
+    .from("time_entries")
+    .select("id, started_at")
+    .eq("user_id", user.id)
+    .eq("task_id", taskId)
+    .is("ended_at", null)
+    .maybeSingle();
+
+  if (runningThisTask) {
+    const now = new Date();
+    const diffMs = Math.max(0, now.getTime() - new Date(runningThisTask.started_at).getTime());
+    if (diffMs < 15000) {
+      await supabase.from("time_entries").delete().eq("id", runningThisTask.id);
+    } else {
+      const dur = Math.max(1, Math.ceil(diffMs / 60000));
+      await supabase.from("time_entries").update({ ended_at: now.toISOString(), duration_minutes: dur }).eq("id", runningThisTask.id);
+    }
+  } else {
+    // Check if user has an unended timer on a different task and auto-close it
+    const { data: runningOther } = await supabase
+      .from("time_entries")
+      .select("id")
+      .eq("user_id", user.id)
+      .is("ended_at", null)
+      .maybeSingle();
+
+    if (runningOther) {
+      const now = new Date();
+      await supabase.from("time_entries").update({ ended_at: now.toISOString() }).eq("id", runningOther.id);
+    }
+  }
+
   const { error } = await supabase.from("time_entries").insert({
-    project_id: parsed.data.projectId,
-    task_id: parsed.data.taskId,
+    project_id: projectId,
+    task_id: taskId,
     user_id: user.id,
     started_at: new Date().toISOString(),
     billable: isBillable,
   });
-  if (error) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=timer_failed`);
-  revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
-  revalidatePath(`/projects/${parsed.data.projectId}`);
+
+  if (error) {
+    return { ok: false, error: "Failed to start timer: " + error.message };
+  }
+
+  revalidatePath(`/projects/${projectId}/tasks/${taskId}`);
+  revalidatePath(`/projects/${projectId}`);
+  return { ok: true };
 }
 
-export async function stopTaskTimer(formData: FormData) {
-  const parsed = z.object({ projectId: z.string().uuid(), taskId: z.string().uuid(), entryId: z.string().uuid() }).safeParse({ projectId: formData.get("projectId"), taskId: formData.get("taskId"), entryId: formData.get("entryId") });
-  if (!parsed.success) redirect("/dashboard?error=invalid_timer");
+export async function stopTaskTimer(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const projectId = String(formData.get("projectId") ?? "");
+  const taskId = String(formData.get("taskId") ?? "");
+  const entryIdRaw = String(formData.get("entryId") ?? "");
+
+  if (!projectId || !taskId) {
+    return { ok: false, error: "Invalid task details." };
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/");
+  if (!user) return { ok: false, error: "Unauthorized" };
+
   const endedAt = new Date();
-  const { data: entry } = await supabase.from("time_entries").select("started_at").eq("id", parsed.data.entryId).eq("task_id", parsed.data.taskId).eq("user_id", user.id).is("ended_at", null).maybeSingle();
-  if (!entry) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=timer_not_found`);
-  const minutes = elapsedMinutes(entry.started_at, endedAt);
-  const { error } = await supabase.from("time_entries").update({ ended_at: endedAt.toISOString(), duration_minutes: minutes }).eq("id", parsed.data.entryId).eq("user_id", user.id);
-  if (error) redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?error=timer_failed`);
+  let entry: { id: string; started_at: string } | null = null;
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entryIdRaw);
+
+  if (isUuid) {
+    const { data } = await supabase
+      .from("time_entries")
+      .select("id, started_at")
+      .eq("id", entryIdRaw)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    entry = data;
+  }
+
+  if (!entry) {
+    const { data } = await supabase
+      .from("time_entries")
+      .select("id, started_at")
+      .eq("task_id", taskId)
+      .eq("user_id", user.id)
+      .is("ended_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    entry = data;
+  }
+
+  if (!entry) {
+    revalidatePath(`/projects/${projectId}/tasks/${taskId}`);
+    return { ok: true };
+  }
+
+  const startedMs = new Date(entry.started_at).getTime();
+  const diffSec = Math.max(0, Math.floor((endedAt.getTime() - startedMs) / 1000));
+
+  // If stopped within 15 seconds (unintentional click), remove the 0-second entry cleanly
+  if (diffSec < 15) {
+    await supabase.from("time_entries").delete().eq("id", entry.id).eq("user_id", user.id);
+  } else {
+    const minutes = Math.max(1, Math.ceil(diffSec / 60));
+    const { error } = await supabase
+      .from("time_entries")
+      .update({ ended_at: endedAt.toISOString(), duration_minutes: minutes })
+      .eq("id", entry.id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+  }
+
   await checkAndNotifyHoursExhausting({
-    projectId: parsed.data.projectId,
-    taskId: parsed.data.taskId,
+    projectId,
+    taskId,
   });
-  revalidatePath(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
-  revalidatePath(`/projects/${parsed.data.projectId}/time`);
-  revalidatePath(`/projects/${parsed.data.projectId}`);
+
+  revalidatePath(`/projects/${projectId}/tasks/${taskId}`);
+  revalidatePath(`/projects/${projectId}/time`);
+  revalidatePath(`/projects/${projectId}`);
+  return { ok: true };
 }
 
 export async function updateTaskProgress(formData: FormData) {

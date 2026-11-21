@@ -720,7 +720,7 @@ export default function DocumentsHub({
                       <div className="doc-row-title-container">
                         <span className="doc-row-icon">{doc.icon || "📄"}</span>
                         <div className="doc-row-text">
-                          <Link href={href} className="doc-title-link">
+                          <Link href={href} prefetch={true} className="doc-title-link">
                             {doc.title}
                           </Link>
                           {doc.description && (
@@ -902,7 +902,7 @@ export default function DocumentsHub({
                   </div>
                 </div>
 
-                <Link href={href} className="card-main-link">
+                <Link href={href} prefetch={true} className="card-main-link">
                   <div className="card-icon-area">{doc.icon || "📄"}</div>
                   <h4 className="card-title">{doc.title}</h4>
                   <p className="card-description">

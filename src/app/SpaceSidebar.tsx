@@ -46,7 +46,7 @@ export default function SpaceSidebar({
           <Link
             className={`nav-item ov-nav-item${activeNav === "overview" ? " active" : ""}`}
             href="/dashboard"
-            prefetch={false}
+            prefetch={true}
             aria-current={activeNav === "overview" ? "page" : undefined}
           >
             <Layers3 size={16} />
@@ -55,13 +55,13 @@ export default function SpaceSidebar({
           <Link
             className={`nav-item ov-nav-item${activeNav === "dashboard" ? " active" : ""}`}
             href="/my-dashboard"
-            prefetch={false}
+            prefetch={true}
             aria-current={activeNav === "dashboard" ? "page" : undefined}
           >
             <LayoutDashboard size={16} />
             <span>Dashboard</span>
           </Link>
-          <Link className="nav-item ov-nav-item" href="/inbox" prefetch={false}>
+          <Link className="nav-item ov-nav-item" href="/inbox" prefetch={true}>
             <Bell size={16} />
             <span>Inbox</span>
             {assignedTaskCount > 0 && (

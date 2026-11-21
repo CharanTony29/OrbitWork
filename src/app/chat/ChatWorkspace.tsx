@@ -362,6 +362,12 @@ function buildSmartQuickReplies(lastIncomingText: string | null): string[] {
   return ["Got it, thanks!", "Looks good 👍", "Let's discuss"];
 }
 
+// In-memory thread messages cache for instant (0ms) thread switching
+const chatMessagesCache = new Map<
+  string,
+  { messages: HydratedChatMessage[]; peerLastReadAt: string | null }
+>();
+
 export default function ChatWorkspace({
   currentUserId,
   currentUserName,
@@ -662,6 +668,10 @@ export default function ChatWorkspace({
         setPeerLastReadAt(data.peerLastReadAt ?? null);
         if (Array.isArray(data.messages)) {
           setMessages(data.messages);
+          chatMessagesCache.set(activeThreadKey, {
+            messages: data.messages,
+            peerLastReadAt: data.peerLastReadAt ?? null,
+          });
         }
       } catch {
         setErrorBanner("Network error while loading chat messages.");
@@ -669,14 +679,49 @@ export default function ChatWorkspace({
         setLoadingMessages(false);
       }
     },
-    [selectedType, selectedTarget, primaryOrgId]
+    [selectedType, selectedTarget, primaryOrgId, activeThreadKey]
   );
 
-  // Switching thread triggers immediate load, read mark & forced bottom scroll
+  const prefetchThread = useCallback(
+    (type: ChatConversationType, target: string) => {
+      let key = "";
+      if (type === "group") key = buildGroupThreadKey(target);
+      else if (type === "direct") key = buildDirectThreadKey(currentUserId, target);
+      else key = buildChannelThreadKey(target, primaryOrgId);
+
+      if (chatMessagesCache.has(key)) return;
+
+      const params = new URLSearchParams({ type, target });
+      if (primaryOrgId) params.set("organizationId", primaryOrgId);
+      fetch(`/api/chat/messages?${params.toString()}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && Array.isArray(data.messages)) {
+            chatMessagesCache.set(key, {
+              messages: data.messages,
+              peerLastReadAt: data.peerLastReadAt ?? null,
+            });
+          }
+        })
+        .catch(() => {});
+    },
+    [currentUserId, primaryOrgId]
+  );
+
+  // Switching thread triggers immediate load (from cache if available), read mark & forced bottom scroll
   useEffect(() => {
     forceScrollRef.current = true;
     prevThreadKeyRef.current = activeThreadKey;
-    void fetchMessages({ showLoading: true });
+    const cached = chatMessagesCache.get(activeThreadKey);
+    if (cached) {
+      setMessages(cached.messages);
+      setPeerLastReadAt(cached.peerLastReadAt);
+      setLoadingMessages(false);
+      void fetchMessages({ showLoading: false });
+    } else {
+      setMessages([]);
+      void fetchMessages({ showLoading: true });
+    }
     void markThreadAsRead(activeThreadKey);
   }, [activeThreadKey, fetchMessages, markThreadAsRead]);
 
@@ -691,6 +736,16 @@ export default function ChatWorkspace({
     }, 5000);
     return () => window.clearInterval(timer);
   }, [fetchMessages, fetchThreads]);
+
+  // Background prefetch threads so individual chats open instantly
+  useEffect(() => {
+    if (threads.length > 0) {
+      const topThreads = threads.slice(0, 8);
+      topThreads.forEach((t) => {
+        prefetchThread(t.type, t.target);
+      });
+    }
+  }, [threads, prefetchThread]);
 
   // Supabase Realtime instant sync
   useEffect(() => {
@@ -1208,6 +1263,7 @@ export default function ChatWorkspace({
                     key={thread.threadKey}
                     type="button"
                     className={`chat-thread-row ${isSelected ? "is-selected" : ""} ${isUnread ? "is-unread" : ""}`}
+                    onMouseEnter={() => prefetchThread(thread.type, thread.target)}
                     onClick={() => {
                       setSelectedType(thread.type);
                       setSelectedTarget(thread.target);

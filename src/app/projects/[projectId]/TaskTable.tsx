@@ -1826,9 +1826,13 @@ export default function TaskTable({
   // --- Render Status Groups (Matching Image 3 & 5) ---
   const renderStatusGroups = () => {
     const tasksByStatus = new Map<string, TaskRow[]>();
+    const crossStatusSubtasksByStatus = new Map<string, TaskRow[]>();
     for (const s of statuses) {
       tasksByStatus.set(s.id, []);
+      crossStatusSubtasksByStatus.set(s.id, []);
     }
+    const parentById = new Map(parentTasks.map((p) => [p.id, p]));
+
     const otherTasks: TaskRow[] = [];
     for (const task of parentTasks) {
       if (tasksByStatus.has(task.status_id)) {
@@ -1838,10 +1842,24 @@ export default function TaskTable({
       }
     }
 
+    // Include subtasks whose parent is in a different status group so they appear in their active status group
+    for (const task of localTasks) {
+      if (task.parent_task_id && taskIdSet.has(task.parent_task_id)) {
+        const parent = parentById.get(task.parent_task_id);
+        if (parent && parent.status_id !== task.status_id) {
+          if (crossStatusSubtasksByStatus.has(task.status_id)) {
+            crossStatusSubtasksByStatus.get(task.status_id)!.push(task);
+          }
+        }
+      }
+    }
+
     return (
       <>
         {statuses.map((status) => {
-          const groupTasks = tasksByStatus.get(status.id) ?? [];
+          const directTasks = tasksByStatus.get(status.id) ?? [];
+          const crossSubtasks = crossStatusSubtasksByStatus.get(status.id) ?? [];
+          const totalCount = directTasks.length + crossSubtasks.length;
           const isCollapsed = collapsedGroups.has(status.id);
 
           return (
@@ -1862,14 +1880,14 @@ export default function TaskTable({
                     >
                       {status.name.toUpperCase()}
                     </span>
-                    <span className="status-group-count">{groupTasks.length}</span>
+                    <span className="status-group-count">{totalCount}</span>
                   </div>
                 </td>
               </tr>
 
               {/* Tasks in this status */}
               {!isCollapsed &&
-                groupTasks.map((parentTask) => {
+                directTasks.map((parentTask) => {
                   const children = subtasksByParent.get(parentTask.id) ?? [];
                   const isExpanded = expandedTaskIds.has(parentTask.id);
 
@@ -1880,6 +1898,14 @@ export default function TaskTable({
                     </Fragment>
                   );
                 })}
+
+              {/* Subtasks whose status matches this group while parent is in another group */}
+              {!isCollapsed &&
+                crossSubtasks.map((subtask) => (
+                  <Fragment key={`cross-${subtask.id}`}>
+                    {renderTaskRow(subtask, true)}
+                  </Fragment>
+                ))}
 
               {/* Minimal Add Task Row */}
               {!isCollapsed && canEdit && (

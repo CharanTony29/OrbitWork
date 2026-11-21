@@ -108,6 +108,23 @@ export default async function ProfilePage({
           <label>Display name<input name="displayName" defaultValue={displayName} minLength={2} maxLength={100} autoComplete="name" required/><small>This name appears on tasks, comments, timesheets, and the member directory.</small></label>
           <label>Email address<input value={user.email ?? ""} readOnly disabled/><small>Contact your administrator if your sign-in email needs to change.</small></label>
           <div className="profile-form-columns"><label>Job title<input name="designation" defaultValue={profile?.designation ?? ""} maxLength={100} autoComplete="organization-title" placeholder="e.g. Project manager"/></label><label>Department<input name="department" defaultValue={profile?.department ?? ""} maxLength={100} autoComplete="organization" placeholder="e.g. Operations"/></label></div>
+          <div className="profile-form-columns">
+            <label>Country<input name="country" defaultValue={(user.user_metadata?.country as string) || "India"} maxLength={100} placeholder="e.g. India"/></label>
+            <label>Timezone
+              <select name="timezone" defaultValue={(user.user_metadata?.timezone as string) || "Asia/Kolkata"}>
+                <option value="Asia/Kolkata">India Standard Time (IST, UTC+05:30)</option>
+                <option value="UTC">UTC (GMT+00:00)</option>
+                <option value="America/New_York">Eastern Time (EST/EDT, UTC-05:00)</option>
+                <option value="America/Los_Angeles">Pacific Time (PST/PDT, UTC-08:00)</option>
+                <option value="Europe/London">London (GMT/BST, UTC+00:00)</option>
+                <option value="Europe/Paris">Central European Time (CET, UTC+01:00)</option>
+                <option value="Asia/Dubai">Gulf Standard Time (GST, UTC+04:00)</option>
+                <option value="Asia/Singapore">Singapore Time (SGT, UTC+08:00)</option>
+                <option value="Asia/Tokyo">Japan Standard Time (JST, UTC+09:00)</option>
+                <option value="Australia/Sydney">Australian Eastern Time (AEST, UTC+10:00)</option>
+              </select>
+            </label>
+          </div>
           <label>Contact details<input name="contactInformation" defaultValue={profile?.contact_information ?? ""} maxLength={500} autoComplete="tel" placeholder="Phone number or preferred contact method"/><small>Leave optional fields empty if you prefer not to store them. Saved fields appear in your organization’s member directory.</small></label>
           <footer><span>Only fields you provide are stored on your account.</span><button className="button button-primary">Save details</button></footer>
         </form>

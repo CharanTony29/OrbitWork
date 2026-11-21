@@ -28,7 +28,13 @@ export default function TaskTableTimer({
   const [billable, setBillable] = useState(true);
   const [elapsed, setElapsed] = useState("0m");
   const [currentEntry, setCurrentEntry] = useState(runningEntry);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   useEffect(() => {
     setCurrentEntry(runningEntry);
@@ -68,9 +74,14 @@ export default function TaskTableTimer({
 
     startTransition(async () => {
       try {
-        await startTaskTimer(fd);
-      } catch {
+        const res = await startTaskTimer(fd);
+        if (res && !res.ok) {
+          setCurrentEntry(runningEntry);
+          showToast(res.error || "Could not start timer.");
+        }
+      } catch (err: any) {
         setCurrentEntry(runningEntry);
+        showToast(err?.message || "Could not start timer.");
       }
     });
   };
@@ -87,9 +98,14 @@ export default function TaskTableTimer({
 
     startTransition(async () => {
       try {
-        await stopTaskTimer(fd);
-      } catch {
+        const res = await stopTaskTimer(fd);
+        if (res && !res.ok) {
+          setCurrentEntry(prev);
+          showToast(res.error || "Could not stop timer.");
+        }
+      } catch (err: any) {
         setCurrentEntry(prev);
+        showToast(err?.message || "Could not stop timer.");
       }
     });
   };

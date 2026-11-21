@@ -27,6 +27,8 @@ import TaskCommentForm from "./TaskCommentForm";
 import FavoriteButton from "@/app/FavoriteButton";
 import DateInput from "@/app/DateInput";
 import { normalizeMemberDesignations } from "@/lib/designations";
+import UrlQueryCleaner from "@/app/UrlQueryCleaner";
+import TimeEntryTimestamp from "@/app/TimeEntryTimestamp";
 
 const attachmentMessages: Record<string, string> = {
   uploaded: "File uploaded to workspace Google Drive storage.",
@@ -283,8 +285,8 @@ export default async function TaskDetailPage({ params, searchParams }: {
             <span>You have view-only access to this project. Editing fields, time tracking, checklists, and uploads are disabled.</span>
           </div>
         )}
+        <UrlQueryCleaner paramsToClean={["error", "saved", "driveError", "attachment_error"]} />
         {saved && <p className="notice" role="status">Task changes saved.</p>}
-        {error && <p className="error" role="alert">Could not save those changes. Check that the due date is not before the start date.</p>}
 
         <div className="task-detail-two-col">
           {/* Left Column (Wide): Task execution, subtasks, checklists, attachments, comments */}
@@ -531,9 +533,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
                         <span className="time-entry-row-dur">{entry.duration_minutes ? `${Math.floor(entry.duration_minutes / 60)}h ${entry.duration_minutes % 60}m` : "Running"}</span>
                       </div>
                       <div className="time-entry-row-sub">
-                        <span>
-                          {new Date(entry.started_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {new Date(entry.started_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                        </span>
+                        <TimeEntryTimestamp isoString={entry.started_at} />
                         <span className={`time-entry-row-type ${entry.billable ? "is-billable" : ""}`}>{entry.billable ? "Billable" : "Non-billable"}</span>
                       </div>
                       {entry.description && <p>{entry.description}</p>}

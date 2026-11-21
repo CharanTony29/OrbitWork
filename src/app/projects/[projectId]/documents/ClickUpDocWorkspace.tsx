@@ -212,6 +212,11 @@ export default function ClickUpDocWorkspace({
   const [coverPosition, setCoverPosition] = useState<"top" | "center" | "bottom">("center");
   const [blocks, setBlocks] = useState<DocBlock[]>(initialActivePage.content_json || []);
 
+  // In-memory cache for document pages for instant (0ms) page switching
+  const pageCacheRef = useRef<Map<string, DocPageItem>>(
+    new Map([[initialActivePage.id, initialActivePage]])
+  );
+
   // UI state
   const [editorWidth, setEditorWidth] = useState<"standard" | "wide" | "full">("standard");
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
@@ -323,6 +328,19 @@ export default function ClickUpDocWorkspace({
 
         setSaveStatus("saved");
 
+        if (pageCacheRef.current.has(activePageId)) {
+          const currentCached = pageCacheRef.current.get(activePageId)!;
+          pageCacheRef.current.set(activePageId, {
+            ...currentCached,
+            title: targetTitle.trim() || "Untitled Page",
+            icon: targetIcon,
+            cover_url: targetCover,
+            content_json: targetBlocks,
+            content_markdown: markdown,
+            updated_at: new Date().toISOString(),
+          });
+        }
+
         setPageTree((prevTree) => {
           const updateNodes = (nodes: PageListingNode[]): PageListingNode[] =>
             nodes.map((n) => {
@@ -375,6 +393,25 @@ export default function ClickUpDocWorkspace({
     [pageTitle, pageIcon, pageCover, triggerAutosave]
   );
 
+  // Background prefetch sibling and sub-pages in document
+  useEffect(() => {
+    if (!pageTree || pageTree.length === 0) return;
+    const fetchNodes = (nodes: PageListingNode[]) => {
+      nodes.forEach((n) => {
+        if (!pageCacheRef.current.has(n.id)) {
+          fetch(`/api/workspaces/${workspaceId}/docs/${doc.id}/pages/${n.id}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => {
+              if (d?.page) pageCacheRef.current.set(n.id, d.page);
+            })
+            .catch(() => {});
+        }
+        if (n.children?.length) fetchNodes(n.children);
+      });
+    };
+    fetchNodes(pageTree);
+  }, [pageTree, workspaceId, doc.id]);
+
   // Keyboard shortcut Ctrl+S / Cmd+S & Find
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -392,28 +429,42 @@ export default function ClickUpDocWorkspace({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [pageTitle, pageIcon, pageCover, blocks, performSave]);
 
-  // Page switcher
+  // Instant page switcher (0ms if cached, revalidates seamlessly)
   const switchPage = async (pageId: string) => {
     if (pageId === activePageId) return;
 
     if (saveStatus === "unsaved") {
-      await performSave(pageTitle, pageIcon, pageCover, blocks);
+      void performSave(pageTitle, pageIcon, pageCover, blocks);
+    }
+
+    const cached = pageCacheRef.current.get(pageId);
+    if (cached) {
+      setActivePageId(pageId);
+      setActivePage(cached);
+      setPageTitle(cached.title);
+      setPageIcon(cached.icon || "📄");
+      setPageCover(cached.cover_url || null);
+      setBlocks(cached.content_json || []);
+      setSaveStatus("saved");
     }
 
     try {
       const res = await fetch(`/api/workspaces/${workspaceId}/docs/${doc.id}/pages/${pageId}`);
       const data = await res.json();
       if (res.ok && data.page) {
-        setActivePageId(pageId);
-        setActivePage(data.page);
-        setPageTitle(data.page.title);
-        setPageIcon(data.page.icon || "📄");
-        setPageCover(data.page.cover_url || null);
-        setBlocks(data.page.content_json || []);
-        setSaveStatus("saved");
+        pageCacheRef.current.set(pageId, data.page);
+        if (!cached || activePageId === pageId) {
+          setActivePageId(pageId);
+          setActivePage(data.page);
+          setPageTitle(data.page.title);
+          setPageIcon(data.page.icon || "📄");
+          setPageCover(data.page.cover_url || null);
+          setBlocks(data.page.content_json || []);
+          setSaveStatus("saved");
+        }
       }
     } catch {
-      showToast("Could not load page");
+      if (!cached) showToast("Could not load page");
     }
   };
 

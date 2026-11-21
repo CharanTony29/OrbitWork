@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookOpen, FileText, LayoutGrid, List, Plus, Search, SortAsc } from "lucide-react";
 import FavoriteButton from "@/app/FavoriteButton";
@@ -55,7 +56,7 @@ export default function DocumentsHome({ projectId, projectName, documents, curre
     </div>
     {visible.length ? <div className={`docs-home-list ${view}`}>
       {visible.map((doc) => { const preview = doc.body_markdown.replace(/<!--\s*doc-meta:[\s\S]*?-->\s*/i, "").replace(/<[^>]*>/g, " ").replace(/[#*_`>\[\]]/g, "").replace(/\s+/g, " ").trim();
-        return <article key={doc.id} className="docs-home-card"><a href={`/projects/${projectId}/documents/${doc.id}`} className="docs-home-card-main"><span className="docs-home-icon"><FileText size={18}/></span><span className="docs-home-card-copy"><strong>{doc.title}</strong><span className="docs-home-preview">{preview || "No preview available"}</span></span></a>
+        return <article key={doc.id} className="docs-home-card"><Link href={`/projects/${projectId}/documents/${doc.id}`} prefetch={true} className="docs-home-card-main"><span className="docs-home-icon"><FileText size={18}/></span><span className="docs-home-card-copy"><strong>{doc.title}</strong><span className="docs-home-preview">{preview || "No preview available"}</span></span></Link>
           <span className="docs-home-date">Updated {new Date(doc.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span><FavoriteButton entityType="document" entityId={doc.id} projectId={projectId} title={doc.title} subtitle={`${projectName} · Document`} initialFavorited={favoriteDocIds.includes(doc.id)} compact label="Favorite"/>
         </article>;
       })}

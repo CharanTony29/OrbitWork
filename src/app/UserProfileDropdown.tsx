@@ -669,6 +669,7 @@ export default function UserProfileDropdown({
           <div style={{ padding: "6px 0", borderBottom: "1px solid var(--line, #f1f5f9)" }}>
             <Link
               href="/profile"
+              prefetch={true}
               onClick={() => setIsOpen(false)}
               className="user-menu-item"
               style={{
@@ -686,6 +687,7 @@ export default function UserProfileDropdown({
             </Link>
             <Link
               href="/inbox"
+              prefetch={true}
               onClick={() => setIsOpen(false)}
               className="user-menu-item"
               style={{
