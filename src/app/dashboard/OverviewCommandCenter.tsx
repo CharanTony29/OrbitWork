@@ -481,11 +481,23 @@ export default function OverviewCommandCenter({
                         <strong>{orgMembersCount}</strong>{" "}
                         {orgMembersCount === 1 ? "member" : "members"}
                       </Link>
-                      <span>
+                      <a
+                        href="#ov-projects-section"
+                        className="ov-org-tile-metric-link"
+                        title={`Filter and jump to ${org.name} projects`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setSelectedScope(org.id);
+                          setActionOrgId(org.id);
+                          setTimeout(() => {
+                            document.getElementById("ov-projects-section")?.scrollIntoView({ behavior: "smooth" });
+                          }, 50);
+                        }}
+                      >
                         <FolderKanban size={13} />
                         <strong>{orgProjCount}</strong>{" "}
                         {orgProjCount === 1 ? "project" : "projects"}
-                      </span>
+                      </a>
                     </div>
                     <div className="ov-org-tile-links">
                       <Link href={`/organizations/${org.id}/members`}>
@@ -553,13 +565,21 @@ export default function OverviewCommandCenter({
                       {memberCountByOrg.get(activeOrg.id) ?? 0}
                     </strong>
                   </Link>
-                  <div className="ov-metric-cell">
+                  <a
+                    href="#ov-projects-section"
+                    className="ov-metric-cell is-link"
+                    title="Jump to active projects"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById("ov-projects-section")?.scrollIntoView({ behavior: "smooth" });
+                    }}
+                  >
                     <span className="ov-metric-label">Projects</span>
                     <strong className="ov-metric-val">
                       <FolderKanban size={14} />
                       {scopedProjects.length}
                     </strong>
-                  </div>
+                  </a>
                 </div>
 
                 <div className="ov-org-strip-actions">
@@ -993,6 +1013,7 @@ export default function OverviewCommandCenter({
 
               {/* Projects Directory Deck */}
               <section
+                id="ov-projects-section"
                 className="ov-workspaces-section ov-projects-deck"
                 aria-labelledby="ov-projects-title"
               >
@@ -1226,31 +1247,33 @@ export default function OverviewCommandCenter({
                     className="ov-admin-links"
                     aria-label={`${targetActionOrg.name} administration`}
                   >
-                    <Link href={`/organizations/${targetActionOrg.id}/members`}>
+                    <Link href={`/organizations/${targetActionOrg.id}/members`} prefetch={true}>
                       <UsersRound size={14} />
                       <span>Members &amp; roles</span>
                       <ArrowUpRight size={13} />
                     </Link>
                     <Link
                       href={`/organizations/${targetActionOrg.id}/integrations`}
+                      prefetch={true}
                     >
                       <PlugZap size={14} />
                       <span>Integrations</span>
                       <ArrowUpRight size={13} />
                     </Link>
-                    <Link href={`/organizations/${targetActionOrg.id}/calendar`}>
+                    <Link href={`/organizations/${targetActionOrg.id}/calendar`} prefetch={true}>
                       <CalendarDays size={14} />
                       <span>Holidays &amp; leave</span>
                       <ArrowUpRight size={13} />
                     </Link>
                     <Link
                       href={`/organizations/${targetActionOrg.id}/workspaces`}
+                      prefetch={true}
                     >
                       <Layers3 size={14} />
                       <span>All workspaces</span>
                       <ArrowUpRight size={13} />
                     </Link>
-                    <Link href={`/organizations/${targetActionOrg.id}/docs`}>
+                    <Link href={`/organizations/${targetActionOrg.id}/docs`} prefetch={true}>
                       <FileText size={14} />
                       <span>Docs &amp; attachments</span>
                       <ArrowUpRight size={13} />

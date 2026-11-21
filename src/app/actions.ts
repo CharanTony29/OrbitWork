@@ -81,7 +81,8 @@ export async function signIn(formData: FormData) {
     await supabase.rpc("accept_user_pending_invitations");
   } catch {}
 
-  revalidatePath("/", "layout");
+  revalidatePath("/dashboard");
+  revalidatePath("/my-dashboard");
   redirect(safeReturnUrl);
 }
 
@@ -2718,6 +2719,38 @@ export async function updateTask(formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath("/my-dashboard");
   redirect(`/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}?saved=1`);
+}
+
+export async function saveTaskDetailsDirect(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const projectId = formData.get("projectId") as string;
+  const taskId = formData.get("taskId") as string;
+  const title = (formData.get("title") as string || "").trim();
+  const description = (formData.get("description") as string || "").trim();
+
+  if (!projectId || !taskId || !title) {
+    return { ok: false, error: "Task title cannot be empty." };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Unauthorized" };
+
+  const { error } = await supabase
+    .from("tasks")
+    .update({
+      title,
+      description,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", taskId)
+    .eq("project_id", projectId);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath(`/projects/${projectId}/tasks/${taskId}`);
+  return { ok: true };
 }
 
 export async function createTaskComment(formData: FormData) {

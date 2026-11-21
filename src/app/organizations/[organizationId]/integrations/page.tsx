@@ -39,14 +39,19 @@ export default async function OrganizationIntegrationsPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  const { data: organization } = await supabase
-    .from("organizations")
-    .select("id, name")
-    .eq("id", organizationId)
-    .maybeSingle();
-  if (!organization) notFound();
-
-  const [{ data: connection }, { data: canManage }, { data: canManageChatPolicy }, storageConfig, chatCloudPolicy] = await Promise.all([
+  const [
+    { data: organization },
+    { data: connection },
+    { data: canManage },
+    { data: canManageChatPolicy },
+    storageConfig,
+    chatCloudPolicy,
+  ] = await Promise.all([
+    supabase
+      .from("organizations")
+      .select("id, name")
+      .eq("id", organizationId)
+      .maybeSingle(),
     supabase
       .from("google_drive_connections")
       .select("connected_by, connected_at, updated_at, account_email")
@@ -64,6 +69,8 @@ export default async function OrganizationIntegrationsPage({
     getOrganizationStorageConfig(supabase, organizationId),
     getOrgChatCloudPolicy(supabase, organizationId),
   ]);
+
+  if (!organization) notFound();
 
   const googleConfigured = Boolean(
     process.env.GOOGLE_CLIENT_ID &&

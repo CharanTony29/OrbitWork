@@ -19,19 +19,20 @@ export default async function OrganizationDocsPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  const { data: organization } = await supabase
-    .from("organizations")
-    .select("id, name")
-    .eq("id", organizationId)
-    .maybeSingle();
-  if (!organization) notFound();
+  const [{ data: organization }, { data: workspaces }] = await Promise.all([
+    supabase
+      .from("organizations")
+      .select("id, name")
+      .eq("id", organizationId)
+      .maybeSingle(),
+    supabase
+      .from("workspaces")
+      .select("id, name")
+      .eq("organization_id", organizationId)
+      .order("name"),
+  ]);
 
-  // Get all workspaces in this organization
-  const { data: workspaces } = await supabase
-    .from("workspaces")
-    .select("id, name")
-    .eq("organization_id", organizationId)
-    .order("name");
+  if (!organization) notFound();
 
   const workspaceIds = (workspaces ?? []).map((w) => w.id);
 
@@ -48,14 +49,25 @@ export default async function OrganizationDocsPage({
   const projectMap = new Map(projectList.map((p) => [p.id, p.name]));
   const projectIds = projectList.map((p) => p.id);
 
-  // Query all project documents
-  const { data: rawDocs } = projectIds.length
-    ? await supabase
-        .from("project_documents")
-        .select("id, project_id, title, updated_at, created_by")
-        .in("project_id", projectIds)
-        .order("updated_at", { ascending: false })
-    : { data: [] };
+  // Query all project documents and attachments in parallel
+  const [{ data: rawDocs }, { data: rawAttachments }] = await Promise.all([
+    projectIds.length
+      ? supabase
+          .from("project_documents")
+          .select("id, project_id, title, updated_at, created_by")
+          .in("project_id", projectIds)
+          .order("updated_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
+    projectIds.length
+      ? supabase
+          .from("task_attachments")
+          .select(
+            "id, task_id, project_id, file_name, mime_type, file_size_bytes, storage_provider, external_file_id, created_at, tasks(id, title)"
+          )
+          .in("project_id", projectIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
+  ]);
 
   const documents: OrgDocumentItem[] = (rawDocs ?? []).map((d) => ({
     id: d.id,
@@ -64,17 +76,6 @@ export default async function OrganizationDocsPage({
     title: d.title,
     updated_at: d.updated_at,
   }));
-
-  // Query all task attachments across all projects (exclude canvases)
-  const { data: rawAttachments } = projectIds.length
-    ? await supabase
-        .from("task_attachments")
-        .select(
-          "id, task_id, project_id, file_name, mime_type, file_size_bytes, storage_provider, external_file_id, created_at, tasks(id, title)"
-        )
-        .in("project_id", projectIds)
-        .order("created_at", { ascending: false })
-    : { data: [] };
 
   const attachments: OrgAttachmentItem[] = (rawAttachments ?? [])
     .filter((a) => {

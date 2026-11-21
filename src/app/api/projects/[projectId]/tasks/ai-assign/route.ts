@@ -317,7 +317,7 @@ export async function POST(
       });
     }
 
-    // 4. Run AI Agent Triage and Role-Aware Workload Assignment
+    // 4. Run AI Agent Triage and Role-Aware Workload Assignment in Batch
     const assignments: AssignmentResult[] = [];
 
     // Helper map of current live workloads to ensure fair distribution during this batch
@@ -326,50 +326,65 @@ export async function POST(
       liveWorkloads.set(c.id, c.workloadCount);
     }
 
+    // Batch AI classification for all tasks in a single LLM invocation
+    const aiResultsMap = new Map<string, { requiredRole: string; reason: string }>();
+    try {
+      const taskSummaries = unassignedTasks.map((t: any) => ({
+        id: t.id,
+        title: t.title || "Untitled Task",
+        desc: (t.description || "").slice(0, 160),
+        priority: t.priority || "normal",
+      }));
+
+      const prompt = `You are an AI Task Assignment Agent for a software project management platform.
+Analyze the following list of tasks and determine the best functional role required for each (choose from: Developer, Tester, Support, Admin, HR, Manager).
+
+Tasks:
+${JSON.stringify(taskSummaries, null, 2)}
+
+Respond with ONLY a JSON array with one object per task:
+[
+  {
+    "id": "task_id_here",
+    "requiredRole": "Developer",
+    "reason": "1-sentence justification"
+  }
+]`;
+
+      const aiRes = await generateTextWithFallback({
+        prompt,
+        temperature: 0.1,
+        maxOutputTokens: 2500,
+      });
+
+      if (aiRes.text) {
+        const match = aiRes.text.match(/\[[\s\S]*\]/);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          if (Array.isArray(parsed)) {
+            for (const item of parsed) {
+              if (item?.id && item?.requiredRole) {
+                aiResultsMap.set(item.id, {
+                  requiredRole: item.requiredRole,
+                  reason: item.reason || "",
+                });
+              }
+            }
+          }
+        }
+      }
+    } catch (batchErr) {
+      // Graceful fallback to heuristic classification
+      console.warn("AI Task Assignment batch LLM fallback to heuristics:", batchErr);
+    }
+
     for (const task of unassignedTasks) {
       const taskTitle = task.title || "Untitled Task";
       const taskDesc = (task.description || "").slice(0, 1000);
 
-      // Analyze required role using AI with fallback
-      let requiredRole = classifyTaskRoleHeuristic(taskTitle, taskDesc);
-      let aiExplanation = "";
-
-      try {
-        const prompt = `You are an AI Task Assignment Agent for a software project management platform.
-Analyze this task and identify the most appropriate functional role/designation required.
-Roles: Developer, Tester, Support, Admin, HR, Manager.
-
-Task Title: "${taskTitle}"
-Task Description: "${taskDesc}"
-Priority: ${task.priority || "normal"}
-
-Respond with ONLY JSON:
-{
-  "requiredRole": "Developer" | "Tester" | "Support" | "Admin" | "HR" | "Manager",
-  "reason": "1-sentence justification"
-}`;
-
-        const aiRes = await generateTextWithFallback({
-          prompt,
-          temperature: 0.1,
-          maxOutputTokens: 250,
-        });
-
-        if (aiRes.text) {
-          const match = aiRes.text.match(/\{[\s\S]*\}/);
-          if (match) {
-            const parsed = JSON.parse(match[0]);
-            if (parsed.requiredRole) {
-              requiredRole = parsed.requiredRole;
-            }
-            if (parsed.reason) {
-              aiExplanation = parsed.reason;
-            }
-          }
-        }
-      } catch (aiErr) {
-        // Fallback already assigned via classifyTaskRoleHeuristic
-      }
+      const aiClass = aiResultsMap.get(task.id);
+      const requiredRole = aiClass?.requiredRole || classifyTaskRoleHeuristic(taskTitle, taskDesc);
+      const aiExplanation = aiClass?.reason || "";
 
       // Filter candidate members matching the required role
       let matchingCandidates = candidates.filter((c) =>
@@ -411,49 +426,48 @@ Respond with ONLY JSON:
 
       // Update live workload for next tasks in the batch
       liveWorkloads.set(bestCandidate.id, currentLoad + 1);
+    }
 
-      // If not dry-run, execute the database assignment & activity log
-      if (!dryRun) {
+    // Execute database assignments in bulk parallel chunks
+    if (!dryRun && assignments.length > 0) {
+      const dbOperations = assignments.map(async (assign) => {
         await db
           .from("tasks")
-          .update({
-            primary_assignee_id: bestCandidate.id,
-          })
-          .eq("id", task.id);
+          .update({ primary_assignee_id: assign.assignedUserId })
+          .eq("id", assign.taskId);
 
         try {
-          await db
-            .from("task_assignees")
-            .upsert(
-              {
-                project_id: projectId,
-                task_id: task.id,
-                user_id: bestCandidate.id,
-                assigned_by: user.id,
-              },
-              { onConflict: "task_id,user_id" }
-            );
-        } catch {
-          // Non-blocking sync
-        }
+          await db.from("task_assignees").upsert(
+            {
+              project_id: projectId,
+              task_id: assign.taskId,
+              user_id: assign.assignedUserId,
+              assigned_by: user.id,
+            },
+            { onConflict: "task_id,user_id" }
+          );
+        } catch {}
 
         try {
           await db.from("project_activity_events").insert({
             project_id: projectId,
-            task_id: task.id,
+            task_id: assign.taskId,
             actor_id: user.id,
             event_type: "ai_assigned",
             details: {
-              assigned_to: bestCandidate.name,
-              assigned_user_id: bestCandidate.id,
-              required_role: requiredRole,
-              workload_count: currentLoad,
-              reason,
+              assigned_to: assign.assignedUserName,
+              assigned_user_id: assign.assignedUserId,
+              required_role: assign.requiredRole,
+              workload_count: assign.workloadCount,
+              reason: assign.reason,
             },
           });
-        } catch {
-          // Activity logging is non-blocking
-        }
+        } catch {}
+      });
+
+      // Run in parallel chunks of 10 to avoid connection pool congestion
+      for (let i = 0; i < dbOperations.length; i += 10) {
+        await Promise.all(dbOperations.slice(i, i + 10));
       }
     }
 

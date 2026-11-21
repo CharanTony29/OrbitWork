@@ -48,7 +48,14 @@ export default function AIAssignModal({
         body: JSON.stringify({ autoAssignAll: true }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text?.slice(0, 200) || `Server error (${res.status})`);
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Failed to execute AI task assignment");
       }

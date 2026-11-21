@@ -22,14 +22,17 @@ export default async function OrganizationWorkspacesPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  const { data: organization } = await supabase
-    .from("organizations")
-    .select("id, name")
-    .eq("id", organizationId)
-    .maybeSingle();
-  if (!organization) notFound();
-
-  const [{ data: workspaces }, { data: isOrgOwner }, { data: isOrgCoOwner }] = await Promise.all([
+  const [
+    { data: organization },
+    { data: workspaces },
+    { data: isOrgOwner },
+    { data: isOrgCoOwner },
+  ] = await Promise.all([
+    supabase
+      .from("organizations")
+      .select("id, name")
+      .eq("id", organizationId)
+      .maybeSingle(),
     supabase
       .from("workspaces")
       .select("id, name, description, created_at")
@@ -44,6 +47,8 @@ export default async function OrganizationWorkspacesPage({
       allowed_roles: ["co_owner"],
     }),
   ]);
+
+  if (!organization) notFound();
 
   const workspaceIds = (workspaces ?? []).map((w) => w.id);
   const [{ data: projects }, { data: workspaceMembers }] = await Promise.all([

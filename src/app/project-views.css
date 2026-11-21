@@ -441,6 +441,9 @@ body:has(.project-app-shell) {
   margin: 0 !important;
   padding: 16px 20px 40px !important;
   box-sizing: border-box !important;
+  overflow-y: visible !important;
+  overflow-x: hidden !important;
+  overscroll-behavior-y: auto !important;
   -webkit-overflow-scrolling: touch;
 }
 

@@ -17,7 +17,7 @@ import {
   FolderKanban,
 } from "lucide-react";
 import { BrandMark } from "./BrandMark";
-import WorkspaceLovPopover from "./WorkspaceLovPopover";
+import WorkspaceLovPopover, { preloadWorkspaceLov } from "./WorkspaceLovPopover";
 import { NavRailDynamicItems, type RailNavItem } from "./NavRailOverflowMenu";
 
 type GlobalAppRailProps = {
@@ -64,6 +64,7 @@ export default function GlobalAppRail({
         const saved = localStorage.getItem("orbitwork:current-project-id");
         if (saved) setStoredProjectId(saved);
       }
+      preloadWorkspaceLov();
     } catch {}
   }, [organizationId, workspaceId, projectId]);
 

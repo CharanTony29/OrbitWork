@@ -31,14 +31,32 @@ export default async function OrganizationMembersPage({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: organization } = await supabase.from("organizations").select("id, name, created_by").eq("id", organizationId).maybeSingle();
-  if (!organization) notFound();
+  const [
+    { data: organization },
+    extMemberQuery,
+    { data: workspaces },
+    { data: canManageOrg },
+    { data: isOwnerRpc },
+    { data: rawCustomDesignations },
+  ] = await Promise.all([
+    supabase.from("organizations").select("id, name, created_by").eq("id", organizationId).maybeSingle(),
+    supabase
+      .from("organization_members")
+      .select("user_id, role, status, joined_at, manager_id, designations, primary_designation")
+      .eq("organization_id", organizationId)
+      .order("joined_at"),
+    supabase.from("workspaces").select("id, name").eq("organization_id", organizationId).order("name"),
+    supabase.rpc("has_org_role", { target_org: organizationId, allowed_roles: ["owner", "co_owner", "admin"] }),
+    supabase.rpc("has_org_role", { target_org: organizationId, allowed_roles: ["owner"] }),
+    supabase
+      .from("organization_designations")
+      .select("id, organization_id, name, category, hierarchy_level, description, color")
+      .eq("organization_id", organizationId)
+      .order("hierarchy_level", { ascending: true })
+      .order("name", { ascending: true }),
+  ]);
 
-  const extMemberQuery = await supabase
-    .from("organization_members")
-    .select("user_id, role, status, joined_at, manager_id, designations, primary_designation")
-    .eq("organization_id", organizationId)
-    .order("joined_at");
+  if (!organization) notFound();
 
   const hierarchySupported = !extMemberQuery.error;
   let memberships: Array<{
@@ -69,20 +87,6 @@ export default async function OrganizationMembersPage({
   } else {
     memberships = extMemberQuery.data ?? [];
   }
-
-  const [{ data: workspaces }, { data: canManageOrg }, { data: isOwnerRpc }] = await Promise.all([
-    supabase.from("workspaces").select("id, name").eq("organization_id", organizationId).order("name"),
-    supabase.rpc("has_org_role", { target_org: organizationId, allowed_roles: ["owner", "co_owner", "admin"] }),
-    supabase.rpc("has_org_role", { target_org: organizationId, allowed_roles: ["owner"] }),
-  ]);
-
-  // Fetch custom organization designations
-  const { data: rawCustomDesignations } = await supabase
-    .from("organization_designations")
-    .select("id, organization_id, name, category, hierarchy_level, description, color")
-    .eq("organization_id", organizationId)
-    .order("hierarchy_level", { ascending: true })
-    .order("name", { ascending: true });
 
   const customDesignations: OrganizationDesignation[] = (rawCustomDesignations ?? []).map((d: any) => ({
     id: d.id,

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient, getAuthUser } from "@/lib/supabase/server";
 
 export type SpaceOrganization = {
@@ -81,35 +82,38 @@ export async function getAssignedTaskCount(userId?: string): Promise<number> {
  * workspaces, projects, active members, owners, recent activity, and assigned
  * task count) shared by `/dashboard` and `/my-dashboard`.
  */
-export async function getUserSpaceData(): Promise<UserSpaceData | null> {
+export const getUserSpaceData = cache(async function getUserSpaceData(): Promise<UserSpaceData | null> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await getAuthUser();
   if (!user) return null;
 
-  try {
-    await supabase.rpc("accept_user_pending_invitations");
-  } catch {
-    // Invitation auto-acceptance is best-effort on page load.
-  }
+  // Run invitation auto-acceptance non-blocking in parallel
+  const autoAcceptPromise = (async () => {
+    try {
+      await supabase.rpc("accept_user_pending_invitations");
+    } catch {}
+  })();
 
-  const { data: ownProfile } = await supabase
-    .from("profiles")
-    .select("display_name")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: ownProfile }, { data: memberships }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("organization_members")
+      .select("organization_id, role, organizations(id, name, created_at, created_by)")
+      .eq("user_id", user.id),
+    autoAcceptPromise,
+  ]);
 
   const displayName =
     ownProfile?.display_name?.trim() || user.email?.split("@")[0] || "there";
 
-  const { data: memberships } = await supabase
-    .from("organization_members")
-    .select("organization_id, role, organizations(id, name, created_at, created_by)")
-    .eq("user_id", user.id);
-
   const rawOrgs = (memberships ?? [])
-    .map((item) => {
+    .map((item: any) => {
       const org = (Array.isArray(item.organizations)
         ? item.organizations[0]
         : item.organizations) as {
@@ -128,11 +132,11 @@ export async function getUserSpaceData(): Promise<UserSpaceData | null> {
       };
     })
     .filter(
-      (item): item is { id: string; name: string; created_at: string; created_by: string | null; role: string } =>
+      (item: any): item is { id: string; name: string; created_at: string; created_by: string | null; role: string } =>
         Boolean(item)
     );
 
-  const orgIds = rawOrgs.map((o) => o.id);
+  const orgIds = rawOrgs.map((o: any) => o.id);
 
   const [{ data: rawWorkspaces }, { data: rawOrgMembers }] = await Promise.all([
     orgIds.length
@@ -235,7 +239,7 @@ export async function getUserSpaceData(): Promise<UserSpaceData | null> {
           .select("project_id, event_type, details, created_at")
           .in("project_id", projectIds)
           .order("created_at", { ascending: false })
-          .limit(200)
+          .limit(25)
       : Promise.resolve({
           data: [] as Array<{ project_id: string; event_type: string; details: unknown; created_at: string }>,
         }),
@@ -276,7 +280,7 @@ export async function getUserSpaceData(): Promise<UserSpaceData | null> {
     });
   }
 
-  const organizations: SpaceOrganization[] = rawOrgs.map((org) => {
+  const organizations: SpaceOrganization[] = rawOrgs.map((org: any) => {
     const ownerId = ownerUserByOrg.get(org.id);
     return {
       id: org.id,
@@ -324,4 +328,4 @@ export async function getUserSpaceData(): Promise<UserSpaceData | null> {
     organizationMembers: orgMembersList,
     assignedTaskCount: assignedTaskCount ?? 0,
   };
-}
+});

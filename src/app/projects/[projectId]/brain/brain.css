@@ -6,10 +6,10 @@
   min-height: 0 !important;
   height: auto !important;
   max-height: none !important;
-  overflow-y: auto !important;
+  overflow-y: visible !important;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
+  overscroll-behavior-y: auto !important;
   scroll-behavior: smooth;
   display: flex;
   flex-direction: column;

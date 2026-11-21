@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { Play, Pause, Clock, X, DollarSign } from "lucide-react";
 import { startTaskTimer, stopTaskTimer } from "@/app/actions";
 
@@ -27,10 +27,16 @@ export default function TaskTableTimer({
   const [modalOpen, setModalOpen] = useState(false);
   const [billable, setBillable] = useState(true);
   const [elapsed, setElapsed] = useState("0m");
+  const [currentEntry, setCurrentEntry] = useState(runningEntry);
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
-    if (!runningEntry?.started_at) return;
-    const start = new Date(runningEntry.started_at).getTime();
+    setCurrentEntry(runningEntry);
+  }, [runningEntry]);
+
+  useEffect(() => {
+    if (!currentEntry?.started_at) return;
+    const start = new Date(currentEntry.started_at).getTime();
     const update = () => {
       const diffMin = Math.max(0, Math.floor((Date.now() - start) / 60000));
       const hours = Math.floor(diffMin / 60);
@@ -40,12 +46,56 @@ export default function TaskTableTimer({
     update();
     const interval = setInterval(update, 10000);
     return () => clearInterval(interval);
-  }, [runningEntry?.started_at]);
+  }, [currentEntry?.started_at]);
 
   if (!canEdit) return null;
 
+  const handleStartTimer = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const optimistic = {
+      id: "opt-" + Date.now(),
+      started_at: new Date().toISOString(),
+      billable,
+      is_current_user: true,
+    };
+    setCurrentEntry(optimistic);
+    setModalOpen(false);
+
+    const fd = new FormData();
+    fd.set("projectId", projectId);
+    fd.set("taskId", taskId);
+    fd.set("billable", billable ? "true" : "false");
+
+    startTransition(async () => {
+      try {
+        await startTaskTimer(fd);
+      } catch {
+        setCurrentEntry(runningEntry);
+      }
+    });
+  };
+
+  const handleStopTimer = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const prev = currentEntry;
+    setCurrentEntry(null);
+
+    const fd = new FormData();
+    fd.set("projectId", projectId);
+    fd.set("taskId", taskId);
+    if (prev?.id) fd.set("entryId", prev.id);
+
+    startTransition(async () => {
+      try {
+        await stopTaskTimer(fd);
+      } catch {
+        setCurrentEntry(prev);
+      }
+    });
+  };
+
   // Active running timer by another team member
-  if (runningEntry && runningEntry.is_current_user === false) {
+  if (currentEntry && currentEntry.is_current_user === false) {
     return (
       <span
         className="timer-active-by-other"
@@ -62,24 +112,21 @@ export default function TaskTableTimer({
           border: "1px solid rgba(22, 163, 74, 0.3)",
           whiteSpace: "nowrap",
         }}
-        title={`In progress by ${runningEntry.user_name || "Teammate"} (${elapsed} active)`}
+        title={`In progress by ${currentEntry.user_name || "Teammate"} (${elapsed} active)`}
       >
         <span
           className="table-timer-pulse"
           style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a", display: "inline-block" }}
         />
-        <span>⏱ {runningEntry.user_name || "Teammate"}</span>
+        <span>⏱ {currentEntry.user_name || "Teammate"}</span>
       </span>
     );
   }
 
   // Active running timer: Show Pause / Stop button directly in table row!
-  if (runningEntry) {
+  if (currentEntry) {
     return (
-      <form action={stopTaskTimer} style={{ display: "inline-flex", margin: 0 }}>
-        <input type="hidden" name="projectId" value={projectId} />
-        <input type="hidden" name="taskId" value={taskId} />
-        <input type="hidden" name="entryId" value={runningEntry.id} />
+      <form onSubmit={handleStopTimer} style={{ display: "inline-flex", margin: 0 }}>
         <button
           type="submit"
           className="table-timer-btn is-running"
@@ -133,14 +180,9 @@ export default function TaskTableTimer({
             </div>
 
             <form
-              action={startTaskTimer}
-              onSubmit={() => setModalOpen(false)}
+              onSubmit={handleStartTimer}
               className="timer-modal-form"
             >
-              <input type="hidden" name="projectId" value={projectId} />
-              <input type="hidden" name="taskId" value={taskId} />
-              <input type="hidden" name="billable" value={billable ? "true" : "false"} />
-
               <p className="timer-task-name">{taskTitle}</p>
 
               <div className="timer-billable-selector">

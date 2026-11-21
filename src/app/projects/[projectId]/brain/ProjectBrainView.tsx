@@ -810,6 +810,7 @@ export default function ProjectBrainView({
                     {item.taskId && (
                       <Link
                         href={`/projects/${projectId}/tasks/${item.taskId}`}
+                        prefetch={true}
                         style={{ fontSize: "11px", color: "var(--green)", fontWeight: 600, display: "inline-block", marginTop: "4px" }}
                       >
                         {item.actionLabel || "View Task"} →
@@ -2397,7 +2398,7 @@ export default function ProjectBrainView({
                 </button>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", overflow: "visible" }}>
                 {proposedTasks.map((t, idx) => {
                   const isChecked = selectedTaskIndices.has(idx);
                   return (
@@ -2424,9 +2425,9 @@ export default function ProjectBrainView({
                         }}
                         style={{ marginTop: "4px" }}
                       />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <strong style={{ fontSize: "13px", color: "var(--ink)" }}>{t.title}</strong>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", minWidth: 0 }}>
+                          <strong style={{ fontSize: "13px", color: "var(--ink)", wordBreak: "break-word", overflowWrap: "anywhere" }}>{t.title}</strong>
                           <span style={{ fontSize: "10px", padding: "1px 6px", borderRadius: "4px", background: "rgba(0,0,0,0.06)", textTransform: "uppercase" }}>
                             {t.priority}
                           </span>

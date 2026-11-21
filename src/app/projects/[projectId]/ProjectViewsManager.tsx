@@ -120,11 +120,53 @@ export default function ProjectViewsManager(props: ProjectViewsManagerProps) {
 
   // Local active view state for 0ms instantaneous tab switching
   const [activeView, setActiveView] = useState<ProjectTabKey>(initialView);
+  const [activeFilters, setActiveFilters] = useState(filters);
 
-  // Sync state if initialView changes (e.g. browser back/forward or server redirect)
+  // Sync state if initialView or filters change (e.g. browser back/forward or server redirect)
   useEffect(() => {
     setActiveView(initialView);
   }, [initialView]);
+
+  useEffect(() => {
+    setActiveFilters(filters);
+  }, [filters]);
+
+  const filteredTasks = useMemo(() => {
+    let list = tasks;
+    const q = activeFilters.q?.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (t) =>
+          t.title?.toLowerCase().includes(q) ||
+          t.generated_key?.toLowerCase().includes(q)
+      );
+    }
+    if (activeFilters.status) {
+      list = list.filter((t) => t.status_id === activeFilters.status);
+    }
+    if (activeFilters.priority) {
+      list = list.filter((t) => t.priority === activeFilters.priority);
+    }
+    if (activeFilters.assignee) {
+      const aId = activeFilters.assignee;
+      list = list.filter(
+        (t) =>
+          t.primary_assignee_id === aId ||
+          t.secondary_assignee_id === aId ||
+          (Array.isArray(t.assignee_ids) && t.assignee_ids.includes(aId))
+      );
+    }
+    if (activeFilters.sort === "due") {
+      list = [...list].sort((a, b) => {
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return a.due_date.localeCompare(b.due_date);
+      });
+    } else if (activeFilters.sort === "created") {
+      list = [...list].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    }
+    return list;
+  }, [tasks, activeFilters]);
 
   // Reconstruct Maps from serialized arrays for high-performance lookups
   const people = useMemo(() => new Map<string, string>(peopleList), [peopleList]);
@@ -211,9 +253,10 @@ export default function ProjectViewsManager(props: ProjectViewsManagerProps) {
             members={members}
             customFields={customFields}
             currentFilters={{
-              ...filters,
+              ...activeFilters,
               view: activeView,
             }}
+            onFiltersChange={setActiveFilters}
           />
         )}
 
@@ -235,7 +278,7 @@ export default function ProjectViewsManager(props: ProjectViewsManagerProps) {
             projectId={projectId}
             projectName={projectName}
             workspaceName={workspaceName}
-            initialTasks={tasks}
+            initialTasks={filteredTasks}
             statuses={statuses}
             people={people}
             canEdit={canEdit}
@@ -247,7 +290,7 @@ export default function ProjectViewsManager(props: ProjectViewsManagerProps) {
             initialColumnOrder={userColumnOrder}
             initialColumnWidths={userColumnWidths}
             initialFrozenColumns={userFrozenColumns}
-            tasks={tasks.map((task) => ({
+            tasks={filteredTasks.map((task) => ({
               ...task,
               billable_minutes: billableMinutesMap.get(task.id) ?? 0,
             }))}
@@ -260,13 +303,13 @@ export default function ProjectViewsManager(props: ProjectViewsManagerProps) {
             projectDocuments={projectDocs}
             commentCounts={commentCounts}
             runningTimerMap={runningTimerMap}
-            initialGroupBy={filters.group || "status"}
+            initialGroupBy={activeFilters.group || "status"}
           />
         ) : activeView === "board" ? (
           <TaskBoard
             projectId={projectId}
             canEdit={canEdit}
-            tasks={tasks}
+            tasks={filteredTasks}
             statuses={statuses}
             people={people}
             profileAvatars={profileAvatars}
@@ -274,18 +317,18 @@ export default function ProjectViewsManager(props: ProjectViewsManagerProps) {
         ) : activeView === "calendar" ? (
           <TaskCalendar
             projectId={projectId}
-            tasks={tasks.map((task) => ({
+            tasks={filteredTasks.map((task) => ({
               ...task,
               status_category: statuses.find((s: any) => s.id === task.status_id)?.category,
             }))}
             statuses={statuses}
             events={calendarEvents}
-            month={filters.month}
+            month={activeFilters.month}
           />
         ) : activeView === "gantt" ? (
           <TaskGantt
             projectId={projectId}
-            tasks={tasks.map((task) => ({
+            tasks={filteredTasks.map((task) => ({
               id: task.id,
               generated_key: task.generated_key,
               title: task.title,
@@ -301,7 +344,7 @@ export default function ProjectViewsManager(props: ProjectViewsManagerProps) {
             events={calendarEvents}
             people={people}
             profileAvatars={profileAvatars}
-            month={filters.month}
+            month={activeFilters.month}
             dependencies={taskDependencies}
           />
         ) : activeView === "whiteboard" ? (
@@ -326,7 +369,7 @@ export default function ProjectViewsManager(props: ProjectViewsManagerProps) {
         ) : (
           <TaskWorkload
             projectId={projectId}
-            tasks={tasks.map(({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }) => ({
+            tasks={filteredTasks.map(({ id, generated_key, title, estimate_minutes, primary_assignee_id, secondary_assignee_id, due_date }) => ({
               id,
               generated_key,
               title,

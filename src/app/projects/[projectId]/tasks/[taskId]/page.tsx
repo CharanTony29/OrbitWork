@@ -7,6 +7,8 @@ import { addManualTimeEntry, createTaskDependency, removeTaskDependency, startTa
 import { createClient } from "@/lib/supabase/server";
 import { saveTaskCustomField } from "@/app/actions";
 import { formatEstimate, formatEstimateDetailed, formatMinutes, formatRemaining } from "@/lib/work";
+import TaskDetailTabsView from "./TaskDetailTabsView";
+import TaskDetailMainForm from "./TaskDetailMainForm";
 import TaskDetailCanvas from "./TaskDetailCanvas";
 import TaskAttachmentsSection from "./TaskAttachmentsSection";
 import TaskDetailProgress from "./TaskDetailProgress";
@@ -49,30 +51,84 @@ export default async function TaskDetailPage({ params, searchParams }: {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: project } = await supabase.from("projects").select("id, name, workspace_id, workspaces(name, organization_id)").eq("id", projectId).maybeSingle();
-  if (!project) notFound();
-  const { data: task } = await supabase.from("tasks").select("id, project_id, parent_task_id, generated_key, title, task_type, tags, description, status_id, priority, start_date, due_date, estimate_minutes, progress, created_by, primary_assignee_id, secondary_assignee_id, created_at, updated_at").eq("id", taskId).eq("project_id", projectId).maybeSingle();
-  if (!task) notFound();
-  const { data: statuses } = await supabase.from("project_statuses").select("id, name, color, category").eq("project_id", projectId).order("position");
-  const { data: comments } = await supabase.from("task_comments").select("id, author_id, body, created_at").eq("task_id", taskId).order("created_at");
-  const { data: customFields } = await supabase.from("custom_field_definitions").select("id, name, field_type, options, required, position").eq("project_id", projectId).order("position");
-  const { data: customFieldValues } = await supabase.from("task_custom_field_values").select("field_id, value").eq("project_id", projectId).eq("task_id", taskId);
-  const { data: subtasks } = await supabase.from("tasks").select("id, generated_key, title, status_id, due_date, primary_assignee_id, secondary_assignee_id").eq("project_id", projectId).eq("parent_task_id", taskId).order("created_at");
+  // Stage 1: Load project and task simultaneously
+  const [{ data: project }, { data: task }] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("id, name, workspace_id, workspaces(name, organization_id)")
+      .eq("id", projectId)
+      .maybeSingle(),
+    supabase
+      .from("tasks")
+      .select("id, project_id, parent_task_id, generated_key, title, task_type, tags, description, status_id, priority, start_date, due_date, estimate_minutes, progress, created_by, primary_assignee_id, secondary_assignee_id, created_at, updated_at")
+      .eq("id", taskId)
+      .eq("project_id", projectId)
+      .maybeSingle(),
+  ]);
+
+  if (!project || !task) notFound();
+
+  // Stage 2: Parallel fetch all task-level datasets
+  const [
+    { data: statuses },
+    { data: comments },
+    { data: customFields },
+    { data: customFieldValues },
+    { data: subtasks },
+    { data: currentTaskAssigneesRaw },
+    { data: projectTasks },
+    { data: dependencies },
+    { data: checklists },
+    { data: timeEntries },
+    { data: attachments },
+    { data: anyRunningTimer },
+    { data: taskFav, error: taskFavError },
+    { data: canEditData },
+  ] = await Promise.all([
+    supabase.from("project_statuses").select("id, name, color, category").eq("project_id", projectId).order("position"),
+    supabase.from("task_comments").select("id, author_id, body, created_at").eq("task_id", taskId).order("created_at"),
+    supabase.from("custom_field_definitions").select("id, name, field_type, options, required, position").eq("project_id", projectId).order("position"),
+    supabase.from("task_custom_field_values").select("field_id, value").eq("project_id", projectId).eq("task_id", taskId),
+    supabase.from("tasks").select("id, generated_key, title, status_id, due_date, primary_assignee_id, secondary_assignee_id").eq("project_id", projectId).eq("parent_task_id", taskId).order("created_at"),
+    supabase.from("task_assignees").select("user_id").eq("task_id", taskId),
+    supabase.from("tasks").select("id, generated_key, title").eq("project_id", projectId).order("created_at", { ascending: false }),
+    supabase.from("task_dependencies").select("linked_task_id, relation").eq("project_id", projectId).eq("task_id", taskId),
+    supabase.from("task_checklists").select("id, title").eq("project_id", projectId).eq("task_id", taskId).order("position"),
+    supabase.from("time_entries").select("id, user_id, started_at, ended_at, duration_minutes, description, billable").eq("project_id", projectId).eq("task_id", taskId).order("started_at", { ascending: false }).limit(100),
+    supabase.from("task_attachments").select("id, file_name, mime_type, file_size_bytes, storage_provider, external_file_id, external_url, uploaded_by, created_at").eq("project_id", projectId).eq("task_id", taskId).order("created_at", { ascending: false }),
+    supabase.from("time_entries").select("id, user_id, started_at, billable").eq("task_id", taskId).is("ended_at", null).maybeSingle(),
+    supabase.from("user_favorites").select("id").eq("user_id", user.id).eq("entity_type", "task").eq("entity_id", taskId).maybeSingle(),
+    supabase.rpc("can_edit_project_tasks", { target_project: projectId }),
+  ]);
+
   const subtaskIds = (subtasks ?? []).map((s) => s.id);
-  const { data: subtaskAssigneesRaw } = subtaskIds.length ? await supabase.from("task_assignees").select("task_id, user_id").in("task_id", subtaskIds) : { data: [] };
-  const { data: currentTaskAssigneesRaw } = await supabase.from("task_assignees").select("user_id").eq("task_id", taskId);
-  const { data: projectTasks } = await supabase.from("tasks").select("id, generated_key, title").eq("project_id", projectId).order("created_at", { ascending: false });
-  const { data: dependencies } = await supabase.from("task_dependencies").select("linked_task_id, relation").eq("project_id", projectId).eq("task_id", taskId);
   const linkedIds = [...new Set((dependencies ?? []).map((dependency) => dependency.linked_task_id))];
-  const { data: linkedTasks } = linkedIds.length ? await supabase.from("tasks").select("id, generated_key, title").in("id", linkedIds) : { data: [] };
-  const linkedTaskMap = new Map((linkedTasks ?? []).map((linked) => [linked.id, linked]));
-  const { data: checklists } = await supabase.from("task_checklists").select("id, title").eq("project_id", projectId).eq("task_id", taskId).order("position");
   const checklistIds = (checklists ?? []).map((checklist) => checklist.id);
-  const { data: checklistItems } = checklistIds.length ? await supabase.from("checklist_items").select("id, checklist_id, title, is_complete, position").in("checklist_id", checklistIds).order("position") : { data: [] };
-  const { data: timeEntries } = await supabase.from("time_entries").select("id, user_id, started_at, ended_at, duration_minutes, description, billable").eq("project_id", projectId).eq("task_id", taskId).order("started_at", { ascending: false }).limit(100);
-  const { data: attachments } = await supabase.from("task_attachments").select("id, file_name, mime_type, file_size_bytes, storage_provider, external_file_id, external_url, uploaded_by, created_at").eq("project_id", projectId).eq("task_id", taskId).order("created_at", { ascending: false });
   const activityTaskIds = [taskId, ...subtaskIds];
-  const { data: activityEventsRaw } = await supabase.from("project_activity_events").select("id, task_id, actor_id, event_type, details, created_at").eq("project_id", projectId).in("task_id", activityTaskIds).order("created_at", { ascending: false }).limit(100);
+
+  const canvasAtts = (attachments ?? []).filter((a) => a.mime_type.includes("whiteboard") || a.mime_type.includes("flowchart") || a.file_name.toLowerCase().includes("whiteboard") || a.file_name.toLowerCase().includes("flowchart"));
+  const canvasDocIds = canvasAtts.map((a) => a.external_file_id).filter(Boolean);
+  const workspace = Array.isArray(project.workspaces) ? project.workspaces[0] : project.workspaces;
+  const orgId = workspace?.organization_id;
+
+  // Stage 3: Parallel fetch linked records, subtask assignees, and organization members
+  const [
+    { data: subtaskAssigneesRaw },
+    { data: linkedTasks },
+    { data: checklistItems },
+    { data: activityEventsRaw },
+    { data: canvasDocs },
+    { data: orgMembers },
+  ] = await Promise.all([
+    subtaskIds.length ? supabase.from("task_assignees").select("task_id, user_id").in("task_id", subtaskIds) : Promise.resolve({ data: [] }),
+    linkedIds.length ? supabase.from("tasks").select("id, generated_key, title").in("id", linkedIds) : Promise.resolve({ data: [] }),
+    checklistIds.length ? supabase.from("checklist_items").select("id, checklist_id, title, is_complete, position").in("checklist_id", checklistIds).order("position") : Promise.resolve({ data: [] }),
+    supabase.from("project_activity_events").select("id, task_id, actor_id, event_type, details, created_at").eq("project_id", projectId).in("task_id", activityTaskIds).order("created_at", { ascending: false }).limit(100),
+    canvasDocIds.length ? supabase.from("project_documents").select("id, title, body_markdown").in("id", canvasDocIds) : Promise.resolve({ data: [] }),
+    orgId ? supabase.from("organization_members").select("user_id, role, designations, primary_designation").eq("organization_id", orgId).eq("status", "active") : Promise.resolve({ data: [] }),
+  ]);
+
+  const linkedTaskMap = new Map((linkedTasks ?? []).map((linked) => [linked.id, linked]));
   const loggedSubtaskIds = new Set(
     (activityEventsRaw ?? [])
       .filter((event) => event.task_id === taskId && event.event_type === "subtask_added")
@@ -87,28 +143,11 @@ export default async function TaskDetailPage({ params, searchParams }: {
       event.task_id === taskId ||
       (event.event_type === "task_created" && !loggedSubtaskIds.has(event.task_id))
   );
-  const { data: anyRunningTimer } = await supabase.from("time_entries").select("id, user_id, started_at, billable").eq("task_id", taskId).is("ended_at", null).maybeSingle();
-  let isTaskFavorited = false;
-  const { data: taskFav, error: taskFavError } = await supabase
-    .from("user_favorites")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("entity_type", "task")
-    .eq("entity_id", taskId)
-    .maybeSingle();
-  if (!taskFavError && taskFav) {
-    isTaskFavorited = true;
-  }
-  const { data: canEditData } = await supabase.rpc("can_edit_project_tasks", { target_project: projectId });
+  let isTaskFavorited = !taskFavError && Boolean(taskFav);
   const canEdit = Boolean(canEditData);
   const taskStatus = (statuses ?? []).find((s) => s.id === task.status_id);
 
-  // Find canvas attachments (whiteboard / flowchart)
-  const canvasAtts = (attachments ?? []).filter((a) => a.mime_type.includes("whiteboard") || a.mime_type.includes("flowchart") || a.file_name.toLowerCase().includes("whiteboard") || a.file_name.toLowerCase().includes("flowchart"));
-  const canvasDocIds = canvasAtts.map((a) => a.external_file_id).filter(Boolean);
-  const { data: canvasDocs } = canvasDocIds.length ? await supabase.from("project_documents").select("id, title, body_markdown").in("id", canvasDocIds) : { data: [] };
   const canvasDocMap = new Map((canvasDocs ?? []).map((d) => [d.id, d]));
-
   const wbAtt = canvasAtts.find((a) => a.mime_type.includes("whiteboard") || a.file_name.toLowerCase().includes("whiteboard"));
   const wbDoc = wbAtt ? canvasDocMap.get(wbAtt.external_file_id) : undefined;
   let wbData = "";
@@ -122,9 +161,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
   if (fcDoc?.body_markdown) {
     try { fcData = JSON.parse(fcDoc.body_markdown).content ?? ""; } catch { fcData = fcDoc.body_markdown; }
   }
-  const workspace = Array.isArray(project.workspaces) ? project.workspaces[0] : project.workspaces;
-  const orgId = workspace?.organization_id;
-  const { data: orgMembers } = orgId ? await supabase.from("organization_members").select("user_id, role, designations, primary_designation").eq("organization_id", orgId).eq("status", "active") : { data: [] };
+
   const peopleIds = [...new Set([...(comments ?? []).map((comment) => comment.author_id), ...(timeEntries ?? []).map((entry) => entry.user_id), ...(attachments ?? []).map((item) => item.uploaded_by), ...(activityEvents ?? []).map((event) => event.actor_id).filter((id): id is string => Boolean(id)), ...(orgMembers ?? []).map((member) => member.user_id), task.created_by, anyRunningTimer?.user_id, ...[task.primary_assignee_id, task.secondary_assignee_id].filter((id): id is string => Boolean(id)), ...(subtasks ?? []).flatMap((s) => [s.primary_assignee_id, s.secondary_assignee_id].filter((id): id is string => Boolean(id))), ...(subtaskAssigneesRaw ?? []).map((row) => row.user_id).filter((id): id is string => Boolean(id))].filter((id): id is string => Boolean(id)))];
   const { data: authors } = peopleIds.length ? await supabase.from("profiles").select("id, display_name, email, avatar_url, designation, designations").in("id", peopleIds) : { data: [] };
   const profileById = new Map((authors ?? []).map((profile) => [profile.id, profile]));
@@ -182,7 +219,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
     <div className="task-detail-page">
       <div className="task-detail-nav"><BackButton fallbackHref={`/projects/${projectId}`} label={project.name}/></div>
       <div className="task-detail-heading">
-        <div>
+        <div style={{ minWidth: 0, flex: "1 1 auto" }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <p className="eyebrow">TASK DETAILS</p>
             {!canEdit && (
@@ -191,8 +228,8 @@ export default async function TaskDetailPage({ params, searchParams }: {
               </span>
             )}
           </div>
-          <div className="task-detail-title-row">
-            <h1>{task.title}</h1>
+          <div className="task-detail-title-row" style={{ minWidth: 0, maxWidth: "100%", flexWrap: "wrap", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+            <h1 style={{ wordBreak: "break-word", overflowWrap: "anywhere", minWidth: 0, maxWidth: "100%" }}>{task.title}</h1>
             <span className="task-type-badge">{(task.task_type ?? "task").replaceAll("_", " ")}</span>
             {(task.tags ?? []).map((tag: string) => <span className="task-tag-badge" key={tag}>{tag}</span>)}
             <FavoriteButton
@@ -227,80 +264,39 @@ export default async function TaskDetailPage({ params, searchParams }: {
         </div>
       </div>
       
-      <nav className="task-detail-tabs" aria-label="Task tabs">
-        <Link className={`task-tab-link${tab === "details" ? " is-active" : ""}`} href={`/projects/${projectId}/tasks/${taskId}`}>
-          Task Details
-        </Link>
-        <Link className={`task-tab-link${tab === "whiteboard" ? " is-active" : ""}`} href={`/projects/${projectId}/tasks/${taskId}?tab=whiteboard`}>
-          🎨 Whiteboard {wbAtt && <span className="tab-attached-dot" title="Whiteboard attached" />}
-        </Link>
-        <Link className={`task-tab-link${tab === "flowchart" ? " is-active" : ""}`} href={`/projects/${projectId}/tasks/${taskId}?tab=flowchart`}>
-          🔀 Flowchart {fcAtt && <span className="tab-attached-dot" title="Flowchart attached" />}
-        </Link>
-      </nav>
+      <TaskDetailTabsView
+        projectId={projectId}
+        taskId={taskId}
+        taskTitle={task.title}
+        canEdit={canEdit}
+        wbAtt={!!wbAtt}
+        fcAtt={!!fcAtt}
+        wbDocId={wbDoc?.id}
+        wbData={wbData}
+        fcDocId={fcDoc?.id}
+        fcData={fcData}
+        initialTab={tab}
+      >
+        {!canEdit && (
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '13px' }}>
+            <Eye size={16} style={{ color: '#64748b', flexShrink: 0 }} />
+            <span>You have view-only access to this project. Editing fields, time tracking, checklists, and uploads are disabled.</span>
+          </div>
+        )}
+        {saved && <p className="notice" role="status">Task changes saved.</p>}
+        {error && <p className="error" role="alert">Could not save those changes. Check that the due date is not before the start date.</p>}
 
-      {tab === "whiteboard" ? (
-        <TaskDetailCanvas
-          projectId={projectId}
-          taskId={taskId}
-          taskTitle={task.title}
-          type="whiteboard"
-          existingDocId={wbDoc?.id}
-          initialData={wbData}
-          readOnly={!canEdit}
-        />
-      ) : tab === "flowchart" ? (
-        <TaskDetailCanvas
-          projectId={projectId}
-          taskId={taskId}
-          taskTitle={task.title}
-          type="flowchart"
-          existingDocId={fcDoc?.id}
-          initialData={fcData}
-          readOnly={!canEdit}
-        />
-      ) : (
-        <>
-          {!canEdit && (
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '13px' }}>
-              <Eye size={16} style={{ color: '#64748b', flexShrink: 0 }} />
-              <span>You have view-only access to this project. Editing fields, time tracking, checklists, and uploads are disabled.</span>
-            </div>
-          )}
-          {saved && <p className="notice" role="status">Task changes saved.</p>}
-          {error && <p className="error" role="alert">Could not save those changes. Check that the due date is not before the start date.</p>}
-
-          <div className="task-detail-two-col">
-            {/* Left Column (Wide): Task execution, subtasks, checklists, attachments, comments */}
-            <div className="task-detail-left-col">
-              <form action={updateTask} className="task-detail-main">
-                <input type="hidden" name="projectId" value={projectId}/>
-                <input type="hidden" name="taskId" value={taskId}/>
-
-                <label className="detail-field">
-                  Task name
-                  <input
-                    name="title"
-                    defaultValue={task.title}
-                    maxLength={240}
-                    required
-                    readOnly={!canEdit}
-                    disabled={!canEdit}
-                    style={!canEdit ? { background: '#f8fafc', cursor: 'default' } : undefined}
-                  />
-                </label>
-                <TaskDescriptionEditor
-                  projectId={projectId}
-                  taskId={taskId}
-                  initialValue={task.description}
-                  canEdit={canEdit}
-                  taskTitle={task.title}
-                />
-                <div className="detail-save-row">
-                  <span>Last updated {new Date(task.updated_at).toLocaleString()}</span>
-                  {canEdit && <button className="button button-primary"><Save size={15}/> Save changes</button>}
-                </div>
-              </form>
+        <div className="task-detail-two-col">
+          {/* Left Column (Wide): Task execution, subtasks, checklists, attachments, comments */}
+          <div className="task-detail-left-col">
+            <TaskDetailMainForm
+              projectId={projectId}
+              taskId={taskId}
+              initialTitle={task.title}
+              initialDescription={task.description ?? ""}
+              initialUpdatedAt={task.updated_at}
+              canEdit={canEdit}
+            />
 
               {/* Subtasks (Child Tasks) */}
               {(() => {
@@ -757,8 +753,7 @@ export default async function TaskDetailPage({ params, searchParams }: {
               })}</div></section>}
             </div>
           </div>
-        </>
-      )}
+      </TaskDetailTabsView>
     </div>
   </main>;
 }

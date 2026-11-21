@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import { Play, Square, Clock, X, DollarSign } from "lucide-react";
 import { startTaskTimer, stopTaskTimer } from "@/app/actions";
 
@@ -27,11 +27,17 @@ export default function TaskHeaderTimer({
   const [modalOpen, setModalOpen] = useState(false);
   const [billable, setBillable] = useState(true);
   const [elapsed, setElapsed] = useState("00:00:00");
+  const [currentEntry, setCurrentEntry] = useState(runningEntry);
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
-    if (!runningEntry?.started_at) return;
+    setCurrentEntry(runningEntry);
+  }, [runningEntry]);
 
-    const startedTime = new Date(runningEntry.started_at).getTime();
+  useEffect(() => {
+    if (!currentEntry?.started_at) return;
+
+    const startedTime = new Date(currentEntry.started_at).getTime();
 
     const updateTicker = () => {
       const now = Date.now();
@@ -47,13 +53,57 @@ export default function TaskHeaderTimer({
     updateTicker();
     const interval = setInterval(updateTicker, 1000);
     return () => clearInterval(interval);
-  }, [runningEntry?.started_at]);
+  }, [currentEntry?.started_at]);
 
   if (!canEdit) return null;
 
+  const handleStartTimer = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const optimistic = {
+      id: "opt-" + Date.now(),
+      started_at: new Date().toISOString(),
+      billable,
+      is_current_user: true,
+    };
+    setCurrentEntry(optimistic);
+    setModalOpen(false);
+
+    const fd = new FormData();
+    fd.set("projectId", projectId);
+    fd.set("taskId", taskId);
+    fd.set("billable", billable ? "true" : "false");
+
+    startTransition(async () => {
+      try {
+        await startTaskTimer(fd);
+      } catch {
+        setCurrentEntry(runningEntry);
+      }
+    });
+  };
+
+  const handleStopTimer = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const prev = currentEntry;
+    setCurrentEntry(null);
+
+    const fd = new FormData();
+    fd.set("projectId", projectId);
+    fd.set("taskId", taskId);
+    if (prev?.id) fd.set("entryId", prev.id);
+
+    startTransition(async () => {
+      try {
+        await stopTaskTimer(fd);
+      } catch {
+        setCurrentEntry(prev);
+      }
+    });
+  };
+
   return (
     <div className="task-header-timer-wrap">
-      {runningEntry && runningEntry.is_current_user === false ? (
+      {currentEntry && currentEntry.is_current_user === false ? (
         <div
           className="running-timer-pill"
           style={{ background: "rgba(22, 163, 74, 0.1)", border: "1px solid rgba(22, 163, 74, 0.3)" }}
@@ -62,19 +112,16 @@ export default function TaskHeaderTimer({
           <Clock size={13} className="timer-active-icon" />
           <span className="timer-ticker" style={{ color: "#16a34a" }}>{elapsed}</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--ink)" }}>
-            In progress by {runningEntry.user_name || "Teammate"}
+            In progress by {currentEntry.user_name || "Teammate"}
           </span>
         </div>
-      ) : runningEntry ? (
-        <form action={stopTaskTimer} className="running-timer-pill">
-          <input type="hidden" name="projectId" value={projectId} />
-          <input type="hidden" name="taskId" value={taskId} />
-          <input type="hidden" name="entryId" value={runningEntry.id} />
+      ) : currentEntry ? (
+        <form onSubmit={handleStopTimer} className="running-timer-pill">
           <span className="timer-pulse-dot" />
           <Clock size={13} className="timer-active-icon" />
           <span className="timer-ticker">{elapsed}</span>
-          <span className={`timer-billable-pill ${runningEntry.billable ? "is-billable" : "is-non-billable"}`}>
-            {runningEntry.billable ? "Billable" : "Non-billable"}
+          <span className={`timer-billable-pill ${currentEntry.billable ? "is-billable" : "is-non-billable"}`}>
+            {currentEntry.billable ? "Billable" : "Non-billable"}
           </span>
           <button type="submit" className="timer-stop-btn" title="Stop timer and log hours">
             <Square size={11} fill="currentColor" />
@@ -112,14 +159,9 @@ export default function TaskHeaderTimer({
                 </div>
 
                 <form
-                  action={startTaskTimer}
-                  onSubmit={() => setModalOpen(false)}
+                  onSubmit={handleStartTimer}
                   className="timer-modal-form"
                 >
-                  <input type="hidden" name="projectId" value={projectId} />
-                  <input type="hidden" name="taskId" value={taskId} />
-                  <input type="hidden" name="billable" value={billable ? "true" : "false"} />
-
                   <p className="timer-task-name">{taskTitle}</p>
 
                   <div className="timer-billable-selector">

@@ -17,28 +17,54 @@ export default async function OrganizationCalendarPage({ params, searchParams }:
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const { data: orgWithCountry, error: orgErr } = await supabase
-    .from("organizations")
-    .select("id, name, country_code")
-    .eq("id", organizationId)
-    .maybeSingle();
-  const organization = orgErr
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [
+    orgRes,
+    extLeaveQuery,
+    extMemQuery,
+    holidayResult,
+    adminResult,
+    reviewerResult,
+  ] = await Promise.all([
+    supabase
+      .from("organizations")
+      .select("id, name, country_code")
+      .eq("id", organizationId)
+      .maybeSingle(),
+    supabase
+      .from("leave_requests")
+      .select("id, user_id, leave_type, start_date, end_date, request_note, status, review_note, created_at, out_of_office, delegate_user_id, delegated_task_ids, manager_id")
+      .eq("organization_id", organizationId)
+      .gte("end_date", today)
+      .order("start_date")
+      .limit(300),
+    supabase
+      .from("organization_members")
+      .select("user_id, role, manager_id, status, designations")
+      .eq("organization_id", organizationId)
+      .eq("status", "active"),
+    supabase
+      .from("organization_holidays")
+      .select("id, name, holiday_date, location")
+      .eq("organization_id", organizationId)
+      .gte("holiday_date", today)
+      .order("holiday_date")
+      .limit(200),
+    supabase.rpc("has_org_role", { target_org: organizationId, allowed_roles: ["owner", "admin"] }),
+    supabase.rpc("can_review_leave", { target_org: organizationId }),
+  ]);
+
+  const orgWithCountry = orgRes.data;
+  const organization = orgRes.error
     ? (await supabase.from("organizations").select("id, name").eq("id", organizationId).maybeSingle()).data
     : orgWithCountry;
   if (!organization) notFound();
+
   const countryCode =
     orgWithCountry && "country_code" in orgWithCountry
       ? (orgWithCountry.country_code as string | null)
       : null;
-  const today = new Date().toISOString().slice(0, 10);
-
-  const extLeaveQuery = await supabase
-    .from("leave_requests")
-    .select("id, user_id, leave_type, start_date, end_date, request_note, status, review_note, created_at, out_of_office, delegate_user_id, delegated_task_ids, manager_id")
-    .eq("organization_id", organizationId)
-    .gte("end_date", today)
-    .order("start_date")
-    .limit(300);
 
   const leaves: Array<{
     id: string;
@@ -54,40 +80,14 @@ export default async function OrganizationCalendarPage({ params, searchParams }:
     delegate_user_id?: string | null;
     delegated_task_ids?: string[] | null;
     manager_id?: string | null;
-  }> = extLeaveQuery.error
-    ? (await supabase
-        .from("leave_requests")
-        .select("id, user_id, leave_type, start_date, end_date, request_note, status, review_note, created_at")
-        .eq("organization_id", organizationId)
-        .gte("end_date", today)
-        .order("start_date")
-        .limit(300)).data ?? []
-    : extLeaveQuery.data ?? [];
-
-  const extMemQuery = await supabase
-    .from("organization_members")
-    .select("user_id, role, manager_id, status, designations")
-    .eq("organization_id", organizationId)
-    .eq("status", "active");
+  }> = (extLeaveQuery.data ?? []) as any[];
 
   const orgMembers: Array<{
     user_id: string;
     role: string;
     manager_id?: string | null;
     designations?: string[] | null;
-  }> = extMemQuery.error
-    ? (await supabase
-        .from("organization_members")
-        .select("user_id, role, status")
-        .eq("organization_id", organizationId)
-        .eq("status", "active")).data ?? []
-    : extMemQuery.data ?? [];
-
-  const [holidayResult, adminResult, reviewerResult] = await Promise.all([
-    supabase.from("organization_holidays").select("id, name, holiday_date, location").eq("organization_id", organizationId).gte("holiday_date", today).order("holiday_date").limit(200),
-    supabase.rpc("has_org_role", { target_org: organizationId, allowed_roles: ["owner", "admin"] }),
-    supabase.rpc("can_review_leave", { target_org: organizationId }),
-  ]);
+  }> = (extMemQuery.data ?? []) as any[];
 
   const holidays = holidayResult.data ?? [];
   const canAdmin = adminResult.data === true;

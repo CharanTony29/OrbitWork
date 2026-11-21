@@ -38,6 +38,7 @@ export default function TaskFilterToolbar({
   members,
   customFields = [],
   currentFilters,
+  onFiltersChange,
 }: {
   projectId: string;
   projectName?: string;
@@ -53,6 +54,15 @@ export default function TaskFilterToolbar({
     view?: string;
     group?: string;
   };
+  onFiltersChange?: (filters: {
+    q?: string;
+    status?: string;
+    priority?: string;
+    assignee?: string;
+    sort?: string;
+    view?: string;
+    group?: string;
+  }) => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -98,6 +108,15 @@ export default function TaskFilterToolbar({
   }, []);
 
   const updateParam = (key: string, value: string | null) => {
+    const nextFilters = { ...currentFilters };
+    if (value) {
+      (nextFilters as any)[key] = value;
+    } else {
+      delete (nextFilters as any)[key];
+    }
+    if (onFiltersChange) {
+      onFiltersChange(nextFilters);
+    }
     const params = new URLSearchParams(searchParams.toString());
     if (value) {
       params.set(key, value);
@@ -106,8 +125,10 @@ export default function TaskFilterToolbar({
     }
     params.delete("page"); // reset pagination on filter change
     const href = `${pathname}?${params.toString()}`;
-    notifyNavigationStart(href);
-    router.push(href);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", href);
+    }
+    router.replace(href, { scroll: false });
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -144,11 +165,17 @@ export default function TaskFilterToolbar({
   const selectedAssignee = members.find((m) => m.id === currentFilters.assignee);
 
   const clearAllFilters = () => {
+    const nextFilters = currentFilters.view ? { view: currentFilters.view } : {};
+    if (onFiltersChange) {
+      onFiltersChange(nextFilters);
+    }
     const params = new URLSearchParams();
     if (currentFilters.view) params.set("view", currentFilters.view);
     const href = `${pathname}?${params.toString()}`;
-    notifyNavigationStart(href);
-    router.push(href);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", href);
+    }
+    router.replace(href, { scroll: false });
   };
 
   const hasAnyFilter = Boolean(
