@@ -70,6 +70,8 @@ export async function POST(
   const json = await request.json().catch(() => null);
   const body = String(json?.body ?? "").trim();
   const projectId = String(json?.projectId ?? "");
+  const notifyEmail = Boolean(json?.notifyEmail);
+  const notifyUserIds = Array.isArray(json?.notifyUserIds) ? json.notifyUserIds.map(String) : [];
 
   if (!body) {
     return NextResponse.json({ error: "Comment body is required" }, { status: 400 });
@@ -105,12 +107,14 @@ export async function POST(
     return NextResponse.json({ error: error?.message || "Failed to post comment" }, { status: 500 });
   }
 
-  // Send mention notification emails before returning response
+  // Send mention & notify in-app alerts and optional emails before returning response
   await notifyMentionedUsers({
     projectId: targetProjectId,
     taskId,
     commentBody: body,
     authorId: user.id,
+    notifyEmail,
+    notifyUserIds,
   });
 
   // Get user profile

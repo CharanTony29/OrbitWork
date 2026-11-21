@@ -326,7 +326,7 @@ export default function MeetingRecordingStudioModal({
                 Meeting Studio: Audio to MoM &amp; Tasks
               </h2>
               <small style={{ fontSize: "11px", color: "var(--muted, #64748b)" }}>
-                Upload Zoom/Teams recording or paste transcript (Otter.ai alternate)
+                Upload Zoom/Teams recording or paste transcript
               </small>
             </div>
           </div>

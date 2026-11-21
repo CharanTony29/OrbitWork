@@ -16,6 +16,15 @@ function shouldIgnoreButton(btn: HTMLElement): boolean {
   if (btn.getAttribute("aria-expanded") !== null) return true;
   if (btn.classList.contains("view-tabs-customize-btn")) return true;
   if (btn.classList.contains("modal-close") || btn.getAttribute("aria-label") === "Close") return true;
+  if (
+    btn.classList.contains("chat-thread-row") ||
+    btn.closest(".chat-thread-row") ||
+    btn.closest(".chat-sidebar") ||
+    btn.closest(".chat-rail")
+  ) {
+    return true;
+  }
+  if (btn.classList.contains("tab-btn") || btn.classList.contains("topbar-btn")) return true;
   return false;
 }
 
@@ -212,7 +221,7 @@ function GlobalFeedbackManager() {
       const method = getRequestMethod(args);
       const isMutation = method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
 
-      if (applyBtn) {
+      if (applyBtn && isMutation) {
         setButtonBusy(applyBtn, true);
         busyButtonsRef.current.add(applyBtn);
       }

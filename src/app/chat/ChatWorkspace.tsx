@@ -1262,6 +1262,7 @@ export default function ChatWorkspace({
                   <button
                     key={thread.threadKey}
                     type="button"
+                    data-no-feedback="true"
                     className={`chat-thread-row ${isSelected ? "is-selected" : ""} ${isUnread ? "is-unread" : ""}`}
                     onMouseEnter={() => prefetchThread(thread.type, thread.target)}
                     onClick={() => {
@@ -1492,11 +1493,25 @@ export default function ChatWorkspace({
               <div
                 style={{
                   margin: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 8,
                   fontSize: "13px",
                   color: "var(--muted)",
                 }}
               >
-                Loading conversation history...
+                <div
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: "50%",
+                    border: "2px solid var(--line, #e2e8f0)",
+                    borderTopColor: "var(--green, #10b981)",
+                    animation: "spin 0.8s linear infinite",
+                  }}
+                />
+                <span>Loading conversation…</span>
               </div>
             ) : visibleMessages.length === 0 ? (
               <div

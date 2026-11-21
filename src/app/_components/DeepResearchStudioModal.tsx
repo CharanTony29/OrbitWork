@@ -359,7 +359,7 @@ export default function DeepResearchStudioModal() {
             <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--muted, #64748b)" }}>
               <Globe size={48} style={{ opacity: 0.3, margin: "0 auto 16px" }} />
               <h3 style={{ margin: "0 0 6px", color: "var(--ink, #1e293b)", fontSize: "16px" }}>
-                Perplexity-Grade Research Engine
+                AI Research Engine
               </h3>
               <p style={{ fontSize: "13px", maxWidth: "460px", margin: "0 auto", lineHeight: 1.5 }}>
                 Enter any engineering, market, architectural, or regulatory question to receive a structured report backed by verifiable sources and clear takeaways.

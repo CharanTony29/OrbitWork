@@ -2705,7 +2705,7 @@ export default function TaskTable({
                           }}
                           title={areAllExpanded ? "Collapse all subtasks" : "Expand all subtasks"}
                           style={{
-                            marginLeft: "auto",
+                            marginLeft: 8,
                             background: "transparent",
                             border: "1px solid var(--line, #e2e8f0)",
                             cursor: "pointer",
@@ -2717,6 +2717,7 @@ export default function TaskTable({
                             color: areAllExpanded ? "var(--green, #167c58)" : "var(--muted, #64748b)",
                             fontSize: 10,
                             fontWeight: 650,
+                            flexShrink: 0,
                           }}
                         >
                           {areAllExpanded ? <ChevronsDownUp size={11} /> : <ChevronsUpDown size={11} />}
@@ -2775,6 +2776,11 @@ export default function TaskTable({
             taskKey={activeCommentsTask.key}
             taskTitle={activeCommentsTask.title}
             projectId={projectId}
+            initialMembers={members.map((m) => ({
+              id: m.id,
+              name: m.label,
+              email: (m as any).email || "",
+            }))}
             onClose={() => setActiveCommentsTask(null)}
           />
         )}

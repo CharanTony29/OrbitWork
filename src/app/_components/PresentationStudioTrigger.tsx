@@ -34,7 +34,7 @@ export default function PresentationStudioTrigger({
         cursor: "pointer",
         transition: "all 0.15s ease",
       }}
-      title="Create executive pitch decks and presentations with AI (Gamma alternative)"
+      title="Create executive pitch decks and presentations with AI"
     >
       <Presentation size={13} style={{ color: "#7e22ce" }} />
       <span>AI Presentations</span>

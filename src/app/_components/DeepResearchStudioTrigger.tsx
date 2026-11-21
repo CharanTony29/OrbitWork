@@ -34,7 +34,7 @@ export default function DeepResearchStudioTrigger({
         cursor: "pointer",
         transition: "all 0.15s ease",
       }}
-      title="Conduct deep web research and cited market analysis (Perplexity alternative)"
+      title="Conduct deep web research and cited market analysis"
     >
       <Globe size={13} style={{ color: "#2563eb" }} />
       <span>Deep Research</span>

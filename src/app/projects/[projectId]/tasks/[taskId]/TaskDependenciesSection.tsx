@@ -271,12 +271,16 @@ export default function TaskDependenciesSection({
               className="dependency-task-dropdown"
               disabled={availableTasks.length === 0 || isPending}
               style={{
-                display: "flex",
-                alignItems: "center",
+                display: "block",
+                width: "100%",
+                maxWidth: "100%",
                 height: 38,
                 lineHeight: "36px",
-                padding: "0 12px",
-                verticalAlign: "middle",
+                padding: "0 28px 0 12px",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                boxSizing: "border-box",
               }}
             >
               <option value="" disabled>

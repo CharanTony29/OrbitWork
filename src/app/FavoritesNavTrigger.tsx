@@ -37,7 +37,22 @@ function getItemIcon(type: FavoriteItem["entity_type"]) {
 
 export default function FavoritesNavTrigger() {
   const [open, setOpen] = useState(false);
-  const [favorites, setFavorites] = useState<FavoriteItem[]>(() => cachedFavorites || []);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>(() => {
+    if (cachedFavorites && cachedFavorites.length > 0) return cachedFavorites;
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("orbitwork:favorites-cache");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            cachedFavorites = parsed;
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [activeTab, setActiveTab] = useState<"all" | "task" | "project" | "document">("all");
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -50,6 +65,9 @@ export default function FavoritesNavTrigger() {
       if (Array.isArray(data.favorites)) {
         cachedFavorites = data.favorites;
         setFavorites(data.favorites);
+        try {
+          localStorage.setItem("orbitwork:favorites-cache", JSON.stringify(data.favorites));
+        } catch {}
       }
     } catch {}
   }, []);

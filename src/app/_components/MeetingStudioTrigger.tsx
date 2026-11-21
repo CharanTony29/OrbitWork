@@ -36,7 +36,7 @@ export default function MeetingStudioTrigger({
         cursor: "pointer",
         transition: "all 0.15s ease",
       }}
-      title="Upload Zoom/Teams recording to generate MoM and Action Items (Otter.ai alternate)"
+      title="Upload Zoom/Teams recording to generate MoM and Action Items"
     >
       <Video size={13} style={{ color: "var(--green, #10b981)" }} />
       <span>Meeting Studio</span>

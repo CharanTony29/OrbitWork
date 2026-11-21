@@ -13,7 +13,8 @@ const sentDueRemindersToday = new Set<string>();
 export const sentHoursExhaustingAlerts = new Map<string, number>();
 
 export interface EmailOptions {
-  to: string;
+  to: string | string[];
+  cc?: string | string[];
   subject: string;
   html: string;
   text?: string;
@@ -62,7 +63,7 @@ export function getTransporter(): Transporter | null {
 /**
  * Send an email using SMTP if configured, or log to console in development.
  */
-export async function sendEmail({ to, subject, html, text, replyTo }: EmailOptions): Promise<{ ok: boolean; messageId?: string; simulated?: boolean; error?: string }> {
+export async function sendEmail({ to, cc, subject, html, text, replyTo }: EmailOptions): Promise<{ ok: boolean; messageId?: string; simulated?: boolean; error?: string }> {
   const config = getSmtpConfig();
   const transporter = getTransporter();
 
@@ -72,7 +73,8 @@ export async function sendEmail({ to, subject, html, text, replyTo }: EmailOptio
     // Simulated / Dev mode
     console.log("------------------------------------------------------------");
     console.log(`📧 [EMAIL NOTIFICATION (Simulated Mode)]`);
-    console.log(`To:      ${to}`);
+    console.log(`To:      ${Array.isArray(to) ? to.join(", ") : to}`);
+    if (cc) console.log(`Cc:      ${Array.isArray(cc) ? cc.join(", ") : cc}`);
     console.log(`From:    ${config.from}`);
     console.log(`Subject: ${subject}`);
     console.log(`Body:    ${plainText.slice(0, 200)}...`);
@@ -84,6 +86,7 @@ export async function sendEmail({ to, subject, html, text, replyTo }: EmailOptio
     const info = await transporter.sendMail({
       from: config.from,
       to,
+      ...(cc ? { cc } : {}),
       ...(replyTo ? { replyTo } : {}),
       subject,
       text: plainText,
@@ -919,20 +922,24 @@ export async function notifyTaskCompletedToCreator({
 }
 
 /**
- * Extract mentions from text and send emails to mentioned team members.
+ * Extract mentions and notified teammates from comment, trigger in-app notifications and send emails.
  */
 export async function notifyMentionedUsers({
   projectId,
   taskId,
   commentBody,
   authorId,
+  notifyEmail = false,
+  notifyUserIds = [],
 }: {
   projectId: string;
   taskId: string;
   commentBody: string;
   authorId: string;
+  notifyEmail?: boolean;
+  notifyUserIds?: string[];
 }) {
-  if (!commentBody || !commentBody.includes("@")) return;
+  if (!commentBody && (!notifyUserIds || notifyUserIds.length === 0)) return;
 
   try {
     const { createClient, createAdminClient } = await import("./supabase/server");
@@ -962,25 +969,97 @@ export async function notifyMentionedUsers({
 
     const author = authorContacts[0];
     const authorName = author?.display_name?.trim() || author?.email || "A teammate";
-    const mentioned = findMentionedContacts(commentBody, memberContacts);
+    const mentioned = commentBody.includes("@") ? findMentionedContacts(commentBody, memberContacts) : [];
+    const mentionedIds = new Set(mentioned.map((m) => m.id));
+    const extraNotified = memberContacts.filter((m) => (notifyUserIds ?? []).includes(m.id) && !mentionedIds.has(m.id));
 
-    await Promise.allSettled(
-      mentioned
-        .filter((r) => r.email)
-        .map((recipient) =>
-          sendUserMentionedEmail({
-            recipientEmail: recipient.email,
-            recipientName: recipient.display_name?.trim() || recipient.email,
-            authorName,
-            taskTitle: task.title,
-            taskKey: task.generated_key,
-            taskId: task.id,
-            projectName,
-            projectId,
-            commentBody,
-          })
-        )
-    );
+    if (mentioned.length === 0 && extraNotified.length === 0) return;
+
+    // Clean snippet for preview notification
+    const cleanSnippet = commentBody
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 110);
+
+    // 1. In-app notifications in Orbitwork notification inbox
+    const inAppRows = [
+      ...mentioned.map((r) => ({
+        recipient_id: r.id,
+        actor_id: authorId,
+        project_id: projectId,
+        task_id: taskId,
+        event_type: "task_mentioned",
+        message: `${authorName} mentioned you in a comment on "${task.title}": "${cleanSnippet}"`,
+        action_url: `/projects/${projectId}/tasks/${taskId}`,
+      })),
+      ...extraNotified.map((r) => ({
+        recipient_id: r.id,
+        actor_id: authorId,
+        project_id: projectId,
+        task_id: taskId,
+        event_type: "task_mentioned",
+        message: `${authorName} shared a comment on "${task.title}": "${cleanSnippet}"`,
+        action_url: `/projects/${projectId}/tasks/${taskId}`,
+      })),
+    ];
+
+    try {
+      const ins = await reader.from("notifications").insert(inAppRows);
+      if (ins.error) {
+        // Fallback without action_url in case the column is absent in older schema
+        await reader.from("notifications").insert(
+          inAppRows.map(({ recipient_id, actor_id, project_id, task_id, event_type, message }) => ({
+            recipient_id,
+            actor_id,
+            project_id,
+            task_id,
+            event_type,
+            message,
+          }))
+        );
+      }
+    } catch (notifErr) {
+      console.warn("Failed to insert comment in-app notifications:", notifErr);
+    }
+
+    // 2. Email notifications:
+    // "if select notify then it should send email to the mentioned person.
+    // Even if user dont want to mention someone in the comment but still want to notify give option
+    // notify people option to notify them as well with email, not mentioned people should be in CC and mentioned person should be in to."
+    if (notifyEmail) {
+      const toEmails = mentioned.map((r) => r.email).filter(Boolean);
+      const ccEmails = extraNotified.map((r) => r.email).filter(Boolean);
+
+      // If user did not @ mention anyone but selected people to notify, place them in TO
+      if (toEmails.length === 0 && ccEmails.length > 0) {
+        toEmails.push(...ccEmails);
+        ccEmails.length = 0;
+      }
+
+      if (toEmails.length > 0) {
+        const taskUrl = `${getAppUrl()}/projects/${projectId}/tasks/${taskId}`;
+        const subject = `[Task Comment] ${task.generated_key ? `${task.generated_key}: ` : ""}${task.title}`;
+        const html = emailWrapper(
+          `
+          <p>Hi,</p>
+          <p><strong>${authorName}</strong> left a comment on task <strong>${task.generated_key || "TASK"}: ${task.title}</strong> in <strong>${projectName}</strong>:</p>
+          <div class="card quote-box">
+            ${cleanSnippet || "Added a new comment"}
+          </div>
+          <a href="${taskUrl}" class="btn" style="background:#059669;color:#ffffff;display:inline-block;padding:9px 18px;text-decoration:none;border-radius:6px;font-weight:600;">View Task Discussion</a>
+        `,
+          subject
+        );
+
+        await sendEmail({
+          to: toEmails.join(", "),
+          cc: ccEmails.length > 0 ? ccEmails.join(", ") : undefined,
+          subject,
+          html,
+        });
+      }
+    }
   } catch (err) {
     console.error("Error notifying mentioned users:", err);
   }

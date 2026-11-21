@@ -66,7 +66,7 @@ export const TABLE_COL_WIDTHS_COOKIE = "orbitwork_col_widths";
 export const TABLE_FROZEN_COLS_COOKIE = "orbitwork_frozen_cols";
 
 export const DEFAULT_TABLE_COLUMN_WIDTHS: Record<string, number> = {
-  name: 340,
+  name: 240,
   assignee: 145,
   due_date: 145,
   priority: 120,

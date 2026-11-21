@@ -135,8 +135,7 @@
   }
 
   .dependency-task-select,
-  .dependency-type-select,
-  .dependency-task-dropdown {
+  .dependency-type-select {
     display: flex !important;
     align-items: center !important;
     width: 100% !important;
@@ -147,6 +146,22 @@
     vertical-align: middle !important;
     font-size: 12px !important;
     box-sizing: border-box !important;
+  }
+
+  .dependency-task-dropdown {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    padding: 0 28px 0 12px !important;
+    line-height: 36px !important;
+    vertical-align: middle !important;
+    font-size: 12px !important;
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
+    text-overflow: ellipsis !important;
+    overflow: hidden !important;
   }
 
   .dependency-submit-btn,
