@@ -69,7 +69,7 @@ export default async function WorkspacePage({
       .order("created_at", { ascending: false }),
     supabase
       .from("organization_members")
-      .select("user_id")
+      .select("user_id, role, primary_designation, designations")
       .eq("organization_id", workspace.organization_id)
       .eq("status", "active"),
     supabase
@@ -127,6 +127,12 @@ export default async function WorkspacePage({
       profile.display_name?.trim() || profile.email || "Team member",
     ])
   );
+  const emails = new Map(
+    (profiles ?? []).map((profile) => [
+      profile.id,
+      profile.email || "",
+    ])
+  );
 
   const activeWorkspaceMembers = (workspaceMembers ?? []).filter(
     (member) => member.status === "active"
@@ -139,6 +145,10 @@ export default async function WorkspacePage({
     .map((member) => ({
       user_id: member.user_id,
       name: people.get(member.user_id) ?? "Team member",
+      email: emails.get(member.user_id) || null,
+      orgRole: (member.role ?? "member") as string,
+      primaryDesignation: member.primary_designation || null,
+      designations: member.designations || [],
     }));
 
   const { error, member_added, member_removed, member_updated, invited, status_updated, project_deleted, drive, storage } =

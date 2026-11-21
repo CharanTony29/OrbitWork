@@ -979,6 +979,98 @@ export async function addWorkspaceMember(formData: FormData) {
   redirect(`/workspaces/${parsed.data.workspaceId}?member_added=1`);
 }
 
+export async function addMultipleWorkspaceMembersDirect(params: {
+  workspaceId: string;
+  members: Array<{
+    userId: string;
+    role: "admin" | "manager" | "member" | "viewer";
+  }>;
+}): Promise<{ success: boolean; count?: number; error?: string }> {
+  const parsed = z.object({
+    workspaceId: z.string().uuid(),
+    members: z.array(
+      z.object({
+        userId: z.string().uuid(),
+        role: z.enum(["admin", "manager", "member", "viewer"]),
+      })
+    ).min(1, "Select at least one member to add."),
+  }).safeParse(params);
+
+  if (!parsed.success) {
+    return { success: false, error: "Invalid workspace members payload." };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("organization_id, created_by")
+    .eq("id", parsed.data.workspaceId)
+    .maybeSingle();
+  if (!workspace) return { success: false, error: "Workspace not found." };
+
+  const [{ data: canManage }, { data: isOrgAdmin }, { data: org }] = await Promise.all([
+    supabase.rpc("can_manage_workspace", { target_workspace: parsed.data.workspaceId }),
+    supabase.rpc("has_org_role", {
+      target_org: workspace.organization_id,
+      allowed_roles: ["owner", "co_owner", "admin"],
+    }),
+    supabase.from("organizations").select("created_by").eq("id", workspace.organization_id).maybeSingle(),
+  ]);
+
+  const isWsCreator = workspace.created_by === user.id;
+  const isOrgCreator = org?.created_by === user.id;
+  const hasManageRights = Boolean(canManage || isWsCreator || isOrgCreator || isOrgAdmin);
+
+  if (!hasManageRights) {
+    return { success: false, error: "Only a workspace owner, admin, or manager can add workspace members." };
+  }
+
+  const isPrivilegedAdmin = Boolean(isOrgAdmin || isWsCreator || isOrgCreator);
+
+  // Filter and sanitize entries
+  const userIds = parsed.data.members.map((m) => m.userId);
+  const { data: validOrgMembers } = await supabase
+    .from("organization_members")
+    .select("user_id")
+    .eq("organization_id", workspace.organization_id)
+    .in("user_id", userIds)
+    .eq("status", "active");
+
+  const validSet = new Set((validOrgMembers ?? []).map((m) => m.user_id));
+  if (org?.created_by) validSet.add(org.created_by);
+
+  const sanitized = parsed.data.members
+    .filter((m) => validSet.has(m.userId))
+    .map((m) => ({
+      organization_id: workspace.organization_id,
+      workspace_id: parsed.data.workspaceId,
+      user_id: m.userId,
+      role: (m.role === "admin" && !isPrivilegedAdmin ? "manager" : m.role) as "admin" | "manager" | "member" | "viewer",
+      status: "active" as const,
+    }));
+
+  if (!sanitized.length) {
+    return { success: false, error: "None of the selected users are active organization members." };
+  }
+
+  const { error } = await supabase.from("workspace_members").upsert(
+    sanitized,
+    { onConflict: "workspace_id,user_id" }
+  );
+
+  if (error) {
+    console.error("[addMultipleWorkspaceMembersDirect] upsert error:", error);
+    return { success: false, error: error.message || "Failed to add workspace members." };
+  }
+
+  revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
+  revalidatePath("/dashboard");
+  return { success: true, count: sanitized.length };
+}
+
 export async function updateWorkspaceMemberRole(formData: FormData) {
   const parsed = z.object({
     workspaceId: z.string().uuid(),
