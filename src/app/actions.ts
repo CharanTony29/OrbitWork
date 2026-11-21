@@ -1035,6 +1035,64 @@ export async function updateWorkspaceMemberRole(formData: FormData) {
   redirect(`/workspaces/${parsed.data.workspaceId}?member_updated=1`);
 }
 
+export async function updateWorkspaceMemberRoleDirect(params: {
+  workspaceId: string;
+  userId: string;
+  role: "admin" | "manager" | "member" | "viewer";
+}): Promise<{ success: boolean; error?: string }> {
+  const parsed = z.object({
+    workspaceId: z.string().uuid(),
+    userId: z.string().uuid(),
+    role: z.enum(["admin", "manager", "member", "viewer"]),
+  }).safeParse(params);
+  if (!parsed.success) return { success: false, error: "Invalid workspace role payload" };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("organization_id, created_by")
+    .eq("id", parsed.data.workspaceId)
+    .maybeSingle();
+  if (!workspace) return { success: false, error: "Workspace not found" };
+
+  const [{ data: canManage }, { data: isOrgAdmin }, { data: org }] = await Promise.all([
+    supabase.rpc("can_manage_workspace", { target_workspace: parsed.data.workspaceId }),
+    supabase.rpc("has_org_role", {
+      target_org: workspace.organization_id,
+      allowed_roles: ["owner", "co_owner", "admin"],
+    }),
+    supabase.from("organizations").select("created_by").eq("id", workspace.organization_id).maybeSingle(),
+  ]);
+
+  const isWsCreator = workspace.created_by === user.id;
+  const isOrgCreator = org?.created_by === user.id;
+  const hasManageRights = Boolean(canManage || isWsCreator || isOrgCreator || isOrgAdmin);
+
+  if (!hasManageRights) {
+    return { success: false, error: "Forbidden: Only a workspace owner, admin, or manager can change workspace roles" };
+  }
+  if (parsed.data.role === "admin" && !isOrgAdmin && !isWsCreator && !isOrgCreator) {
+    return { success: false, error: "Forbidden: Only an organization admin or creator can assign the workspace admin role" };
+  }
+
+  const { error } = await supabase
+    .from("workspace_members")
+    .update({ role: parsed.data.role })
+    .eq("workspace_id", parsed.data.workspaceId)
+    .eq("user_id", parsed.data.userId);
+
+  if (error) {
+    console.error("[updateWorkspaceMemberRoleDirect] update error:", error);
+    return { success: false, error: error.message || "Failed to update workspace member role" };
+  }
+
+  revalidatePath(`/workspaces/${parsed.data.workspaceId}`);
+  return { success: true };
+}
+
 export async function removeWorkspaceMember(formData: FormData) {
   const parsed = z.object({
     workspaceId: z.string().uuid(),
@@ -1144,6 +1202,71 @@ export async function updateOrganizationMemberRole(formData: FormData) {
   redirect(`/organizations/${parsed.data.organizationId}/members?member_updated=1`);
 }
 
+export async function updateOrganizationMemberRoleDirect(params: {
+  organizationId: string;
+  userId: string;
+  role: "co_owner" | "admin" | "manager" | "member" | "viewer";
+}): Promise<{ success: boolean; error?: string }> {
+  const parsed = z.object({
+    organizationId: z.string().uuid(),
+    userId: z.string().uuid(),
+    role: z.enum(["co_owner", "admin", "manager", "member", "viewer"]),
+  }).safeParse(params);
+  if (!parsed.success) return { success: false, error: "Invalid role payload" };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  // Caller must be Owner, Co-Owner, or Admin
+  const { data: canManage } = await supabase.rpc("has_org_role", {
+    target_org: parsed.data.organizationId,
+    allowed_roles: ["owner", "co_owner", "admin"],
+  });
+  if (!canManage) return { success: false, error: "Forbidden: You do not have permission to manage roles in this organization." };
+
+  const { data: isOwner } = await supabase.rpc("has_org_role", {
+    target_org: parsed.data.organizationId,
+    allowed_roles: ["owner"],
+  });
+
+  // Fetch target member's current role
+  const { data: targetMember } = await supabase
+    .from("organization_members")
+    .select("role")
+    .eq("organization_id", parsed.data.organizationId)
+    .eq("user_id", parsed.data.userId)
+    .maybeSingle();
+
+  if (!targetMember) {
+    return { success: false, error: "Member not found" };
+  }
+
+  // Cannot demote or remove the Owner
+  if (targetMember.role === "owner") {
+    return { success: false, error: "The organization owner role cannot be changed" };
+  }
+
+  // Only Owner can assign or modify a Co-Owner
+  if ((parsed.data.role === "co_owner" || targetMember.role === "co_owner") && !isOwner) {
+    return { success: false, error: "Only the organization owner can assign or modify a Co-Owner" };
+  }
+
+  const { error } = await supabase
+    .from("organization_members")
+    .update({ role: parsed.data.role })
+    .eq("organization_id", parsed.data.organizationId)
+    .eq("user_id", parsed.data.userId);
+
+  if (error) {
+    console.error("updateOrganizationMemberRoleDirect error:", error);
+    return { success: false, error: error.message || "Failed to update member role" };
+  }
+
+  revalidatePath(`/organizations/${parsed.data.organizationId}/members`);
+  return { success: true };
+}
+
 export async function updateOrganizationMemberManager(formData: FormData) {
   const parsed = z.object({
     organizationId: z.string().uuid(),
@@ -1209,6 +1332,78 @@ export async function updateOrganizationMemberManager(formData: FormData) {
   revalidatePath(`/organizations/${organizationId}/members`);
   revalidatePath(`/organizations/${organizationId}/calendar`);
   redirect(`/organizations/${organizationId}/members?hierarchy_updated=1`);
+}
+
+export async function updateOrganizationMemberManagerDirect(params: {
+  organizationId: string;
+  userId: string;
+  managerId: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  const parsed = z.object({
+    organizationId: z.string().uuid(),
+    userId: z.string().uuid(),
+    managerId: z.union([z.literal(""), z.string().uuid(), z.null()]),
+  }).safeParse(params);
+  if (!parsed.success) return { success: false, error: "Invalid reporting manager selection" };
+  const { organizationId, userId } = parsed.data;
+  const managerId = parsed.data.managerId || null;
+
+  if (managerId && managerId === userId) {
+    return { success: false, error: "A member cannot report to themselves" };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const { data: isOwner } = await supabase.rpc("has_org_role", {
+    target_org: organizationId,
+    allowed_roles: ["owner"],
+  });
+  if (!isOwner) return { success: false, error: "Only the organization owner can modify reporting lines" };
+
+  if (managerId) {
+    const { data: members } = await supabase
+      .from("organization_members")
+      .select("user_id, manager_id")
+      .eq("organization_id", organizationId)
+      .eq("status", "active");
+
+    const parentByUser = new Map<string, string | null>(
+      (members ?? []).map((m) => [m.user_id, m.manager_id ?? null])
+    );
+
+    if (!parentByUser.has(managerId)) {
+      return { success: false, error: "Selected manager is not an active organization member" };
+    }
+
+    // Cycle check: walking up ancestors from managerId must never reach userId
+    let cursor: string | null = managerId;
+    const seen = new Set<string>();
+    while (cursor) {
+      if (cursor === userId) {
+        return { success: false, error: "Circular reporting line detected: cannot assign a subordinate as manager" };
+      }
+      if (seen.has(cursor)) break;
+      seen.add(cursor);
+      cursor = parentByUser.get(cursor) ?? null;
+    }
+  }
+
+  const { error } = await supabase
+    .from("organization_members")
+    .update({ manager_id: managerId })
+    .eq("organization_id", organizationId)
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("updateOrganizationMemberManagerDirect error:", error);
+    return { success: false, error: error.message || "Failed to update reporting manager" };
+  }
+
+  revalidatePath(`/organizations/${organizationId}/members`);
+  revalidatePath(`/organizations/${organizationId}/calendar`);
+  return { success: true };
 }
 
 export async function createOrganizationDesignation(formData: FormData) {
@@ -1360,7 +1555,7 @@ export async function updateMemberDesignations(formData: FormData) {
 
   revalidatePath(`/organizations/${organizationId}/members`);
   revalidatePath(`/organizations/${organizationId}/calendar`);
-  redirect(`/organizations/${organizationId}/members?member_updated=1`);
+  return { success: true };
 }
 
 export async function createProject(formData: FormData) {

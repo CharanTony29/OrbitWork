@@ -8,6 +8,10 @@ import { updateOrganizationMemberManager, updateOrganizationMemberRole } from "@
 import InviteMemberModal from "./InviteMemberModal";
 import DesignationsManagerModal from "./DesignationsManagerModal";
 import MemberDesignationsEditor from "./MemberDesignationsEditor";
+import AutoOrgMemberRoleSelect from "./AutoOrgMemberRoleSelect";
+import AutoOrgMemberManagerSelect from "./AutoOrgMemberManagerSelect";
+import UrlQueryCleaner from "@/app/UrlQueryCleaner";
+import DismissibleAlert from "@/app/DismissibleAlert";
 import { normalizeMemberDesignations, type OrganizationDesignation } from "@/lib/designations";
 
 export default async function OrganizationMembersPage({
@@ -197,12 +201,13 @@ export default async function OrganizationMembersPage({
               )}
             </div>
           </header>
-  {sp.invited && <p className="notice" role="status">Invitation sent successfully ({sp.invited} teammate{Number(sp.invited) > 1 ? "s" : ""}).</p>}
-  {sp.designation_created && <p className="notice" role="status">Designation / role created successfully.</p>}
-  {sp.designation_deleted && <p className="notice" role="status">Designation removed successfully.</p>}
-  {sp.error && <p className="error" role="alert">Hierarchy or role update could not be saved ({sp.error}). Check permissions and avoid circular reporting.</p>}
-  {(sp.hierarchy_updated || sp.member_updated) && <p className="notice" role="status">Organization member settings updated.</p>}
-  {!hierarchySupported && <p className="error" role="alert">Run <code>supabase/migrations/202611120003_platform_enhancements.sql</code> in Supabase to enable reporting hierarchy management.</p>}
+  <UrlQueryCleaner />
+  {sp.invited && <DismissibleAlert type="notice">Invitation sent successfully ({sp.invited} teammate{Number(sp.invited) > 1 ? "s" : ""}).</DismissibleAlert>}
+  {sp.designation_created && <DismissibleAlert type="notice">Designation / role created successfully.</DismissibleAlert>}
+  {sp.designation_deleted && <DismissibleAlert type="notice">Designation removed successfully.</DismissibleAlert>}
+  {sp.error && <DismissibleAlert type="error">Hierarchy or role update could not be saved ({sp.error}). Check permissions and avoid circular reporting.</DismissibleAlert>}
+  {(sp.hierarchy_updated || sp.member_updated) && <DismissibleAlert type="notice">Organization member settings updated.</DismissibleAlert>}
+  {!hierarchySupported && <DismissibleAlert type="error">Run <code>supabase/migrations/202611120003_platform_enhancements.sql</code> in Supabase to enable reporting hierarchy management.</DismissibleAlert>}
   <div className="organization-members-table-wrap"><table className="organization-members-table"><thead><tr><th>Member</th><th>Organization role</th><th>Designations (Multi-Role)</th><th>Reports to (Manager)</th><th>Workspace access and role</th><th>Status</th><th>Joined</th></tr></thead><tbody>{memberships.map((membership) => {
     const profile = profileById.get(membership.user_id);
     const name = getMemberLabel(membership.user_id);
@@ -220,43 +225,30 @@ export default async function OrganizationMembersPage({
         : (canManageOrg && membership.role !== "owner" && membership.role !== "co_owner")
     );
     return <tr key={membership.user_id}><td><div className="organization-member-person"><span className="organization-member-avatar">{profile?.avatar_url ? <img src={profile.avatar_url} alt={name} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /> : (name[0]?.toUpperCase() ?? "U")}</span><span><strong>{name}</strong>{profile?.email && profile.display_name?.trim() && <small>{profile.email}</small>}{profileDetails && <small>{profileDetails}</small>}</span></div></td><td>{canEditThisMemberRole ? (
-      <form action={updateOrganizationMemberRole} style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center" }}>
-        <input type="hidden" name="organizationId" value={organizationId} />
-        <input type="hidden" name="userId" value={membership.user_id} />
-        <select name="role" defaultValue={membership.role} style={{ fontSize: "0.82rem", padding: "0.25rem 0.5rem", borderRadius: "6px", border: "1px solid var(--border-color, #cbd5e1)" }}>
-          {isOwner && <option value="co_owner">Co-Owner</option>}
-          <option value="admin">Admin</option>
-          <option value="manager">Manager</option>
-          <option value="member">Member</option>
-          <option value="viewer">Viewer</option>
-        </select>
-        <button type="submit" className="button button-secondary" style={{ padding: "0.25rem 0.55rem", fontSize: "0.78rem" }}>Update</button>
-      </form>
+      <AutoOrgMemberRoleSelect
+        organizationId={organizationId}
+        userId={membership.user_id}
+        initialRole={membership.role}
+        isOwner={isOwner}
+      />
     ) : (
       <span className={`organization-role-badge role-${membership.role}`}>
         {membership.role === "co_owner" ? "Co-Owner" : membership.role}
       </span>
     )}</td><td><MemberDesignationsEditor organizationId={organizationId} userId={membership.user_id} memberName={name} currentDesignations={memberDesignations} primaryDesignation={primaryDesignation} allAvailableDesignations={customDesignations} canManage={isManagerOrHigher} /></td><td>{isOwner && hierarchySupported ? (
-      <form action={updateOrganizationMemberManager} style={{ display: "inline-flex", gap: "0.4rem", alignItems: "center" }}>
-        <input type="hidden" name="organizationId" value={organizationId} />
-        <input type="hidden" name="userId" value={membership.user_id} />
-        <select
-          name="managerId"
-          defaultValue={membership.manager_id ?? ""}
-          aria-label={`Immediate manager for ${name}`}
-          style={{ fontSize: "0.82rem", padding: "0.25rem 0.5rem", borderRadius: "6px", border: "1px solid var(--border-color, #cbd5e1)", maxWidth: "180px" }}
-        >
-          <option value="">Top level (No manager)</option>
-          {activeMembers
-            .filter((candidate) => candidate.user_id !== membership.user_id)
-            .map((candidate) => (
-              <option key={candidate.user_id} value={candidate.user_id}>
-                {getMemberLabel(candidate.user_id)} ({candidate.role})
-              </option>
-            ))}
-        </select>
-        <button type="submit" className="button button-secondary" style={{ padding: "0.25rem 0.55rem", fontSize: "0.78rem" }}>Save</button>
-      </form>
+      <AutoOrgMemberManagerSelect
+        organizationId={organizationId}
+        userId={membership.user_id}
+        initialManagerId={membership.manager_id ?? null}
+        candidates={activeMembers
+          .filter((candidate) => candidate.user_id !== membership.user_id)
+          .map((candidate) => ({
+            user_id: candidate.user_id,
+            label: getMemberLabel(candidate.user_id),
+            role: candidate.role,
+          }))}
+        memberName={name}
+      />
     ) : (
       <span style={{ fontSize: "12px", color: membership.manager_id ? "var(--ink)" : "var(--muted)" }}>{currentManagerName}</span>
     )}</td><td>{workspaceRoles.length ? <div className="organization-workspace-roles">{workspaceRoles.map((item) => <span key={`${item.name}-${item.role}`}><strong>{item.name}</strong><small>{item.role}</small></span>)}</div> : <span className="organization-member-muted">No workspace access</span>}</td><td><span className={`organization-member-status status-${membership.status}`}>{membership.status}</span></td><td>{new Date(membership.joined_at).toLocaleDateString()}</td></tr>;

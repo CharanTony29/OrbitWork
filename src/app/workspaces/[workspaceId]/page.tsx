@@ -8,6 +8,9 @@ import WorkspaceProjectsList from "./WorkspaceProjectsList";
 import WorkspaceInviteSection from "./WorkspaceInviteSection";
 import WorkspaceStorageSection from "./WorkspaceStorageSection";
 import DeleteWorkspaceButton from "../DeleteWorkspaceButton";
+import AutoWorkspaceMemberRoleSelect from "./AutoWorkspaceMemberRoleSelect";
+import UrlQueryCleaner from "@/app/UrlQueryCleaner";
+import DismissibleAlert from "@/app/DismissibleAlert";
 import { getWorkspaceStorageConfig } from "@/lib/storage-config";
 import TimesheetExportButton from "@/app/timesheets/TimesheetExportButton";
 
@@ -217,16 +220,17 @@ export default async function WorkspacePage({
           </div>
         </div>
 
-        {invited && <p className="notice" role="status">{Number(invited) > 1 ? `Invitation emails sent to ${invited} people.` : "Invitation email sent."}</p>}
-        {member_added && <p className="notice" role="status">Workspace access added.</p>}
-        {member_removed && <p className="notice" role="status">Workspace access removed.</p>}
-        {member_updated && <p className="notice" role="status">Workspace member role updated.</p>}
-        {status_updated && <p className="notice" role="status">Project status updated.</p>}
-        {project_deleted && <p className="notice" role="status">Project permanently deleted.</p>}
+        <UrlQueryCleaner />
+        {invited && <DismissibleAlert type="notice">{Number(invited) > 1 ? `Invitation emails sent to ${invited} people.` : "Invitation email sent."}</DismissibleAlert>}
+        {member_added && <DismissibleAlert type="notice">Workspace access added.</DismissibleAlert>}
+        {member_removed && <DismissibleAlert type="notice">Workspace access removed.</DismissibleAlert>}
+        {member_updated && <DismissibleAlert type="notice">Workspace member role updated.</DismissibleAlert>}
+        {status_updated && <DismissibleAlert type="notice">Project status updated.</DismissibleAlert>}
+        {project_deleted && <DismissibleAlert type="notice">Project permanently deleted.</DismissibleAlert>}
         {error && (
-          <p className="error" role="alert">
+          <DismissibleAlert type="error">
             {memberErrors[error] ?? "That change could not be saved. Check your access and try again."}
-          </p>
+          </DismissibleAlert>
         )}
 
         {/* 1. Projects Directory with Compact Top Creator & Inactive/Active Filter */}
@@ -267,39 +271,12 @@ export default async function WorkspacePage({
                     <strong>{people.get(member.user_id) ?? "Team member"}</strong>
                   </div>
                   {canManage ? (
-                    <form
-                      action={updateWorkspaceMemberRole}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-                    >
-                      <input type="hidden" name="workspaceId" value={workspaceId} />
-                      <input type="hidden" name="userId" value={member.user_id} />
-                      <select
-                        name="role"
-                        defaultValue={member.role}
-                        style={{
-                          height: 30,
-                          lineHeight: "28px",
-                          fontSize: 11,
-                          padding: "0 8px",
-                          borderRadius: 6,
-                          border: "1px solid #dfe5e0",
-                          background: "#fff",
-                          verticalAlign: "middle",
-                        }}
-                      >
-                        <option value="viewer">Viewer (Read-only)</option>
-                        <option value="member">Member (Can edit &amp; upload)</option>
-                        <option value="manager">Manager</option>
-                        {isOrgAdmin && <option value="admin">Admin</option>}
-                      </select>
-                      <button
-                        type="submit"
-                        className="button button-secondary"
-                        style={{ minHeight: 28, padding: "0 10px", fontSize: 11 }}
-                      >
-                        Update
-                      </button>
-                    </form>
+                    <AutoWorkspaceMemberRoleSelect
+                      workspaceId={workspaceId}
+                      userId={member.user_id}
+                      initialRole={member.role}
+                      isOrgAdmin={Boolean(isOrgAdmin)}
+                    />
                   ) : (
                     <span className="role-pill">{member.role}</span>
                   )}

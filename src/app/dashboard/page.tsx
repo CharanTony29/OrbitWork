@@ -6,6 +6,8 @@ import { getUserSpaceData } from "@/lib/workspace-space";
 import { createClient } from "@/lib/supabase/server";
 import { approveDeletionRequest, rejectDeletionRequest } from "@/app/actions";
 import OverviewCommandCenter from "./OverviewCommandCenter";
+import UrlQueryCleaner from "@/app/UrlQueryCleaner";
+import DismissibleAlert from "@/app/DismissibleAlert";
 
 const dashboardErrorMessages: Record<string, string> = {
   invalid_invitation: "Check the invitation details and selected workspace, then try again.",
@@ -82,26 +84,27 @@ export default async function Dashboard({
 
   const banner = (
     <>
+      <UrlQueryCleaner />
       {params.error && (
-        <p className="error banner-error ov-status-banner" role="alert">
+        <DismissibleAlert type="error">
           {dashboardErrorMessages[params.error] ??
             decodeURIComponent(params.error)}
-        </p>
+        </DismissibleAlert>
       )}
       {params.info === "deletion_request_submitted" && (
-        <p className="notice ov-status-banner" role="status">
+        <DismissibleAlert type="notice">
           Deletion request submitted. The Organization Owner has been notified for approval.
-        </p>
+        </DismissibleAlert>
       )}
       {params.deletion_approved && (
-        <p className="notice ov-status-banner" role="status">
+        <DismissibleAlert type="notice">
           Deletion request approved. The resource has been permanently deleted.
-        </p>
+        </DismissibleAlert>
       )}
       {params.deletion_rejected && (
-        <p className="notice ov-status-banner" role="status">
+        <DismissibleAlert type="notice">
           Deletion request rejected.
-        </p>
+        </DismissibleAlert>
       )}
       {pendingDeletionRequests.length > 0 && (
         <div
@@ -186,26 +189,26 @@ export default async function Dashboard({
         </div>
       )}
       {params.invited && (
-        <p className="notice ov-status-banner" role="status">
+        <DismissibleAlert type="notice">
           {Number(params.invited) > 1
             ? `Invitation emails sent to ${params.invited} people.`
             : "Invitation email sent."}
-        </p>
+        </DismissibleAlert>
       )}
       {params.invitation_accepted && (
-        <p className="notice ov-status-banner" role="status">
+        <DismissibleAlert type="notice">
           Invitation accepted. You now have access to the workspace.
-        </p>
+        </DismissibleAlert>
       )}
       {params.organization_deleted && (
-        <p className="notice ov-status-banner" role="status">
+        <DismissibleAlert type="notice">
           Organization deleted.
-        </p>
+        </DismissibleAlert>
       )}
       {params.organization_created && (
-        <p className="notice ov-status-banner" role="status">
+        <DismissibleAlert type="notice">
           Organization created.
-        </p>
+        </DismissibleAlert>
       )}
     </>
   );

@@ -16,12 +16,23 @@ export default async function AcceptInvitation({ searchParams }: { searchParams:
   // 2. Also run auto-acceptance for any pending invitations matching user's email
   await supabase.rpc("accept_user_pending_invitations");
 
-  if (error && !organizationId) {
-    // If token was already accepted or user is already an active member, gracefully proceed to dashboard
-    const { data: member } = await supabase.from("organization_members").select("organization_id").eq("user_id", user.id).maybeSingle();
-    if (member) {
-      redirect("/dashboard?invitation_accepted=1");
-    }
+  if (organizationId) {
+    redirect(`/organizations/${organizationId}?invitation_accepted=1`);
+  }
+
+  // If token was already accepted or user is already an active member, gracefully proceed to organization
+  const { data: members } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .limit(1);
+
+  if (members && members.length > 0) {
+    redirect(`/organizations/${members[0].organization_id}?invitation_accepted=1`);
+  }
+
+  if (error) {
+    console.error("[AcceptInvitation] RPC error:", error);
     redirect("/dashboard?error=invitation_accept_failed");
   }
 
