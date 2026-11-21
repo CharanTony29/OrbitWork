@@ -1454,7 +1454,60 @@ export async function createOrganizationDesignation(formData: FormData) {
     redirect(`/organizations/${organizationId}/members?error=designation_save_failed`);
   }
   revalidatePath(`/organizations/${organizationId}/members`);
-  redirect(`/organizations/${organizationId}/members?designation_created=1`);
+  return { success: true };
+}
+
+export async function createOrganizationDesignationDirect(params: {
+  organizationId: string;
+  name: string;
+  category?: string;
+  hierarchyLevel?: number;
+  description?: string;
+  color?: string;
+}): Promise<{ success: boolean; error?: string; designation?: any }> {
+  const parsed = z.object({
+    organizationId: z.string().uuid(),
+    name: z.string().trim().min(2).max(80),
+    category: z.string().trim().max(50).default("Custom"),
+    hierarchyLevel: z.coerce.number().min(1).max(10).default(5),
+    description: z.string().trim().max(500).default(""),
+    color: z.string().trim().default("#3b82f6"),
+  }).safeParse(params);
+  if (!parsed.success) return { success: false, error: "Invalid designation inputs. Name must be at least 2 characters." };
+  const { organizationId, name, category, hierarchyLevel, description, color } = parsed.data;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const { data: canManage } = await supabase.rpc("has_org_role", {
+    target_org: organizationId,
+    allowed_roles: ["owner", "admin", "manager"],
+  });
+  if (!canManage) return { success: false, error: "Forbidden: You do not have permission to manage designations" };
+
+  const { data: designation, error } = await supabase
+    .from("organization_designations")
+    .upsert({
+      organization_id: organizationId,
+      name,
+      category,
+      hierarchy_level: hierarchyLevel,
+      description,
+      color,
+      created_by: user.id,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "organization_id,name" })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("createOrganizationDesignationDirect error:", error);
+    return { success: false, error: error.message || "Failed to save designation" };
+  }
+
+  revalidatePath(`/organizations/${organizationId}/members`);
+  return { success: true, designation };
 }
 
 export async function deleteOrganizationDesignation(formData: FormData) {
@@ -1485,7 +1538,43 @@ export async function deleteOrganizationDesignation(formData: FormData) {
     .eq("organization_id", organizationId);
 
   revalidatePath(`/organizations/${organizationId}/members`);
-  redirect(`/organizations/${organizationId}/members?designation_deleted=1`);
+  return { success: true };
+}
+
+export async function deleteOrganizationDesignationDirect(params: {
+  organizationId: string;
+  designationId: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const parsed = z.object({
+    organizationId: z.string().uuid(),
+    designationId: z.string().uuid(),
+  }).safeParse(params);
+  if (!parsed.success) return { success: false, error: "Invalid designation ID" };
+  const { organizationId, designationId } = parsed.data;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const { data: canManage } = await supabase.rpc("has_org_role", {
+    target_org: organizationId,
+    allowed_roles: ["owner", "admin"],
+  });
+  if (!canManage) return { success: false, error: "Forbidden: Only owners and admins can remove designations" };
+
+  const { error } = await supabase
+    .from("organization_designations")
+    .delete()
+    .eq("id", designationId)
+    .eq("organization_id", organizationId);
+
+  if (error) {
+    console.error("deleteOrganizationDesignationDirect error:", error);
+    return { success: false, error: error.message || "Failed to delete designation" };
+  }
+
+  revalidatePath(`/organizations/${organizationId}/members`);
+  return { success: true };
 }
 
 export async function updateMemberDesignations(formData: FormData) {

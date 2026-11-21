@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Briefcase, X, Plus, Shield, Layers, Trash2 } from "lucide-react";
-import { createOrganizationDesignation, deleteOrganizationDesignation } from "@/app/actions";
+import { useRouter } from "next/navigation";
+import { Briefcase, X, Plus, Shield, Layers, Trash2, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import {
+  createOrganizationDesignationDirect,
+  deleteOrganizationDesignationDirect,
+} from "@/app/actions";
 import { DEFAULT_DESIGNATIONS, type OrganizationDesignation } from "@/lib/designations";
 
 export default function DesignationsManagerModal({
@@ -17,15 +21,114 @@ export default function DesignationsManagerModal({
   customDesignations: OrganizationDesignation[];
   canManage: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [isPending, setIsPending] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Local state for custom designations list so updates reflect immediately without closing or reloading
+  const [customItems, setCustomItems] = useState<OrganizationDesignation[]>(customDesignations);
+
+  // Controlled form state
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("Custom");
+  const [hierarchyLevel, setHierarchyLevel] = useState(6);
+  const [color, setColor] = useState("#10b981");
+  const [description, setDescription] = useState("");
+
+  useEffect(() => {
+    setCustomItems(customDesignations);
+  }, [customDesignations]);
 
   // Combine default system designations and custom org designations
   const allDesignations = [
     ...DEFAULT_DESIGNATIONS.map((d) => ({ ...d, isDefault: true })),
-    ...customDesignations.map((d) => ({ ...d, isDefault: false })),
+    ...customItems.map((d) => ({ ...d, isDefault: false })),
   ];
+
+  const handleSaveRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    setIsPending(true);
+    setStatusMsg(null);
+
+    try {
+      const res = await createOrganizationDesignationDirect({
+        organizationId,
+        name: trimmedName,
+        category,
+        hierarchyLevel,
+        description: description.trim(),
+        color,
+      });
+
+      if (res.success && res.designation) {
+        const newD: OrganizationDesignation = {
+          id: res.designation.id,
+          organization_id: res.designation.organization_id,
+          name: res.designation.name,
+          category: res.designation.category || "Custom",
+          hierarchy_level: Number(res.designation.hierarchy_level) || 5,
+          description: res.designation.description || "",
+          color: res.designation.color || "#3b82f6",
+        };
+
+        setCustomItems((prev) => {
+          const filtered = prev.filter(
+            (d) => d.id !== newD.id && d.name.toLowerCase() !== newD.name.toLowerCase()
+          );
+          return [...filtered, newD].sort(
+            (a, b) => a.hierarchy_level - b.hierarchy_level || a.name.localeCompare(b.name)
+          );
+        });
+
+        // Clear content and keep default values (window stays open!)
+        setName("");
+        setDescription("");
+        setCategory("Custom");
+        setHierarchyLevel(6);
+        setColor("#10b981");
+
+        setStatusMsg({ type: "success", text: `Designation "${newD.name}" saved successfully!` });
+        setTimeout(() => setStatusMsg(null), 4000);
+
+        // Background server sync without page reload
+        router.refresh();
+      } else {
+        setStatusMsg({ type: "error", text: res.error || "Failed to save designation" });
+      }
+    } catch (err: any) {
+      setStatusMsg({ type: "error", text: err?.message || "An unexpected error occurred" });
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const handleDeleteRole = async (designationId: string, roleName: string) => {
+    if (!confirm(`Are you sure you want to delete designation "${roleName}"?`)) return;
+
+    setStatusMsg(null);
+    try {
+      const res = await deleteOrganizationDesignationDirect({
+        organizationId,
+        designationId,
+      });
+
+      if (res.success) {
+        setCustomItems((prev) => prev.filter((d) => d.id !== designationId));
+        setStatusMsg({ type: "success", text: `Designation "${roleName}" removed successfully.` });
+        setTimeout(() => setStatusMsg(null), 3000);
+        router.refresh();
+      } else {
+        setStatusMsg({ type: "error", text: res.error || "Failed to delete designation" });
+      }
+    } catch (err: any) {
+      setStatusMsg({ type: "error", text: err?.message || "Failed to delete designation" });
+    }
+  };
 
   return (
     <>
@@ -81,7 +184,27 @@ export default function DesignationsManagerModal({
               </button>
             </div>
 
-            <div className="proj-modal-body" style={{ padding: "16px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div className="proj-modal-body" style={{ padding: "16px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: "14px" }}>
+              {/* Feedback status alert */}
+              {statusMsg && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    backgroundColor: statusMsg.type === "success" ? "#ecfdf5" : "#fef2f2",
+                    color: statusMsg.type === "success" ? "#047857" : "#b91c1c",
+                    border: `1px solid ${statusMsg.type === "success" ? "#a7f3d0" : "#fecaca"}`,
+                  }}
+                >
+                  {statusMsg.type === "success" ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
+                  <span>{statusMsg.text}</span>
+                </div>
+              )}
+
               {/* Header with Add Button */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, flexShrink: 0 }}>
                 <div>
@@ -100,7 +223,7 @@ export default function DesignationsManagerModal({
                     style={{ fontSize: "11.5px", padding: "5px 11px", display: "inline-flex", alignItems: "center", gap: 5 }}
                   >
                     <Plus size={13} />
-                    <span>{showAddForm ? "Cancel" : "Add Custom Role"}</span>
+                    <span>{showAddForm ? "Hide Form" : "Add Custom Role"}</span>
                   </button>
                 )}
               </div>
@@ -108,15 +231,7 @@ export default function DesignationsManagerModal({
               {/* Add Custom Designation Form */}
               {showAddForm && canManage && (
                 <form
-                  action={async (formData) => {
-                    setIsPending(true);
-                    try {
-                      await createOrganizationDesignation(formData);
-                      setShowAddForm(false);
-                    } finally {
-                      setIsPending(false);
-                    }
-                  }}
+                  onSubmit={handleSaveRole}
                   style={{
                     padding: "14px",
                     background: "var(--soft, #f8fafc)",
@@ -127,23 +242,25 @@ export default function DesignationsManagerModal({
                     flexShrink: 0,
                   }}
                 >
-                  <input type="hidden" name="organizationId" value={organizationId} />
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                     <label style={{ display: "grid", gap: 4, fontSize: "11px", fontWeight: 600 }}>
                       Role / Designation Name
                       <input
                         type="text"
-                        name="name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
                         placeholder="e.g. Staff Architect, Tech Lead, HR Executive"
                         required
+                        disabled={isPending}
                         style={{ padding: "6px 8px", fontSize: "12px", borderRadius: 6, border: "1px solid var(--border-color, #cbd5e1)" }}
                       />
                     </label>
                     <label style={{ display: "grid", gap: 4, fontSize: "11px", fontWeight: 600 }}>
                       Category / Department
                       <select
-                        name="category"
-                        defaultValue="Custom"
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        disabled={isPending}
                         style={{ padding: "6px 8px", fontSize: "12px", borderRadius: 6, border: "1px solid var(--border-color, #cbd5e1)" }}
                       >
                         <option value="Executive">Executive / C-Suite (CEO, COO, CTO)</option>
@@ -162,8 +279,9 @@ export default function DesignationsManagerModal({
                     <label style={{ display: "grid", gap: 4, fontSize: "11px", fontWeight: 600 }}>
                       Hierarchy Tier (Zoho-Style)
                       <select
-                        name="hierarchyLevel"
-                        defaultValue="6"
+                        value={hierarchyLevel}
+                        onChange={(e) => setHierarchyLevel(Number(e.target.value))}
+                        disabled={isPending}
                         style={{ padding: "6px 8px", fontSize: "12px", borderRadius: 6, border: "1px solid var(--border-color, #cbd5e1)" }}
                       >
                         <option value="1">Tier 1: C-Suite (CEO, COO, President)</option>
@@ -179,8 +297,9 @@ export default function DesignationsManagerModal({
                       Badge Color
                       <input
                         type="color"
-                        name="color"
-                        defaultValue="#10b981"
+                        value={color}
+                        onChange={(e) => setColor(e.target.value)}
+                        disabled={isPending}
                         style={{ height: 32, width: "100%", padding: 2, borderRadius: 6, border: "1px solid #cbd5e1", cursor: "pointer" }}
                       />
                     </label>
@@ -190,8 +309,10 @@ export default function DesignationsManagerModal({
                     Description &amp; Key Responsibilities
                     <input
                       type="text"
-                      name="description"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
                       placeholder="Brief summary of skills, expectations, and scope"
+                      disabled={isPending}
                       style={{ padding: "6px 8px", fontSize: "12px", borderRadius: 6, border: "1px solid var(--border-color, #cbd5e1)" }}
                     />
                   </label>
@@ -207,11 +328,12 @@ export default function DesignationsManagerModal({
                     </button>
                     <button
                       type="submit"
-                      disabled={isPending}
+                      disabled={isPending || !name.trim()}
                       className="button button-primary"
-                      style={{ fontSize: "11.5px", padding: "5px 14px" }}
+                      style={{ fontSize: "11.5px", padding: "5px 14px", display: "inline-flex", alignItems: "center", gap: 5 }}
                     >
-                      {isPending ? "Saving…" : "Save Role"}
+                      {isPending && <Loader2 size={12} className="animate-spin" />}
+                      <span>{isPending ? "Saving…" : "Save Role"}</span>
                     </button>
                   </div>
                 </form>
@@ -267,24 +389,21 @@ export default function DesignationsManagerModal({
                         {canManage && (
                           <td style={{ padding: "8px 12px", textAlign: "right" }}>
                             {!item.isDefault && item.id ? (
-                              <form action={deleteOrganizationDesignation} style={{ display: "inline" }}>
-                                <input type="hidden" name="organizationId" value={organizationId} />
-                                <input type="hidden" name="designationId" value={item.id} />
-                                <button
-                                  type="submit"
-                                  title="Delete custom role"
-                                  style={{
-                                    border: 0,
-                                    background: "transparent",
-                                    color: "#ef4444",
-                                    cursor: "pointer",
-                                    padding: "2px 6px",
-                                    borderRadius: 4,
-                                  }}
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </form>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteRole(item.id!, item.name)}
+                                title="Delete custom role"
+                                style={{
+                                  border: 0,
+                                  background: "transparent",
+                                  color: "#ef4444",
+                                  cursor: "pointer",
+                                  padding: "2px 6px",
+                                  borderRadius: 4,
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
                             ) : (
                               <span style={{ fontSize: "10px", color: "var(--muted)" }}>System</span>
                             )}

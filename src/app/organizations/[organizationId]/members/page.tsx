@@ -7,9 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { updateOrganizationMemberManager, updateOrganizationMemberRole } from "@/app/actions";
 import InviteMemberModal from "./InviteMemberModal";
 import DesignationsManagerModal from "./DesignationsManagerModal";
-import MemberDesignationsEditor from "./MemberDesignationsEditor";
-import AutoOrgMemberRoleSelect from "./AutoOrgMemberRoleSelect";
-import AutoOrgMemberManagerSelect from "./AutoOrgMemberManagerSelect";
+import OrganizationMembersTable from "./OrganizationMembersTable";
 import UrlQueryCleaner from "@/app/UrlQueryCleaner";
 import DismissibleAlert from "@/app/DismissibleAlert";
 import { normalizeMemberDesignations, type OrganizationDesignation } from "@/lib/designations";
@@ -208,51 +206,32 @@ export default async function OrganizationMembersPage({
   {sp.error && <DismissibleAlert type="error">Hierarchy or role update could not be saved ({sp.error}). Check permissions and avoid circular reporting.</DismissibleAlert>}
   {(sp.hierarchy_updated || sp.member_updated) && <DismissibleAlert type="notice">Organization member settings updated.</DismissibleAlert>}
   {!hierarchySupported && <DismissibleAlert type="error">Run <code>supabase/migrations/202611120003_platform_enhancements.sql</code> in Supabase to enable reporting hierarchy management.</DismissibleAlert>}
-  <div className="organization-members-table-wrap"><table className="organization-members-table"><thead><tr><th>Member</th><th>Organization role</th><th>Designations (Multi-Role)</th><th>Reports to (Manager)</th><th>Workspace access and role</th><th>Status</th><th>Joined</th></tr></thead><tbody>{memberships.map((membership) => {
-    const profile = profileById.get(membership.user_id);
-    const name = getMemberLabel(membership.user_id);
-    const memberDesignations = normalizeMemberDesignations(
-      membership.designations,
-      profile?.designation
-    );
-    const primaryDesignation = membership.primary_designation || profile?.designation || memberDesignations[0] || null;
-    const workspaceRoles = workspaceRoleByUser.get(membership.user_id) ?? [];
-    const profileDetails = [profile?.department, profile?.contact_information].filter(Boolean).join(" · ");
-    const currentManagerName = membership.manager_id ? getMemberLabel(membership.manager_id) : "Top level (No manager)";
-    const canEditThisMemberRole = Boolean(
-      isOwner
-        ? membership.role !== "owner"
-        : (canManageOrg && membership.role !== "owner" && membership.role !== "co_owner")
-    );
-    return <tr key={membership.user_id}><td><div className="organization-member-person"><span className="organization-member-avatar">{profile?.avatar_url ? <img src={profile.avatar_url} alt={name} style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} /> : (name[0]?.toUpperCase() ?? "U")}</span><span><strong>{name}</strong>{profile?.email && profile.display_name?.trim() && <small>{profile.email}</small>}{profileDetails && <small>{profileDetails}</small>}</span></div></td><td>{canEditThisMemberRole ? (
-      <AutoOrgMemberRoleSelect
-        organizationId={organizationId}
-        userId={membership.user_id}
-        initialRole={membership.role}
-        isOwner={isOwner}
-      />
-    ) : (
-      <span className={`organization-role-badge role-${membership.role}`}>
-        {membership.role === "co_owner" ? "Co-Owner" : membership.role}
-      </span>
-    )}</td><td><MemberDesignationsEditor organizationId={organizationId} userId={membership.user_id} memberName={name} currentDesignations={memberDesignations} primaryDesignation={primaryDesignation} allAvailableDesignations={customDesignations} canManage={isManagerOrHigher} /></td><td>{isOwner && hierarchySupported ? (
-      <AutoOrgMemberManagerSelect
-        organizationId={organizationId}
-        userId={membership.user_id}
-        initialManagerId={membership.manager_id ?? null}
-        candidates={activeMembers
-          .filter((candidate) => candidate.user_id !== membership.user_id)
-          .map((candidate) => ({
-            user_id: candidate.user_id,
-            label: getMemberLabel(candidate.user_id),
-            role: candidate.role,
-          }))}
-        memberName={name}
-      />
-    ) : (
-      <span style={{ fontSize: "12px", color: membership.manager_id ? "var(--ink)" : "var(--muted)" }}>{currentManagerName}</span>
-    )}</td><td>{workspaceRoles.length ? <div className="organization-workspace-roles">{workspaceRoles.map((item) => <span key={`${item.name}-${item.role}`}><strong>{item.name}</strong><small>{item.role}</small></span>)}</div> : <span className="organization-member-muted">No workspace access</span>}</td><td><span className={`organization-member-status status-${membership.status}`}>{membership.status}</span></td><td>{new Date(membership.joined_at).toLocaleDateString()}</td></tr>;
-  })}</tbody></table>{!memberships.length && <p className="organization-members-empty">No members found.</p>}</div>
+
+  <OrganizationMembersTable
+    organizationId={organizationId}
+    memberships={memberships}
+    profiles={(profiles ?? []).map((p) => ({
+      id: p.id,
+      display_name: p.display_name ?? "",
+      email: p.email ?? "",
+      avatar_url: p.avatar_url,
+      designation: p.designation,
+      designations: p.designations,
+      department: p.department,
+      contact_information: p.contact_information,
+    }))}
+    workspaceRoleByUser={Object.fromEntries(workspaceRoleByUser.entries())}
+    customDesignations={customDesignations}
+    activeCandidates={activeMembers.map((m) => ({
+      user_id: m.user_id,
+      label: getMemberLabel(m.user_id),
+      role: m.role,
+    }))}
+    isOwner={Boolean(isOwner)}
+    canManageOrg={Boolean(canManageOrg)}
+    hierarchySupported={hierarchySupported}
+    isManagerOrHigher={isManagerOrHigher}
+  />
 
   <section style={{ marginTop: "24px", border: "1px solid var(--line, #dfe5e0)", borderRadius: "12px", padding: "18px 20px", background: "var(--surface, #fff)" }}>
     <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", gap: "10px", flexWrap: "wrap" }}>
